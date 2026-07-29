@@ -226,59 +226,49 @@ const Hero = () => {
               <div className="flex items-center gap-1 text-amber-500">
                 {[1,2,3,4,5].map(i => <Star key={i} className="w-4 h-4 fill-current" />)}
 
-          <div className="mt-8 grid gap-3 sm:grid-cols-2 xl:grid-cols-4 max-w-5xl" data-testid="hero-quick-actions">
-            {[
-              {
-                title: "Partner Registration",
-                href: "/partner-register",
-                accent: "from-emerald-950 to-emerald-800",
-                icon: Building2,
-                cta: "Become a Partner",
-              },
-              {
-                title: "Member Registration",
-                href: "/register",
-                accent: "from-amber-500 to-amber-400",
-                icon: Users,
-                cta: "Create Member ID",
-              },
-              {
-                title: "Product Browser",
-                href: "/shop",
-                accent: "from-emerald-700 to-emerald-600",
-                icon: Store,
-                cta: "Browse Products",
-              },
-              {
-                title: "Partner & Services",
-                href: "/directory",
-                accent: "from-slate-800 to-slate-700",
-                icon: Globe,
-                cta: "View Partners",
-              },
-            ].map((item) => (
-              <Link
-                key={item.title}
-                to={item.href}
-                className="group rounded-[1.6rem] border border-white/10 bg-gradient-to-br from-emerald-950 via-emerald-900 to-emerald-800 p-4 text-white shadow-[0_14px_30px_rgba(4,47,46,0.24)] hover:-translate-y-0.5 hover:shadow-[0_18px_40px_rgba(4,47,46,0.28)] transition-all"
-                data-testid={`hero-quick-action-${item.title.toLowerCase().replace(/\s+/g, "-")}`}
-              >
-                <div className="flex items-start justify-between gap-3">
-                  <div>
+          <div className="mt-8 max-w-5xl rounded-[2rem] border border-white/10 bg-gradient-to-br from-emerald-950 via-emerald-900 to-emerald-800 p-3 md:p-4 shadow-[0_18px_40px_rgba(4,47,46,0.24)]" data-testid="hero-quick-actions">
+            <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+              {[
+                {
+                  title: "Partner Registration",
+                  href: "/partner-register",
+                  icon: Building2,
+                },
+                {
+                  title: "Member Registration",
+                  href: "/register",
+                  icon: Users,
+                },
+                {
+                  title: "Product Browser",
+                  href: "/shop",
+                  icon: Store,
+                },
+                {
+                  title: "Partner & Services",
+                  href: "/directory",
+                  icon: Globe,
+                },
+              ].map((item) => (
+                <Link
+                  key={item.title}
+                  to={item.href}
+                  className="group flex items-center gap-3 rounded-[1.5rem] border border-white/10 bg-white/6 px-4 py-3 text-white hover:bg-white/10 transition-all min-h-[86px]"
+                  data-testid={`hero-quick-action-${item.title.toLowerCase().replace(/\s+/g, "-")}`}
+                >
+                  <div className="w-11 h-11 rounded-2xl bg-white/10 border border-white/10 text-white flex items-center justify-center shrink-0 shadow-md backdrop-blur-sm">
+                    <item.icon className="w-5 h-5" />
+                  </div>
+                  <div className="min-w-0 flex-1">
                     <p className="text-[9px] uppercase tracking-[0.3em] text-amber-300 font-bold">Quick Access</p>
-                    <h3 className="mt-2 font-display font-black text-[1.25rem] md:text-[1.35rem] leading-tight tracking-tight text-white">
+                    <h3 className="mt-1 font-display font-black text-[1rem] md:text-[1.08rem] leading-tight tracking-tight text-white line-clamp-2">
                       {item.title}
                     </h3>
                   </div>
-                  <div className={`w-11 h-11 rounded-2xl bg-white/10 border border-white/10 text-white flex items-center justify-center shadow-md backdrop-blur-sm`}>
-                    <item.icon className="w-5 h-5" />
-                  </div>
-                </div>
-                <div className="mt-4 inline-flex items-center gap-1.5 rounded-full bg-amber-300 text-emerald-950 px-3 py-1.5 text-[11px] font-bold uppercase tracking-[0.18em]">
-                  {item.cta} <ChevronRight className="w-4 h-4" />
-                </div>
-              </Link>
-            ))}
+                  <ChevronRight className="w-4 h-4 text-amber-300 shrink-0 transition-transform group-hover:translate-x-0.5" />
+                </Link>
+              ))}
+            </div>
           </div>
               </div>
               <p className="text-xs text-slate-500 font-body mt-0.5">Trusted by growing partner offices across India</p>
