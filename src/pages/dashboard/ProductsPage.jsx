@@ -80,14 +80,19 @@ export default function ProductsPage() {
     }
   }, [isAdmin, searchParams]);
 
-  const toggleHideProduct = async (product) => {
+  const deleteProduct = async (product) => {
+    if (!window.confirm(`Delete ${product?.name || "this product"}? This cannot be undone.`)) return;
     try {
-      const updated = { ...product, hidden: !product.hidden };
-      await api.patch(`/products/${product.id}`, { hidden: updated.hidden });
-      setProducts(products.map(p => p.id === product.id ? updated : p));
-      toast.success(`Product ${updated.hidden ? 'hidden' : 'shown'}`);
+      await api.delete(`/products/${product.id}`);
+      setProducts((prev) => prev.filter((item) => item.id !== product.id));
+      setCart((prev) => {
+        const next = { ...prev };
+        delete next[product.id];
+        return next;
+      });
+      toast.success("Product deleted");
     } catch (err) {
-      toast.error(`Failed to ${product.hidden ? 'show' : 'hide'} product`);
+      toast.error(err?.response?.data?.detail || "Failed to delete product");
     }
   };
 
@@ -166,22 +171,15 @@ export default function ProductsPage() {
             <Pencil className="w-4 h-4" />
           </button>
           <button
-            onClick={() => toggleHideProduct(p)}
-            className={`w-8 h-8 rounded-full text-white flex items-center justify-center shadow-lg ${
-              p.hidden ? 'bg-slate-400 hover:bg-slate-500' : 'bg-amber-500 hover:bg-amber-600'
-            }`}
-            data-testid={`toggle-hide-product-${i}`}
-            title={p.hidden ? 'Show product' : 'Hide product'}
+            onClick={() => deleteProduct(p)}
+            className="w-8 h-8 rounded-full text-white flex items-center justify-center shadow-lg bg-amber-500 hover:bg-amber-600"
+            data-testid={`delete-product-${i}`}
+            title="Delete product"
           >
             <Trash2 className="w-4 h-4" />
           </button>
         </div>
       ) : null}
-      {p.hidden && isAdmin && (
-        <div className="absolute top-12 right-2 bg-slate-700 text-white text-[9px] px-2 py-1 rounded opacity-90">
-          HIDDEN
-        </div>
-      )}
       <div className="aspect-square overflow-hidden bg-secondary relative">
         <img src={p.image_url || undefined} alt={p.name} className="w-full h-full object-cover group-hover:scale-105 transition-transform" />
         <span className={
@@ -233,15 +231,11 @@ export default function ProductsPage() {
               type="button"
               size="sm"
               variant="outline"
-              onClick={() => toggleHideProduct(p)}
-              className={`rounded-full h-8 text-xs ${
-                p.hidden
-                  ? 'border-slate-300 text-slate-700 hover:bg-slate-50'
-                  : 'border-amber-200 text-amber-700 hover:bg-amber-50'
-              }`}
-              data-testid={`toggle-hide-product-row-${i}`}
+              onClick={() => deleteProduct(p)}
+              className="rounded-full h-8 text-xs border-amber-200 text-amber-700 hover:bg-amber-50"
+              data-testid={`delete-product-row-${i}`}
             >
-              <Trash2 className="w-3.5 h-3.5 mr-1" /> {p.hidden ? 'Show' : 'Hide'}
+              <Trash2 className="w-3.5 h-3.5 mr-1" /> Delete
             </Button>
           </div>
         ) : null}
