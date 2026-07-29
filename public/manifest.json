@@ -3,10 +3,10 @@
   "name": "METHO AAY-UPAY — ERP v3.0",
   "description": "India's most powerful direct-selling business platform. Aay hobe, Upay hobe.",
   "icons": [
-    { "src": "/icons/icon-192.png", "type": "image/png", "sizes": "192x192", "purpose": "any" },
-    { "src": "/icons/icon-512.png", "type": "image/png", "sizes": "512x512", "purpose": "any" },
-    { "src": "/icons/icon-maskable-192.png", "type": "image/png", "sizes": "192x192", "purpose": "maskable" },
-    { "src": "/icons/icon-maskable-512.png", "type": "image/png", "sizes": "512x512", "purpose": "maskable" }
+    { "src": "/icons/icon-192.svg", "type": "image/svg+xml", "sizes": "192x192", "purpose": "any" },
+    { "src": "/icons/icon-512.svg", "type": "image/svg+xml", "sizes": "512x512", "purpose": "any" },
+    { "src": "/icons/icon-maskable-192.svg", "type": "image/svg+xml", "sizes": "192x192", "purpose": "maskable" },
+    { "src": "/icons/icon-maskable-512.svg", "type": "image/svg+xml", "sizes": "512x512", "purpose": "maskable" }
   ],
   "start_url": "/",
   "scope": "/",
@@ -19,9 +19,9 @@
   "dir": "ltr",
   "prefer_related_applications": false,
   "shortcuts": [
-    { "name": "Dashboard", "short_name": "Home", "description": "View your wallet and stats", "url": "/app", "icons": [{ "src": "/icons/icon-192.png", "sizes": "192x192" }] },
-    { "name": "Shop Products", "short_name": "Shop", "description": "Browse METHO products", "url": "/shop", "icons": [{ "src": "/icons/icon-192.png", "sizes": "192x192" }] },
-    { "name": "Refer & Earn", "short_name": "Refer", "description": "Share referral link", "url": "/app", "icons": [{ "src": "/icons/icon-192.png", "sizes": "192x192" }] }
+    { "name": "Dashboard", "short_name": "Home", "description": "View your wallet and stats", "url": "/app", "icons": [{ "src": "/icons/icon-192.svg", "sizes": "192x192" }] },
+    { "name": "Shop Products", "short_name": "Shop", "description": "Browse METHO products", "url": "/shop", "icons": [{ "src": "/icons/icon-192.svg", "sizes": "192x192" }] },
+    { "name": "Refer & Earn", "short_name": "Refer", "description": "Share referral link", "url": "/app", "icons": [{ "src": "/icons/icon-192.svg", "sizes": "192x192" }] }
   ]
 }
 

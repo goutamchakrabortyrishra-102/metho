@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useRef } from "react";
 import { toast } from "sonner";
-import { Settings as SettingsIcon, Save, Sparkles, Users, PieChart, Award, QrCode, Upload, Loader2, MessageCircle, Gift, Image as ImageIcon, FileCheck2 } from "lucide-react";
+import { Settings as SettingsIcon, Save, Sparkles, Users, PieChart, Award, QrCode, Upload, Loader2, MessageCircle, Gift, Image as ImageIcon, FileCheck2, Share2, Copy } from "lucide-react";
 import api from "@/services/api";
 import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
@@ -234,6 +234,87 @@ function UpiSection({ form, setF, readOnly }) {
             </div>
           </div>
         </div>
+      </div>
+    </div>
+  );
+}
+
+function InstallShareSection() {
+  const installUrl = typeof window !== "undefined"
+    ? `${window.location.origin}/install`
+    : "https://methoaayupay.com/install";
+
+  const shareText = [
+    "METHO AAY-UPAY app install করুন:",
+    installUrl,
+    "Android: Open in Chrome and tap Install Now.",
+    "iPhone: Open in Safari, tap Share -> Add to Home Screen.",
+  ].join("\n");
+
+  const copyTemplate = async () => {
+    try {
+      await navigator.clipboard.writeText(shareText);
+      toast.success("Install share template copied");
+    } catch {
+      toast.error("Could not copy share template");
+    }
+  };
+
+  const shareWhatsapp = () => {
+    window.open(`https://wa.me/?text=${encodeURIComponent(shareText)}`, "_blank", "noopener,noreferrer");
+  };
+
+  const shareNative = async () => {
+    if (!navigator.share) {
+      shareWhatsapp();
+      return;
+    }
+    try {
+      await navigator.share({
+        title: "METHO AAY-UPAY Install",
+        text: shareText,
+        url: installUrl,
+      });
+    } catch {
+      // User cancelled share sheet.
+    }
+  };
+
+  return (
+    <div className="bg-white rounded-xl border border-border p-6" data-testid="install-share-section">
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <h3 className="font-display font-bold text-emerald-950">Install Link Share Template</h3>
+          <p className="text-xs text-muted-foreground font-body mt-0.5">
+            Admin dashboard থেকে ready message copy করে WhatsApp-এ share করতে পারবেন।
+          </p>
+        </div>
+        <span className="text-[10px] font-semibold uppercase tracking-widest bg-emerald-100 text-emerald-800 px-2 py-1 rounded-full">Install</span>
+      </div>
+
+      <div className="mt-4 rounded-lg border border-border bg-slate-50 p-3">
+        <p className="text-[11px] uppercase tracking-wider text-emerald-800 font-semibold">Install URL</p>
+        <p className="mt-1 font-mono text-xs text-slate-700 break-all" data-testid="settings-install-url">{installUrl}</p>
+      </div>
+
+      <Textarea
+        value={shareText}
+        readOnly
+        rows={6}
+        className="mt-3 font-mono text-xs"
+        data-testid="settings-install-share-template"
+      />
+
+      <div className="mt-3 flex flex-wrap gap-2">
+        <Button type="button" variant="outline" onClick={copyTemplate} className="rounded-full" data-testid="settings-install-share-copy">
+          <Copy className="w-4 h-4 mr-2" /> Copy Template
+        </Button>
+        <Button type="button" onClick={shareWhatsapp} className="rounded-full bg-[#25D366] hover:bg-[#20b858] text-white" data-testid="settings-install-share-whatsapp">
+          <MessageCircle className="w-4 h-4 mr-2" /> Share to WhatsApp
+        </Button>
+        <Button type="button" variant="outline" onClick={shareNative} className="rounded-full" data-testid="settings-install-share-native">
+          <Share2 className="w-4 h-4 mr-2" /> Share
+        </Button>
       </div>
     </div>
   );
@@ -837,6 +918,8 @@ export default function SettingsPage() {
           </Section>
 
           <ReferralMessageSection form={form} setF={setF} memberCode={user?.member_code} />
+
+          <InstallShareSection />
 
           <Section
             title="Partner Slab Pricing Policy"
