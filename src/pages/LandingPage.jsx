@@ -226,7 +226,7 @@ const Hero = () => {
               <div className="flex items-center gap-1 text-amber-500">
                 {[1,2,3,4,5].map(i => <Star key={i} className="w-4 h-4 fill-current" />)}
 
-          <div className="mt-8 max-w-5xl rounded-[2rem] border border-white/10 bg-gradient-to-br from-emerald-950 via-emerald-900 to-emerald-800 p-3 md:p-4 shadow-[0_18px_40px_rgba(4,47,46,0.24)]" data-testid="hero-quick-actions">
+          <div className="mt-8 max-w-5xl rounded-[2rem] border border-slate-200 bg-white p-3 md:p-4 shadow-[0_12px_30px_rgba(15,23,42,0.06)]" data-testid="hero-quick-actions">
             <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
               {[
                 {
@@ -253,19 +253,19 @@ const Hero = () => {
                 <Link
                   key={item.title}
                   to={item.href}
-                  className="group flex items-center gap-3 rounded-[1.5rem] border border-white/10 bg-white/6 px-4 py-3 text-white hover:bg-white/10 transition-all min-h-[86px]"
+                  className="group flex items-center gap-3 rounded-[1.5rem] border border-slate-200 bg-slate-50 px-4 py-3 text-slate-900 hover:bg-white transition-all min-h-[86px]"
                   data-testid={`hero-quick-action-${item.title.toLowerCase().replace(/\s+/g, "-")}`}
                 >
-                  <div className="w-11 h-11 rounded-2xl bg-white/10 border border-white/10 text-white flex items-center justify-center shrink-0 shadow-md backdrop-blur-sm">
+                  <div className="w-11 h-11 rounded-2xl bg-white border border-slate-200 text-slate-700 flex items-center justify-center shrink-0 shadow-sm">
                     <item.icon className="w-5 h-5" />
                   </div>
                   <div className="min-w-0 flex-1">
-                    <p className="text-[9px] uppercase tracking-[0.3em] text-amber-300 font-bold">Quick Access</p>
-                    <h3 className="mt-1 font-display font-black text-[1rem] md:text-[1.08rem] leading-tight tracking-tight text-white line-clamp-2">
+                    <p className="text-[9px] uppercase tracking-[0.3em] text-slate-400 font-bold">Quick Access</p>
+                    <h3 className="mt-1 font-display font-black text-[1rem] md:text-[1.08rem] leading-tight tracking-tight text-slate-900 line-clamp-2">
                       {item.title}
                     </h3>
                   </div>
-                  <ChevronRight className="w-4 h-4 text-amber-300 shrink-0 transition-transform group-hover:translate-x-0.5" />
+                  <ChevronRight className="w-4 h-4 text-slate-400 shrink-0 transition-transform group-hover:translate-x-0.5" />
                 </Link>
               ))}
             </div>
