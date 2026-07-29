@@ -72,7 +72,7 @@ const Nav = () => (
       <Logo showTagline />
       <nav className="hidden md:flex items-center gap-8 font-body text-sm">
         <a href="#features" className="text-slate-700 hover:text-emerald-900 transition-colors">Features</a>
-        <a href="#plan" className="text-slate-700 hover:text-emerald-900 transition-colors">Business Plan</a>
+        <a href="#plan" className="text-slate-700 hover:text-emerald-900 transition-colors">Growth Plan</a>
         <a href="#engine" className="text-slate-700 hover:text-emerald-900 transition-colors">Engine</a>
         <a href="#products" className="text-slate-700 hover:text-emerald-900 transition-colors">Products</a>
         <a href="#faq" className="text-slate-700 hover:text-emerald-900 transition-colors">FAQ</a>
@@ -144,24 +144,26 @@ const Hero = () => {
             </h1>
           ) : (
             <h1 className="mt-6 font-display font-black text-5xl md:text-6xl lg:text-7xl tracking-tighter leading-none text-emerald-950">
-              Aay hobe. <span className="text-amber-500 italic">Upay hobe.</span>
+              Build daily demand.
+              <span className="text-amber-500 italic">Grow reliable income.</span>
               <br />
-              <span className="text-3xl md:text-4xl lg:text-5xl font-bold text-slate-800">Your Income. Our System.</span>
+              <span className="text-3xl md:text-4xl lg:text-5xl font-bold text-slate-800">One product ecosystem for members and partners.</span>
             </h1>
           )}
           {subheading ? (
             <p className="mt-6 max-w-xl text-lg text-slate-600 font-body leading-relaxed">{subheading}</p>
           ) : (
             <p className="mt-6 max-w-2xl text-lg text-slate-600 font-body leading-relaxed">
-              METHOO STORE™ is India's most powerful direct-selling business platform — engineered for Partners, Leaders and Members.<br />
-              <span className="text-slate-500 text-base">A corporate office-ready earning ecosystem with genealogy, wallet, Smart Cycle and commission intelligence in one place.</span>
+              METHO brings product commerce, partner distribution and reward automation into one clean operating system.
+              <br />
+              <span className="text-slate-500 text-base">Launch faster, sell smarter and track growth without manual complexity.</span>
             </p>
           )}
           <div className="mt-6 grid gap-3 sm:grid-cols-3 max-w-2xl">
             {[
-              "Corporate onboarding flow",
-              "India-ready payout system",
-              "Smart team growth engine",
+              "Fast onboarding for field teams",
+              "India-ready payout controls",
+              "Smart growth and reward tracking",
             ].map((item) => (
               <div key={item} className="rounded-xl border border-emerald-900/10 bg-white/80 backdrop-blur px-4 py-3 text-sm font-medium text-slate-700 shadow-sm">
                 {item}
@@ -243,7 +245,7 @@ const Hero = () => {
                   <div className="flex items-start justify-between gap-3">
                     <div>
                       <p className="text-[10px] uppercase tracking-[0.28em] text-amber-300 font-bold">Associate Partner Network</p>
-                      <h3 className="mt-2 font-display font-black text-2xl text-white leading-tight">Professional shops, trusted offices, one earning ecosystem.</h3>
+                      <h3 className="mt-2 font-display font-black text-2xl text-white leading-tight">Verified partner businesses. Better local reach.</h3>
                     </div>
                     <div className="rounded-2xl bg-white/10 border border-white/15 p-3 text-white shrink-0">
                       <Store className="w-6 h-6" />
@@ -252,9 +254,9 @@ const Hero = () => {
 
                   <div className="mt-5 grid gap-3">
                     {[
-                      { name: "METHO Associate Desk", place: "Kolkata Office Belt", tag: "Featured Partner" },
-                      { name: "AAY Partner Hub", place: "Howrah Trade Circle", tag: "Fast Moving Products" },
-                      { name: "Upay Business Point", place: "North 24 Parganas", tag: "Member Reward Ready" },
+                      { name: "METHO Care Pharmacy", place: "Kolkata", tag: "Health & Wellness" },
+                      { name: "Nexa Mart Partner", place: "Howrah", tag: "Daily Essentials" },
+                      { name: "Upay Service Point", place: "North 24 Parganas", tag: "Member Benefits Ready" },
                     ].map((partner) => (
                       <div key={partner.name} className="rounded-2xl bg-white/10 border border-white/10 backdrop-blur px-4 py-3 text-white">
                         <div className="flex items-start justify-between gap-3">
@@ -270,14 +272,14 @@ const Hero = () => {
 
                   <div className="mt-auto grid grid-cols-2 gap-3">
                     <div className="bg-white/95 backdrop-blur rounded-xl p-4 border border-white/50 shadow-lg">
-                      <p className="text-[10px] uppercase tracking-[0.2em] text-emerald-800 font-semibold">This Month</p>
+                      <p className="text-[10px] uppercase tracking-[0.2em] text-emerald-800 font-semibold">Monthly Volume</p>
                       <p className="font-display font-black text-2xl text-emerald-950">₹4,82,340</p>
-                      <p className="text-xs text-slate-500">Total METHO Office Sales</p>
+                      <p className="text-xs text-slate-500">Partner channel product sales</p>
                     </div>
                     <div className="bg-white/95 backdrop-blur rounded-xl p-4 border border-white/50 shadow-lg">
-                      <p className="text-[10px] uppercase tracking-[0.2em] text-emerald-800 font-semibold">Network Ready</p>
+                      <p className="text-[10px] uppercase tracking-[0.2em] text-emerald-800 font-semibold">Catalog Depth</p>
                       <p className="font-display font-black text-2xl text-emerald-950">500+</p>
-                      <p className="text-xs text-slate-500">Associate-friendly products</p>
+                      <p className="text-xs text-slate-500">METHO and partner-ready SKUs</p>
                     </div>
                   </div>
                 </div>
@@ -289,10 +291,10 @@ const Hero = () => {
 
           <div className="mt-20 grid grid-cols-2 md:grid-cols-4 gap-4">
         {[
-          { n: "500+", l: "Active Partners" },
-          { n: "2K+", l: "Members" },
-          { n: "500+", l: "Products" },
-          { n: "28", l: "States Covered" },
+              { n: "500+", l: "Active Partners" },
+              { n: "2K+", l: "Registered Members" },
+              { n: "500+", l: "Live Products" },
+              { n: "28", l: "States Presence" },
         ].map((s, i) => (
           <div key={i} className="rounded-2xl bg-gradient-to-br from-white to-slate-50 border border-emerald-900/8 p-5 hover:shadow-md transition-shadow">
             <p className="font-display font-black text-3xl text-emerald-950">{s.n}</p>
@@ -451,24 +453,24 @@ const AssociatePartnerFinder = () => {
   }, [nameQuery, city, businessType, serviceQuery, category]);
 
   return (
-    <section className="py-16 bg-white" data-testid="landing-associate-partner-finder">
+    <section className="py-16 bg-gradient-to-b from-white to-emerald-50/35" data-testid="landing-associate-partner-finder">
       <div className="max-w-7xl mx-auto px-6">
         <div className="grid lg:grid-cols-12 gap-5">
-          <div className="lg:col-span-4 rounded-3xl border border-emerald-900/10 bg-gradient-to-br from-emerald-950 to-emerald-900 text-white p-6 md:p-7">
+          <div className="lg:col-span-4 rounded-3xl border border-emerald-900/10 bg-gradient-to-br from-emerald-950 via-emerald-900 to-emerald-800 text-white p-6 md:p-7 shadow-xl shadow-emerald-900/20">
             <p className="text-[10px] uppercase tracking-[0.28em] text-amber-300 font-bold">Associate Partner</p>
-            <h3 className="mt-2 font-display font-black text-3xl leading-tight">View Associate Partner</h3>
+            <h3 className="mt-2 font-display font-black text-3xl leading-tight">Find partner shops and services near you</h3>
             <p className="mt-3 text-sm text-emerald-100/85 font-body">
-              Name, city, business type, service বা category দিয়ে partner shop খুঁজুন।
+              Search by city, category, business type or service name. Every listing is built for fast discovery and direct shopping.
             </p>
             <div className="mt-5 space-y-2 text-xs text-emerald-100/85 font-semibold">
               <p>• Verified partner listings</p>
-              <p>• Fast city-wise search</p>
-              <p>• Direct shop visit and order</p>
+              <p>• City-wise filtering in seconds</p>
+              <p>• Direct visit and order flow</p>
             </div>
             <div className="mt-6 flex flex-wrap gap-3">
               <Link to="/directory" className="inline-flex" data-testid="landing-find-partner-open-directory">
                 <Button className="rounded-full bg-amber-400 text-emerald-950 hover:bg-amber-500 font-bold">
-                  Open Full Partner Directory <ChevronRight className="ml-1 w-4 h-4" />
+                  Open Partner Directory <ChevronRight className="ml-1 w-4 h-4" />
                 </Button>
               </Link>
               <Link to="/directory" className="inline-flex" data-testid="landing-find-partner-open-all-partners">
@@ -479,7 +481,7 @@ const AssociatePartnerFinder = () => {
             </div>
           </div>
 
-          <div className="lg:col-span-8 rounded-3xl border border-emerald-900/10 bg-slate-50 p-4 md:p-5">
+          <div className="lg:col-span-8 rounded-3xl border border-emerald-900/10 bg-white p-4 md:p-5 shadow-sm">
             <div className="grid md:grid-cols-2 xl:grid-cols-5 gap-2.5">
               <div className="xl:col-span-2 relative">
                 <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
@@ -532,9 +534,9 @@ const AssociatePartnerFinder = () => {
 
             <div className="mt-3 rounded-2xl border border-slate-200 bg-white p-3 min-h-[214px]">
               {loading ? (
-                <p className="text-sm text-slate-500">Searching partner shops...</p>
+                <p className="text-sm text-slate-500">Searching verified partner shops...</p>
               ) : results.length === 0 ? (
-                <p className="text-sm text-slate-500">No partner found for current filters.</p>
+                <p className="text-sm text-slate-500">No matching partner found. Try a nearby city or a broader category.</p>
               ) : (
                 <div className="grid sm:grid-cols-2 gap-2.5">
                   {results.map((p) => (
@@ -567,16 +569,21 @@ const Products = () => {
     api.get("/products").then(r => setProducts(r.data.filter(p => p.product_type === "metho").slice(0, 4))).catch(() => {});
   }, []);
   return (
-    <section id="products" className="py-24 bg-secondary/40">
-      <div className="max-w-7xl mx-auto px-6">
+    <section id="products" className="relative py-24 overflow-hidden bg-[radial-gradient(circle_at_10%_20%,rgba(16,185,129,0.12),transparent_38%),radial-gradient(circle_at_90%_0%,rgba(245,158,11,0.14),transparent_42%),linear-gradient(180deg,#f8faf9_0%,#eef7f2_100%)]">
+      <div className="absolute inset-0 grain opacity-20" />
+      <div className="absolute left-6 top-8 md:left-14 md:top-12 rounded-2xl border border-emerald-900/10 bg-white/80 backdrop-blur px-3 py-2 shadow-sm">
+        <p className="text-[10px] uppercase tracking-[0.24em] text-emerald-800 font-semibold">METHO Product Browser</p>
+      </div>
+      <div className="max-w-7xl mx-auto px-6 relative">
         <div className="flex flex-wrap items-end justify-between gap-4">
           <div>
-            <p className="text-xs uppercase tracking-[0.25em] text-emerald-800 font-semibold">Product Universe</p>
+            <p className="text-xs uppercase tracking-[0.25em] text-emerald-800 font-semibold">METHO Products</p>
             <h2 className="mt-3 font-display font-black text-4xl md:text-5xl tracking-tight text-emerald-950">
-              Premium products.
+              Products that move daily.
               <br />
-              <span className="text-amber-500 italic">Real ₹ Sales. Real earnings.</span>
+              <span className="text-amber-500 italic">Clean catalog. Fast partner sales.</span>
             </h2>
+            <p className="mt-3 text-slate-600 max-w-2xl">From essentials to high-demand picks, every item is designed for repeat purchase behavior and reliable business volume.</p>
           </div>
           <Link to="/shop" data-testid="products-view-all">
             <Button variant="outline" className="rounded-full border-emerald-900/20 hover:bg-emerald-50 hover:text-emerald-900">
@@ -584,10 +591,15 @@ const Products = () => {
             </Button>
           </Link>
         </div>
-        <div className="mt-12 grid grid-cols-2 md:grid-cols-4 gap-4">
+        <div className="mt-6 flex flex-wrap items-center gap-2 text-xs">
+          {["Fast moving", "Member-friendly pricing", "Partner-ready margins", "Real-time stock"].map((tag) => (
+            <span key={tag} className="rounded-full border border-emerald-900/10 bg-white/80 px-3 py-1 font-semibold text-emerald-900">{tag}</span>
+          ))}
+        </div>
+        <div className="mt-10 grid grid-cols-2 md:grid-cols-4 gap-4">
           {products.map((p, i) => (
-            <div key={p.id} className="group bg-white rounded-xl overflow-hidden border border-border hover:shadow-lg transition-all" data-testid={`product-card-${i}`}>
-              <div className="aspect-square overflow-hidden bg-secondary">
+            <div key={p.id} className="group bg-white/95 backdrop-blur rounded-2xl overflow-hidden border border-emerald-900/10 hover:shadow-xl hover:shadow-emerald-900/10 transition-all" data-testid={`product-card-${i}`}>
+              <div className="aspect-square overflow-hidden bg-gradient-to-br from-white to-emerald-50/40">
                 <img
                   src={p.image_url || FALLBACK_PRODUCT_IMG}
                   alt={p.name}
@@ -609,6 +621,15 @@ const Products = () => {
               </div>
             </div>
           ))}
+          {products.length === 0 && (
+            <div className="col-span-full rounded-2xl border border-emerald-900/10 bg-white/90 p-6 text-center">
+              <p className="font-display font-bold text-emerald-950">Product catalog is loading</p>
+              <p className="mt-1 text-sm text-slate-600">Open the shop to explore the full live METHO product browser.</p>
+              <Link to="/shop" className="inline-flex mt-4">
+                <Button variant="outline" className="rounded-full border-emerald-900/20 hover:bg-emerald-50 hover:text-emerald-900">Open Shop</Button>
+              </Link>
+            </div>
+          )}
         </div>
       </div>
     </section>
