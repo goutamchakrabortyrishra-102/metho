@@ -226,59 +226,56 @@ const Hero = () => {
               <div className="flex items-center gap-1 text-amber-500">
                 {[1,2,3,4,5].map(i => <Star key={i} className="w-4 h-4 fill-current" />)}
 
-          <div className="mt-8 grid gap-3 sm:grid-cols-2 xl:grid-cols-4 max-w-4xl" data-testid="hero-quick-actions">
+          <div className="mt-8 grid gap-3 sm:grid-cols-2 xl:grid-cols-4 max-w-5xl" data-testid="hero-quick-actions">
             {[
               {
                 title: "Partner Registration",
-                desc: "Open a partner account and start selling with commission support.",
                 href: "/partner-register",
-                cta: "Become a Partner",
                 accent: "from-emerald-950 to-emerald-800",
                 icon: Building2,
+                cta: "Become a Partner",
               },
               {
                 title: "Member Registration",
-                desc: "Join free, build your profile, and unlock member rewards.",
                 href: "/register",
-                cta: "Create Member ID",
                 accent: "from-amber-500 to-amber-400",
                 icon: Users,
+                cta: "Create Member ID",
               },
               {
                 title: "Product Browser",
-                desc: "Explore live products, pricing and cart-ready catalog items.",
                 href: "/shop",
-                cta: "Browse Products",
                 accent: "from-emerald-700 to-emerald-600",
                 icon: Store,
+                cta: "Browse Products",
               },
               {
                 title: "Partner & Services",
-                desc: "Find verified partner shops, services, and city-wise listings.",
                 href: "/directory",
-                cta: "View Partners",
                 accent: "from-slate-800 to-slate-700",
                 icon: Globe,
+                cta: "View Partners",
               },
             ].map((item) => (
               <Link
                 key={item.title}
                 to={item.href}
-                className="group rounded-[1.6rem] border border-emerald-900/10 bg-white/88 backdrop-blur p-4 shadow-[0_10px_30px_rgba(15,23,42,0.08)] hover:shadow-[0_16px_36px_rgba(15,23,42,0.12)] hover:-translate-y-0.5 transition-all"
+                className="group rounded-[1.6rem] border border-white/10 bg-gradient-to-br from-emerald-950 via-emerald-900 to-emerald-800 p-4 text-white shadow-[0_14px_30px_rgba(4,47,46,0.24)] hover:-translate-y-0.5 hover:shadow-[0_18px_40px_rgba(4,47,46,0.28)] transition-all"
                 data-testid={`hero-quick-action-${item.title.toLowerCase().replace(/\s+/g, "-")}`}
               >
                 <div className="flex items-start justify-between gap-3">
-                  <div className={`w-11 h-11 rounded-2xl bg-gradient-to-br ${item.accent} text-white flex items-center justify-center shadow-md shadow-emerald-900/10`}>
+                  <div>
+                    <p className="text-[9px] uppercase tracking-[0.3em] text-amber-300 font-bold">Quick Access</p>
+                    <h3 className="mt-2 font-display font-black text-[1.25rem] md:text-[1.35rem] leading-tight tracking-tight text-white">
+                      {item.title}
+                    </h3>
+                  </div>
+                  <div className={`w-11 h-11 rounded-2xl bg-white/10 border border-white/10 text-white flex items-center justify-center shadow-md backdrop-blur-sm`}>
                     <item.icon className="w-5 h-5" />
                   </div>
-                  <span className="text-[10px] uppercase tracking-[0.22em] text-emerald-800 font-semibold bg-emerald-50 px-2.5 py-1 rounded-full">
-                    Quick Access
-                  </span>
                 </div>
-                <h3 className="mt-3 font-display font-black text-lg text-emerald-950 leading-tight">{item.title}</h3>
-                <p className="mt-1.5 text-sm text-slate-600 leading-relaxed">{item.desc}</p>
-                <div className="mt-4 inline-flex items-center gap-1.5 text-sm font-semibold text-emerald-900 group-hover:text-emerald-950">
-                  {item.cta} <ChevronRight className="w-4 h-4 transition-transform group-hover:translate-x-0.5" />
+                <div className="mt-4 inline-flex items-center gap-1.5 rounded-full bg-amber-300 text-emerald-950 px-3 py-1.5 text-[11px] font-bold uppercase tracking-[0.18em]">
+                  {item.cta} <ChevronRight className="w-4 h-4" />
                 </div>
               </Link>
             ))}
@@ -296,33 +293,39 @@ const Hero = () => {
             <div className="absolute -left-3 top-10 bottom-10 w-1.5 rounded-full bg-gradient-to-b from-[#ff9933] via-white to-[#138808]" />
             <div className="relative rounded-[28px] overflow-hidden shadow-2xl border border-emerald-900/10 bg-white p-3">
               <div className="relative h-[480px] rounded-[22px] overflow-hidden bg-emerald-950">
-                <img src={NETWORK_IMG} alt="Associate partner network" className="absolute inset-0 w-full h-full object-cover opacity-15" />
+                <img src={NETWORK_IMG} alt="Associate partner network" className="absolute inset-0 w-full h-full object-cover opacity-12" />
                 <div className="absolute inset-0 bg-gradient-to-br from-emerald-950 via-emerald-900 to-emerald-950" />
 
-                <div className="relative z-10 p-5 h-full flex flex-col">
+                <div className="relative z-10 p-4 md:p-5 h-full flex flex-col">
                   <div className="flex items-start justify-between gap-3">
-                    <div>
-                      <p className="text-[10px] uppercase tracking-[0.28em] text-amber-300 font-bold">Associate Partner Network</p>
-                      <h3 className="mt-2 font-display font-black text-2xl text-white leading-tight">Verified partner businesses. Better local reach.</h3>
+                    <div className="max-w-[75%]">
+                      <p className="text-[9px] uppercase tracking-[0.3em] text-amber-300 font-bold">Associate Partner Network</p>
+                      <h3 className="mt-2 font-display font-black text-[1.45rem] md:text-[1.85rem] text-white leading-[1.05] tracking-tight">
+                        Verified partner businesses. Better local reach.
+                      </h3>
                     </div>
-                    <div className="rounded-2xl bg-white/10 border border-white/15 p-3 text-white shrink-0">
-                      <Store className="w-6 h-6" />
+                    <div className="rounded-2xl bg-white/10 border border-white/15 p-2.5 md:p-3 text-white shrink-0 backdrop-blur-sm">
+                      <Store className="w-5 h-5 md:w-6 md:h-6" />
                     </div>
                   </div>
 
-                  <div className="mt-5 grid gap-3">
+                  <div className="mt-4 grid gap-3">
                     {[
                       { name: "METHO Care Pharmacy", place: "Kolkata", tag: "Health & Wellness" },
                       { name: "Nexa Mart Partner", place: "Howrah", tag: "Daily Essentials" },
                       { name: "Upay Service Point", place: "North 24 Parganas", tag: "Member Benefits Ready" },
                     ].map((partner) => (
-                      <div key={partner.name} className="rounded-2xl bg-white/10 border border-white/10 backdrop-blur px-4 py-3 text-white">
+                      <div key={partner.name} className="rounded-2xl bg-white/10 border border-white/10 backdrop-blur px-4 py-3 text-white shadow-[0_8px_20px_rgba(0,0,0,0.08)]">
                         <div className="flex items-start justify-between gap-3">
                           <div>
-                            <p className="font-display font-bold text-base leading-tight">{partner.name}</p>
-                            <p className="mt-1 text-xs text-emerald-100/80 flex items-center gap-1.5"><MapPin className="w-3.5 h-3.5 text-amber-300" /> {partner.place}</p>
+                            <p className="font-display font-bold text-[0.96rem] md:text-[1.02rem] leading-tight tracking-tight">{partner.name}</p>
+                            <p className="mt-1 text-[11px] md:text-xs text-emerald-100/78 flex items-center gap-1.5">
+                              <MapPin className="w-3.5 h-3.5 text-amber-300" /> {partner.place}
+                            </p>
                           </div>
-                          <span className="shrink-0 rounded-full bg-amber-300 text-emerald-950 px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider">{partner.tag}</span>
+                          <span className="shrink-0 rounded-full bg-amber-300 text-emerald-950 px-2.5 py-1 text-[9px] md:text-[10px] font-bold uppercase tracking-wider whitespace-nowrap">
+                            {partner.tag}
+                          </span>
                         </div>
                       </div>
                     ))}
@@ -330,14 +333,14 @@ const Hero = () => {
 
                   <div className="mt-auto grid grid-cols-2 gap-3">
                     <div className="bg-white/95 backdrop-blur rounded-xl p-4 border border-white/50 shadow-lg">
-                      <p className="text-[10px] uppercase tracking-[0.2em] text-emerald-800 font-semibold">Monthly Volume</p>
-                      <p className="font-display font-black text-2xl text-emerald-950">₹4,82,340</p>
-                      <p className="text-xs text-slate-500">Partner channel product sales</p>
+                      <p className="text-[9px] uppercase tracking-[0.22em] text-emerald-800 font-semibold">Monthly Volume</p>
+                      <p className="font-display font-black text-[1.35rem] md:text-[1.75rem] text-emerald-950 leading-none mt-1">₹4,82,340</p>
+                      <p className="text-[11px] md:text-xs text-slate-500 mt-1">Partner channel product sales</p>
                     </div>
                     <div className="bg-white/95 backdrop-blur rounded-xl p-4 border border-white/50 shadow-lg">
-                      <p className="text-[10px] uppercase tracking-[0.2em] text-emerald-800 font-semibold">Catalog Depth</p>
-                      <p className="font-display font-black text-2xl text-emerald-950">500+</p>
-                      <p className="text-xs text-slate-500">METHO and partner-ready SKUs</p>
+                      <p className="text-[9px] uppercase tracking-[0.22em] text-emerald-800 font-semibold">Catalog Depth</p>
+                      <p className="font-display font-black text-[1.35rem] md:text-[1.75rem] text-emerald-950 leading-none mt-1">500+</p>
+                      <p className="text-[11px] md:text-xs text-slate-500 mt-1">METHO and partner-ready SKUs</p>
                     </div>
                   </div>
                 </div>
