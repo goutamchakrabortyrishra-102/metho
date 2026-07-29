@@ -13,6 +13,7 @@ from fastapi import APIRouter, Depends, File, HTTPException, Request, UploadFile
 from fastapi.responses import Response
 from reportlab.lib.pagesizes import A4
 from reportlab.pdfgen import canvas
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from ..database import get_db
@@ -2017,7 +2018,25 @@ def partners_list(db: Session = Depends(get_db), current_user=Depends(get_curren
 
 @router.post("/admin/partners")
 def admin_partners_create(payload: dict, db: Session = Depends(get_db), current_user=Depends(get_current_user)):
-    code = "MTH-PARTNER-" + str(db.query(AssociatePartner).count() + 1).zfill(3)
+    _require_admin_user(current_user)
+
+    existing_codes = {
+        str(row.partner_code or "").strip().upper()
+        for row in db.query(AssociatePartner.partner_code).all()
+        if row.partner_code
+    }
+    max_suffix = 0
+    for code in existing_codes:
+        if code.startswith("MTH-PARTNER-"):
+            suffix = code.replace("MTH-PARTNER-", "", 1)
+            if suffix.isdigit():
+                max_suffix = max(max_suffix, int(suffix))
+    next_suffix = max_suffix + 1
+    code = f"MTH-PARTNER-{next_suffix:03d}"
+    while code in existing_codes:
+        next_suffix += 1
+        code = f"MTH-PARTNER-{next_suffix:03d}"
+
     p = AssociatePartner(
         partner_code=code,
         business_name=str(payload.get("business_name") or "Partner Business"),
@@ -2032,8 +2051,12 @@ def admin_partners_create(payload: dict, db: Session = Depends(get_db), current_
         commission_percent=float(payload.get("commission_percent") or 10),
         active=bool(payload.get("active", True)),
     )
-    db.add(p)
-    db.commit()
+    try:
+        db.add(p)
+        db.commit()
+    except IntegrityError:
+        db.rollback()
+        raise HTTPException(status_code=409, detail="Partner code conflict. Please retry.")
     return {"ok": True, "id": p.id, "partner_code": p.partner_code}
 
 
