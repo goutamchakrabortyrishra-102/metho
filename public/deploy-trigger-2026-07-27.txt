@@ -1,0 +1,4 @@
+Deploy trigger for Cloudflare Pages
+Date: 2026-07-27
+Reason: force rebuild after landing page rollback
+Commit: f3a0290

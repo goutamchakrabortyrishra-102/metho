@@ -1,0 +1,1295 @@
+import React, { useEffect, useMemo, useState } from "react";
+import { toast } from "sonner";
+import { Store, Plus, Pencil, Trash2, TrendingUp, Percent, Building, FileSpreadsheet, FileDown, ScrollText, Star, MessageCircle, Images, Upload, CheckCircle2, XCircle, ChevronDown, Search, Eye, Network, Package } from "lucide-react";
+import { Navigate, Link, useNavigate } from "react-router-dom";
+import * as XLSX from "xlsx";
+import { jsPDF } from "jspdf";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
+import api from "@/services/api";
+import { useAuth } from "@/contexts/AuthContext";
+import OfflineBillingPanel from "@/components/OfflineBillingPanel";
+
+const inr = (v) => `₹${(Number(v) || 0).toLocaleString("en-IN", { maximumFractionDigits: 2 })}`;
+const mapsUrl = (p) => {
+  const q = [p.business_name, p.address, p.city, p.state, p.pincode].filter(Boolean).join(", ");
+  return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(q)}`;
+};
+
+const DEFAULT_BUSINESS_TYPES = [
+  "Retail Shop", "Super Market", "Pharmacy", "Restaurant",
+  "Service Provider", "Distributor", "Wholesaler", "Online Seller",
+];
+
+const EMPTY = {
+  business_name: "", business_type: "Retail Shop", contact_person: "", phone: "",
+  email: "", password: "", address: "", city: "", state: "", pincode: "", gst_no: "", commission_percent: 10,
+  upi_id: "", whatsapp_no: "", notes: "", active: true,
+};
+
+const DEFAULT_PARTNER_MESSAGE_TEMPLATES = [
+  "Hello {business_name}, this is METHO Admin. Your partner code is {partner_code}.",
+  "Dear {business_name}, please review your pending approvals in dashboard. - METHO Admin",
+  "Hi {contact_person}, your current partner city/category: {city} / {business_type}. - METHO Admin",
+];
+
+export default function PartnersPage() {
+  const { user } = useAuth();
+  const nav = useNavigate();
+  const isAdmin = user && (user.role === "super_admin" || user.role === "company_admin" || user.role === "admin");
+  const [partners, setPartners] = useState([]);
+  const [editing, setEditing] = useState(null); // partner object or {new: true}
+  const [form, setForm] = useState(EMPTY);
+  const [busy, setBusy] = useState(false);
+  const [ledger, setLedger] = useState(null); // {partner, entries}
+  const [deleteTarget, setDeleteTarget] = useState(null);
+  const [deleteBusy, setDeleteBusy] = useState(false);
+  const [topupPartner, setTopupPartner] = useState(null);
+  const [topupRequests, setTopupRequests] = useState([]);
+  const [topupBusy, setTopupBusy] = useState(false);
+  const [businessTypes, setBusinessTypes] = useState(DEFAULT_BUSINESS_TYPES);
+  const [cities, setCities] = useState([]);
+  const [newBusinessType, setNewBusinessType] = useState("");
+  const [newCity, setNewCity] = useState("");
+  const [metaBusy, setMetaBusy] = useState(false);
+  const [search, setSearch] = useState("");
+  const [cityFilter, setCityFilter] = useState("");
+  const [typeFilter, setTypeFilter] = useState("");
+  const [messageTemplates, setMessageTemplates] = useState(DEFAULT_PARTNER_MESSAGE_TEMPLATES);
+  const [newMessageTemplate, setNewMessageTemplate] = useState("");
+  const [templateBusy, setTemplateBusy] = useState(false);
+  const [messageTarget, setMessageTarget] = useState(null);
+  const [messageTemplateIndex, setMessageTemplateIndex] = useState(0);
+  const [messageDraft, setMessageDraft] = useState("");
+  const [cleanupBusy, setCleanupBusy] = useState(false);
+  const [loadError, setLoadError] = useState("");
+  const [showOfflineBilling, setShowOfflineBilling] = useState(false);
+  const [selectedPartnerId, setSelectedPartnerId] = useState("");
+
+  const getApiErrorMessage = (err, fallback) => {
+    const status = err?.response?.status;
+    const detail = err?.response?.data?.detail;
+    const message = err?.response?.data?.message;
+    const text = typeof err?.response?.data === "string" ? err.response.data : "";
+    const raw = detail || message || text || err?.message;
+    if (!raw && !status) return fallback;
+    if (!raw) return `${fallback} (${status})`;
+    return status ? `${raw} (${status})` : raw;
+  };
+
+  const tryRequests = async (requests) => {
+    let lastErr = null;
+    for (const run of requests) {
+      try {
+        return await run();
+      } catch (err) {
+        const status = err?.response?.status;
+        // Keep trying only when route/method/validation mismatch is likely.
+        if (![404, 405, 422].includes(status)) {
+          throw err;
+        }
+        lastErr = err;
+      }
+    }
+    if (lastErr) throw lastErr;
+    throw new Error("No request provided");
+  };
+
+  const hasValue = (arr, val) => arr.some((x) => String(x || "").trim().toLowerCase() === String(val || "").trim().toLowerCase());
+  const cleanPhone = (v) => String(v || "").replace(/[^\d]/g, "");
+  const addBusinessType = () => {
+    const v = newBusinessType.trim();
+    if (!v) return;
+    if (hasValue(businessTypes, v)) {
+      toast.error("এই category already আছে");
+      return;
+    }
+    setBusinessTypes((prev) => [...prev, v]);
+    setNewBusinessType("");
+  };
+  const removeBusinessType = (v) => setBusinessTypes((prev) => prev.filter((x) => String(x || "").trim().toLowerCase() !== String(v || "").trim().toLowerCase()));
+
+  const addCity = () => {
+    const v = newCity.trim();
+    if (!v) return;
+    if (hasValue(cities, v)) {
+      toast.error("এই city already আছে");
+      return;
+    }
+    setCities((prev) => [...prev, v]);
+    setNewCity("");
+  };
+  const removeCity = (v) => setCities((prev) => prev.filter((x) => String(x || "").trim().toLowerCase() !== String(v || "").trim().toLowerCase()));
+
+  const fillPartnerTemplate = (tpl, p) => {
+    const template = String(tpl || "").trim();
+    if (!template) return "";
+    const vars = {
+      "{business_name}": p?.business_name || "Partner",
+      "{contact_person}": p?.contact_person || p?.business_name || "Partner",
+      "{partner_code}": p?.partner_code || "",
+      "{city}": p?.city || "",
+      "{business_type}": p?.business_type || "",
+      "{phone}": p?.phone || "",
+    };
+    let out = template;
+    Object.entries(vars).forEach(([key, value]) => {
+      out = out.split(key).join(String(value || ""));
+    });
+    return out;
+  };
+
+  const saveBusinessTypes = async () => {
+    setMetaBusy(true);
+    try {
+      const { data } = await api.put("/admin/business-categories", { items: businessTypes });
+      setBusinessTypes(Array.isArray(data?.items) ? data.items : businessTypes);
+      toast.success("Business/Services categories saved");
+    } catch (err) {
+      toast.error(err?.response?.data?.detail || "Failed to save categories");
+    } finally {
+      setMetaBusy(false);
+    }
+  };
+
+  const saveCities = async () => {
+    setMetaBusy(true);
+    try {
+      const { data } = await api.put("/admin/cities", { items: cities });
+      setCities(Array.isArray(data?.items) ? data.items : cities);
+      toast.success("Cities saved");
+    } catch (err) {
+      toast.error(err?.response?.data?.detail || "Failed to save cities");
+    } finally {
+      setMetaBusy(false);
+    }
+  };
+
+  const addMessageTemplate = () => {
+    const v = newMessageTemplate.trim();
+    if (!v) return;
+    if (hasValue(messageTemplates, v)) {
+      toast.error("এই template already আছে");
+      return;
+    }
+    setMessageTemplates((prev) => [...prev, v]);
+    setNewMessageTemplate("");
+  };
+
+  const removeMessageTemplate = (v) => {
+    setMessageTemplates((prev) => prev.filter((x) => String(x || "").trim().toLowerCase() !== String(v || "").trim().toLowerCase()));
+  };
+
+  const saveMessageTemplates = async () => {
+    setTemplateBusy(true);
+    try {
+      const { data } = await api.put("/admin/partner-message-templates", { items: messageTemplates });
+      const items = Array.isArray(data?.items) && data.items.length ? data.items : DEFAULT_PARTNER_MESSAGE_TEMPLATES;
+      setMessageTemplates(items);
+      toast.success("Partner message templates saved");
+    } catch (err) {
+      toast.error(err?.response?.data?.detail || "Failed to save message templates");
+    } finally {
+      setTemplateBusy(false);
+    }
+  };
+
+  const loadTopupRequests = async (partnerId) => {
+    try {
+      const { data } = await api.get("/admin/partner-wallet/topup-requests?status_filter=pending");
+      setTopupRequests((data || []).filter((r) => r.partner_id === partnerId));
+    } catch (err) {
+      toast.error(err?.response?.data?.detail || "Failed to load top-up requests");
+      setTopupRequests([]);
+    }
+  };
+
+  const openTopupDialog = async (partner) => {
+    setTopupPartner(partner);
+    await loadTopupRequests(partner.id);
+  };
+
+  const approveTopup = async (reqId) => {
+    setTopupBusy(true);
+    try {
+      await api.post(`/admin/partner-wallet/topup-requests/${reqId}/approve`, {});
+      toast.success("Top-up approved and wallet credited");
+      await load();
+      await loadTopupRequests(topupPartner.id);
+    } catch (err) {
+      toast.error(err?.response?.data?.detail || "Approve failed");
+    } finally {
+      setTopupBusy(false);
+    }
+  };
+
+  const rejectTopup = async (reqId) => {
+    setTopupBusy(true);
+    try {
+      await api.post(`/admin/partner-wallet/topup-requests/${reqId}/reject`, {});
+      toast.success("Top-up rejected");
+      await loadTopupRequests(topupPartner.id);
+    } catch (err) {
+      toast.error(err?.response?.data?.detail || "Reject failed");
+    } finally {
+      setTopupBusy(false);
+    }
+  };
+
+  const uploadTopupQr = async (partnerId, file) => {
+    if (!file) return;
+    if (file.size > 5 * 1024 * 1024) {
+      toast.error("File too large (max 5MB)");
+      return;
+    }
+    const fd = new FormData();
+    fd.append("file", file);
+    try {
+      await api.post(`/admin/partners/${partnerId}/upload-metho-topup-qr`, fd, {
+        headers: { "Content-Type": "multipart/form-data" },
+      });
+      toast.success("METHO top-up QR uploaded for this partner");
+    } catch (err) {
+      toast.error(err?.response?.data?.detail || "QR upload failed");
+    }
+  };
+
+  const openLedger = async (p) => {
+    try {
+      const { data } = await api.get(`/admin/partners/${p.id}/ledger`);
+      setLedger(data);
+    } catch (err) { toast.error("Failed to load ledger"); }
+  };
+
+  const sendPartnerMessage = (p) => {
+    const phone = cleanPhone(p.whatsapp_no || p.phone);
+    if (!phone) {
+      toast.error("Partner phone/WhatsApp not found");
+      return;
+    }
+    const firstTemplate = messageTemplates[0] || DEFAULT_PARTNER_MESSAGE_TEMPLATES[0];
+    setMessageTarget(p);
+    setMessageTemplateIndex(0);
+    setMessageDraft(fillPartnerTemplate(firstTemplate, p));
+  };
+
+  const applyTemplateToDraft = (idx, partner = messageTarget) => {
+    const safeIdx = Number(idx) || 0;
+    const tpl = messageTemplates[safeIdx] || "";
+    setMessageTemplateIndex(safeIdx);
+    setMessageDraft(fillPartnerTemplate(tpl, partner));
+  };
+
+  const openWhatsappWithDraft = () => {
+    const p = messageTarget;
+    if (!p) return;
+    const phone = cleanPhone(p.whatsapp_no || p.phone);
+    if (!phone) {
+      toast.error("Partner phone/WhatsApp not found");
+      return;
+    }
+    if (!messageDraft.trim()) {
+      toast.error("Message empty");
+      return;
+    }
+    window.open(`https://wa.me/${phone}?text=${encodeURIComponent(messageDraft.trim())}`, "_blank");
+    setMessageTarget(null);
+  };
+
+  const cleanupDemoPartners = async () => {
+    if (cleanupBusy) return;
+    setCleanupBusy(true);
+    try {
+      const previewResp = await tryRequests([
+        () => api.post("/admin/partners/cleanup-demo", { confirm: false }),
+        () => api.post("/admin/partners/cleanup-demo", { preview: true }),
+        () => api.get("/admin/partners/cleanup-demo?preview=true"),
+      ]);
+      const candidates = Array.isArray(previewResp?.data?.candidates) ? previewResp.data.candidates : [];
+      if (!candidates.length) {
+        toast.success("No demo/test partner found");
+        return;
+      }
+
+      const proceed = window.confirm(`Found ${candidates.length} demo/test partners. Delete now?`);
+      if (!proceed) return;
+
+      const code = window.prompt("Type DELETE_DEMO_PARTNERS to confirm permanent delete:\n(Case-sensitive, no extra spaces)", "");
+      if (!code || code.trim() !== "DELETE_DEMO_PARTNERS") {
+        if (code === null) {
+          toast.info("Cleanup cancelled.");
+        } else {
+          toast.error(`Cleanup cancelled. You typed "${code}" but must type exactly: DELETE_DEMO_PARTNERS`);
+        }
+        return;
+      }
+
+      const { data } = await tryRequests([
+        () => api.post("/admin/partners/cleanup-demo", { confirm: true, confirm_text: code }),
+        () => api.post("/admin/partners/cleanup-demo", { confirm: code }),
+        () => api.post("/admin/partners/cleanup-demo", { confirm_text: code }),
+      ]);
+      toast.success(`Deleted ${data?.deleted_count || 0} demo/test partners`);
+      await load();
+    } catch (err) {
+      toast.error(getApiErrorMessage(err, "Demo partner cleanup failed"));
+    } finally {
+      setCleanupBusy(false);
+    }
+  };
+
+  const filteredPartners = useMemo(() => {
+    const term = search.trim().toLowerCase();
+    return partners.filter((p) => {
+      const matchesText = !term || [
+        p.business_name,
+        p.partner_code,
+        p.business_type,
+        p.city,
+        p.phone,
+        p.whatsapp_no,
+        String(p.total_sales || ""),
+        String(p.total_commission_paid || ""),
+      ]
+        .filter(Boolean)
+        .some((v) => String(v).toLowerCase().includes(term));
+      const matchesCity = !cityFilter || String(p.city || "").trim().toLowerCase() === cityFilter.trim().toLowerCase();
+      const matchesType = !typeFilter || String(p.business_type || "").trim().toLowerCase() === typeFilter.trim().toLowerCase();
+      return matchesText && matchesCity && matchesType;
+    });
+  }, [partners, search, cityFilter, typeFilter]);
+
+  const selectedPartner = useMemo(
+    () => partners.find((p) => String(p.id || "") === String(selectedPartnerId || "")) || null,
+    [partners, selectedPartnerId]
+  );
+
+  const exportLedgerExcel = () => {
+    if (!ledger) return;
+    const wb = XLSX.utils.book_new();
+    const p = ledger.partner;
+    const summaryRows = [
+      ["METHOO STORE — Partner Ledger", ""],
+      ["Partner Code", p.partner_code], ["Business Name", p.business_name],
+      ["Business Type", p.business_type], ["Contact", `${p.contact_person} · ${p.phone}`],
+      ["GST No", p.gst_no || "—"], ["Commission %", p.commission_percent],
+      ["Total Sales", p.total_sales || 0], ["Total Commission Paid", p.total_commission_paid || 0],
+      ["Generated", new Date().toLocaleString()], [],
+    ];
+    const s1 = XLSX.utils.aoa_to_sheet(summaryRows);
+    s1["!cols"] = [{ wch: 30 }, { wch: 30 }];
+    XLSX.utils.book_append_sheet(wb, s1, "Summary");
+
+    const entryRows = [
+      ["Date", "Order Ref", "Period", "Sales (₹)", "Commission %", "Commission (₹)"],
+      ...ledger.entries.map((e) => [
+        new Date(e.created_at).toLocaleString(),
+        e.ref_order_id, e.period,
+        e.sales_amount, e.commission_percent, e.commission_amount,
+      ]),
+      [], ["TOTAL", "", "", ledger.entries.reduce((s, e) => s + (e.sales_amount || 0), 0), "", ledger.entries.reduce((s, e) => s + (e.commission_amount || 0), 0)],
+    ];
+    const s2 = XLSX.utils.aoa_to_sheet(entryRows);
+    s2["!cols"] = [{ wch: 24 }, { wch: 40 }, { wch: 12 }, { wch: 15 }, { wch: 15 }, { wch: 18 }];
+    XLSX.utils.book_append_sheet(wb, s2, "Ledger Entries");
+
+    XLSX.writeFile(wb, `Partner_${p.partner_code}_Ledger.xlsx`);
+    toast.success("Ledger exported");
+  };
+
+  const downloadPartnerPdf = (p) => {
+    const doc = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
+    const W = doc.internal.pageSize.getWidth();
+
+    doc.setFillColor(5, 46, 22);
+    doc.rect(0, 0, W, 28, "F");
+    doc.setTextColor(255, 255, 255);
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(16);
+    doc.text("METHOO STORE Partner Profile", 10, 12);
+    doc.setFontSize(8);
+    doc.setFont("helvetica", "normal");
+    doc.text(`Generated: ${new Date().toLocaleString()}`, 10, 20);
+
+    let y = 40;
+    const write = (label, value) => {
+      doc.setTextColor(71, 85, 105);
+      doc.setFont("helvetica", "bold");
+      doc.setFontSize(8);
+      doc.text(label, 10, y);
+      doc.setTextColor(5, 46, 22);
+      doc.setFont("helvetica", "normal");
+      doc.text(String(value ?? "—"), 55, y);
+      y += 7;
+    };
+
+    write("Partner Code", p.partner_code);
+    write("Business Name", p.business_name);
+    write("Business Type", p.business_type);
+    write("Contact Person", p.contact_person);
+    write("Phone", p.phone);
+    write("WhatsApp", p.whatsapp_no || p.phone);
+    write("Email", p.email || "—");
+    write("GST No", p.gst_no || "—");
+    write("Commission %", `${p.commission_percent ?? p.agreement_percent ?? 0}%`);
+    write("Status", p.active !== false ? "Active" : "Inactive");
+    write("Address", p.address || "—");
+    write("City", p.city || "—");
+    write("State", p.state || "—");
+    write("Pincode", p.pincode || "—");
+    y += 4;
+
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(10);
+    doc.text("Financial Summary", 10, y);
+    y += 6;
+    doc.setFont("helvetica", "normal");
+    write("Total Sales", inr(p.total_sales || 0));
+    write("Commission Paid", inr(p.total_commission_paid || 0));
+    write("Reserve Wallet", inr(p.wallet?.balance || 0));
+
+    doc.setTextColor(148, 163, 184);
+    doc.setFontSize(7);
+    doc.text(`Partner shop: ${window.location.origin}/partner-shop/${p.partner_code}`, 10, 285);
+    doc.save(`Partner_${p.partner_code}_Profile.pdf`);
+    toast.success("Partner PDF downloaded");
+  };
+
+  const load = () => api.get("/admin/partners")
+    .then((r) => {
+      setPartners(Array.isArray(r.data) ? r.data : []);
+      setLoadError("");
+    })
+    .catch(async (err) => {
+      try {
+        const fb = await api.get("/partners");
+        const rows = Array.isArray(fb.data) ? fb.data : [];
+        const mapped = rows.map((p) => ({
+          ...p,
+          contact_person: p.contact_person || "",
+          address: p.address || "",
+          city: p.city || "",
+          state: p.state || "",
+          pincode: p.pincode || "",
+          gst_no: p.gst_no || "",
+          upi_id: p.upi_id || "",
+          whatsapp_no: p.whatsapp_no || p.phone || "",
+          agreement_percent: p.commission_percent ?? 10,
+          total_commission_paid: Number(p.total_commission_paid || 0),
+          wallet: p.wallet || { balance: 0, total_credit: 0, total_debit: 0 },
+          pending_topup_requests: Number(p.pending_topup_requests || 0),
+          is_featured: !!p.is_featured,
+        }));
+        setPartners(mapped);
+        const detail = err?.response?.data?.detail;
+        const status = err?.response?.status;
+        setLoadError(`Admin feed issue (${status || "network"}). Fallback list loaded.${detail ? ` ${detail}` : ""}`);
+        return;
+      } catch {
+        const detail = err?.response?.data?.detail;
+        const status = err?.response?.status;
+        const msg = detail || (status ? `Load failed (${status})` : "Load failed");
+        setLoadError(msg);
+        toast.error(msg);
+      }
+    });
+  useEffect(() => { if (isAdmin) load(); /* eslint-disable-next-line */ }, [isAdmin]);
+  useEffect(() => {
+    if (!isAdmin) return;
+    api.get("/admin/business-categories")
+      .then((r) => {
+        const items = Array.isArray(r.data?.items) ? r.data.items : [];
+        if (items.length) setBusinessTypes(items);
+      })
+      .catch(() => {});
+    api.get("/admin/cities")
+      .then((r) => {
+        const items = Array.isArray(r.data?.items) ? r.data.items : [];
+        setCities(items);
+      })
+      .catch(() => {});
+
+    api.get("/admin/partner-message-templates")
+      .then((r) => {
+        const items = Array.isArray(r.data?.items) ? r.data.items : [];
+        if (items.length) setMessageTemplates(items);
+      })
+      .catch(() => {});
+  }, [isAdmin]);
+
+  useEffect(() => {
+    if (!partners.length) {
+      setSelectedPartnerId("");
+      return;
+    }
+    if (!selectedPartnerId || !partners.some((p) => String(p.id) === String(selectedPartnerId))) {
+      setSelectedPartnerId(String(partners[0].id));
+    }
+  }, [partners, selectedPartnerId]);
+
+  if (!isAdmin) return <Navigate to="/app" replace />;
+
+  const openNew = () => { setForm(EMPTY); setEditing({ new: true }); };
+  const openEdit = (p) => {
+    setForm({
+      business_name: p.business_name, business_type: p.business_type,
+      contact_person: p.contact_person, phone: p.phone, email: p.email || "",
+      password: "", address: p.address, city: p.city || "", state: p.state || "", pincode: p.pincode || "", gst_no: p.gst_no || "", commission_percent: p.commission_percent ?? 10,
+      upi_id: p.upi_id || "", whatsapp_no: p.whatsapp_no || "", notes: p.notes || "", active: p.active !== false,
+    });
+    setEditing(p);
+  };
+
+  const toggleFeatured = async (p) => {
+    try {
+      const { data } = await api.post(`/admin/partners/${p.id}/toggle-featured`);
+      toast.success(data.is_featured ? `⭐ ${p.business_name} is now Featured!` : `Unfeatured ${p.business_name}`);
+      load();
+    } catch (err) {
+      toast.error(err?.response?.data?.detail || "Failed");
+    }
+  };
+
+  const save = async (e) => {
+    e.preventDefault();
+    setBusy(true);
+    try {
+      const payload = {
+        ...form,
+        login_password: (form.password || "").trim() || undefined,
+      };
+      delete payload.password;
+      if (editing?.new) {
+        const { data } = await api.post("/admin/partners", payload);
+        toast.success("Partner registered!");
+        if (data?.login_email && data?.login_password) {
+          window.prompt(
+            `Partner login created. Copy and share now (shown once):\nID: ${data.login_email}`,
+            data.login_password
+          );
+        }
+      } else {
+        await api.put(`/admin/partners/${editing.id}`, payload);
+        toast.success("Partner updated");
+      }
+      setEditing(null);
+      load();
+    } catch (err) {
+      toast.error(err?.response?.data?.detail || "Save failed");
+    } finally { setBusy(false); }
+  };
+
+  const deactivate = async (p) => {
+    if (!window.confirm(`Block ${p.business_name}? তারা login করতে পারবে না কিন্তু data থাকবে।`)) return;
+    try {
+      await api.delete(`/admin/partners/${p.id}`);
+      toast.success("Partner blocked");
+      load();
+    } catch (err) {
+      toast.error(err?.response?.data?.detail || "Failed");
+    }
+  };
+
+  const reactivate = async (p) => {
+    if (!window.confirm(`Reactivate ${p.business_name}?`)) return;
+    try {
+      await api.post(`/admin/partners/${p.id}/reactivate`);
+      toast.success(`${p.business_name} reactivated`);
+      load();
+    } catch (err) {
+      toast.error(err?.response?.data?.detail || "Reactivate failed");
+    }
+  };
+
+  const deletePartner = async () => {
+    if (!deleteTarget) return;
+    setDeleteBusy(true);
+    try {
+      await tryRequests([
+        () => api.delete(`/admin/partners/${deleteTarget.id}/permanent`),
+        () => api.delete(`/admin/partners/${deleteTarget.id}?permanent=true`),
+        () => api.post(`/admin/partners/${deleteTarget.id}/permanent`),
+        () => api.post(`/admin/partners/${deleteTarget.id}/delete`, { permanent: true }),
+      ]);
+      toast.success(`${deleteTarget.business_name} permanently deleted`);
+      setDeleteTarget(null);
+      await load();
+    } catch (err) {
+      toast.error(getApiErrorMessage(err, "Delete failed"));
+    } finally { setDeleteBusy(false); }
+  };
+
+  const totalSales = partners.reduce((s, p) => s + (p.total_sales || 0), 0);
+  const totalCommission = partners.reduce((s, p) => s + (p.total_commission_paid || 0), 0);
+
+  return (
+    <div className="space-y-6" data-testid="partners-page">
+      <div className="flex flex-wrap items-end justify-between gap-4">
+        <div>
+          <p className="text-xs uppercase tracking-[0.2em] text-emerald-800 font-semibold">Admin</p>
+          <h1 className="font-display font-black text-3xl md:text-4xl text-emerald-950 tracking-tight mt-1">Associate Partners</h1>
+          <p className="text-sm text-muted-foreground font-body mt-1">
+            Partner approval-এ requested commission auto-apply হবে। Admin এখান থেকে edit, deactivate, delete, feature, এবং ledger control করবে।
+          </p>
+        </div>
+        <div className="flex items-center gap-2">
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="outline" className="rounded-full h-11" data-testid="partners-admin-controls-trigger">
+                Partner Admin Control <ChevronDown className="w-4 h-4 ml-2" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-64">
+              <DropdownMenuItem onClick={() => { setSearch(""); setCityFilter(""); setTypeFilter(""); load(); }}>
+                <Eye className="w-4 h-4 mr-2" /> View All Partners
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => nav("/app/partner-approvals")}>
+                <CheckCircle2 className="w-4 h-4 mr-2" /> Partner Applications
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => nav("/app/product-approvals")}>
+                <Package className="w-4 h-4 mr-2" /> Product Approvals
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => setLoadError("")}>
+                <XCircle className="w-4 h-4 mr-2" /> Clear Error Banner
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+          <Button
+            onClick={cleanupDemoPartners}
+            variant="outline"
+            className="rounded-full h-11 border-red-300 text-red-700 hover:bg-red-50"
+            data-testid="cleanup-demo-partners"
+            disabled={cleanupBusy}
+          >
+            <Trash2 className="w-4 h-4 mr-2" /> {cleanupBusy ? "Cleaning..." : "Delete Demo/Test Partners"}
+          </Button>
+          <Button onClick={openNew} className="bg-emerald-900 hover:bg-emerald-950 text-white rounded-full h-11 px-5" data-testid="new-partner-button">
+            <Plus className="w-4 h-4 mr-2" /> Register New Partner
+          </Button>
+        </div>
+      </div>
+
+      {loadError ? (
+        <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800" data-testid="partners-load-error-banner">
+          Partner list load error: {loadError}
+        </div>
+      ) : null}
+
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+        <div className="bg-white rounded-xl border border-border p-5" data-testid="stat-total-partners">
+          <div className="flex items-center gap-3"><div className="w-10 h-10 rounded-lg bg-emerald-100 flex items-center justify-center"><Building className="w-5 h-5 text-emerald-800" /></div><div><p className="text-[10px] uppercase tracking-widest text-slate-500 font-semibold">Active Partners</p><p className="font-display font-black text-2xl text-emerald-950">{partners.filter(p => p.active !== false).length} / {partners.length}</p></div></div>
+        </div>
+        <div className="bg-white rounded-xl border border-border p-5">
+          <div className="flex items-center gap-3"><div className="w-10 h-10 rounded-lg bg-amber-100 flex items-center justify-center"><TrendingUp className="w-5 h-5 text-amber-700" /></div><div><p className="text-[10px] uppercase tracking-widest text-slate-500 font-semibold">Total Partner Sales</p><p className="font-display font-black text-2xl text-emerald-950">{inr(totalSales)}</p></div></div>
+        </div>
+        <div className="bg-white rounded-xl border border-border p-5">
+          <div className="flex items-center gap-3"><div className="w-10 h-10 rounded-lg bg-emerald-100 flex items-center justify-center"><Percent className="w-5 h-5 text-emerald-800" /></div><div><p className="text-[10px] uppercase tracking-widest text-slate-500 font-semibold">Commission Collected</p><p className="font-display font-black text-2xl text-emerald-950">{inr(totalCommission)}</p></div></div>
+        </div>
+      </div>
+
+      <div className="bg-white rounded-xl border border-border p-4" data-testid="selected-partner-admin-control">
+        <p className="text-xs uppercase tracking-widest text-emerald-800 font-semibold">Direct Partner Control</p>
+        <p className="text-xs text-muted-foreground mt-1">Pick one partner and run core admin actions directly from here.</p>
+        <div className="mt-3 grid grid-cols-1 lg:grid-cols-[2fr_3fr] gap-3 items-end">
+          <div>
+            <Label>Selected Partner</Label>
+            <select
+              value={selectedPartnerId}
+              onChange={(e) => setSelectedPartnerId(e.target.value)}
+              className="mt-1.5 h-11 w-full rounded-md border border-input bg-white px-3 text-sm"
+              data-testid="selected-partner-picker"
+            >
+              {partners.length === 0 ? (
+                <option value="">No partners loaded</option>
+              ) : (
+                partners.map((p) => (
+                  <option key={p.id} value={p.id}>{p.business_name} ({p.partner_code})</option>
+                ))
+              )}
+            </select>
+          </div>
+          <div className="flex justify-start lg:justify-end">
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button type="button" variant="outline" className="rounded-full" disabled={!selectedPartner} data-testid="selected-partner-action-trigger">
+                  Selected Partner Actions <ChevronDown className="w-4 h-4 ml-2" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-64">
+                <DropdownMenuItem onClick={() => selectedPartner && openEdit(selectedPartner)} data-testid="quick-edit-partner">
+                  <Pencil className="w-4 h-4 mr-2" /> Edit Profile
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => selectedPartner && openLedger(selectedPartner)} data-testid="quick-ledger-partner">
+                  <ScrollText className="w-4 h-4 mr-2" /> Sales / Commission
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => selectedPartner && downloadPartnerPdf(selectedPartner)} data-testid="quick-download-partner-pdf">
+                  <FileDown className="w-4 h-4 mr-2" /> Download Partner PDF
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => selectedPartner && sendPartnerMessage(selectedPartner)} data-testid="quick-message-partner">
+                  <MessageCircle className="w-4 h-4 mr-2" /> Send Message
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => selectedPartner && (selectedPartner.active !== false ? deactivate(selectedPartner) : reactivate(selectedPartner))} data-testid="quick-toggle-partner">
+                  {selectedPartner?.active !== false ? <Trash2 className="w-4 h-4 mr-2" /> : <CheckCircle2 className="w-4 h-4 mr-2" />}
+                  {selectedPartner?.active !== false ? "Deactive" : "Activate"}
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => selectedPartner && setDeleteTarget(selectedPartner)} className="text-red-700 focus:text-red-700" data-testid="quick-delete-partner">
+                  <XCircle className="w-4 h-4 mr-2" /> Permanent Delete
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </div>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4" data-testid="partner-meta-admin-tools">
+        <div className="bg-white rounded-xl border border-border p-4">
+          <p className="text-xs uppercase tracking-widest text-emerald-800 font-semibold">Business / Services Category</p>
+          <p className="text-xs text-muted-foreground mt-1">Partner form-এর Business Category dropdown/list এখানে control করুন।</p>
+          <div className="mt-3 flex gap-2">
+            <Input value={newBusinessType} onChange={(e) => setNewBusinessType(e.target.value)} placeholder="e.g. Electronics Store" data-testid="add-business-category-input" />
+            <Button type="button" variant="outline" onClick={addBusinessType} data-testid="add-business-category-btn">Add</Button>
+          </div>
+          <div className="mt-3 flex flex-wrap gap-2">
+            {businessTypes.map((t) => (
+              <button
+                key={t}
+                type="button"
+                onClick={() => removeBusinessType(t)}
+                className="text-xs px-2 py-1 rounded-full border border-emerald-200 bg-emerald-50 text-emerald-900"
+                title="Click to remove"
+                data-testid={`business-category-chip-${t}`}
+              >
+                {t} ×
+              </button>
+            ))}
+          </div>
+          <div className="mt-3 flex justify-end">
+            <Button type="button" onClick={saveBusinessTypes} disabled={metaBusy} className="bg-emerald-900 hover:bg-emerald-950 text-white" data-testid="save-business-categories-btn">
+              {metaBusy ? "Saving..." : "Save Categories"}
+            </Button>
+          </div>
+        </div>
+
+        <div className="bg-white rounded-xl border border-border p-4">
+          <p className="text-xs uppercase tracking-widest text-emerald-800 font-semibold">City List</p>
+          <p className="text-xs text-muted-foreground mt-1">Partner form-এর city suggestion list এখানে add/remove করুন।</p>
+          <div className="mt-3 flex gap-2">
+            <Input value={newCity} onChange={(e) => setNewCity(e.target.value)} placeholder="e.g. Howrah" data-testid="add-city-input" />
+            <Button type="button" variant="outline" onClick={addCity} data-testid="add-city-btn">Add</Button>
+          </div>
+          <div className="mt-3 flex flex-wrap gap-2">
+            {cities.map((c) => (
+              <button
+                key={c}
+                type="button"
+                onClick={() => removeCity(c)}
+                className="text-xs px-2 py-1 rounded-full border border-amber-200 bg-amber-50 text-amber-900"
+                title="Click to remove"
+                data-testid={`city-chip-${c}`}
+              >
+                {c} ×
+              </button>
+            ))}
+          </div>
+          <div className="mt-3 flex justify-end">
+            <Button type="button" onClick={saveCities} disabled={metaBusy} className="bg-emerald-900 hover:bg-emerald-950 text-white" data-testid="save-cities-btn">
+              {metaBusy ? "Saving..." : "Save Cities"}
+            </Button>
+          </div>
+        </div>
+
+        <div className="bg-white rounded-xl border border-border p-4">
+          <p className="text-xs uppercase tracking-widest text-emerald-800 font-semibold">Partner Message Templates</p>
+          <p className="text-xs text-muted-foreground mt-1">Use placeholders: {"{business_name}"}, {"{contact_person}"}, {"{partner_code}"}, {"{city}"}, {"{business_type}"}, {"{phone}"}</p>
+          <div className="mt-3 flex gap-2">
+            <Input value={newMessageTemplate} onChange={(e) => setNewMessageTemplate(e.target.value)} placeholder="Template text with placeholders" data-testid="add-message-template-input" />
+            <Button type="button" variant="outline" onClick={addMessageTemplate} data-testid="add-message-template-btn">Add</Button>
+          </div>
+          <div className="mt-3 max-h-40 overflow-auto space-y-2">
+            {messageTemplates.map((t, idx) => (
+              <button
+                key={`${idx}-${t}`}
+                type="button"
+                onClick={() => removeMessageTemplate(t)}
+                className="w-full text-left text-xs px-2 py-1.5 rounded-lg border border-emerald-200 bg-emerald-50 text-emerald-900"
+                title="Click to remove"
+                data-testid={`message-template-chip-${idx}`}
+              >
+                {t}
+              </button>
+            ))}
+          </div>
+          <div className="mt-3 flex justify-end">
+            <Button type="button" onClick={saveMessageTemplates} disabled={templateBusy} className="bg-emerald-900 hover:bg-emerald-950 text-white" data-testid="save-message-templates-btn">
+              {templateBusy ? "Saving..." : "Save Templates"}
+            </Button>
+          </div>
+        </div>
+      </div>
+
+      <div className="bg-white rounded-xl border border-border p-4">
+        <div className="flex flex-wrap items-center gap-3">
+          <div className="flex items-center gap-2 bg-slate-50 border border-border rounded-full px-4 py-2 flex-1 min-w-[240px]">
+            <Search className="w-4 h-4 text-muted-foreground" />
+            <Input
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="Search by shop name, city, category, phone, partner code"
+              className="border-0 bg-transparent p-0 h-auto shadow-none focus-visible:ring-0"
+              data-testid="partner-search-input"
+            />
+          </div>
+          <Input
+            value={cityFilter}
+            onChange={(e) => setCityFilter(e.target.value)}
+            placeholder="Filter city"
+            list="partner-city-list"
+            className="h-11 w-full md:w-56"
+            data-testid="partner-city-filter"
+          />
+          <Input
+            value={typeFilter}
+            onChange={(e) => setTypeFilter(e.target.value)}
+            placeholder="Business category"
+            list="partner-business-types-list"
+            className="h-11 w-full md:w-56"
+            data-testid="partner-type-filter"
+          />
+          <Button type="button" variant="outline" className="rounded-full" onClick={() => { setSearch(""); setCityFilter(""); setTypeFilter(""); }} data-testid="clear-partner-filters">
+            View All Partners
+          </Button>
+          <Button type="button" variant="outline" className="rounded-full" onClick={() => nav("/app/partner-approvals")} data-testid="open-partner-approvals">
+            Partner Approvals
+          </Button>
+          <Button type="button" variant="outline" className="rounded-full" onClick={() => nav("/app/product-approvals")} data-testid="open-product-approvals">
+            Product Approvals
+          </Button>
+        </div>
+      </div>
+
+      <div className="flex items-center justify-between">
+        <div>
+          <p className="text-xs uppercase tracking-[0.2em] text-emerald-800 font-semibold">Partner Admin List</p>
+          <p className="text-sm text-slate-600">Row-wise actions: edit, active/deactive, permanent delete, approvals, sales/commission, message.</p>
+        </div>
+        <Button
+          type="button"
+          variant="outline"
+          className="rounded-full"
+          onClick={() => setShowOfflineBilling((v) => !v)}
+          data-testid="toggle-offline-billing-panel"
+        >
+          {showOfflineBilling ? "Hide Offline Billing" : "Show Offline Billing"}
+        </Button>
+      </div>
+
+      {filteredPartners.length === 0 ? (
+        <div className="bg-white rounded-xl border border-border p-10 text-center">
+          <Store className="w-10 h-10 text-slate-400 mx-auto" />
+          <p className="mt-3 text-emerald-950 font-semibold">কোনো partner found হয়নি।</p>
+          <p className="text-sm text-muted-foreground mt-1">Search বা filters clear করে আবার দেখুন।</p>
+        </div>
+      ) : (
+        <div className="space-y-3">
+          {filteredPartners.map(p => (
+            <div key={p.id} className="bg-white rounded-xl border border-border p-5" data-testid={`partner-${p.id}`}>
+              <div className="flex flex-wrap items-start justify-between gap-4">
+                <div>
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <p className="text-[10px] uppercase tracking-widest text-emerald-800 font-semibold">{p.partner_code}</p>
+                    <span className="text-[10px] font-bold uppercase tracking-wider bg-slate-100 text-slate-700 px-2 py-0.5 rounded-full">{p.business_type}</span>
+                    {p.is_featured && <span className="text-[10px] font-bold uppercase tracking-wider bg-amber-400 text-emerald-950 px-2 py-0.5 rounded-full flex items-center gap-1"><Star className="w-2.5 h-2.5 fill-emerald-950" />Featured</span>}
+                    {p.active === false && <span className="text-[10px] font-bold uppercase tracking-wider bg-red-100 text-red-700 px-2 py-0.5 rounded-full">Inactive</span>}
+                  </div>
+                  <p className="font-display font-black text-emerald-950 mt-1 text-lg">{p.business_name}</p>
+                  <p className="text-xs text-muted-foreground font-body">
+                    {p.contact_person} · {p.phone}{p.email ? ` · ${p.email}` : ""}
+                  </p>
+                  <p className="text-[11px] text-slate-500 font-body mt-1">
+                    Reserve Wallet: <span className="font-semibold text-emerald-800">{inr(p.wallet?.balance || 0)}</span>
+                    {p.pending_topup_requests > 0 && <span className="ml-2 text-amber-700 font-semibold">({p.pending_topup_requests} pending top-up)</span>}
+                  </p>
+                  {p.whatsapp_no && p.whatsapp_no !== p.phone && (
+                    <p className="text-xs text-green-700 font-body flex items-center gap-1 mt-0.5"><MessageCircle className="w-3 h-3" /> WhatsApp: {p.whatsapp_no}</p>
+                  )}
+                  <p className="text-xs text-muted-foreground font-body mt-0.5">
+                    {p.address}
+                    {p.address ? (
+                      <a href={mapsUrl(p)} target="_blank" rel="noreferrer" className="ml-2 text-emerald-700 hover:underline font-semibold">
+                        Open Map
+                      </a>
+                    ) : null}
+                  </p>
+                  {p.gst_no && <p className="text-[11px] text-muted-foreground font-mono mt-0.5">GST: {p.gst_no}</p>}
+                </div>
+                <div className="text-right">
+                  <div className="inline-flex items-center gap-2 bg-amber-100 text-amber-900 px-3 py-1.5 rounded-full font-display font-black">
+                    <Percent className="w-3.5 h-3.5" />
+                    {(p.agreement_percent ?? p.commission_percent)}% Agreement
+                  </div>
+                  <p className="text-[11px] text-muted-foreground font-body mt-2">
+                    Sales: <span className="font-semibold text-emerald-800">{inr(p.total_sales || 0)}</span> ·
+                    Commission: <span className="font-semibold text-emerald-800">{inr(p.total_commission_paid || 0)}</span>
+                  </p>
+                </div>
+              </div>
+              <div className="mt-3 flex justify-end gap-2 flex-wrap">
+                <Button variant="outline" size="sm" className="rounded-full" onClick={() => openEdit(p)} data-testid={`partner-edit-${p.id}`}>
+                  <Pencil className="w-3.5 h-3.5 mr-1" /> Edit
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className={`rounded-full ${p.active !== false ? "border-amber-300 text-amber-800 hover:bg-amber-50" : "border-emerald-300 text-emerald-800 hover:bg-emerald-50"}`}
+                  onClick={() => (p.active !== false ? deactivate(p) : reactivate(p))}
+                  data-testid={`partner-toggle-${p.id}`}
+                >
+                  {p.active !== false ? <Trash2 className="w-3.5 h-3.5 mr-1" /> : <CheckCircle2 className="w-3.5 h-3.5 mr-1" />}
+                  {p.active !== false ? "Deactive" : "Activate"}
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="rounded-full border-red-300 text-red-700 hover:bg-red-50"
+                  onClick={() => setDeleteTarget(p)}
+                  data-testid={`partner-delete-${p.id}`}
+                >
+                  <XCircle className="w-3.5 h-3.5 mr-1" /> Permanent Delete
+                </Button>
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button variant="outline" size="sm" className="rounded-full" data-testid={`partner-actions-${p.id}`}>
+                      Partner Actions <ChevronDown className="w-3.5 h-3.5 ml-1" />
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end" className="w-64">
+                    <DropdownMenuItem onClick={() => openEdit(p)}>
+                      <Eye className="w-4 h-4 mr-2" /> View / Edit Profile
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => openLedger(p)}>
+                      <ScrollText className="w-4 h-4 mr-2" /> View Sales / Commission
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => downloadPartnerPdf(p)}>
+                      <FileDown className="w-4 h-4 mr-2" /> Download Partner PDF
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => nav("/app/partner-approvals")}>
+                      <CheckCircle2 className="w-4 h-4 mr-2" /> Partner Applications
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => nav("/app/product-approvals")}>
+                      <Package className="w-4 h-4 mr-2" /> Product Approvals
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => sendPartnerMessage(p)}>
+                      <MessageCircle className="w-4 h-4 mr-2" /> Send Message (Template)
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => toggleFeatured(p)}>
+                      <Star className="w-4 h-4 mr-2" /> {p.is_featured ? "Unfeature" : "Feature"}
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => (p.active !== false ? deactivate(p) : reactivate(p))}>
+                      {p.active !== false ? <Trash2 className="w-4 h-4 mr-2" /> : <CheckCircle2 className="w-4 h-4 mr-2" />}
+                      {p.active !== false ? "Deactive" : "Activate"}
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => setDeleteTarget(p)} className="text-red-700 focus:text-red-700">
+                      <XCircle className="w-4 h-4 mr-2" /> Permanent Delete
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onClick={async () => {
+                      if (!window.confirm(`Reset password for ${p.business_name}?`)) return;
+                      try {
+                        const { data } = await api.post(`/admin/partners/${p.id}/reset-password`);
+                        window.prompt(`New password for ${data.user_email} (copy now — shown only once):`, data.new_password);
+                        toast.success("Password reset — share securely");
+                      } catch (err) {
+                        toast.error(err?.response?.data?.detail || "Reset failed");
+                      }
+                    }}>
+                      🔑 Reset Password
+                    </DropdownMenuItem>
+                    <DropdownMenuItem asChild>
+                      <Link to={`/gallery/${p.partner_code}`} target="_blank" className="flex items-center">
+                        <Images className="w-4 h-4 mr-2" /> Open Gallery
+                      </Link>
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {showOfflineBilling ? (
+        <OfflineBillingPanel title="Admin Offline Billing" compact showPartnerScope />
+      ) : null}
+
+      {/* Delete Confirmation Dialog */}
+      <Dialog open={!!deleteTarget} onOpenChange={(o) => { if (!o) setDeleteTarget(null); }}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Partner Permanently Delete করুন</DialogTitle>
+            <DialogDescription>
+              <strong>{deleteTarget?.business_name}</strong> ({deleteTarget?.partner_code}) — এই কাজ undo করা যাবে না।
+            </DialogDescription>
+          </DialogHeader>
+          <div className="rounded-lg bg-red-50 border border-red-200 p-3 text-sm text-red-800">
+            সতর্কতা: Delete করলে partner এর সব data permanently মুছে যাবে।
+            শুধু Block করতে চাইলে Delete এর বদলে Block ব্যবহার করুন।
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setDeleteTarget(null)} disabled={deleteBusy}>Cancel</Button>
+            <Button onClick={deletePartner} disabled={deleteBusy} className="bg-red-600 hover:bg-red-700 text-white" data-testid="delete-partner-confirm">
+              {deleteBusy ? "Deleting..." : "Permanently Delete"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Create/Edit dialog */}
+      <Dialog open={!!editing} onOpenChange={() => setEditing(null)}>
+        <DialogContent className="max-w-2xl max-h-[92vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>{editing?.new ? "Register New Partner" : "Edit Partner"}</DialogTitle>
+            <DialogDescription>Admin can update partner profile, commission %, password, active/block state, and visibility. Approval request rate is only the starting value.</DialogDescription>
+          </DialogHeader>
+          <form onSubmit={save} className="grid gap-3 md:grid-cols-2" data-testid="partner-form">
+            <div className="md:col-span-2">
+              <Label htmlFor="business_name">Business Name *</Label>
+              <Input id="business_name" required value={form.business_name} onChange={(e) => setForm({ ...form, business_name: e.target.value })} placeholder="e.g. Rahim General Store" data-testid="partner-name-input" className="mt-1.5 h-11" />
+            </div>
+            <div>
+              <Label htmlFor="business_type">Business Category *</Label>
+              <Input
+                id="business_type"
+                required
+                list="partner-business-types-list"
+                value={form.business_type}
+                onChange={(e) => setForm({ ...form, business_type: e.target.value })}
+                placeholder="Retail Shop"
+                data-testid="partner-type-select"
+                className="mt-1.5 h-11"
+              />
+              <datalist id="partner-business-types-list">
+                {businessTypes.map((t) => <option key={t} value={t} />)}
+              </datalist>
+            </div>
+            <div className="rounded-lg border-2 border-amber-300 bg-amber-50 p-3 md:col-span-1">
+              <Label htmlFor="commission">Commission % *</Label>
+              <div className="mt-1.5 flex items-center gap-2">
+                <Input
+                  id="commission"
+                  type="number"
+                  min="0.1"
+                  max="100"
+                  step="0.1"
+                  required
+                  value={form.commission_percent}
+                  onChange={(e) => setForm({ ...form, commission_percent: e.target.value })}
+                  className="h-11 font-display font-black text-xl text-center flex-1"
+                  data-testid="partner-commission-input"
+                />
+                <span className="font-display font-black text-2xl text-amber-700">%</span>
+              </div>
+              <p className="text-[11px] text-amber-900 mt-1 font-body">Admin এই partner-এর সব products-এর commission rate update করতে পারবে।</p>
+            </div>
+            <div>
+              <Label htmlFor="contact">Contact Person *</Label>
+              <Input id="contact" required value={form.contact_person} onChange={(e) => setForm({ ...form, contact_person: e.target.value })} placeholder="Owner / Manager name" data-testid="partner-contact-input" className="mt-1.5 h-11" />
+            </div>
+            <div>
+              <Label htmlFor="phone">Phone *</Label>
+              <Input id="phone" required value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} placeholder="+91..." data-testid="partner-phone-input" className="mt-1.5 h-11" />
+            </div>
+            <div>
+              <Label htmlFor="email">Partner Login ID *</Label>
+              <Input id="email" required type="text" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} placeholder="email or phone" data-testid="partner-email-input" className="mt-1.5 h-11" />
+            </div>
+            <div>
+              <Label htmlFor="password">Partner Password {editing?.new ? "*" : "(optional)"}</Label>
+              <Input id="password" type="text" value={form.password || ""} onChange={(e) => setForm({ ...form, password: e.target.value })} placeholder={editing?.new ? "min 6 chars" : "leave blank to keep current"} data-testid="partner-password-input" className="mt-1.5 h-11 font-mono" required={!!editing?.new} minLength={editing?.new ? 6 : undefined} />
+            </div>
+            <div>
+              <Label htmlFor="gst">GST Number</Label>
+              <Input id="gst" value={form.gst_no} onChange={(e) => setForm({ ...form, gst_no: e.target.value })} placeholder="Optional (registered businesses)" data-testid="partner-gst-input" className="mt-1.5 h-11 font-mono" />
+            </div>
+            <div className="md:col-span-2">
+              <Label htmlFor="address">Address *</Label>
+              <Textarea id="address" required value={form.address} onChange={(e) => setForm({ ...form, address: e.target.value })} placeholder="Full address with pincode" data-testid="partner-address-input" className="mt-1.5" />
+            </div>
+            <div>
+              <Label htmlFor="city">City</Label>
+              <Input id="city" list="partner-city-list" value={form.city || ""} onChange={(e) => setForm({ ...form, city: e.target.value })} placeholder="City" data-testid="partner-city-input" className="mt-1.5 h-11" />
+              <datalist id="partner-city-list">
+                {cities.map((c) => <option key={c} value={c} />)}
+              </datalist>
+            </div>
+            <div>
+              <Label htmlFor="state">State</Label>
+              <Input id="state" value={form.state || ""} onChange={(e) => setForm({ ...form, state: e.target.value })} placeholder="State" data-testid="partner-state-input" className="mt-1.5 h-11" />
+            </div>
+            <div>
+              <Label htmlFor="pincode">Pincode</Label>
+              <Input id="pincode" value={form.pincode || ""} onChange={(e) => setForm({ ...form, pincode: e.target.value })} placeholder="Pincode" data-testid="partner-pincode-input" className="mt-1.5 h-11" />
+            </div>
+            <div>
+              <Label htmlFor="upi">Partner UPI (for reference)</Label>
+              <Input id="upi" value={form.upi_id} onChange={(e) => setForm({ ...form, upi_id: e.target.value })} placeholder="rahimshop@paytm" data-testid="partner-upi-input" className="mt-1.5 h-11 font-mono" />
+            </div>
+            <div>
+              <Label htmlFor="whatsapp">WhatsApp No <span className="text-slate-400 text-xs">(if different from phone)</span></Label>
+              <Input id="whatsapp" value={form.whatsapp_no} onChange={(e) => setForm({ ...form, whatsapp_no: e.target.value })} placeholder="+91... (blank = same as phone)" data-testid="partner-whatsapp-input" className="mt-1.5 h-11" />
+            </div>
+            <div className="flex items-end gap-2">
+              <label className="flex items-center gap-2 text-sm cursor-pointer">
+                <input type="checkbox" checked={form.active} onChange={(e) => setForm({ ...form, active: e.target.checked })} data-testid="partner-active-toggle" className="w-4 h-4" />
+                Active — new sales apply commission
+              </label>
+            </div>
+            <div className="md:col-span-2">
+              <Label htmlFor="notes">Notes</Label>
+              <Textarea id="notes" value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })} placeholder="Agreement terms, prime location, etc." data-testid="partner-notes-input" className="mt-1.5" />
+            </div>
+            <DialogFooter className="md:col-span-2">
+              <Button type="button" variant="outline" onClick={() => setEditing(null)}>Cancel</Button>
+              <Button type="submit" disabled={busy} className="bg-emerald-900 hover:bg-emerald-950 text-white" data-testid="partner-save-button">
+                {busy ? "Saving..." : (editing?.new ? "Register Partner" : "Save Changes")}
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={!!ledger} onOpenChange={() => setLedger(null)}>
+        <DialogContent className="max-w-4xl max-h-[92vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Partner Ledger — {ledger?.partner?.business_name}</DialogTitle>
+            <DialogDescription>All sales & commission entries for this partner. Export to Excel for accounting.</DialogDescription>
+          </DialogHeader>
+          {ledger && (
+            <div className="space-y-3">
+              <div className="grid grid-cols-3 gap-3">
+                <div className="bg-emerald-50 p-3 rounded-lg"><p className="text-[10px] uppercase text-emerald-800 font-bold">Total Sales</p><p className="font-display font-black text-xl text-emerald-950">{inr(ledger.partner.total_sales)}</p></div>
+                <div className="bg-amber-50 p-3 rounded-lg"><p className="text-[10px] uppercase text-amber-800 font-bold">Agreement %</p><p className="font-display font-black text-xl text-emerald-950">{(ledger.partner.agreement_percent ?? ledger.partner.commission_percent)}%</p></div>
+                <div className="bg-emerald-900 text-white p-3 rounded-lg"><p className="text-[10px] uppercase text-amber-400 font-bold">Commission Collected</p><p className="font-display font-black text-xl">{inr(ledger.partner.total_commission_paid)}</p></div>
+              </div>
+              <div className="flex justify-end">
+                <Button onClick={exportLedgerExcel} variant="outline" className="rounded-full border-emerald-800 text-emerald-900" data-testid="export-ledger-excel">
+                  <FileSpreadsheet className="w-4 h-4 mr-2" /> Export Excel
+                </Button>
+              </div>
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead className="bg-secondary/40 text-left">
+                    <tr>
+                      <th className="px-3 py-2 font-semibold text-slate-700 text-xs uppercase">Date</th>
+                      <th className="px-3 py-2 font-semibold text-slate-700 text-xs uppercase">Period</th>
+                      <th className="px-3 py-2 font-semibold text-slate-700 text-xs uppercase text-right">Sales</th>
+                      <th className="px-3 py-2 font-semibold text-slate-700 text-xs uppercase text-right">Rate %</th>
+                      <th className="px-3 py-2 font-semibold text-slate-700 text-xs uppercase text-right">Commission</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-border">
+                    {ledger.entries.length === 0 ? (
+                      <tr><td colSpan="5" className="px-3 py-6 text-center text-muted-foreground">No entries yet.</td></tr>
+                    ) : ledger.entries.map((e, i) => (
+                      <tr key={i}>
+                        <td className="px-3 py-2 text-xs">{new Date(e.created_at).toLocaleString()}</td>
+                        <td className="px-3 py-2 font-mono text-xs">{e.period}</td>
+                        <td className="text-right px-3 py-2">{inr(e.sales_amount)}</td>
+                        <td className="text-right px-3 py-2 text-xs">{e.commission_percent}%</td>
+                        <td className="text-right px-3 py-2 font-semibold text-emerald-800">{inr(e.commission_amount)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
+
+      {/* Partner Top-up Requests */}
+      <Dialog open={!!topupPartner} onOpenChange={(o) => { if (!o) { setTopupPartner(null); setTopupRequests([]); } }}>
+        <DialogContent className="max-w-3xl max-h-[92vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Top-up Requests — {topupPartner?.business_name}</DialogTitle>
+            <DialogDescription>
+              Partner wallet recharge request approve করলে invoice approval-এর commission reserve auto কাজ করবে।
+            </DialogDescription>
+          </DialogHeader>
+          {topupRequests.length === 0 ? (
+            <p className="text-sm text-slate-500">No pending top-up requests.</p>
+          ) : (
+            <div className="space-y-3">
+              {topupRequests.map((req) => (
+                <div key={req.id} className="rounded-xl border border-border p-4">
+                  <div className="flex flex-wrap items-start justify-between gap-3">
+                    <div>
+                      <p className="text-[10px] uppercase tracking-widest text-slate-500 font-bold">{new Date(req.created_at).toLocaleString()}</p>
+                      <p className="font-display font-black text-emerald-950 text-xl">{inr(req.amount)}</p>
+                      <p className="text-xs text-slate-600 font-mono">Txn: {req.txn_id}</p>
+                    </div>
+                    {req.proof_url ? (
+                      <a href={req.proof_url} target="_blank" rel="noreferrer">
+                        <img src={req.proof_url} alt="Top-up proof" className="w-20 h-20 object-cover rounded-lg border border-border" />
+                      </a>
+                    ) : null}
+                  </div>
+                  <div className="mt-3 flex justify-end gap-2">
+                    <Button size="sm" onClick={() => approveTopup(req.id)} disabled={topupBusy} className="bg-emerald-700 hover:bg-emerald-800 text-white rounded-full" data-testid={`approve-topup-${req.id}`}>
+                      <CheckCircle2 className="w-3.5 h-3.5 mr-1" /> Approve
+                    </Button>
+                    <Button size="sm" variant="outline" onClick={() => rejectTopup(req.id)} disabled={topupBusy} className="rounded-full border-red-300 text-red-700 hover:bg-red-50" data-testid={`reject-topup-${req.id}`}>
+                      <XCircle className="w-3.5 h-3.5 mr-1" /> Reject
+                    </Button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={!!messageTarget} onOpenChange={(o) => { if (!o) setMessageTarget(null); }}>
+        <DialogContent className="max-w-xl">
+          <DialogHeader>
+            <DialogTitle>Send Message — {messageTarget?.business_name}</DialogTitle>
+            <DialogDescription>Choose a saved template, adjust the final message, then open WhatsApp.</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-3">
+            <div>
+              <Label>Template</Label>
+              <select
+                value={messageTemplateIndex}
+                onChange={(e) => applyTemplateToDraft(Number(e.target.value || 0))}
+                className="mt-1.5 h-11 w-full rounded-md border border-input bg-background px-3 text-sm"
+                data-testid="partner-message-template-select"
+              >
+                {messageTemplates.map((t, idx) => (
+                  <option key={`${idx}-${t}`} value={idx}>{`Template ${idx + 1}`}</option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <Label>Message</Label>
+              <Textarea
+                value={messageDraft}
+                onChange={(e) => setMessageDraft(e.target.value)}
+                className="mt-1.5 min-h-28"
+                data-testid="partner-message-draft"
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button type="button" variant="outline" onClick={() => setMessageTarget(null)}>Cancel</Button>
+            <Button type="button" onClick={openWhatsappWithDraft} className="bg-emerald-900 hover:bg-emerald-950 text-white" data-testid="partner-message-send-btn">
+              Send via WhatsApp
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </div>
+  );
+}
+

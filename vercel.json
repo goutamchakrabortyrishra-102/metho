@@ -1,0 +1,9 @@
+{
+  "version": 2,
+  "rewrites": [
+    {
+      "source": "/((?!static/|manifest.json|favicon.ico|service-worker.js).*)",
+      "destination": "/index.html"
+    }
+  ]
+}

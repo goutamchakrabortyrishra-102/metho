@@ -1,0 +1,121 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+html {
+    scroll-behavior: smooth;
+}
+
+body {
+    margin: 0;
+    font-family: "Hind Siliguri", "Outfit", -apple-system, sans-serif;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    background: hsl(40, 33%, 98%);
+    color: hsl(222, 47%, 11%);
+}
+
+.font-display {
+    font-family: "Outfit", sans-serif;
+}
+
+.font-body {
+    font-family: "Hind Siliguri", sans-serif;
+}
+
+@layer base {
+    :root {
+        --background: 40 33% 98%;
+        --foreground: 222 47% 11%;
+        --card: 0 0% 100%;
+        --card-foreground: 222 47% 11%;
+        --popover: 0 0% 100%;
+        --popover-foreground: 222 47% 11%;
+        --primary: 160 84% 12%;
+        --primary-foreground: 0 0% 100%;
+        --secondary: 43 100% 96%;
+        --secondary-foreground: 160 84% 12%;
+        --muted: 210 40% 96.1%;
+        --muted-foreground: 215 16% 47%;
+        --accent: 45 93% 47%;
+        --accent-foreground: 160 84% 12%;
+        --destructive: 0 84.2% 60.2%;
+        --destructive-foreground: 0 0% 98%;
+        --border: 214 32% 91%;
+        --input: 214 32% 91%;
+        --ring: 160 84% 12%;
+        --chart-1: 160 84% 39%;
+        --chart-2: 45 93% 47%;
+        --chart-3: 197 37% 24%;
+        --chart-4: 43 74% 66%;
+        --chart-5: 27 87% 67%;
+        --radius: 0.5rem;
+    }
+    .dark {
+        --background: 222 47% 8%;
+        --foreground: 210 40% 98%;
+        --card: 222 47% 11%;
+        --card-foreground: 210 40% 98%;
+        --popover: 222 47% 11%;
+        --popover-foreground: 210 40% 98%;
+        --primary: 160 84% 39%;
+        --primary-foreground: 0 0% 100%;
+        --secondary: 217 32% 17%;
+        --secondary-foreground: 210 40% 98%;
+        --muted: 217 32% 17%;
+        --muted-foreground: 215 20% 65%;
+        --accent: 45 93% 47%;
+        --accent-foreground: 222 47% 11%;
+        --destructive: 0 62.8% 30.6%;
+        --destructive-foreground: 0 0% 98%;
+        --border: 217 32% 17%;
+        --input: 217 32% 17%;
+        --ring: 160 84% 39%;
+    }
+}
+
+@layer base {
+    * {
+        @apply border-border;
+    }
+    body {
+        @apply bg-background text-foreground;
+    }
+}
+
+/* Grain texture overlay */
+.grain::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background-image: url("data:image/svg+xml;utf8,<svg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.9' /></filter><rect width='100%25' height='100%25' filter='url(%23n)' opacity='0.15'/></svg>");
+    pointer-events: none;
+    opacity: 0.4;
+    mix-blend-mode: overlay;
+}
+
+.glass {
+    background: rgba(255, 255, 255, 0.7);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+    border-bottom: 1px solid rgba(255, 255, 255, 0.2);
+}
+
+.tree-line {
+    stroke: hsl(160, 84%, 25%);
+    stroke-width: 1.5;
+    fill: none;
+}
+
+/* Scrollbar */
+::-webkit-scrollbar { width: 8px; height: 8px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: hsl(160, 30%, 70%); border-radius: 4px; }
+::-webkit-scrollbar-thumb:hover { background: hsl(160, 60%, 40%); }
+
+@layer base {
+    [data-debug-wrapper="true"] {
+        display: contents !important;
+    }
+}
+

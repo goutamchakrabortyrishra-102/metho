@@ -1,0 +1,455 @@
+import json
+import uuid
+from pathlib import Path
+from fastapi import APIRouter, Depends, File, Header, HTTPException, UploadFile
+from fastapi.responses import FileResponse
+from sqlalchemy.orm import Session
+
+from ..database import get_db
+from ..models import AssociatePartner, PartnerProduct, Product, ProductMeta, PublicOrder
+from ..security import decode_token
+from .auth import get_current_user
+from .settings import load_settings
+
+router = APIRouter(prefix="/api", tags=["checkout"])
+
+ROOT_DIR = Path(__file__).resolve().parents[2]
+UPLOAD_DIR = ROOT_DIR / "uploaded_objects" / "payment_screenshots"
+UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
+
+
+def _normalize_pricing_tiers(raw_tiers) -> list[dict]:
+    if not raw_tiers:
+        return []
+    cleaned = {}
+    if isinstance(raw_tiers, dict):
+        iterator = [{"qty": k, "price": v} for k, v in raw_tiers.items()]
+    elif isinstance(raw_tiers, list):
+        iterator = raw_tiers
+    else:
+        return []
+
+    for row in iterator:
+        if not isinstance(row, dict):
+            continue
+        try:
+            qty = int(row.get("qty") or row.get("quantity") or 0)
+            price = float(row.get("price") or 0)
+        except Exception:
+            continue
+        if qty <= 0 or price <= 0:
+            continue
+        cleaned[qty] = round(price, 2)
+
+    return [{"qty": q, "price": cleaned[q]} for q in sorted(cleaned.keys())]
+
+
+def _calc_tiered_subtotal(quantity: int, unit_price: float, tiers: list[dict]) -> tuple[float, list[dict]]:
+    qty = max(1, int(quantity or 1))
+    options = _normalize_pricing_tiers(tiers)
+    if not options:
+        subtotal = round(float(unit_price or 0) * qty, 2)
+        return subtotal, [{"qty": 1, "count": qty, "price": round(float(unit_price or 0), 2)}]
+
+    exact = next((o for o in options if int(o["qty"]) == qty), None)
+    if exact:
+        return round(float(exact["price"]), 2), [{"qty": int(exact["qty"]), "count": 1, "price": float(exact["price"])}]
+
+    # For non-exact quantities, apply the biggest allowed packs first, then base-unit pricing for remainder.
+    remaining = qty
+    subtotal = 0.0
+    breakdown = []
+    for opt in sorted(options, key=lambda x: int(x["qty"]), reverse=True):
+        pack_qty = int(opt["qty"])
+        count = remaining // pack_qty
+        if count <= 0:
+            continue
+        subtotal += float(opt["price"]) * count
+        breakdown.append({"qty": pack_qty, "count": count, "price": float(opt["price"])})
+        remaining -= pack_qty * count
+
+    if remaining > 0:
+        breakdown.append({"qty": 1, "count": remaining, "price": round(float(unit_price or 0), 2)})
+        subtotal += round(float(unit_price or 0), 2) * remaining
+
+    return round(subtotal, 2), breakdown
+
+
+def _resolve_partner_for_user(db: Session, user) -> AssociatePartner | None:
+    if not user:
+        return None
+    email = str(getattr(user, "email", "") or "").strip().lower()
+    phone = str(getattr(user, "phone", "") or "").strip()
+    if email:
+        by_email = db.query(AssociatePartner).filter(AssociatePartner.email == email).first()
+        if by_email:
+            return by_email
+    if phone:
+        by_phone = db.query(AssociatePartner).filter(AssociatePartner.phone == phone).first()
+        if by_phone:
+            return by_phone
+        by_whatsapp = db.query(AssociatePartner).filter(AssociatePartner.whatsapp_no == phone).first()
+        if by_whatsapp:
+            return by_whatsapp
+    return None
+
+
+@router.post("/upload/payment-screenshot")
+async def upload_payment_screenshot(file: UploadFile = File(...)):
+    ext = Path(file.filename or "proof.jpg").suffix.lower() or ".jpg"
+    name = f"{uuid.uuid4().hex}{ext}"
+    path = UPLOAD_DIR / name
+    content = await file.read()
+    path.write_bytes(content)
+    return {
+        "url": f"/api/files/payment_screenshots/{name}",
+        "storage_path": f"payment_screenshots/{name}",
+    }
+
+
+@router.get("/files/{path:path}")
+def get_file(path: str):
+    file_path = ROOT_DIR / "uploaded_objects" / path
+    if not file_path.exists() or not file_path.is_file():
+        raise HTTPException(status_code=404, detail="File not found")
+    return FileResponse(file_path)
+
+
+@router.post("/orders")
+def create_public_order(payload: dict, db: Session = Depends(get_db), authorization: str | None = Header(None)):
+    items = payload.get("items") or []
+    if not isinstance(items, list) or len(items) == 0:
+        raise HTTPException(status_code=400, detail="Order items are required")
+
+    total = 0.0
+    normalized_items = []
+    settings = load_settings(db)
+    pricing_tier_map = settings.get("product_pricing_tiers") if isinstance(settings.get("product_pricing_tiers"), dict) else {}
+    enable_partner_slab_pricing = bool(settings.get("enable_partner_slab_pricing", False))
+    customer_user_id = ""
+    auth_header = str(authorization or "")
+    if auth_header.startswith("Bearer "):
+        try:
+            token = auth_header.split(" ", 1)[1]
+            claims = decode_token(token)
+            customer_user_id = str(claims.get("user_id") or "")
+        except Exception:
+            customer_user_id = ""
+
+    for item in items:
+        product_id = str(item.get("product_id", "")).strip()
+        qty = max(1, int(item.get("quantity") or 1))
+        product = db.query(Product).filter(Product.id == product_id).first()
+        product_type = "metho"
+        gst_percent = 0.0
+        mrp = 0.0
+        discount_percent = 0.0
+        image_url = ""
+        if product:
+            meta = db.query(ProductMeta).filter(ProductMeta.product_id == product.id).first()
+            if meta:
+                product_type = meta.product_type or "metho"
+                gst_percent = float(meta.gst_percent or 0)
+                mrp = float(meta.mrp or 0)
+                discount_percent = float(meta.discount_percent or 0)
+                image_url = meta.image_url or ""
+        if not product:
+            product = db.query(PartnerProduct).filter(PartnerProduct.id == product_id).first()
+            if product:
+                product_type = "associate_partner"
+        if not product:
+            continue
+        available_stock = max(0, int(getattr(product, "stock", 0) or 0))
+        if qty > available_stock:
+            raise HTTPException(
+                status_code=400,
+                detail=f"{product.name}: requested quantity {qty} exceeds available stock {available_stock}",
+            )
+        unit_price = float(product.price)
+        pricing_tiers = []
+        if product_type == "metho":
+            pricing_tiers = _normalize_pricing_tiers(pricing_tier_map.get(product.id, []))
+        elif product_type == "associate_partner" and enable_partner_slab_pricing:
+            pricing_tiers = _normalize_pricing_tiers(pricing_tier_map.get(product.id, []))
+        base_subtotal, tier_breakdown = _calc_tiered_subtotal(qty, unit_price, pricing_tiers)
+
+        gst_amount = 0.0
+        pre_tax = base_subtotal
+        line_total = base_subtotal
+        if product_type == "metho":
+            gst_amount = round(base_subtotal * (max(0.0, gst_percent) / 100.0), 2)
+            line_total = round(base_subtotal + gst_amount, 2)
+
+        total = round(total + line_total, 2)
+
+        normalized_items.append(
+            {
+                "product_id": product.id,
+                "name": product.name,
+                "price": round(line_total / max(1, qty), 2),
+                "unit_base_price": round(base_subtotal / max(1, qty), 2),
+                "mrp": mrp if mrp > 0 else float(product.price),
+                "discount_percent": discount_percent,
+                "gst_percent": (gst_percent if product_type == "metho" else 0),
+                "gst_amount": gst_amount,
+                "pre_tax": pre_tax,
+                "quantity": qty,
+                "subtotal": line_total,
+                "product_type": product_type,
+                "image_url": image_url,
+                "pricing_tiers": pricing_tiers,
+                "tier_breakdown": tier_breakdown,
+            }
+        )
+
+    if len(normalized_items) == 0:
+        raise HTTPException(status_code=400, detail="No valid products found in order")
+
+    member_ref = str(payload.get("member_code") or payload.get("member_id") or "").strip()
+    row = PublicOrder(
+        id=str(uuid.uuid4()),
+        customer_user_id=customer_user_id,
+        member_ref=member_ref,
+        shipping_address=str(payload.get("shipping_address") or "").strip(),
+        payment_method=str(payload.get("payment_method") or "upi"),
+        txn_id=str(payload.get("txn_id") or "").strip(),
+        payment_screenshot_url=str(payload.get("payment_screenshot_url") or "").strip(),
+        payer_name=str(payload.get("payer_name") or "").strip(),
+        items_json=json.dumps(normalized_items),
+        total_amount=total,
+        status="pending_approval",
+    )
+    db.add(row)
+    db.commit()
+
+    return {
+        "id": row.id,
+        "status": row.status,
+        "total_amount": row.total_amount,
+        "items": normalized_items,
+    }
+
+
+@router.post("/orders/{order_id}/submit-payment")
+def submit_payment(order_id: str, payload: dict, db: Session = Depends(get_db)):
+    row = db.query(PublicOrder).filter(PublicOrder.id == order_id).first()
+    if not row:
+        raise HTTPException(status_code=404, detail="Order not found")
+
+    row.txn_id = str(payload.get("txn_id") or row.txn_id)
+    row.payment_screenshot_url = str(payload.get("payment_screenshot_url") or row.payment_screenshot_url)
+    row.payer_name = str(payload.get("payer_name") or row.payer_name)
+    row.status = "pending_approval"
+    db.commit()
+
+    return {"id": row.id, "status": row.status, "total_amount": row.total_amount}
+
+
+@router.get("/partner/summary")
+def partner_summary(db: Session = Depends(get_db), current_user=Depends(get_current_user)):
+    if current_user.role != "partner":
+        return {
+            "partner_code": "-",
+            "business_name": current_user.name,
+            "commission_percent": 0,
+            "total_sales": 0,
+            "total_commission_paid": 0,
+            "products_linked": 0,
+            "current_period": "N/A",
+            "this_month": {"sales": 0, "commission": 0, "orders": 0},
+        }
+
+    partner = _resolve_partner_for_user(db, current_user)
+    if not partner:
+        return {
+            "partner_code": "MTH-PARTNER",
+            "business_name": current_user.name,
+            "commission_percent": 10,
+            "total_sales": 0,
+            "total_commission_paid": 0,
+            "products_linked": 0,
+            "current_period": "N/A",
+            "this_month": {"sales": 0, "commission": 0, "orders": 0},
+        }
+
+    products_linked = (
+        db.query(PartnerProduct)
+        .filter(PartnerProduct.partner_id == partner.id, PartnerProduct.active.is_(True))
+        .count()
+    )
+
+    return {
+        "partner_code": partner.partner_code,
+        "business_name": partner.business_name,
+        "commission_percent": float(partner.commission_percent or 0),
+        "total_sales": float(partner.total_sales or 0),
+        "total_commission_paid": 0,
+        "products_linked": products_linked,
+        "current_period": "N/A",
+        "this_month": {"sales": 0, "commission": 0, "orders": 0},
+    }
+
+
+@router.get("/partner/products")
+def partner_products(db: Session = Depends(get_db), current_user=Depends(get_current_user)):
+    if current_user.role != "partner":
+        return []
+    partner = _resolve_partner_for_user(db, current_user)
+    if not partner:
+        return []
+
+    rows = (
+        db.query(PartnerProduct)
+        .filter(PartnerProduct.partner_id == partner.id, PartnerProduct.active.is_(True))
+        .order_by(PartnerProduct.created_at.desc())
+        .all()
+    )
+    return [
+        {
+            "id": p.id,
+            "name": p.name,
+            "category": p.category,
+            "description": p.description,
+            "image_url": p.image_url,
+            "price": float(p.price or 0),
+            "stock": int(p.stock or 0),
+            "approval_status": p.approval_status,
+            "active": bool(p.active),
+            "partner_id": p.partner_id,
+            "created_at": p.created_at.isoformat() if p.created_at else None,
+        }
+        for p in rows
+    ]
+
+
+@router.post("/partner/products")
+def partner_products_create(payload: dict, db: Session = Depends(get_db), current_user=Depends(get_current_user)):
+    if current_user.role != "partner":
+        raise HTTPException(status_code=403, detail="Only partners can add products")
+    partner = _resolve_partner_for_user(db, current_user)
+    if not partner:
+        raise HTTPException(status_code=400, detail="Partner profile not linked to this account")
+
+    name = str((payload or {}).get("name") or "").strip()
+    category = str((payload or {}).get("category") or "General").strip() or "General"
+    if not name:
+        raise HTTPException(status_code=400, detail="Product name is required")
+
+    try:
+        price = float((payload or {}).get("price") or 0)
+    except Exception:
+        price = 0
+    if price <= 0:
+        raise HTTPException(status_code=400, detail="Valid price is required")
+
+    try:
+        stock = int((payload or {}).get("stock") or 0)
+    except Exception:
+        stock = 0
+    stock = max(0, stock)
+
+    row = PartnerProduct(
+        partner_id=partner.id,
+        name=name,
+        category=category,
+        description=str((payload or {}).get("description") or "").strip(),
+        image_url=str((payload or {}).get("image_url") or "").strip(),
+        price=price,
+        stock=stock,
+        approval_status="pending",
+        active=True,
+    )
+    db.add(row)
+    db.commit()
+    db.refresh(row)
+
+    return {"ok": True, "message": "Product submitted — awaiting Admin approval"}
+
+
+@router.put("/partner/products/{product_id}")
+def partner_products_update(product_id: str, payload: dict, db: Session = Depends(get_db), current_user=Depends(get_current_user)):
+    if current_user.role != "partner":
+        raise HTTPException(status_code=403, detail="Only partners can edit products")
+    partner = _resolve_partner_for_user(db, current_user)
+    if not partner:
+        raise HTTPException(status_code=400, detail="Partner profile not linked to this account")
+
+    product = (
+        db.query(PartnerProduct)
+        .filter(
+            PartnerProduct.id == product_id,
+            PartnerProduct.partner_id == partner.id,
+            PartnerProduct.active.is_(True),
+        )
+        .first()
+    )
+    if not product:
+        raise HTTPException(status_code=404, detail="Product not found")
+
+    if (payload or {}).get("name") is not None:
+        name = str((payload or {}).get("name") or "").strip()
+        if not name:
+            raise HTTPException(status_code=400, detail="Product name is required")
+        product.name = name
+    if (payload or {}).get("category") is not None:
+        category = str((payload or {}).get("category") or "").strip() or "General"
+        product.category = category
+    if (payload or {}).get("description") is not None:
+        product.description = str((payload or {}).get("description") or "").strip()
+    if (payload or {}).get("image_url") is not None:
+        product.image_url = str((payload or {}).get("image_url") or "").strip()
+    if (payload or {}).get("price") is not None:
+        try:
+            price = float((payload or {}).get("price") or 0)
+        except Exception:
+            price = 0
+        if price <= 0:
+            raise HTTPException(status_code=400, detail="Valid price is required")
+        product.price = price
+    if (payload or {}).get("stock") is not None:
+        try:
+            stock = int((payload or {}).get("stock") or 0)
+        except Exception:
+            stock = 0
+        product.stock = max(0, stock)
+
+    # Any partner edit requires re-approval before storefront usage.
+    product.approval_status = "pending"
+    db.commit()
+
+    return {"ok": True, "id": product_id, "message": "Product updated"}
+
+
+@router.delete("/partner/products/{product_id}")
+def partner_products_delete(product_id: str, db: Session = Depends(get_db), current_user=Depends(get_current_user)):
+    if current_user.role != "partner":
+        raise HTTPException(status_code=403, detail="Only partners can delete products")
+    partner = _resolve_partner_for_user(db, current_user)
+    if not partner:
+        raise HTTPException(status_code=400, detail="Partner profile not linked to this account")
+
+    product = (
+        db.query(PartnerProduct)
+        .filter(
+            PartnerProduct.id == product_id,
+            PartnerProduct.partner_id == partner.id,
+            PartnerProduct.active.is_(True),
+        )
+        .first()
+    )
+    if not product:
+        raise HTTPException(status_code=404, detail="Product not found")
+    product.active = False
+    db.commit()
+
+    return {"ok": True, "id": product_id, "message": "Product deleted"}
+
+
+@router.get("/partner/ledger")
+def partner_ledger(current_user=Depends(get_current_user)):
+    return []
+
+
+@router.get("/partner/orders")
+def partner_orders(current_user=Depends(get_current_user)):
+    return []

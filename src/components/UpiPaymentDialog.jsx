@@ -1,0 +1,528 @@
+import React, { useEffect, useState } from "react";
+import { toast } from "sonner";
+import { Upload, Loader2, QrCode, Copy, CheckCircle2 } from "lucide-react";
+import api from "@/services/api";
+import { useAuth } from "@/contexts/AuthContext";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
+import { resolveAssetUrl } from "@/lib/utils";
+
+
+const loadRazorpayScript = () => new Promise((resolve) => {
+  if (typeof window === "undefined") return resolve(false);
+  if (window.Razorpay) return resolve(true);
+  const script = document.createElement("script");
+  script.src = "https://checkout.razorpay.com/v1/checkout.js";
+  script.async = true;
+  script.onload = () => resolve(true);
+  script.onerror = () => resolve(false);
+  document.body.appendChild(script);
+});
+
+/**
+ * UpiPaymentDialog — shows admin's UPI QR + collects txn_id and screenshot.
+ * onOrderPlaced callback fires with the created order after submit.
+ */
+export default function UpiPaymentDialog({
+  open,
+  onOpenChange,
+  items,          // [{ id, name, price, quantity, subtotal }, ...]
+  total,
+  onOrderPlaced, // (order) => void
+  existingOrderId = null,  // if resubmitting for existing order
+  isGuest = false,
+  memberRef = "",
+  onMemberRefChange,
+  paymentConfig = null,
+}) {
+  const { user } = useAuth();
+  const [settings, setSettings] = useState(null);
+  const [address, setAddress] = useState("");
+  const [txnId, setTxnId] = useState("");
+  const [payerName, setPayerName] = useState("");
+  const [screenshot, setScreenshot] = useState(null); // { url, storage_path }
+  const [uploading, setUploading] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
+  const [copied, setCopied] = useState(false);
+  const requiresShippingAddress = Array.isArray(items)
+    ? items.some((item) => !(item?.is_service || String(item?.listing_type || item?.item_kind || "").toLowerCase().includes("service")))
+    : true;
+
+  useEffect(() => {
+    if (!open) return;
+    api.get("/settings").then((r) => setSettings(r.data)).catch(() => {});
+  }, [open, paymentConfig]);
+
+  const copyUpi = async () => {
+    if (!settings?.upi_id) return;
+    try {
+      await navigator.clipboard.writeText(settings.upi_id);
+      setCopied(true);
+      toast.success("UPI ID copied!");
+      setTimeout(() => setCopied(false), 2000);
+    } catch {
+      toast.error("Copy failed");
+    }
+  };
+
+  const handleFile = async (e) => {
+    const f = e.target.files?.[0];
+    if (!f) return;
+    if (f.size > 5 * 1024 * 1024) return toast.error("File too large (max 5MB)");
+    setUploading(true);
+    try {
+      const fd = new FormData();
+      fd.append("file", f);
+      const { data } = await api.post("/upload/payment-screenshot", fd, {
+        headers: { "Content-Type": "multipart/form-data" },
+      });
+      setScreenshot(data);
+      toast.success("Screenshot uploaded");
+    } catch (err) {
+      toast.error(err?.response?.data?.detail || "Upload failed");
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  const submit = async (e) => {
+    e.preventDefault();
+    if (!existingOrderId && requiresShippingAddress && !address.trim()) return toast.error("Please enter shipping address");
+    if (!txnId.trim()) return toast.error("Please enter UPI Transaction ID");
+    if (!screenshot?.url) return toast.error("Please upload payment screenshot");
+    setSubmitting(true);
+    try {
+      const payload = {
+        items: items.map((i) => ({
+          product_id: i.id,
+          quantity: i.quantity,
+          listing_type: i.listing_type,
+          item_kind: i.item_kind,
+          is_service: i.is_service,
+        })),
+        shipping_address: requiresShippingAddress ? address : "",
+        payment_method: "upi",
+        txn_id: txnId.trim(),
+        payment_screenshot_url: screenshot.url,
+        payer_name: payerName || undefined,
+      };
+      if (isGuest) {
+        const ref = (memberRef || "").trim();
+        if (ref) {
+          const looksLikeMemberCode = /^MTH-/i.test(ref);
+          if (looksLikeMemberCode) payload.member_code = ref.toUpperCase();
+          else payload.member_id = ref;
+        }
+      } else if (user?.id) {
+        payload.member_id = user.id;
+      }
+      const endpoint = existingOrderId ? `/orders/${existingOrderId}/submit-payment` : "/orders";
+      const { data } = await api.post(endpoint, payload);
+      toast.success(
+        data?.status === "paid"
+          ? "Payment verified. Invoice generated."
+          : (data?.approval_reason || "Order placed! Recharge reserve wallet if needed, then invoice will generate."),
+        { duration: 4500 }
+      );
+      onOrderPlaced?.(data);
+      // Reset
+      setTxnId(""); setPayerName(""); setScreenshot(null); setAddress("");
+    } catch (err) {
+      toast.error(err?.response?.data?.detail || "Order submit failed");
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const submitRazorpay = async () => {
+    if (existingOrderId) {
+      toast.error("Razorpay flow supports new checkout only");
+      return;
+    }
+    if (requiresShippingAddress && !address.trim()) return toast.error("Please enter shipping address");
+
+    setSubmitting(true);
+    try {
+      const orderPayload = {
+        items: items.map((i) => ({
+          product_id: i.id,
+          quantity: i.quantity,
+          listing_type: i.listing_type,
+          item_kind: i.item_kind,
+          is_service: i.is_service,
+        })),
+        shipping_address: requiresShippingAddress ? address : "",
+        payment_method: "razorpay",
+        payer_name: payerName || undefined,
+      };
+      if (isGuest) {
+        const ref = (memberRef || "").trim();
+        if (ref) {
+          const looksLikeMemberCode = /^MTH-/i.test(ref);
+          if (looksLikeMemberCode) orderPayload.member_code = ref.toUpperCase();
+          else orderPayload.member_id = ref;
+        }
+      } else if (user?.id) {
+        orderPayload.member_id = user.id;
+      }
+
+      const { data: created } = await api.post("/orders", orderPayload);
+      if (!created?.order_id) throw new Error("Order creation failed");
+
+      const sdkLoaded = await loadRazorpayScript();
+      if (!sdkLoaded) {
+        toast.error("Razorpay SDK failed to load. Please try again.");
+        return;
+      }
+
+      const { data: rp } = await api.post("/payments/razorpay/order", { order_id: created.order_id });
+
+      const options = {
+        key: rp.key_id,
+        amount: rp.amount,
+        currency: rp.currency || "INR",
+        name: rp.name || "METHOO STORE",
+        description: rp.description || "Order payment",
+        order_id: rp.razorpay_order_id,
+        handler: async (resp) => {
+          try {
+            const { data: verified } = await api.post("/payments/razorpay/verify-and-submit", {
+              order_id: created.order_id,
+              razorpay_order_id: resp.razorpay_order_id,
+              razorpay_payment_id: resp.razorpay_payment_id,
+              razorpay_signature: resp.razorpay_signature,
+              payer_name: payerName || undefined,
+            });
+            toast.success(
+              verified?.status === "paid"
+                ? "Payment successful. Invoice generated."
+                : (verified?.approval_reason || "Payment received. Admin approval pending."),
+              { duration: 4500 }
+            );
+            onOrderPlaced?.(verified);
+            setTxnId("");
+            setPayerName("");
+            setScreenshot(null);
+            setAddress("");
+          } catch (err) {
+            toast.error(err?.response?.data?.detail || "Payment verification failed");
+          } finally {
+            setSubmitting(false);
+          }
+        },
+        modal: {
+          ondismiss: () => setSubmitting(false),
+        },
+        prefill: {
+          name: payerName || undefined,
+        },
+        notes: {
+          metho_order_id: created.order_id,
+        },
+        theme: {
+          color: "#065f46",
+        },
+      };
+
+      const rz = new window.Razorpay(options);
+      rz.on("payment.failed", (resp) => {
+        toast.error(resp?.error?.description || "Payment failed");
+        setSubmitting(false);
+      });
+      rz.open();
+    } catch (err) {
+      setSubmitting(false);
+      toast.error(err?.response?.data?.detail || err?.message || "Razorpay checkout failed");
+    }
+  };
+
+  const upiId = paymentConfig?.upi_id || settings?.upi_id || "methopvtltd@paytm";
+  const payeeName = paymentConfig?.payee_name || settings?.upi_payee_name || "METHOO STORE";
+  const qrUrl = paymentConfig?.qr_url || settings?.upi_qr_url;
+  const payLabel = paymentConfig?.label || "UPI Payment";
+  const manualUpiEnabled = paymentConfig ? !!paymentConfig.manual_upi_enabled : !!settings?.manual_upi_enabled;
+  const razorpayEnabled = paymentConfig
+    ? !!paymentConfig.razorpay_enabled && !!settings?.razorpay_enabled && !!settings?.razorpay_key_id
+    : !!settings?.razorpay_enabled && !!settings?.razorpay_key_id;
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-w-3xl max-h-[92vh] overflow-y-auto">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            <QrCode className="w-5 h-5 text-emerald-700" />
+            {payLabel} · ₹{total.toLocaleString("en-IN")}
+          </DialogTitle>
+          <DialogDescription>
+            {razorpayEnabled
+              ? "Complete payment using UPI proof flow, or pay instantly with Razorpay checkout."
+              : "Complete payment using UPI QR/UPI proof flow."}
+          </DialogDescription>
+        </DialogHeader>
+
+        <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-xs text-red-900" data-testid="upi-otp-safety-notice">
+          <p className="font-semibold">Security warning: METHO never asks for OTP, UPI PIN, ATM PIN, CVV, or full bank details.</p>
+          <p className="mt-1">Security Alert: METHO never asks for OTP, UPI PIN, ATM PIN, CVV, or full bank details. If anyone asks in METHO's name, do not share.</p>
+        </div>
+
+        {items?.length > 0 && (
+          <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-4">
+            <div className="flex items-center justify-between gap-2 mb-3">
+              <p className="text-[10px] uppercase tracking-[0.2em] text-emerald-800 font-bold">Cart Preview</p>
+              <p className="text-xs text-emerald-900 font-semibold">{items.length} item(s)</p>
+            </div>
+            <div className="grid gap-2 max-h-48 overflow-y-auto pr-1">
+              {items.map((item) => (
+                <div key={item.id} className="flex items-center gap-3 rounded-lg bg-white border border-emerald-100 p-2">
+                  <div className="w-12 h-12 rounded-md bg-slate-100 overflow-hidden shrink-0 border border-slate-200">
+                    {item.image_url ? (
+                      <img src={resolveAssetUrl(item.image_url)} alt={item.name || "product"} className="w-full h-full object-cover" />
+                    ) : (
+                      <div className="w-full h-full flex items-center justify-center text-slate-400 text-[10px]">No Image</div>
+                    )}
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <p className="font-semibold text-emerald-950 truncate text-sm">{item.name}</p>
+                    <p className="text-[11px] text-slate-500 truncate">Qty {item.quantity} · ₹{Number(item.subtotal || 0).toLocaleString("en-IN")}</p>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        <form onSubmit={submit} className={manualUpiEnabled ? "grid md:grid-cols-2 gap-6" : "space-y-4"} data-testid="upi-payment-form">
+          {manualUpiEnabled ? (
+            <>
+              {/* LEFT: UPI details */}
+              <div className="space-y-4">
+                <div className="rounded-xl bg-gradient-to-br from-emerald-950 to-emerald-800 text-white p-5">
+                  <p className="text-[10px] uppercase tracking-[0.2em] text-amber-400 font-bold">Step 1 · Pay via any UPI app</p>
+                  <p className="text-2xl font-display font-black mt-2">₹{total.toLocaleString("en-IN")}</p>
+                  <p className="text-xs text-emerald-100/80 mt-1">GPay, PhonePe, Paytm, BHIM — all are supported</p>
+
+                  <div className="mt-4 space-y-3">
+                    <div className="rounded-lg bg-white/10 p-3">
+                      <p className="text-[10px] uppercase text-amber-400 font-bold">Payee Name</p>
+                      <p className="font-semibold">{payeeName}</p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={copyUpi}
+                      className="w-full rounded-lg bg-white/15 hover:bg-white/25 transition-colors p-3 text-left"
+                      data-testid="copy-upi-button"
+                    >
+                      <p className="text-[10px] uppercase text-amber-400 font-bold flex items-center justify-between">
+                        UPI ID (tap to copy)
+                        {copied ? <CheckCircle2 className="w-3 h-3" /> : <Copy className="w-3 h-3" />}
+                      </p>
+                      <p className="font-mono text-sm break-all mt-0.5">{upiId}</p>
+                    </button>
+                  </div>
+                </div>
+
+                {qrUrl ? (
+                  <div className="rounded-xl border border-border p-3 bg-white text-center">
+                    <p className="text-[10px] uppercase text-emerald-800 font-bold tracking-wider mb-2">Scan QR Code</p>
+                    <img src={resolveAssetUrl(qrUrl)} alt="UPI QR" className="w-full max-w-[240px] mx-auto object-contain rounded-lg" />
+                  </div>
+                ) : (
+                  <div className="rounded-xl border border-dashed border-amber-300 bg-amber-50 p-4 text-center">
+                    <QrCode className="w-8 h-8 text-amber-700 mx-auto" />
+                    <p className="text-xs text-amber-900 font-semibold mt-2">
+                      QR is not uploaded yet — copy the UPI ID above and pay using any UPI app.
+                    </p>
+                  </div>
+                )}
+              </div>
+
+              {/* RIGHT: Confirmation form */}
+              <div className="space-y-3">
+                <div className="rounded-xl bg-amber-50 border border-amber-200 p-3">
+                  <p className="text-[10px] uppercase tracking-[0.2em] text-amber-900 font-bold">Step 2 · Confirm payment</p>
+                  <p className="text-xs text-amber-800 mt-1">
+                    After payment, copy the Transaction ID from your UPI app and upload a screenshot.
+                  </p>
+                </div>
+
+                {isGuest && !existingOrderId && (
+              <div>
+                <Label htmlFor="member-ref">Member ID / Member Code (optional)</Label>
+                <Input
+                  id="member-ref"
+                  value={memberRef || ""}
+                  onChange={(e) => onMemberRefChange?.(e.target.value)}
+                  placeholder="e.g. MTH-123456 or member UUID"
+                  data-testid="guest-member-ref-input"
+                  className="mt-1.5 h-11 font-mono text-sm"
+                />
+                <p className="text-[11px] text-muted-foreground mt-1">
+                  Leave blank for plain guest purchase. Provide Member ID/Code only if reward percentage attribution is needed.
+                </p>
+              </div>
+            )}
+
+                {!existingOrderId && requiresShippingAddress && (
+              <div>
+                <Label htmlFor="ship">Shipping Address <span className="text-red-500">*</span></Label>
+                <Textarea
+                  id="ship"
+                  required
+                  value={address}
+                  onChange={(e) => setAddress(e.target.value)}
+                  placeholder="Full address with pincode..."
+                  data-testid="upi-shipping-input"
+                  className="mt-1.5 min-h-[70px]"
+                />
+              </div>
+            )}
+
+                <div>
+              <Label htmlFor="txn">UPI Transaction ID <span className="text-red-500">*</span></Label>
+              <Input
+                id="txn"
+                required
+                value={txnId}
+                onChange={(e) => setTxnId(e.target.value)}
+                placeholder="e.g. T2506191234567890"
+                data-testid="upi-txn-input"
+                className="mt-1.5 h-11 font-mono text-sm"
+              />
+              <p className="text-[11px] text-muted-foreground mt-1">
+                Use UTR / Transaction Reference from your UPI success screen.
+              </p>
+                </div>
+
+                <div>
+              <Label htmlFor="payer">Payer Name (optional)</Label>
+              <Input
+                id="payer"
+                value={payerName}
+                onChange={(e) => setPayerName(e.target.value)}
+                placeholder="If payment was made from a different account"
+                data-testid="upi-payer-input"
+                className="mt-1.5 h-11"
+              />
+                </div>
+
+                <div>
+              <Label>Payment Screenshot <span className="text-red-500">*</span></Label>
+              <label className="mt-1.5 flex items-center justify-center gap-2 border-2 border-dashed border-emerald-300 rounded-lg p-4 hover:bg-emerald-50/60 cursor-pointer transition-colors">
+                <input type="file" accept="image/*" className="hidden" onChange={handleFile} data-testid="upi-screenshot-input" />
+                {uploading ? (
+                  <><Loader2 className="w-4 h-4 animate-spin" /> Uploading...</>
+                ) : screenshot?.url ? (
+                  <div className="flex items-center gap-3">
+                    <img src={resolveAssetUrl(screenshot.url)} alt="proof" className="h-14 w-14 object-cover rounded" />
+                    <span className="text-emerald-700 font-semibold text-sm flex items-center gap-1"><CheckCircle2 className="w-4 h-4" /> Uploaded — click to change</span>
+                  </div>
+                ) : (
+                  <><Upload className="w-4 h-4 text-emerald-700" /> <span className="text-sm text-emerald-800 font-semibold">Select screenshot (max 5MB)</span></>
+                )}
+              </label>
+                </div>
+              </div>
+            </>
+          ) : (
+            <div className="space-y-3">
+              <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">
+                {razorpayEnabled
+                  ? "Manual UPI proof flow is hidden by admin. Use Razorpay below if it is enabled."
+                  : "Razorpay is disabled in this checkout flow. Partner payments require the UPI/QR proof flow to stay active."}
+              </div>
+
+              {isGuest && !existingOrderId ? (
+                <div>
+                  <Label htmlFor="member-ref-razorpay">Member ID / Member Code (optional)</Label>
+                  <Input
+                    id="member-ref-razorpay"
+                    value={memberRef || ""}
+                    onChange={(e) => onMemberRefChange?.(e.target.value)}
+                    placeholder="e.g. MTH-123456 or member UUID"
+                    data-testid="guest-member-ref-input-razorpay"
+                    className="mt-1.5 h-11 font-mono text-sm"
+                  />
+                  <p className="text-[11px] text-muted-foreground mt-1">
+                    Leave blank for plain guest purchase. Provide Member ID/Code only if reward percentage attribution is needed.
+                  </p>
+                </div>
+              ) : null}
+
+              {!existingOrderId && requiresShippingAddress ? (
+                <div>
+                  <Label htmlFor="ship-razorpay">Shipping Address <span className="text-red-500">*</span></Label>
+                  <Textarea
+                    id="ship-razorpay"
+                    required
+                    value={address}
+                    onChange={(e) => setAddress(e.target.value)}
+                    placeholder="Full address with pincode..."
+                    data-testid="razorpay-shipping-input"
+                    className="mt-1.5 min-h-[70px]"
+                  />
+                  <p className="text-[11px] text-muted-foreground mt-1">
+                    Shipping address is required before opening Razorpay checkout.
+                  </p>
+                </div>
+              ) : null}
+
+              <div>
+                <Label htmlFor="payer-razorpay">Payer Name (optional)</Label>
+                <Input
+                  id="payer-razorpay"
+                  value={payerName}
+                  onChange={(e) => setPayerName(e.target.value)}
+                  placeholder="If payment is made from a different account"
+                  data-testid="razorpay-payer-input"
+                  className="mt-1.5 h-11"
+                />
+              </div>
+            </div>
+          )}
+
+          <DialogFooter className={manualUpiEnabled ? "md:col-span-2" : ""}>
+            <div className="w-full space-y-2">
+              {razorpayEnabled ? (
+                <Button
+                  type="button"
+                  disabled={submitting || uploading}
+                  onClick={submitRazorpay}
+                  className="w-full h-12 bg-blue-700 hover:bg-blue-800 text-white rounded-full font-semibold"
+                  data-testid="razorpay-submit-button"
+                >
+                  {submitting ? "Opening Razorpay..." : `Pay Now with Razorpay · ₹${total.toLocaleString("en-IN")}`}
+                </Button>
+              ) : null}
+              {manualUpiEnabled ? (
+                <>
+                  <Button
+                    type="submit"
+                    disabled={submitting || uploading}
+                    className="w-full h-12 bg-emerald-900 hover:bg-emerald-950 text-white rounded-full font-semibold"
+                    data-testid="upi-submit-button"
+                  >
+                    {submitting ? "Submitting..." : `Submit UPI Proof · ₹${total.toLocaleString("en-IN")}`}
+                  </Button>
+                  {razorpayEnabled ? (
+                    <p className="text-[11px] text-slate-600 text-center">Razorpay online payment enabled. You can still use manual UPI proof flow below.</p>
+                  ) : (
+                    <p className="text-[11px] text-slate-500 text-center">Razorpay disabled. Manual UPI proof flow is active.</p>
+                  )}
+                </>
+              ) : (
+                <p className="text-[11px] text-slate-500 text-center">
+                  {razorpayEnabled
+                    ? "Manual UPI proof flow is disabled in settings."
+                    : "Manual UPI proof flow is disabled in settings. Enable UPI flow for partner payments."}
+                </p>
+              )}
+            </div>
+          </DialogFooter>
+        </form>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
