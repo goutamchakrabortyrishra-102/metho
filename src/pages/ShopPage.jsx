@@ -411,7 +411,7 @@ export default function ShopPage() {
       </div>
 
       {items.length > 0 && (
-        <div className="fixed bottom-4 left-1/2 -translate-x-1/2 z-40 w-[min(680px,calc(100vw-1.5rem))] bg-white border border-border rounded-2xl shadow-xl px-4 py-3" data-testid="shop-cart-bar">
+        <div className="fixed top-20 left-1/2 -translate-x-1/2 z-40 w-[min(680px,calc(100vw-1.5rem))] bg-white border border-border rounded-2xl shadow-xl px-4 py-3" data-testid="shop-cart-bar">
           <div className="flex items-center justify-between gap-3">
             <div className="min-w-0">
               <p className="text-xs uppercase tracking-wider text-emerald-800 font-semibold flex items-center gap-1.5">
@@ -425,6 +425,7 @@ export default function ShopPage() {
               className="bg-emerald-900 hover:bg-emerald-950 text-white rounded-full px-5"
               data-testid="shop-checkout-button"
             >
+              <ShoppingCart className="w-4 h-4 mr-2" />
               Checkout · ₹{total.toLocaleString("en-IN")}
             </Button>
           </div>

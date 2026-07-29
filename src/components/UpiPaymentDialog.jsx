@@ -170,7 +170,8 @@ export default function UpiPaymentDialog({
       }
 
       const { data: created } = await api.post("/orders", orderPayload);
-      if (!created?.order_id) throw new Error("Order creation failed");
+      const createdOrderId = String(created?.order_id || created?.id || "").trim();
+      if (!createdOrderId) throw new Error("Order creation failed");
 
       const sdkLoaded = await loadRazorpayScript();
       if (!sdkLoaded) {
@@ -178,7 +179,7 @@ export default function UpiPaymentDialog({
         return;
       }
 
-      const { data: rp } = await api.post("/payments/razorpay/order", { order_id: created.order_id });
+      const { data: rp } = await api.post("/payments/razorpay/order", { order_id: createdOrderId });
 
       const options = {
         key: rp.key_id,
@@ -190,7 +191,7 @@ export default function UpiPaymentDialog({
         handler: async (resp) => {
           try {
             const { data: verified } = await api.post("/payments/razorpay/verify-and-submit", {
-              order_id: created.order_id,
+              order_id: createdOrderId,
               razorpay_order_id: resp.razorpay_order_id,
               razorpay_payment_id: resp.razorpay_payment_id,
               razorpay_signature: resp.razorpay_signature,
@@ -220,7 +221,7 @@ export default function UpiPaymentDialog({
           name: payerName || undefined,
         },
         notes: {
-          metho_order_id: created.order_id,
+          metho_order_id: createdOrderId,
         },
         theme: {
           color: "#065f46",
