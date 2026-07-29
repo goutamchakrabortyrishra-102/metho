@@ -2057,12 +2057,70 @@ def admin_partners_update(partner_id: str, payload: dict, db: Session = Depends(
 
 
 @router.delete("/admin/partners/{partner_id}")
-def admin_partners_delete(partner_id: str, db: Session = Depends(get_db), current_user=Depends(get_current_user)):
+def admin_partners_delete(
+    partner_id: str,
+    permanent: bool = False,
+    db: Session = Depends(get_db),
+    current_user=Depends(get_current_user),
+):
+    _require_admin_user(current_user)
     p = db.query(AssociatePartner).filter(AssociatePartner.id == partner_id).first()
-    if p:
+    if not p:
+        return {"ok": True, "id": partner_id, "permanent": bool(permanent)}
+
+    if not permanent:
         p.active = False
         db.commit()
-    return {"ok": True, "id": partner_id}
+        return {"ok": True, "id": partner_id, "active": False, "permanent": False}
+
+    db.query(PartnerProduct).filter(PartnerProduct.partner_id == partner_id).delete(synchronize_session=False)
+    db.query(AppSetting).filter(
+        AppSetting.key.in_(
+            [
+                _partner_wallet_key(partner_id),
+                _partner_wallet_tx_key(partner_id),
+                _partner_topup_qr_key(partner_id),
+                _partner_payment_qr_key(partner_id),
+            ]
+        )
+    ).delete(synchronize_session=False)
+    db.delete(p)
+    db.commit()
+    return {"ok": True, "id": partner_id, "permanent": True}
+
+
+@router.post("/admin/partners/{partner_id}/reactivate")
+def admin_partners_reactivate(partner_id: str, db: Session = Depends(get_db), current_user=Depends(get_current_user)):
+    _require_admin_user(current_user)
+    p = db.query(AssociatePartner).filter(AssociatePartner.id == partner_id).first()
+    if not p:
+        raise HTTPException(status_code=404, detail="Partner not found")
+    p.active = True
+    db.commit()
+    return {"ok": True, "id": partner_id, "active": True}
+
+
+@router.delete("/admin/partners/{partner_id}/permanent")
+def admin_partners_permanent_delete(partner_id: str, db: Session = Depends(get_db), current_user=Depends(get_current_user)):
+    _require_admin_user(current_user)
+    p = db.query(AssociatePartner).filter(AssociatePartner.id == partner_id).first()
+    if not p:
+        return {"ok": True, "id": partner_id, "permanent": True}
+
+    db.query(PartnerProduct).filter(PartnerProduct.partner_id == partner_id).delete(synchronize_session=False)
+    db.query(AppSetting).filter(
+        AppSetting.key.in_(
+            [
+                _partner_wallet_key(partner_id),
+                _partner_wallet_tx_key(partner_id),
+                _partner_topup_qr_key(partner_id),
+                _partner_payment_qr_key(partner_id),
+            ]
+        )
+    ).delete(synchronize_session=False)
+    db.delete(p)
+    db.commit()
+    return {"ok": True, "id": partner_id, "permanent": True}
 
 
 @router.get("/admin/partners/{partner_id}/ledger")
