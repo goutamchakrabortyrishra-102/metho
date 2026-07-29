@@ -368,17 +368,27 @@ function BrandingImageUpload({ purpose, label, hint, value, onChange, onPersist,
   const inputRef = useRef(null);
   const [busy, setBusy] = useState(false);
 
+  const readAsDataUrl = (file) =>
+    new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(String(reader.result || ""));
+      reader.onerror = () => reject(new Error("Could not read image"));
+      reader.readAsDataURL(file);
+    });
+
   const upload = async (e) => {
     const f = e.target.files?.[0];
     if (!f) return;
+    if (f.size > 2 * 1024 * 1024) {
+      toast.error("Image too large for reliable save (max 2MB)");
+      if (inputRef.current) inputRef.current.value = "";
+      return;
+    }
     setBusy(true);
     try {
-      const fd = new FormData();
-      fd.append("file", f);
-      const { data } = await api.post(`/admin/upload/branding-image?purpose=${purpose}`, fd, {
-        headers: { "Content-Type": "multipart/form-data" },
-      });
-      const nextUrl = data?.url || "";
+      // Save branding images directly in settings as data URLs to avoid
+      // losing files when backend ephemeral storage is recycled.
+      const nextUrl = await readAsDataUrl(f);
       onChange(nextUrl);
       if (onPersist) {
         await onPersist(nextUrl);
