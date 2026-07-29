@@ -37,23 +37,6 @@ export const Logo = ({ className = "", showTagline = false, variant = "store", s
       nav("/admin-login");
       return;
     }
-
-    // On mobile web, single-tap logo can open native install prompt when available.
-    const promptEvent = window.__methoInstallPrompt;
-    const isStandalone = window.matchMedia("(display-mode: standalone)").matches || window.navigator.standalone;
-    if (!isStandalone && promptEvent && typeof promptEvent.prompt === "function") {
-      e.preventDefault();
-      promptEvent.prompt();
-      promptEvent.userChoice
-        .then(({ outcome }) => {
-          if (outcome === "accepted") {
-            localStorage.setItem("install-prompt-dismissed", "1");
-          }
-        })
-        .finally(() => {
-          window.__methoInstallPrompt = null;
-        });
-    }
   };
 
   return (
