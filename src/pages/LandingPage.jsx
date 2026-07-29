@@ -225,6 +225,64 @@ const Hero = () => {
             <div>
               <div className="flex items-center gap-1 text-amber-500">
                 {[1,2,3,4,5].map(i => <Star key={i} className="w-4 h-4 fill-current" />)}
+
+          <div className="mt-8 grid gap-3 sm:grid-cols-2 xl:grid-cols-4 max-w-4xl" data-testid="hero-quick-actions">
+            {[
+              {
+                title: "Partner Registration",
+                desc: "Open a partner account and start selling with commission support.",
+                href: "/partner-register",
+                cta: "Become a Partner",
+                accent: "from-emerald-950 to-emerald-800",
+                icon: Building2,
+              },
+              {
+                title: "Member Registration",
+                desc: "Join free, build your profile, and unlock member rewards.",
+                href: "/register",
+                cta: "Create Member ID",
+                accent: "from-amber-500 to-amber-400",
+                icon: Users,
+              },
+              {
+                title: "Product Browser",
+                desc: "Explore live products, pricing and cart-ready catalog items.",
+                href: "/shop",
+                cta: "Browse Products",
+                accent: "from-emerald-700 to-emerald-600",
+                icon: Store,
+              },
+              {
+                title: "Partner & Services",
+                desc: "Find verified partner shops, services, and city-wise listings.",
+                href: "/directory",
+                cta: "View Partners",
+                accent: "from-slate-800 to-slate-700",
+                icon: Globe,
+              },
+            ].map((item) => (
+              <Link
+                key={item.title}
+                to={item.href}
+                className="group rounded-[1.6rem] border border-emerald-900/10 bg-white/88 backdrop-blur p-4 shadow-[0_10px_30px_rgba(15,23,42,0.08)] hover:shadow-[0_16px_36px_rgba(15,23,42,0.12)] hover:-translate-y-0.5 transition-all"
+                data-testid={`hero-quick-action-${item.title.toLowerCase().replace(/\s+/g, "-")}`}
+              >
+                <div className="flex items-start justify-between gap-3">
+                  <div className={`w-11 h-11 rounded-2xl bg-gradient-to-br ${item.accent} text-white flex items-center justify-center shadow-md shadow-emerald-900/10`}>
+                    <item.icon className="w-5 h-5" />
+                  </div>
+                  <span className="text-[10px] uppercase tracking-[0.22em] text-emerald-800 font-semibold bg-emerald-50 px-2.5 py-1 rounded-full">
+                    Quick Access
+                  </span>
+                </div>
+                <h3 className="mt-3 font-display font-black text-lg text-emerald-950 leading-tight">{item.title}</h3>
+                <p className="mt-1.5 text-sm text-slate-600 leading-relaxed">{item.desc}</p>
+                <div className="mt-4 inline-flex items-center gap-1.5 text-sm font-semibold text-emerald-900 group-hover:text-emerald-950">
+                  {item.cta} <ChevronRight className="w-4 h-4 transition-transform group-hover:translate-x-0.5" />
+                </div>
+              </Link>
+            ))}
+          </div>
               </div>
               <p className="text-xs text-slate-500 font-body mt-0.5">Trusted by growing partner offices across India</p>
             </div>
