@@ -7,6 +7,54 @@ export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
 
+  const buildIdentifierCandidates = (rawIdentifier) => {
+    const input = String(rawIdentifier || "").trim();
+    const candidates = [];
+    const push = (value) => {
+      const clean = String(value || "").trim();
+      if (!clean) return;
+      if (!candidates.includes(clean)) candidates.push(clean);
+    };
+
+    push(input);
+    push(input.toLowerCase());
+    push(input.toUpperCase());
+
+    const compact = input.replace(/\s+/g, "");
+    push(compact);
+
+    const digitsOnly = input.replace(/[^\d]/g, "");
+    if (digitsOnly.length >= 10) {
+      push(digitsOnly);
+      if (digitsOnly.length === 10) push(`+91${digitsOnly}`);
+    }
+
+    const looksLikeUsername = !input.includes("@") && /^[A-Za-z0-9._-]+$/.test(input);
+    if (looksLikeUsername) {
+      // Compatibility fallback for environments that still validate the "email" field strictly.
+      push(`${input}@metho.com`);
+      push(`${input.toLowerCase()}@metho.com`);
+    }
+
+    return candidates;
+  };
+
+  const buildLoginPayloads = (rawIdentifier, password) => {
+    const identifiers = buildIdentifierCandidates(rawIdentifier);
+    const payloads = [];
+
+    identifiers.forEach((id) => {
+      payloads.push({ email: id, password });
+      payloads.push({ username: id, password });
+      payloads.push({ login: id, password });
+      payloads.push({ identifier: id, password });
+      payloads.push({ phone: id, password });
+      payloads.push({ member_code: id, password });
+    });
+
+    return payloads;
+  };
+
   useEffect(() => {
     let active = true;
 
@@ -40,13 +88,7 @@ export const AuthProvider = ({ children }) => {
   const login = async (username, password, options = {}) => {
     const identifier = String(username || "").trim();
     const adminMode = Boolean(options?.adminMode);
-
-    const payloads = [
-      { username: identifier, password },
-      { email: identifier, password },
-      { login: identifier, password },
-      { identifier, password },
-    ];
+    const payloads = buildLoginPayloads(identifier, password);
 
     const endpoints = adminMode
       ? ["/auth/login", "/auth/admin/login", "/admin/login"]
@@ -100,7 +142,13 @@ export const AuthProvider = ({ children }) => {
             lastError = jsonErr?.response ? jsonErr : formErr;
             const status = Number(formErr?.response?.status || jsonErr?.response?.status || 0);
             const detail = String(formErr?.response?.data?.detail || jsonErr?.response?.data?.detail || "").toLowerCase();
-            const isInvalidCred = status === 401 && detail.includes("invalid username or password");
+            const isInvalidCred =
+              status === 401 &&
+              (
+                detail.includes("invalid username or password") ||
+                detail.includes("invalid email or password") ||
+                detail.includes("invalid login id or password")
+              );
             const isEndpointMismatch = status === 404 || status === 405 || status === 422;
             if (!adminMode || (!isInvalidCred && !isEndpointMismatch)) {
               throw lastError;
@@ -118,12 +166,7 @@ export const AuthProvider = ({ children }) => {
       const identifier = String(payload?.email || "").trim();
       const password = String(payload?.password || "");
       if (!identifier || !password) return false;
-      const loginPayloads = [
-        { username: identifier, password },
-        { email: identifier, password },
-        { login: identifier, password },
-        { identifier, password },
-      ];
+      const loginPayloads = buildLoginPayloads(identifier, password);
       for (const lp of loginPayloads) {
         try {
           await api.post("/auth/login", lp);
@@ -135,7 +178,13 @@ export const AuthProvider = ({ children }) => {
           if (status === 403 && (detail.includes("not active yet") || detail.includes("first approved purchase"))) {
             return true;
           }
-          const invalid = status === 401 && detail.includes("invalid username or password");
+          const invalid =
+            status === 401 &&
+            (
+              detail.includes("invalid username or password") ||
+              detail.includes("invalid email or password") ||
+              detail.includes("invalid login id or password")
+            );
           if (!invalid) {
             break;
           }

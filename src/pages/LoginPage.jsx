@@ -167,8 +167,8 @@ export default function LoginPage({ adminOnly = false }) {
           </div>
           <div className="space-y-4">
             <div>
-                <Label htmlFor="username">Email / Phone / Member Code</Label>
-                <Input id="username" name="username" type="text" required value={username} onChange={e => setUsername(e.target.value)} placeholder={adminMode ? "Try: admin@metho.com or MTH-ADMIN" : "Enter email, phone, or member code"} data-testid="login-username-input" className="mt-1.5 h-11" />
+              <Label htmlFor="username">Login ID / Phone / Member Code</Label>
+              <Input id="username" name="username" type="text" required value={username} onChange={e => setUsername(e.target.value)} placeholder={adminMode ? "Try: admin or MTH-ADMIN" : "Enter login ID, phone, or member code"} data-testid="login-username-input" className="mt-1.5 h-11" />
             </div>
             <div>
               <Label htmlFor="password">Password</Label>
