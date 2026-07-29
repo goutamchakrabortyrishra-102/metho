@@ -109,14 +109,12 @@ export default function UpiPaymentDialog({
         payment_screenshot_url: screenshot.url,
         payer_name: payerName || undefined,
       };
-      if (isGuest) {
-        const ref = (memberRef || "").trim();
-        if (ref) {
-          const looksLikeMemberCode = /^MTH-/i.test(ref);
-          if (looksLikeMemberCode) payload.member_code = ref.toUpperCase();
-          else payload.member_id = ref;
-        }
-      } else if (user?.id) {
+      const ref = (memberRef || "").trim();
+      if (ref) {
+        const looksLikeMemberCode = /^MTH-/i.test(ref);
+        if (looksLikeMemberCode) payload.member_code = ref.toUpperCase();
+        else payload.member_id = ref;
+      } else if (!isGuest && user?.id) {
         payload.member_id = user.id;
       }
       const endpoint = existingOrderId ? `/orders/${existingOrderId}/submit-payment` : "/orders";
@@ -158,14 +156,12 @@ export default function UpiPaymentDialog({
         payment_method: "razorpay",
         payer_name: payerName || undefined,
       };
-      if (isGuest) {
-        const ref = (memberRef || "").trim();
-        if (ref) {
-          const looksLikeMemberCode = /^MTH-/i.test(ref);
-          if (looksLikeMemberCode) orderPayload.member_code = ref.toUpperCase();
-          else orderPayload.member_id = ref;
-        }
-      } else if (user?.id) {
+      const ref = (memberRef || "").trim();
+      if (ref) {
+        const looksLikeMemberCode = /^MTH-/i.test(ref);
+        if (looksLikeMemberCode) orderPayload.member_code = ref.toUpperCase();
+        else orderPayload.member_id = ref;
+      } else if (!isGuest && user?.id) {
         orderPayload.member_id = user.id;
       }
 
@@ -348,7 +344,7 @@ export default function UpiPaymentDialog({
                   </p>
                 </div>
 
-                {isGuest && !existingOrderId && (
+                {!existingOrderId && (
               <div>
                 <Label htmlFor="member-ref">Member ID / Member Code (optional)</Label>
                 <Input
@@ -434,7 +430,7 @@ export default function UpiPaymentDialog({
                   : "Razorpay is disabled in this checkout flow. Partner payments require the UPI/QR proof flow to stay active."}
               </div>
 
-              {isGuest && !existingOrderId ? (
+              {!existingOrderId ? (
                 <div>
                   <Label htmlFor="member-ref-razorpay">Member ID / Member Code (optional)</Label>
                   <Input
