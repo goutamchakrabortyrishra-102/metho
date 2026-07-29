@@ -91,9 +91,18 @@ PARTNER_WALLET_DEFAULTS = {
     "total_debit": 0.0,
 }
 
+USER_PROFILE_DEFAULTS = {
+    "dob": "",
+    "pan_no": "",
+}
+
 
 def _user_payout_key(user_id: str) -> str:
     return f"user_payout:{user_id}"
+
+
+def _user_profile_key(user_id: str) -> str:
+    return f"user_profile:{user_id}"
 
 
 def _partner_wallet_key(partner_id: str) -> str:
@@ -204,6 +213,56 @@ def _normalize_payout_details(payload: dict | None, request: Request | None = No
     if request and normalized["upi_qr_url"]:
         normalized["upi_qr_url"] = _file_url(normalized["upi_qr_url"], request)
     return normalized
+
+
+def _load_user_profile_details(db: Session, user_id: str) -> dict:
+    row = db.query(AppSetting).filter(AppSetting.key == _user_profile_key(user_id)).first()
+    if not row or not row.value_json:
+        return USER_PROFILE_DEFAULTS.copy()
+    try:
+        payload = json.loads(row.value_json or "{}")
+    except Exception:
+        payload = {}
+    return {
+        "dob": str(payload.get("dob") or "").strip(),
+        "pan_no": str(payload.get("pan_no") or "").strip().upper(),
+    }
+
+
+def _save_user_profile_details(db: Session, user_id: str, payload: dict | None) -> dict:
+    current = _load_user_profile_details(db, user_id)
+    source = payload if isinstance(payload, dict) else {}
+    normalized = {
+        "dob": str(source.get("dob") if source.get("dob") is not None else current.get("dob") or "").strip(),
+        "pan_no": str(source.get("pan_no") if source.get("pan_no") is not None else current.get("pan_no") or "").strip().upper(),
+    }
+    row = db.query(AppSetting).filter(AppSetting.key == _user_profile_key(user_id)).first()
+    if not row:
+        db.add(AppSetting(key=_user_profile_key(user_id), value_json=json.dumps(normalized), updated_at=datetime.now(timezone.utc)))
+    else:
+        row.value_json = json.dumps(normalized)
+        row.updated_at = datetime.now(timezone.utc)
+    return normalized
+
+
+def _resolve_user_by_member_code(db: Session, member_code: str) -> User | None:
+    ref = str(member_code or "").strip().upper()
+    if not ref:
+        return None
+    for user in db.query(User).all():
+        if member_code_for_user(user.id) == ref:
+            return user
+    return None
+
+
+def _sponsor_code_for_user(db: Session, user_id: str) -> str:
+    rel = db.query(UserReferral).filter(UserReferral.user_id == user_id).first()
+    if not rel:
+        return ""
+    sponsor = db.query(User).filter(User.id == rel.sponsor_user_id).first()
+    if sponsor:
+        return member_code_for_user(sponsor.id)
+    return str(rel.sponsor_code or "").strip().upper()
 
 
 def _resolve_partner_for_user(db: Session, user: User) -> AssociatePartner | None:
@@ -545,18 +604,50 @@ def wallet_statement_pdf(current_user=Depends(get_current_user)):
 def members(db: Session = Depends(get_db), current_user=Depends(get_current_user)):
     rows = db.query(User).order_by(User.created_at.desc()).limit(200).all()
     out = []
-    for i, u in enumerate(rows, start=1):
+    for u in rows:
+        extras = _load_user_profile_details(db, u.id)
         out.append(
             {
                 "id": u.id,
                 "name": u.name,
                 "email": u.email,
                 "phone": u.phone,
-                "member_code": f"MTH-{i:06d}",
+                "member_code": member_code_for_user(u.id),
+                "sponsor_code": _sponsor_code_for_user(db, u.id),
+                "dob": extras.get("dob") or "",
+                "pan_no": extras.get("pan_no") or "",
                 "rank": "Starter",
                 "kyc_status": "approved",
                 "role": u.role,
                 "active": u.is_active,
+            }
+        )
+    return out
+
+
+@router.get("/admin/users")
+def admin_users(role: str | None = None, db: Session = Depends(get_db), current_user=Depends(get_current_user)):
+    _require_admin_user(current_user)
+    query = db.query(User)
+    if role:
+        query = query.filter(User.role == str(role).strip())
+    rows = query.order_by(User.created_at.desc()).limit(500).all()
+    out = []
+    for user in rows:
+        extras = _load_user_profile_details(db, user.id)
+        out.append(
+            {
+                "id": user.id,
+                "name": user.name,
+                "email": user.email,
+                "phone": user.phone,
+                "member_code": member_code_for_user(user.id),
+                "sponsor_code": _sponsor_code_for_user(db, user.id),
+                "dob": extras.get("dob") or "",
+                "pan_no": extras.get("pan_no") or "",
+                "role": user.role,
+                "active": user.is_active,
+                "created_at": user.created_at.isoformat() if user.created_at else now_iso(),
             }
         )
     return out
@@ -632,6 +723,30 @@ def admin_update_user(user_id: str, payload: dict, db: Session = Depends(get_db)
         user.role = str(payload.get("role") or user.role).strip() or user.role
     if payload.get("active") is not None:
         user.is_active = bool(payload.get("active"))
+    if payload.get("password") is not None:
+        new_password = str(payload.get("password") or "").strip()
+        if new_password:
+            if len(new_password) < 6:
+                raise HTTPException(status_code=400, detail="Password must be at least 6 characters")
+            user.password = hash_password(new_password)
+
+    if any(key in payload for key in ("dob", "pan_no")):
+        _save_user_profile_details(db, user.id, payload)
+
+    if "sponsor_code" in payload:
+        sponsor_code = str(payload.get("sponsor_code") or "").strip().upper()
+        existing_rel = db.query(UserReferral).filter(UserReferral.user_id == user.id).first()
+        if sponsor_code:
+            sponsor = _resolve_user_by_member_code(db, sponsor_code)
+            if not sponsor or sponsor.id == user.id:
+                raise HTTPException(status_code=400, detail="Valid sponsor_code required")
+            if not existing_rel:
+                db.add(UserReferral(user_id=user.id, sponsor_user_id=sponsor.id, sponsor_code=sponsor_code))
+            else:
+                existing_rel.sponsor_user_id = sponsor.id
+                existing_rel.sponsor_code = sponsor_code
+        elif existing_rel:
+            db.delete(existing_rel)
     db.commit()
     return {"ok": True, "id": user.id}
 
@@ -643,7 +758,11 @@ def admin_delete_user(user_id: str, hard: bool = False, db: Session = Depends(ge
     user = db.query(User).filter(User.id == user_id).first()
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
+    if user.role in {"super_admin", "company_admin", "admin"}:
+        raise HTTPException(status_code=403, detail="Cannot delete admin user")
     if hard:
+        db.query(UserReferral).filter((UserReferral.user_id == user_id) | (UserReferral.sponsor_user_id == user_id)).delete(synchronize_session=False)
+        db.query(AppSetting).filter((AppSetting.key == _user_profile_key(user_id)) | (AppSetting.key == _user_payout_key(user_id))).delete(synchronize_session=False)
         db.delete(user)
     else:
         user.is_active = False
