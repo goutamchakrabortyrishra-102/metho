@@ -680,7 +680,21 @@ export default function PartnerDashboardPage() {
                 </div>
               ) : (
                 <div className="mt-3 rounded-lg border border-amber-200 bg-amber-50 p-3 text-xs text-amber-900">
-                  Manual UPI proof flow is hidden by admin. Use Razorpay below if it is enabled.
+                  <p>Manual UPI proof flow is hidden by admin.</p>
+                  {razorpayEnabled ? (
+                    <div className="mt-3 space-y-2">
+                      <div>
+                        <Label>Top-up Amount</Label>
+                        <Input value={topupAmount} onChange={(e) => setTopupAmount(e.target.value)} type="number" min="1" className="mt-1.5 h-10" placeholder="e.g. 500" />
+                      </div>
+                      <Button onClick={submitTopupRazorpay} disabled={sendingRazorpay} variant="outline" className="rounded-full border-emerald-300 text-emerald-900 hover:bg-emerald-50" data-testid="partner-topup-razorpay-btn-only">
+                        {sendingRazorpay ? "Opening Razorpay..." : `Pay with Razorpay · ${topupAmount ? inr(topupAmount) : "₹0"}`}
+                      </Button>
+                      <p className="text-[11px] text-slate-600">Razorpay checkout-এ UPI collect/scan সহ যেকোনো available mode দিয়ে top-up দিতে পারবেন।</p>
+                    </div>
+                  ) : (
+                    <p className="mt-1 text-[11px]">Razorpay is currently disabled in settings.</p>
+                  )}
                 </div>
               )}
             </div>
