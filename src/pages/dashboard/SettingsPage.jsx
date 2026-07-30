@@ -568,25 +568,8 @@ export default function SettingsPage() {
     if (readOnly) return;
     // Persist only the changed branding field to avoid stale full-form overwrites.
     setForm((prev) => ({ ...prev, [field]: value }));
-
-    let response = await api.put("/settings", { [field]: value });
-    let data = response?.data || {};
-    let serverValue = Object.prototype.hasOwnProperty.call(data, field) ? data[field] : undefined;
-
-    // Retry once if backend response doesn't include the updated field value.
-    if ((serverValue === undefined || serverValue === null || serverValue === "") && value) {
-      response = await api.put("/settings", { [field]: value });
-      data = response?.data || {};
-      serverValue = Object.prototype.hasOwnProperty.call(data, field) ? data[field] : undefined;
-    }
-
-    setForm((prev) => {
-      const merged = { ...prev, ...(data || {}) };
-      if ((serverValue === undefined || serverValue === null || serverValue === "") && value) {
-        merged[field] = value;
-      }
-      return merged;
-    });
+    const { data } = await api.put("/settings", { [field]: value });
+    setForm((prev) => ({ ...prev, ...(data || {}) }));
   };
 
   const save = async (e) => {
