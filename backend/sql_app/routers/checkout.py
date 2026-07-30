@@ -1,12 +1,17 @@
 import json
 import uuid
+import base64
+import hashlib
+import hmac
+import urllib.error
+import urllib.request
 from pathlib import Path
 from fastapi import APIRouter, Depends, File, Header, HTTPException, UploadFile
 from fastapi.responses import FileResponse
 from sqlalchemy.orm import Session
 
 from ..database import get_db
-from ..models import AssociatePartner, PartnerProduct, Product, ProductMeta, PublicOrder
+from ..models import AppSetting, AssociatePartner, PartnerProduct, Product, ProductMeta, PublicOrder
 from ..security import decode_token
 from .auth import get_current_user
 from .settings import load_settings
@@ -16,6 +21,82 @@ router = APIRouter(prefix="/api", tags=["checkout"])
 ROOT_DIR = Path(__file__).resolve().parents[2]
 UPLOAD_DIR = ROOT_DIR / "uploaded_objects" / "payment_screenshots"
 UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
+
+
+def _load_checkout_razorpay_settings(db: Session) -> tuple[dict, str, str]:
+    settings = load_settings(db)
+    enabled = bool(settings.get("razorpay_enabled"))
+    key_id = str(settings.get("razorpay_key_id") or "").strip()
+    key_secret = str(settings.get("razorpay_key_secret") or "").strip()
+    if not enabled:
+        raise HTTPException(status_code=400, detail="Razorpay is disabled in settings")
+    if not key_id or not key_secret:
+        raise HTTPException(status_code=400, detail="Razorpay key_id/key_secret not configured")
+    return settings, key_id, key_secret
+
+
+def _razorpay_create_order(amount_paise: int, receipt: str, key_id: str, key_secret: str) -> dict:
+    payload = json.dumps(
+        {
+            "amount": int(amount_paise),
+            "currency": "INR",
+            "receipt": receipt,
+            "payment_capture": 1,
+        }
+    ).encode("utf-8")
+    token = base64.b64encode(f"{key_id}:{key_secret}".encode("utf-8")).decode("ascii")
+    req = urllib.request.Request(
+        "https://api.razorpay.com/v1/orders",
+        data=payload,
+        method="POST",
+        headers={
+            "Authorization": f"Basic {token}",
+            "Content-Type": "application/json",
+        },
+    )
+    try:
+        with urllib.request.urlopen(req, timeout=25) as resp:
+            body = resp.read().decode("utf-8")
+            return json.loads(body or "{}")
+    except urllib.error.HTTPError as exc:
+        raw = exc.read().decode("utf-8", errors="ignore")
+        detail = "Razorpay order creation failed"
+        try:
+            parsed = json.loads(raw or "{}")
+            detail = str(parsed.get("error", {}).get("description") or detail)
+        except Exception:
+            pass
+        raise HTTPException(status_code=400, detail=detail)
+    except Exception:
+        raise HTTPException(status_code=502, detail="Razorpay gateway unreachable")
+
+
+def _save_order_razorpay_ref(db: Session, order_id: str, razorpay_order_id: str):
+    key = f"razorpay_order:{order_id}"
+    payload = json.dumps(
+        {
+            "order_id": order_id,
+            "razorpay_order_id": razorpay_order_id,
+        }
+    )
+    row = db.query(AppSetting).filter(AppSetting.key == key).first()
+    if not row:
+        db.add(AppSetting(key=key, value_json=payload))
+    else:
+        row.value_json = payload
+    db.commit()
+
+
+def _load_order_razorpay_ref(db: Session, order_id: str) -> str:
+    key = f"razorpay_order:{order_id}"
+    row = db.query(AppSetting).filter(AppSetting.key == key).first()
+    if not row or not row.value_json:
+        return ""
+    try:
+        doc = json.loads(row.value_json or "{}")
+    except Exception:
+        return ""
+    return str(doc.get("razorpay_order_id") or "").strip()
 
 
 def _normalize_pricing_tiers(raw_tiers) -> list[dict]:
@@ -243,6 +324,80 @@ def submit_payment(order_id: str, payload: dict, db: Session = Depends(get_db)):
     db.commit()
 
     return {"id": row.id, "status": row.status, "total_amount": row.total_amount}
+
+
+@router.post("/payments/razorpay/order")
+def create_razorpay_order(payload: dict, db: Session = Depends(get_db)):
+    order_id = str((payload or {}).get("order_id") or "").strip()
+    if not order_id:
+        raise HTTPException(status_code=400, detail="order_id is required")
+
+    row = db.query(PublicOrder).filter(PublicOrder.id == order_id).first()
+    if not row:
+        raise HTTPException(status_code=404, detail="Order not found")
+
+    _, key_id, key_secret = _load_checkout_razorpay_settings(db)
+
+    amount_paise = int(round(float(row.total_amount or 0) * 100))
+    if amount_paise <= 0:
+        raise HTTPException(status_code=400, detail="Invalid order amount")
+
+    receipt = f"metho_{order_id[:18]}"
+    rp = _razorpay_create_order(amount_paise, receipt, key_id, key_secret)
+    razorpay_order_id = str(rp.get("id") or "").strip()
+    if not razorpay_order_id:
+        raise HTTPException(status_code=502, detail="Razorpay order id missing")
+
+    _save_order_razorpay_ref(db, order_id, razorpay_order_id)
+
+    return {
+        "key_id": key_id,
+        "amount": amount_paise,
+        "currency": str(rp.get("currency") or "INR"),
+        "razorpay_order_id": razorpay_order_id,
+        "name": "METHOO STORE",
+        "description": f"Order {order_id[:8].upper()} payment",
+    }
+
+
+@router.post("/payments/razorpay/verify-and-submit")
+def verify_razorpay_and_submit(payload: dict, db: Session = Depends(get_db)):
+    order_id = str((payload or {}).get("order_id") or "").strip()
+    razorpay_order_id = str((payload or {}).get("razorpay_order_id") or "").strip()
+    razorpay_payment_id = str((payload or {}).get("razorpay_payment_id") or "").strip()
+    razorpay_signature = str((payload or {}).get("razorpay_signature") or "").strip()
+    payer_name = str((payload or {}).get("payer_name") or "").strip()
+
+    if not order_id or not razorpay_order_id or not razorpay_payment_id or not razorpay_signature:
+        raise HTTPException(status_code=400, detail="Missing Razorpay verification fields")
+
+    _, _, key_secret = _load_checkout_razorpay_settings(db)
+
+    expected_order_id = _load_order_razorpay_ref(db, order_id)
+    if expected_order_id and expected_order_id != razorpay_order_id:
+        raise HTTPException(status_code=400, detail="Razorpay order mismatch")
+
+    signed_payload = f"{razorpay_order_id}|{razorpay_payment_id}".encode("utf-8")
+    expected_signature = hmac.new(key_secret.encode("utf-8"), signed_payload, hashlib.sha256).hexdigest()
+    if not hmac.compare_digest(expected_signature, razorpay_signature):
+        raise HTTPException(status_code=400, detail="Invalid Razorpay signature")
+
+    row = db.query(PublicOrder).filter(PublicOrder.id == order_id).first()
+    if not row:
+        raise HTTPException(status_code=404, detail="Order not found")
+
+    row.txn_id = razorpay_payment_id
+    if payer_name:
+        row.payer_name = payer_name
+    row.status = "pending_approval"
+    db.commit()
+
+    return {
+        "id": row.id,
+        "status": row.status,
+        "total_amount": float(row.total_amount or 0),
+        "approval_reason": "Payment received. Admin approval pending.",
+    }
 
 
 @router.get("/partner/summary")
