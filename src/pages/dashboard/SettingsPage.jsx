@@ -1098,6 +1098,7 @@ export default function SettingsPage() {
                 onPersist={(value) => persistBrandingField("site_logo_url", value)}
                 readOnly={readOnly}
                 testId="branding-logo"
+                uploadEndpoint="/admin/upload/site-logo"
               />
               <BrandingImageUpload
                 purpose="landing_hero"
