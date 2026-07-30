@@ -52,12 +52,6 @@ const DEFAULT_HERO_IMG = "https://images.pexels.com/photos/7413999/pexels-photo-
 const NETWORK_IMG = "https://images.pexels.com/photos/7581110/pexels-photo-7581110.jpeg?auto=compress&cs=tinysrgb&w=1400";
 const TEAM_IMG = "https://images.pexels.com/photos/7580944/pexels-photo-7580944.jpeg?auto=compress&cs=tinysrgb&w=500";
 const WALLET_IMG = "https://images.pexels.com/photos/7580855/pexels-photo-7580855.jpeg?auto=compress&cs=tinysrgb&w=500";
-const DEFAULT_LEADER_IMG_1 = "https://images.pexels.com/photos/7581113/pexels-photo-7581113.jpeg?auto=compress&cs=tinysrgb&w=700";
-const DEFAULT_LEADER_IMG_2 = "https://images.pexels.com/photos/7580791/pexels-photo-7580791.jpeg?auto=compress&cs=tinysrgb&w=700";
-const DEFAULT_LEADER_IMG_3 = "https://images.pexels.com/photos/7580821/pexels-photo-7580821.jpeg?auto=compress&cs=tinysrgb&w=700";
-const DEFAULT_LEADER_IMG_4 = "https://images.pexels.com/photos/7581113/pexels-photo-7581113.jpeg?auto=compress&cs=tinysrgb&w=700";
-const DEFAULT_LEADER_IMG_5 = "https://images.pexels.com/photos/7580791/pexels-photo-7580791.jpeg?auto=compress&cs=tinysrgb&w=700";
-const DEFAULT_LEADER_IMG_6 = "https://images.pexels.com/photos/7580821/pexels-photo-7580821.jpeg?auto=compress&cs=tinysrgb&w=700";
 const FALLBACK_PRODUCT_IMG = "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 600 600'><rect width='600' height='600' fill='%23f1f5f9'/><text x='50%25' y='50%25' dominant-baseline='middle' text-anchor='middle' fill='%23475569' font-size='26' font-family='Arial'>METHOO STORE Product</text></svg>";
 const FALLBACK_LEADER_IMG = "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 700 875'><defs><linearGradient id='g' x1='0' y1='0' x2='0' y2='1'><stop offset='0%25' stop-color='%23f8fafc'/><stop offset='100%25' stop-color='%23e2e8f0'/></linearGradient></defs><rect width='700' height='875' fill='url(%23g)'/><circle cx='350' cy='305' r='104' fill='%2394a3b8' opacity='0.42'/><rect x='170' y='430' width='360' height='280' rx='180' fill='%2394a3b8' opacity='0.35'/><rect x='0' y='760' width='700' height='115' fill='%23cbd5e1' opacity='0.4'/></svg>";
 const DEFAULT_POLICY = {
@@ -778,37 +772,31 @@ const TopLeaders = () => {
       name: settings?.top_leader_1_name || "Leader 1",
       title: settings?.top_leader_1_title || "MD",
       image: settings?.top_leader_1_image_url_full,
-      defaultImage: DEFAULT_LEADER_IMG_1,
     },
     {
       name: settings?.top_leader_2_name || "Leader 2",
       title: settings?.top_leader_2_title || "CEO",
       image: settings?.top_leader_2_image_url_full,
-      defaultImage: DEFAULT_LEADER_IMG_2,
     },
     {
       name: settings?.top_leader_3_name || "Leader 3",
       title: settings?.top_leader_3_title || "Mentor",
       image: settings?.top_leader_3_image_url_full,
-      defaultImage: DEFAULT_LEADER_IMG_3,
     },
     {
       name: settings?.top_leader_4_name || "Leader 4",
       title: settings?.top_leader_4_title || "Growth Mentor",
       image: settings?.top_leader_4_image_url_full,
-      defaultImage: DEFAULT_LEADER_IMG_4,
     },
     {
       name: settings?.top_leader_5_name || "Leader 5",
       title: settings?.top_leader_5_title || "Business Leader",
       image: settings?.top_leader_5_image_url_full,
-      defaultImage: DEFAULT_LEADER_IMG_5,
     },
     {
       name: settings?.top_leader_6_name || "Leader 6",
       title: settings?.top_leader_6_title || "Senior Advisor",
       image: settings?.top_leader_6_image_url_full,
-      defaultImage: DEFAULT_LEADER_IMG_6,
     },
   ];
 
@@ -824,9 +812,8 @@ const TopLeaders = () => {
             <div key={i} className="bg-white rounded-2xl border border-emerald-900/10 overflow-hidden shadow-sm hover:shadow-md transition-shadow" data-testid={`top-leader-card-${i + 1}`}>
               <div className="aspect-square overflow-hidden bg-secondary">
                 <img
-                  src={leader.image || leader.defaultImage || FALLBACK_LEADER_IMG}
+                  src={leader.image || FALLBACK_LEADER_IMG}
                   alt={leader.name}
-                  data-default-src={leader.defaultImage || ""}
                   data-original-src={leader.image || ""}
                   data-has-custom={leader.image ? "1" : "0"}
                   className="w-full h-full object-cover"
@@ -841,13 +828,6 @@ const TopLeaders = () => {
                       img.dataset.retriedCustom = "1";
                       const sep = originalSrc.includes("?") ? "&" : "?";
                       img.src = `${originalSrc}${sep}img_retry=${Date.now()}`;
-                      return;
-                    }
-
-                    const defaultSrc = img.dataset.defaultSrc || "";
-                    if (defaultSrc && img.dataset.usedDefault !== "1" && img.src !== defaultSrc) {
-                      img.dataset.usedDefault = "1";
-                      img.src = defaultSrc;
                       return;
                     }
                     if (img.src !== FALLBACK_LEADER_IMG) img.src = FALLBACK_LEADER_IMG;

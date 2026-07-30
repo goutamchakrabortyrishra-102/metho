@@ -1096,7 +1096,6 @@ export default function SettingsPage() {
                 value={form.site_logo_url}
                 onChange={setF("site_logo_url")}
                 onPersist={(value) => persistBrandingField("site_logo_url", value)}
-                uploadEndpoint="/admin/upload/site-logo"
                 readOnly={readOnly}
                 testId="branding-logo"
               />
