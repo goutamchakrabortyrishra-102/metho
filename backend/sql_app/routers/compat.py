@@ -180,6 +180,14 @@ def _partner_payment_qr_key(partner_id: str) -> str:
     return f"partner_payment_qr:{partner_id}"
 
 
+def _partner_banner_key(partner_id: str) -> str:
+    return f"partner_banner:{partner_id}"
+
+
+def _partner_featured_images_key(partner_id: str) -> str:
+    return f"partner_featured_images:{partner_id}"
+
+
 def _company_commission_wallet_key() -> str:
     return "company_commission_wallet"
 
@@ -1891,6 +1899,116 @@ async def partner_upload_product_image(file: UploadFile = File(...), current_use
         raise HTTPException(status_code=403, detail="Partner access only")
     name = _save_image_upload(file, PRODUCT_UPLOAD_DIR, "partner-product")
     return {"ok": True, "url": f"/api/files/product_images/{name}", "storage_path": f"product_images/{name}"}
+
+
+@router.get("/partner/banner")
+def partner_banner(request: Request, db: Session = Depends(get_db), current_user=Depends(get_current_user)):
+    if getattr(current_user, "role", "") != "partner":
+        raise HTTPException(status_code=403, detail="Partner access only")
+    partner = _resolve_partner_for_user(db, current_user)
+    if not partner:
+        raise HTTPException(status_code=404, detail="Partner profile not found")
+
+    row = db.query(AppSetting).filter(AppSetting.key == _partner_banner_key(partner.id)).first()
+    banner_url = ""
+    if row and row.value_json:
+        try:
+            banner_url = str(json.loads(row.value_json or "{}").get("banner_url") or "").strip()
+        except Exception:
+            banner_url = ""
+    return {
+        "partner_id": partner.id,
+        "partner_code": partner.partner_code,
+        "banner_url": _file_url(banner_url, request) if banner_url else "",
+    }
+
+
+@router.post("/partner/upload/shop-banner")
+async def partner_upload_shop_banner(file: UploadFile = File(...), db: Session = Depends(get_db), current_user=Depends(get_current_user)):
+    if getattr(current_user, "role", "") != "partner":
+        raise HTTPException(status_code=403, detail="Partner access only")
+    partner = _resolve_partner_for_user(db, current_user)
+    if not partner:
+        raise HTTPException(status_code=404, detail="Partner profile not found")
+
+    name = _save_image_upload(file, BRANDING_UPLOAD_DIR, "partner-shop-banner")
+    relative_url = f"/api/files/branding_images/{name}"
+    payload = {"banner_url": relative_url, "updated_at": now_iso()}
+    row = db.query(AppSetting).filter(AppSetting.key == _partner_banner_key(partner.id)).first()
+    if not row:
+        db.add(AppSetting(key=_partner_banner_key(partner.id), value_json=json.dumps(payload), updated_at=datetime.now(timezone.utc)))
+    else:
+        row.value_json = json.dumps(payload)
+        row.updated_at = datetime.now(timezone.utc)
+    db.commit()
+    return {"ok": True, "url": relative_url}
+
+
+@router.get("/partner/featured-images")
+def partner_featured_images(request: Request, db: Session = Depends(get_db), current_user=Depends(get_current_user)):
+    if getattr(current_user, "role", "") != "partner":
+        raise HTTPException(status_code=403, detail="Partner access only")
+    partner = _resolve_partner_for_user(db, current_user)
+    if not partner:
+        raise HTTPException(status_code=404, detail="Partner profile not found")
+
+    row = db.query(AppSetting).filter(AppSetting.key == _partner_featured_images_key(partner.id)).first()
+    items = ["", "", "", "", ""]
+    if row and row.value_json:
+        try:
+            payload = json.loads(row.value_json or "{}")
+            raw_items = payload.get("items") if isinstance(payload, dict) else []
+            if isinstance(raw_items, list):
+                for idx in range(min(5, len(raw_items))):
+                    items[idx] = str(raw_items[idx] or "").strip()
+        except Exception:
+            items = ["", "", "", "", ""]
+
+    return {
+        "partner_id": partner.id,
+        "partner_code": partner.partner_code,
+        "items": [(_file_url(path, request) if path else "") for path in items],
+    }
+
+
+@router.post("/partner/upload/featured-image/{slot}")
+async def partner_upload_featured_image(slot: int, file: UploadFile = File(...), db: Session = Depends(get_db), current_user=Depends(get_current_user)):
+    if getattr(current_user, "role", "") != "partner":
+        raise HTTPException(status_code=403, detail="Partner access only")
+    if slot < 1 or slot > 5:
+        raise HTTPException(status_code=400, detail="Slot must be between 1 and 5")
+    partner = _resolve_partner_for_user(db, current_user)
+    if not partner:
+        raise HTTPException(status_code=404, detail="Partner profile not found")
+
+    row = db.query(AppSetting).filter(AppSetting.key == _partner_featured_images_key(partner.id)).first()
+    items = ["", "", "", "", ""]
+    if row and row.value_json:
+        try:
+            payload = json.loads(row.value_json or "{}")
+            raw_items = payload.get("items") if isinstance(payload, dict) else []
+            if isinstance(raw_items, list):
+                for idx in range(min(5, len(raw_items))):
+                    items[idx] = str(raw_items[idx] or "").strip()
+        except Exception:
+            items = ["", "", "", "", ""]
+
+    name = _save_image_upload(file, BRANDING_UPLOAD_DIR, f"partner-featured-{slot}")
+    items[slot - 1] = f"/api/files/branding_images/{name}"
+
+    payload = {"items": items, "updated_at": now_iso()}
+    if not row:
+        db.add(AppSetting(key=_partner_featured_images_key(partner.id), value_json=json.dumps(payload), updated_at=datetime.now(timezone.utc)))
+    else:
+        row.value_json = json.dumps(payload)
+        row.updated_at = datetime.now(timezone.utc)
+    db.commit()
+
+    return {
+        "partner_id": partner.id,
+        "partner_code": partner.partner_code,
+        "items": items,
+    }
 
 
 @router.post("/partner/wallet/topup-request")
