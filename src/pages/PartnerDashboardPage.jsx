@@ -13,6 +13,8 @@ import { Label } from "@/components/ui/label";
 import { resolveAssetUrl } from "@/lib/utils";
 
 const inr = (v) => `₹${(Number(v) || 0).toLocaleString("en-IN", { maximumFractionDigits: 2 })}`;
+const PARTNER_IMAGE_MAX_BYTES = 200 * 1024;
+const PARTNER_IMAGE_MAX_TEXT = "200KB";
 const PDF_PREVIEW = "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 400 400'><rect width='400' height='400' fill='%23f1f5f9'/><rect x='80' y='50' width='240' height='300' rx='14' fill='%23ffffff' stroke='%2394a3b8' stroke-width='4'/><text x='200' y='190' text-anchor='middle' fill='%23dc2626' font-size='46' font-family='Arial' font-weight='bold'>PDF</text><text x='200' y='228' text-anchor='middle' fill='%23334155' font-size='16' font-family='Arial'>Tap to Open</text></svg>";
 
 const pickImageUrl = (value) => {
@@ -176,8 +178,8 @@ export default function PartnerDashboardPage() {
   const uploadTopupProof = async (e) => {
     const file = e.target.files?.[0];
     if (!file) return;
-    if (file.size > 5 * 1024 * 1024) {
-      toast.error("File too large (max 5MB)");
+    if (file.size > PARTNER_IMAGE_MAX_BYTES) {
+      toast.error(`File too large (max ${PARTNER_IMAGE_MAX_TEXT})`);
       return;
     }
     setUploadingProof(true);
@@ -296,8 +298,8 @@ export default function PartnerDashboardPage() {
   const uploadPartnerPaymentQr = async (e) => {
     const file = e.target.files?.[0];
     if (!file) return;
-    if (file.size > 5 * 1024 * 1024) {
-      toast.error("File too large (max 5MB)");
+    if (file.size > PARTNER_IMAGE_MAX_BYTES) {
+      toast.error(`File too large (max ${PARTNER_IMAGE_MAX_TEXT})`);
       return;
     }
     setUploadingPaymentQr(true);
@@ -332,8 +334,8 @@ export default function PartnerDashboardPage() {
   const uploadShopBanner = async (e) => {
     const file = e.target.files?.[0];
     if (!file) return;
-    if (file.size > 5 * 1024 * 1024) {
-      toast.error("File too large (max 5MB)");
+    if (file.size > PARTNER_IMAGE_MAX_BYTES) {
+      toast.error(`File too large (max ${PARTNER_IMAGE_MAX_TEXT})`);
       return;
     }
     setUploadingBanner(true);
@@ -356,8 +358,8 @@ export default function PartnerDashboardPage() {
   const uploadFeaturedImage = async (slot, e) => {
     const file = e.target.files?.[0];
     if (!file) return;
-    if (file.size > 5 * 1024 * 1024) {
-      toast.error("File too large (max 5MB)");
+    if (file.size > PARTNER_IMAGE_MAX_BYTES) {
+      toast.error(`File too large (max ${PARTNER_IMAGE_MAX_TEXT})`);
       return;
     }
     setUploadingFeatured((prev) => ({ ...prev, [slot]: true }));
@@ -466,7 +468,7 @@ export default function PartnerDashboardPage() {
                   )}
                 </div>
                 <div className="rounded-xl border border-dashed border-emerald-300 bg-white p-3 text-xs text-slate-600 space-y-3">
-                  <p>Banner size can be any image under 5MB. Featured products still remain the first 5 products in the gallery.</p>
+                  <p>Banner size can be any image under 200KB. Featured products still remain the first 5 products in the gallery.</p>
                   <div className="rounded-lg border border-emerald-200 bg-emerald-50 p-3">
                     <p className="text-[10px] uppercase tracking-widest text-emerald-800 font-bold">Your Public Shop Link</p>
                     <a
@@ -521,7 +523,7 @@ export default function PartnerDashboardPage() {
                   <h3 className="font-display font-bold text-emerald-950 text-lg">Upload 5 partner images</h3>
                   <p className="text-xs text-slate-600 mt-1">Shop banner-এর পাশাপাশি partner নিজে 5টা image upload করতে পারবে. এগুলো shop page-এ highlight হবে.</p>
                 </div>
-                <p className="text-xs text-slate-500">Max 5 images, 5MB each</p>
+                <p className="text-xs text-slate-500">Max 5 images, 200KB each</p>
               </div>
               <div className="mt-4 grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-5 gap-3">
                 {[1, 2, 3, 4, 5].map((slot) => {
