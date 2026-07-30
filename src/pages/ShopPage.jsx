@@ -9,26 +9,35 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import UpiPaymentDialog from "@/components/UpiPaymentDialog";
 import { useAuth } from "@/contexts/AuthContext";
+import { resolveAssetUrl } from "@/lib/utils";
 
 const FALLBACK_IMAGE = "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 600 600'><rect width='600' height='600' fill='%23e2e8f0'/><text x='50%25' y='50%25' dominant-baseline='middle' text-anchor='middle' fill='%23475569' font-size='28' font-family='Arial, sans-serif'>METHOO STORE Product</text></svg>";
 const PDF_PREVIEW = "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 600 600'><rect width='600' height='600' fill='%23f1f5f9'/><rect x='130' y='90' width='340' height='420' rx='18' fill='%23ffffff' stroke='%2394a3b8' stroke-width='6'/><text x='300' y='290' text-anchor='middle' fill='%23dc2626' font-size='68' font-family='Arial' font-weight='bold'>PDF</text><text x='300' y='340' text-anchor='middle' fill='%23334155' font-size='20' font-family='Arial'>Catalog Link</text></svg>";
 
 const getPdfUrl = (product) => {
   if (!product) return "";
-  if (product.pdf_url) return product.pdf_url;
-  if (product.product_pdf_url) return product.product_pdf_url;
-  if (Array.isArray(product.pdf_urls) && product.pdf_urls[0]) return product.pdf_urls[0];
+  if (product.pdf_url) return resolveAssetUrl(product.pdf_url);
+  if (product.product_pdf_url) return resolveAssetUrl(product.product_pdf_url);
+  if (Array.isArray(product.pdf_urls) && product.pdf_urls[0]) return resolveAssetUrl(product.pdf_urls[0]);
   if (Array.isArray(product.pdfs) && product.pdfs[0]) {
     const first = product.pdfs[0];
-    if (typeof first === "string") return first;
-    if (first.url) return first.url;
-    if (first.pdf_url) return first.pdf_url;
+    if (typeof first === "string") return resolveAssetUrl(first);
+    if (first.url) return resolveAssetUrl(first.url);
+    if (first.pdf_url) return resolveAssetUrl(first.pdf_url);
   }
   return "";
 };
 
 const getDisplayImage = (product) => {
-  if (product?.image_url) return product.image_url;
+  const imageUrl = resolveAssetUrl(
+    product?.image_url ||
+    product?.product_image_url ||
+    product?.image ||
+    product?.thumbnail_url ||
+    product?.thumb_url ||
+    ""
+  );
+  if (imageUrl) return imageUrl;
   return getPdfUrl(product) ? PDF_PREVIEW : FALLBACK_IMAGE;
 };
 
