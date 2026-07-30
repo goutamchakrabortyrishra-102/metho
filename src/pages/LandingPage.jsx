@@ -104,6 +104,7 @@ const Hero = () => {
   const nav = useNavigate();
   const [shopSearch, setShopSearch] = useState("");
   const [bestProducts, setBestProducts] = useState([]);
+  const hasBestProducts = bestProducts.length > 0;
   const HERO_IMG = settings?.landing_hero_image_url_full || DEFAULT_HERO_IMG;
   const tagline = settings?.landing_tagline;
   const subheading = settings?.landing_subheading;
@@ -338,7 +339,7 @@ const Hero = () => {
         <div className="flex items-center justify-between gap-3 mb-4">
           <div>
             <p className="text-[10px] uppercase tracking-[0.24em] text-emerald-800 font-semibold">METHO Best Products</p>
-            <h3 className="font-display font-black text-xl md:text-2xl text-emerald-950">Top product images from admin uploads</h3>
+            <h3 className="font-display font-black text-xl md:text-2xl text-emerald-950">{hasBestProducts ? "Top product images from admin uploads" : "Live products will appear here after upload"}</h3>
           </div>
           <Link to="/shop" data-testid="hero-best-products-view-all" className="hidden md:inline-flex">
             <Button variant="outline" className="rounded-full border-emerald-900/20 hover:bg-emerald-50 hover:text-emerald-900">
@@ -348,7 +349,7 @@ const Hero = () => {
         </div>
 
         <div className="grid grid-cols-2 md:grid-cols-3 gap-3 md:gap-4">
-          {(bestProducts.length ? bestProducts : Array.from({ length: 6 })).map((p, i) => (
+          {(hasBestProducts ? bestProducts : Array.from({ length: 6 })).map((p, i) => (
             <Link
               key={p?.id || p?.name || i}
               to="/shop"
@@ -357,7 +358,7 @@ const Hero = () => {
             >
               <div className="aspect-[4/3] bg-slate-100 overflow-hidden">
                 <img
-                  src={p?.image_url || settings?.product_placeholder_image_url_full || FALLBACK_PRODUCT_IMG}
+                  src={p?.image_url || FALLBACK_PRODUCT_IMG}
                   alt={p?.name || "METHO Product"}
                   className="w-full h-full object-cover group-hover:scale-[1.03] transition-transform duration-300"
                   loading="lazy"
