@@ -195,6 +195,56 @@ function UpiSection({ form, setF, readOnly }) {
             className="mt-1.5 h-11"
           />
         </div>
+        <div>
+          <Label>METHO Bank Account Holder</Label>
+          <Input
+            value={form.metho_bank_account_holder ?? ""}
+            onChange={(e) => setF("metho_bank_account_holder")(e.target.value)}
+            placeholder="e.g. METHO Logistics Pvt Ltd"
+            data-testid="settings-metho-bank-holder"
+            className="mt-1.5 h-11"
+          />
+        </div>
+        <div>
+          <Label>METHO Bank Name</Label>
+          <Input
+            value={form.metho_bank_name ?? ""}
+            onChange={(e) => setF("metho_bank_name")(e.target.value)}
+            placeholder="e.g. HDFC Bank"
+            data-testid="settings-metho-bank-name"
+            className="mt-1.5 h-11"
+          />
+        </div>
+        <div>
+          <Label>METHO Bank Branch</Label>
+          <Input
+            value={form.metho_bank_branch ?? ""}
+            onChange={(e) => setF("metho_bank_branch")(e.target.value)}
+            placeholder="e.g. Kolkata Main"
+            data-testid="settings-metho-bank-branch"
+            className="mt-1.5 h-11"
+          />
+        </div>
+        <div>
+          <Label>METHO Bank Account Number</Label>
+          <Input
+            value={form.metho_bank_account_number ?? ""}
+            onChange={(e) => setF("metho_bank_account_number")(e.target.value)}
+            placeholder="e.g. 123456789012"
+            data-testid="settings-metho-bank-account-number"
+            className="mt-1.5 h-11 font-mono"
+          />
+        </div>
+        <div>
+          <Label>METHO Bank IFSC</Label>
+          <Input
+            value={form.metho_bank_ifsc ?? ""}
+            onChange={(e) => setF("metho_bank_ifsc")(String(e.target.value || "").toUpperCase())}
+            placeholder="e.g. HDFC0001234"
+            data-testid="settings-metho-bank-ifsc"
+            className="mt-1.5 h-11 font-mono uppercase"
+          />
+        </div>
         <div className="md:col-span-2">
           <Label>UPI QR Code (upload image)</Label>
           <div className="mt-1.5 flex flex-wrap items-center gap-3">

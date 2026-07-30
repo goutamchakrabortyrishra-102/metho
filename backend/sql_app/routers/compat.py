@@ -1,10 +1,15 @@
 import uuid
+import base64
+import hashlib
+import hmac
 from datetime import datetime, timedelta, timezone
 from io import BytesIO
 from pathlib import Path
 import json
 import zipfile
 import os
+import urllib.error
+import urllib.request
 
 from openai import OpenAI
 import google.generativeai as genai
@@ -44,6 +49,54 @@ def _save_image_upload(file: UploadFile, target_dir: Path, prefix: str) -> str:
     target = target_dir / name
     target.write_bytes(content)
     return name
+
+
+def _load_razorpay_settings(db: Session) -> tuple[str, str]:
+    settings = load_settings(db)
+    enabled = bool(settings.get("razorpay_enabled"))
+    key_id = str(settings.get("razorpay_key_id") or "").strip()
+    key_secret = str(settings.get("razorpay_key_secret") or "").strip()
+    if not enabled:
+        raise HTTPException(status_code=400, detail="Razorpay is disabled in settings")
+    if not key_id or not key_secret:
+        raise HTTPException(status_code=400, detail="Razorpay key_id/key_secret not configured")
+    return key_id, key_secret
+
+
+def _razorpay_create_order(amount_paise: int, receipt: str, key_id: str, key_secret: str) -> dict:
+    payload = json.dumps(
+        {
+            "amount": int(amount_paise),
+            "currency": "INR",
+            "receipt": receipt,
+            "payment_capture": 1,
+        }
+    ).encode("utf-8")
+    token = base64.b64encode(f"{key_id}:{key_secret}".encode("utf-8")).decode("ascii")
+    req = urllib.request.Request(
+        "https://api.razorpay.com/v1/orders",
+        data=payload,
+        method="POST",
+        headers={
+            "Authorization": f"Basic {token}",
+            "Content-Type": "application/json",
+        },
+    )
+    try:
+        with urllib.request.urlopen(req, timeout=25) as resp:
+            body = resp.read().decode("utf-8")
+            return json.loads(body or "{}")
+    except urllib.error.HTTPError as exc:
+        raw = exc.read().decode("utf-8", errors="ignore")
+        detail = "Razorpay order creation failed"
+        try:
+            parsed = json.loads(raw or "{}")
+            detail = str(parsed.get("error", {}).get("description") or detail)
+        except Exception:
+            pass
+        raise HTTPException(status_code=400, detail=detail)
+    except Exception:
+        raise HTTPException(status_code=502, detail="Razorpay gateway unreachable")
 
 
 def member_code_for_user(user_id: str) -> str:
@@ -1738,6 +1791,11 @@ def partner_payment_profile(request: Request, db: Session = Depends(get_db), cur
         "metho_upi_payee_name": str(settings.get("upi_payee_name") or "METHO Logistics Pvt Ltd").strip(),
         "metho_upi_qr_url": _file_url(str(settings.get("upi_qr_url") or ""), request) if settings.get("upi_qr_url") else "",
         "metho_topup_qr_url": _file_url(topup_qr, request) if topup_qr else "",
+        "metho_bank_account_holder": str(settings.get("metho_bank_account_holder") or "").strip(),
+        "metho_bank_name": str(settings.get("metho_bank_name") or "").strip(),
+        "metho_bank_branch": str(settings.get("metho_bank_branch") or "").strip(),
+        "metho_bank_account_number": str(settings.get("metho_bank_account_number") or "").strip(),
+        "metho_bank_ifsc": str(settings.get("metho_bank_ifsc") or "").strip().upper(),
         "commission_percent": round(float(partner.commission_percent or 0), 2),
         "wallet": wallet,
         "wallet_transactions": _list_partner_wallet_tx(db, partner.id)[:20],
@@ -1814,12 +1872,17 @@ def partner_wallet_topup_request(payload: dict, db: Session = Depends(get_db), c
     if amount <= 0:
         raise HTTPException(status_code=400, detail="Top-up amount must be greater than 0")
 
+    payment_method = str(payload.get("payment_method") or "manual_upi").strip().lower()
+    if payment_method not in {"manual_upi", "razorpay"}:
+        payment_method = "manual_upi"
+
     txn_id = str(payload.get("txn_id") or "").strip()
     proof_url = str(payload.get("proof_url") or "").strip()
-    if not txn_id:
-        raise HTTPException(status_code=400, detail="Transaction ID is required")
-    if not proof_url:
-        raise HTTPException(status_code=400, detail="Payment proof is required")
+    if payment_method == "manual_upi":
+        if not txn_id:
+            raise HTTPException(status_code=400, detail="Transaction ID is required")
+        if not proof_url:
+            raise HTTPException(status_code=400, detail="Payment proof is required")
 
     request_id = str(uuid.uuid4())
     doc = {
@@ -1828,16 +1891,147 @@ def partner_wallet_topup_request(payload: dict, db: Session = Depends(get_db), c
         "partner_code": partner.partner_code,
         "business_name": partner.business_name,
         "amount": amount,
+        "payment_method": payment_method,
         "txn_id": txn_id,
         "proof_url": proof_url,
         "status": "pending",
         "created_at": now_iso(),
         "reviewed_at": None,
         "review_note": "",
+        "razorpay_order_id": "",
+        "razorpay_payment_id": "",
     }
     db.add(AppSetting(key=_partner_topup_key(request_id), value_json=json.dumps(doc), updated_at=datetime.now(timezone.utc)))
     db.commit()
     return {"ok": True, "request": doc}
+
+
+@router.post("/partner/wallet/topup-razorpay/order")
+def partner_wallet_topup_razorpay_order(payload: dict, db: Session = Depends(get_db), current_user=Depends(get_current_user)):
+    if getattr(current_user, "role", "") != "partner":
+        raise HTTPException(status_code=403, detail="Partner access only")
+    partner = _resolve_partner_for_user(db, current_user)
+    if not partner:
+        raise HTTPException(status_code=404, detail="Partner profile not found")
+
+    request_id = str((payload or {}).get("request_id") or "").strip()
+    if not request_id:
+        raise HTTPException(status_code=400, detail="request_id is required")
+
+    row = db.query(AppSetting).filter(AppSetting.key == _partner_topup_key(request_id)).first()
+    if not row:
+        raise HTTPException(status_code=404, detail="Top-up request not found")
+
+    try:
+        doc = json.loads(row.value_json or "{}")
+    except Exception:
+        doc = {}
+
+    if str(doc.get("partner_id") or "") != str(partner.id):
+        raise HTTPException(status_code=403, detail="This request does not belong to you")
+    if str(doc.get("status") or "").lower() != "pending":
+        raise HTTPException(status_code=400, detail="Only pending request can open Razorpay order")
+    if str(doc.get("payment_method") or "manual_upi").lower() != "razorpay":
+        raise HTTPException(status_code=400, detail="Request is not created for Razorpay payment")
+
+    key_id, key_secret = _load_razorpay_settings(db)
+    amount_paise = int(round(float(doc.get("amount") or 0) * 100))
+    if amount_paise <= 0:
+        raise HTTPException(status_code=400, detail="Invalid top-up amount")
+
+    receipt = f"ptop_{request_id[:18]}"
+    rp = _razorpay_create_order(amount_paise, receipt, key_id, key_secret)
+    razorpay_order_id = str(rp.get("id") or "").strip()
+    if not razorpay_order_id:
+        raise HTTPException(status_code=502, detail="Razorpay order id missing")
+
+    doc["razorpay_order_id"] = razorpay_order_id
+    row.value_json = json.dumps(doc)
+    row.updated_at = datetime.now(timezone.utc)
+    db.commit()
+
+    return {
+        "key_id": key_id,
+        "amount": amount_paise,
+        "currency": str(rp.get("currency") or "INR"),
+        "razorpay_order_id": razorpay_order_id,
+        "name": "METHOO STORE",
+        "description": f"Partner wallet top-up {request_id[:8].upper()}",
+    }
+
+
+@router.post("/partner/wallet/topup-razorpay/verify-and-credit")
+def partner_wallet_topup_razorpay_verify_and_credit(payload: dict, db: Session = Depends(get_db), current_user=Depends(get_current_user)):
+    if getattr(current_user, "role", "") != "partner":
+        raise HTTPException(status_code=403, detail="Partner access only")
+    partner = _resolve_partner_for_user(db, current_user)
+    if not partner:
+        raise HTTPException(status_code=404, detail="Partner profile not found")
+
+    request_id = str((payload or {}).get("request_id") or "").strip()
+    razorpay_order_id = str((payload or {}).get("razorpay_order_id") or "").strip()
+    razorpay_payment_id = str((payload or {}).get("razorpay_payment_id") or "").strip()
+    razorpay_signature = str((payload or {}).get("razorpay_signature") or "").strip()
+    if not request_id or not razorpay_order_id or not razorpay_payment_id or not razorpay_signature:
+        raise HTTPException(status_code=400, detail="Missing Razorpay verification fields")
+
+    row = db.query(AppSetting).filter(AppSetting.key == _partner_topup_key(request_id)).first()
+    if not row:
+        raise HTTPException(status_code=404, detail="Top-up request not found")
+
+    try:
+        doc = json.loads(row.value_json or "{}")
+    except Exception:
+        doc = {}
+
+    if str(doc.get("partner_id") or "") != str(partner.id):
+        raise HTTPException(status_code=403, detail="This request does not belong to you")
+    if str(doc.get("status") or "").lower() != "pending":
+        raise HTTPException(status_code=400, detail="Only pending request can be verified")
+    if str(doc.get("payment_method") or "manual_upi").lower() != "razorpay":
+        raise HTTPException(status_code=400, detail="Request is not created for Razorpay payment")
+
+    expected_order_id = str(doc.get("razorpay_order_id") or "").strip()
+    if expected_order_id and expected_order_id != razorpay_order_id:
+        raise HTTPException(status_code=400, detail="Razorpay order mismatch")
+
+    _, key_secret = _load_razorpay_settings(db)
+    signed_payload = f"{razorpay_order_id}|{razorpay_payment_id}".encode("utf-8")
+    expected_signature = hmac.new(key_secret.encode("utf-8"), signed_payload, hashlib.sha256).hexdigest()
+    if not hmac.compare_digest(expected_signature, razorpay_signature):
+        raise HTTPException(status_code=400, detail="Invalid Razorpay signature")
+
+    amount = round(float(doc.get("amount") or 0), 2)
+    if amount <= 0:
+        raise HTTPException(status_code=400, detail="Invalid top-up amount")
+
+    wallet = _load_partner_wallet(db, partner.id)
+    wallet["balance"] = round(float(wallet.get("balance") or 0) + amount, 2)
+    wallet["total_credit"] = round(float(wallet.get("total_credit") or 0) + amount, 2)
+    _save_partner_wallet(db, partner.id, wallet)
+
+    tx = {
+        "id": str(uuid.uuid4()),
+        "type": "topup_credit_razorpay",
+        "amount": amount,
+        "description": "Razorpay top-up credited instantly",
+        "ref_request_id": request_id,
+        "ref_payment_id": razorpay_payment_id,
+        "created_at": now_iso(),
+    }
+    _append_partner_wallet_tx(db, partner.id, tx)
+
+    doc["status"] = "approved"
+    doc["reviewed_at"] = now_iso()
+    doc["review_note"] = "Auto-approved via Razorpay verification"
+    doc["razorpay_order_id"] = razorpay_order_id
+    doc["razorpay_payment_id"] = razorpay_payment_id
+    doc["txn_id"] = razorpay_payment_id
+    row.value_json = json.dumps(doc)
+    row.updated_at = datetime.now(timezone.utc)
+    db.commit()
+
+    return {"ok": True, "request": doc, "wallet": wallet}
 
 
 @router.get("/admin/partner-wallet/topup-requests")
