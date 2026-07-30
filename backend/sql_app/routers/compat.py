@@ -47,8 +47,11 @@ def _save_image_upload(file: UploadFile, target_dir: Path, prefix: str) -> str:
 
 
 def member_code_for_user(user_id: str) -> str:
-    clean = (user_id or "").replace("-", "")
-    return f"MTH-{clean[:6].upper()}"
+    normalized = str(user_id or "").strip().upper()
+    if normalized.startswith("MAU"):
+        return normalized
+    clean = normalized.replace("-", "")
+    return f"MTH-{clean[:6]}"
 
 
 def _fallback_product_description(name: str, category: str, product_type: str) -> str:
@@ -250,6 +253,9 @@ def _resolve_user_by_member_code(db: Session, member_code: str) -> User | None:
     ref = str(member_code or "").strip().upper()
     if not ref:
         return None
+    by_id = db.query(User).filter(User.id == ref).first()
+    if by_id:
+        return by_id
     for user in db.query(User).all():
         if member_code_for_user(user.id) == ref:
             return user
@@ -294,6 +300,10 @@ def _resolve_member_user_by_ref(db: Session, member_ref: str) -> User | None:
     by_id = db.query(User).filter(User.id == ref).first()
     if by_id and getattr(by_id, "role", "") == "member":
         return by_id
+
+    by_email = db.query(User).filter(User.email == ref).first()
+    if by_email and getattr(by_email, "role", "") == "member":
+        return by_email
 
     # Member code format in this stack is derived from user id.
     for user in db.query(User).filter(User.role == "member").all():
@@ -769,6 +779,49 @@ def admin_delete_user(user_id: str, hard: bool = False, db: Session = Depends(ge
         user.is_active = False
     db.commit()
     return {"ok": True, "id": user_id, "hard": hard}
+
+
+@router.post("/admin/users/clear-test-members")
+def admin_clear_test_members(payload: dict | None = None, db: Session = Depends(get_db), current_user=Depends(get_current_user)):
+    if current_user.role not in {"super_admin", "company_admin", "admin"}:
+        raise HTTPException(status_code=403, detail="Admin access required")
+
+    keep_member_ids = {
+        str(item or "").strip().upper()
+        for item in ((payload or {}).get("keep_member_ids") or [])
+        if str(item or "").strip()
+    }
+
+    member_rows = db.query(User).filter(User.role == "member").all()
+    targets = [m for m in member_rows if str(m.id or "").strip().upper() not in keep_member_ids]
+    if not targets:
+        return {"ok": True, "deleted_members": 0, "message": "No member profiles matched for cleanup"}
+
+    target_ids = [m.id for m in targets]
+
+    db.query(UserReferral).filter(
+        (UserReferral.user_id.in_(target_ids)) | (UserReferral.sponsor_user_id.in_(target_ids))
+    ).delete(synchronize_session=False)
+
+    db.query(Order).filter(Order.user_id.in_(target_ids)).delete(synchronize_session=False)
+
+    db.query(PublicOrder).filter(PublicOrder.customer_user_id.in_(target_ids)).delete(synchronize_session=False)
+
+    for member_id in target_ids:
+        db.query(AppSetting).filter(
+            (AppSetting.key == _user_profile_key(member_id)) |
+            (AppSetting.key == _user_payout_key(member_id))
+        ).delete(synchronize_session=False)
+
+    db.query(User).filter(User.id.in_(target_ids)).delete(synchronize_session=False)
+    db.commit()
+
+    return {
+        "ok": True,
+        "deleted_members": len(target_ids),
+        "deleted_ids": target_ids,
+        "message": "Member test profiles cleared",
+    }
 
 
 @router.get("/genealogy/tree")
