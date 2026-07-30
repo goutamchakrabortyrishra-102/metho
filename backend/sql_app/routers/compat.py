@@ -12,9 +12,6 @@ import os
 import urllib.error
 import urllib.request
 
-from openai import OpenAI
-import google.generativeai as genai
-
 from fastapi import APIRouter, Depends, File, HTTPException, Request, UploadFile
 from fastapi.responses import Response
 from reportlab.lib.pagesizes import A4
@@ -2787,6 +2784,8 @@ def generate_product_description(payload: dict, current_user=Depends(get_current
 
     if openai_key:
         try:
+            from openai import OpenAI
+
             client = OpenAI(api_key=openai_key)
             resp = client.responses.create(
                 model="gpt-4.1-mini",
@@ -2801,6 +2800,8 @@ def generate_product_description(payload: dict, current_user=Depends(get_current
 
     if gemini_key:
         try:
+            import google.generativeai as genai
+
             genai.configure(api_key=gemini_key)
             model = genai.GenerativeModel("gemini-1.5-flash")
             resp = model.generate_content(prompt)
