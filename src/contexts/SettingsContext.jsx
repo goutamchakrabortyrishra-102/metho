@@ -18,6 +18,9 @@ export function SettingsProvider({ children }) {
       s.top_leader_1_image_url_full = resolveAssetUrl(s.top_leader_1_image_url);
       s.top_leader_2_image_url_full = resolveAssetUrl(s.top_leader_2_image_url);
       s.top_leader_3_image_url_full = resolveAssetUrl(s.top_leader_3_image_url);
+      s.top_leader_4_image_url_full = resolveAssetUrl(s.top_leader_4_image_url);
+      s.top_leader_5_image_url_full = resolveAssetUrl(s.top_leader_5_image_url);
+      s.top_leader_6_image_url_full = resolveAssetUrl(s.top_leader_6_image_url);
       setSettings(s);
     }).catch(() => {});
   }, []);

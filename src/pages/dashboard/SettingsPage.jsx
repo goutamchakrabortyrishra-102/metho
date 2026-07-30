@@ -364,7 +364,7 @@ function Field({ label, testId, value, onChange, suffix, hint, type = "number", 
   );
 }
 
-function BrandingImageUpload({ purpose, label, hint, value, onChange, onPersist, readOnly, testId }) {
+function BrandingImageUpload({ purpose, label, hint, value, onChange, onPersist, readOnly, testId, uploadEndpoint }) {
   const inputRef = useRef(null);
   const [busy, setBusy] = useState(false);
 
@@ -386,9 +386,36 @@ function BrandingImageUpload({ purpose, label, hint, value, onChange, onPersist,
     }
     setBusy(true);
     try {
-      // Save branding images directly in settings as data URLs to avoid
-      // losing files when backend ephemeral storage is recycled.
-      const nextUrl = await readAsDataUrl(f);
+      let nextUrl = "";
+      const makeFormData = () => {
+        const fd = new FormData();
+        fd.append("file", f);
+        return fd;
+      };
+      if (uploadEndpoint) {
+        let data;
+        try {
+          const res = await api.post(uploadEndpoint, makeFormData(), {
+            headers: { "Content-Type": "multipart/form-data" },
+          });
+          data = res?.data;
+        } catch (err) {
+          // Production safety: if dedicated endpoint is not yet deployed, fallback to legacy generic endpoint.
+          if (err?.response?.status === 404 && purpose) {
+            const fallbackRes = await api.post(`/admin/upload/branding-image?purpose=${encodeURIComponent(purpose)}`, makeFormData(), {
+              headers: { "Content-Type": "multipart/form-data" },
+            });
+            data = fallbackRes?.data;
+          } else {
+            throw err;
+          }
+        }
+        nextUrl = String(data?.url || "").trim();
+        if (!nextUrl) throw new Error("Upload response missing url");
+      } else {
+        // Keep existing data-url flow for non-critical branding fields.
+        nextUrl = await readAsDataUrl(f);
+      }
       onChange(nextUrl);
       if (onPersist) {
         await onPersist(nextUrl);
@@ -555,6 +582,15 @@ export default function SettingsPage() {
     top_leader_3_name: source.top_leader_3_name || "",
     top_leader_3_title: source.top_leader_3_title || "",
     top_leader_3_image_url: source.top_leader_3_image_url || "",
+    top_leader_4_name: source.top_leader_4_name || "",
+    top_leader_4_title: source.top_leader_4_title || "",
+    top_leader_4_image_url: source.top_leader_4_image_url || "",
+    top_leader_5_name: source.top_leader_5_name || "",
+    top_leader_5_title: source.top_leader_5_title || "",
+    top_leader_5_image_url: source.top_leader_5_image_url || "",
+    top_leader_6_name: source.top_leader_6_name || "",
+    top_leader_6_title: source.top_leader_6_title || "",
+    top_leader_6_image_url: source.top_leader_6_image_url || "",
   });
 
   const persistFormToServer = async (source, successMessage) => {
@@ -569,7 +605,15 @@ export default function SettingsPage() {
     // Persist only the changed branding field to avoid stale full-form overwrites.
     setForm((prev) => ({ ...prev, [field]: value }));
     const { data } = await api.put("/settings", { [field]: value });
-    setForm((prev) => ({ ...prev, ...(data || {}) }));
+    const nextServerValue = data && Object.prototype.hasOwnProperty.call(data, field) ? data[field] : undefined;
+    setForm((prev) => {
+      const merged = { ...prev, ...(data || {}) };
+      // If server responds without the updated field value, keep the latest uploaded value.
+      if ((nextServerValue === undefined || nextServerValue === null || nextServerValue === "") && value) {
+        merged[field] = value;
+      }
+      return merged;
+    });
   };
 
   const save = async (e) => {
@@ -1052,6 +1096,7 @@ export default function SettingsPage() {
                 value={form.site_logo_url}
                 onChange={setF("site_logo_url")}
                 onPersist={(value) => persistBrandingField("site_logo_url", value)}
+                uploadEndpoint="/admin/upload/site-logo"
                 readOnly={readOnly}
                 testId="branding-logo"
               />
@@ -1120,16 +1165,16 @@ export default function SettingsPage() {
 
           <Section
             title="Company Management Achievers"
-            subtitle="Top Leaders image, name, title — admin upload/edit/change করতে পারবেন।"
+            subtitle="Top Leaders image, name, rank edit করতে পারবেন। Order: Leader 1=MD, Leader 2=CEO, Leader 3=Mentor, তারপর অন্যান্য Leader।"
             icon={Users}
             badge="Top Leaders"
           >
             <div className="md:col-span-2 grid gap-4">
               <div className="rounded-xl border border-border p-4 bg-slate-50/40">
-                <p className="font-semibold text-emerald-950 mb-2">Leader 1</p>
+                <p className="font-semibold text-emerald-950 mb-2">Leader 1 (MD)</p>
                 <div className="grid md:grid-cols-2 gap-3">
                   <Field label="Name" testId="settings-top-leader-1-name" value={form.top_leader_1_name} onChange={setF("top_leader_1_name")} type="text" />
-                  <Field label="Title" testId="settings-top-leader-1-title" value={form.top_leader_1_title} onChange={setF("top_leader_1_title")} type="text" />
+                  <Field label="Rank / Position (default: MD)" testId="settings-top-leader-1-title" value={form.top_leader_1_title} onChange={setF("top_leader_1_title")} type="text" />
                 </div>
                 <div className="mt-3">
                   <BrandingImageUpload
@@ -1146,10 +1191,10 @@ export default function SettingsPage() {
               </div>
 
               <div className="rounded-xl border border-border p-4 bg-slate-50/40">
-                <p className="font-semibold text-emerald-950 mb-2">Leader 2</p>
+                <p className="font-semibold text-emerald-950 mb-2">Leader 2 (CEO)</p>
                 <div className="grid md:grid-cols-2 gap-3">
                   <Field label="Name" testId="settings-top-leader-2-name" value={form.top_leader_2_name} onChange={setF("top_leader_2_name")} type="text" />
-                  <Field label="Title" testId="settings-top-leader-2-title" value={form.top_leader_2_title} onChange={setF("top_leader_2_title")} type="text" />
+                  <Field label="Rank / Position (default: CEO)" testId="settings-top-leader-2-title" value={form.top_leader_2_title} onChange={setF("top_leader_2_title")} type="text" />
                 </div>
                 <div className="mt-3">
                   <BrandingImageUpload
@@ -1166,10 +1211,10 @@ export default function SettingsPage() {
               </div>
 
               <div className="rounded-xl border border-border p-4 bg-slate-50/40">
-                <p className="font-semibold text-emerald-950 mb-2">Leader 3</p>
+                <p className="font-semibold text-emerald-950 mb-2">Leader 3 (Mentor)</p>
                 <div className="grid md:grid-cols-2 gap-3">
                   <Field label="Name" testId="settings-top-leader-3-name" value={form.top_leader_3_name} onChange={setF("top_leader_3_name")} type="text" />
-                  <Field label="Title" testId="settings-top-leader-3-title" value={form.top_leader_3_title} onChange={setF("top_leader_3_title")} type="text" />
+                  <Field label="Rank / Position (default: Mentor)" testId="settings-top-leader-3-title" value={form.top_leader_3_title} onChange={setF("top_leader_3_title")} type="text" />
                 </div>
                 <div className="mt-3">
                   <BrandingImageUpload
@@ -1181,6 +1226,66 @@ export default function SettingsPage() {
                     onPersist={(value) => persistBrandingField("top_leader_3_image_url", value)}
                     readOnly={readOnly}
                     testId="branding-top-leader-3"
+                  />
+                </div>
+              </div>
+
+              <div className="rounded-xl border border-border p-4 bg-slate-50/40">
+                <p className="font-semibold text-emerald-950 mb-2">Leader 4</p>
+                <div className="grid md:grid-cols-2 gap-3">
+                  <Field label="Name" testId="settings-top-leader-4-name" value={form.top_leader_4_name} onChange={setF("top_leader_4_name")} type="text" />
+                  <Field label="Rank / Position" testId="settings-top-leader-4-title" value={form.top_leader_4_title} onChange={setF("top_leader_4_title")} type="text" />
+                </div>
+                <div className="mt-3">
+                  <BrandingImageUpload
+                    purpose="top_leader_4"
+                    label="Leader 4 Image"
+                    hint="Recommended: square portrait image"
+                    value={form.top_leader_4_image_url}
+                    onChange={setF("top_leader_4_image_url")}
+                    onPersist={(value) => persistBrandingField("top_leader_4_image_url", value)}
+                    readOnly={readOnly}
+                    testId="branding-top-leader-4"
+                  />
+                </div>
+              </div>
+
+              <div className="rounded-xl border border-border p-4 bg-slate-50/40">
+                <p className="font-semibold text-emerald-950 mb-2">Leader 5</p>
+                <div className="grid md:grid-cols-2 gap-3">
+                  <Field label="Name" testId="settings-top-leader-5-name" value={form.top_leader_5_name} onChange={setF("top_leader_5_name")} type="text" />
+                  <Field label="Rank / Position" testId="settings-top-leader-5-title" value={form.top_leader_5_title} onChange={setF("top_leader_5_title")} type="text" />
+                </div>
+                <div className="mt-3">
+                  <BrandingImageUpload
+                    purpose="top_leader_5"
+                    label="Leader 5 Image"
+                    hint="Recommended: square portrait image"
+                    value={form.top_leader_5_image_url}
+                    onChange={setF("top_leader_5_image_url")}
+                    onPersist={(value) => persistBrandingField("top_leader_5_image_url", value)}
+                    readOnly={readOnly}
+                    testId="branding-top-leader-5"
+                  />
+                </div>
+              </div>
+
+              <div className="rounded-xl border border-border p-4 bg-slate-50/40">
+                <p className="font-semibold text-emerald-950 mb-2">Leader 6</p>
+                <div className="grid md:grid-cols-2 gap-3">
+                  <Field label="Name" testId="settings-top-leader-6-name" value={form.top_leader_6_name} onChange={setF("top_leader_6_name")} type="text" />
+                  <Field label="Rank / Position" testId="settings-top-leader-6-title" value={form.top_leader_6_title} onChange={setF("top_leader_6_title")} type="text" />
+                </div>
+                <div className="mt-3">
+                  <BrandingImageUpload
+                    purpose="top_leader_6"
+                    label="Leader 6 Image"
+                    hint="Recommended: square portrait image"
+                    value={form.top_leader_6_image_url}
+                    onChange={setF("top_leader_6_image_url")}
+                    onPersist={(value) => persistBrandingField("top_leader_6_image_url", value)}
+                    readOnly={readOnly}
+                    testId="branding-top-leader-6"
                   />
                 </div>
               </div>

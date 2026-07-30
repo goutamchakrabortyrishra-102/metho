@@ -5,8 +5,8 @@ import { ArrowRight, TrendingUp, Users, Wallet, Shield, Award, Sparkles, Check, 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Logo } from "@/components/Logo";
-import RewardEngineFlow from "@/components/RewardEngineFlow";
 import api from "@/services/api";
+import { methoStoreApi, normalizeCollection } from "@/services/methoStore";
 import { useSettings } from "@/contexts/SettingsContext";
 
 function ReferralEntryStrip() {
@@ -55,6 +55,9 @@ const WALLET_IMG = "https://images.pexels.com/photos/7580855/pexels-photo-758085
 const DEFAULT_LEADER_IMG_1 = "https://images.pexels.com/photos/7581113/pexels-photo-7581113.jpeg?auto=compress&cs=tinysrgb&w=700";
 const DEFAULT_LEADER_IMG_2 = "https://images.pexels.com/photos/7580791/pexels-photo-7580791.jpeg?auto=compress&cs=tinysrgb&w=700";
 const DEFAULT_LEADER_IMG_3 = "https://images.pexels.com/photos/7580821/pexels-photo-7580821.jpeg?auto=compress&cs=tinysrgb&w=700";
+const DEFAULT_LEADER_IMG_4 = "https://images.pexels.com/photos/7581113/pexels-photo-7581113.jpeg?auto=compress&cs=tinysrgb&w=700";
+const DEFAULT_LEADER_IMG_5 = "https://images.pexels.com/photos/7580791/pexels-photo-7580791.jpeg?auto=compress&cs=tinysrgb&w=700";
+const DEFAULT_LEADER_IMG_6 = "https://images.pexels.com/photos/7580821/pexels-photo-7580821.jpeg?auto=compress&cs=tinysrgb&w=700";
 const FALLBACK_PRODUCT_IMG = "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 600 600'><rect width='600' height='600' fill='%23f1f5f9'/><text x='50%25' y='50%25' dominant-baseline='middle' text-anchor='middle' fill='%23475569' font-size='26' font-family='Arial'>METHOO STORE Product</text></svg>";
 const FALLBACK_LEADER_IMG = "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 700 875'><defs><linearGradient id='g' x1='0' y1='0' x2='0' y2='1'><stop offset='0%25' stop-color='%23f8fafc'/><stop offset='100%25' stop-color='%23e2e8f0'/></linearGradient></defs><rect width='700' height='875' fill='url(%23g)'/><circle cx='350' cy='305' r='104' fill='%2394a3b8' opacity='0.42'/><rect x='170' y='430' width='360' height='280' rx='180' fill='%2394a3b8' opacity='0.35'/><rect x='0' y='760' width='700' height='115' fill='%23cbd5e1' opacity='0.4'/></svg>";
 const DEFAULT_POLICY = {
@@ -106,9 +109,31 @@ const Hero = () => {
   const { settings } = useSettings();
   const nav = useNavigate();
   const [shopSearch, setShopSearch] = useState("");
+  const [bestProducts, setBestProducts] = useState([]);
   const HERO_IMG = settings?.landing_hero_image_url_full || DEFAULT_HERO_IMG;
   const tagline = settings?.landing_tagline;
   const subheading = settings?.landing_subheading;
+
+  useEffect(() => {
+    let active = true;
+    api
+      .get("/products")
+      .then((r) => {
+        if (!active) return;
+        const rows = Array.isArray(r.data) ? r.data : [];
+        const picks = rows
+          .filter((p) => p?.product_type === "metho" && p?.active !== false && (p?.approval_status || "approved") === "approved")
+          .slice(0, 6);
+        setBestProducts(picks);
+      })
+      .catch(() => {
+        if (active) setBestProducts([]);
+      });
+
+    return () => {
+      active = false;
+    };
+  }, []);
 
   const openShopWithSearch = () => {
     const q = String(shopSearch || "").trim();
@@ -170,24 +195,24 @@ const Hero = () => {
               </div>
             ))}
           </div>
-          <div className="mt-8 flex flex-wrap items-center gap-3">
+          <div className="mt-8 flex flex-wrap items-center gap-3 rounded-[1.75rem] border border-emerald-900/10 bg-gradient-to-r from-white/95 via-emerald-50/75 to-white/95 p-2.5 shadow-sm">
             <Link to="/register" data-testid="hero-cta-register">
               <Button size="lg" className="bg-gradient-to-r from-emerald-900 to-emerald-800 hover:from-emerald-950 hover:to-emerald-900 text-white rounded-full px-7 h-12 text-base font-semibold w-full sm:w-auto shadow-lg shadow-emerald-900/20">
                 Register Free — in 60 seconds <ArrowRight className="ml-2 w-4 h-4" />
               </Button>
             </Link>
             <Link to="/partner-register" className="hidden sm:inline-flex" data-testid="hero-cta-partner-register">
-              <Button size="lg" variant="outline" className="rounded-full px-7 h-12 text-base border-emerald-900/20 hover:bg-emerald-50 hover:text-emerald-900">
+              <Button size="lg" variant="outline" className="rounded-full px-7 h-12 text-base border-emerald-900/20 bg-white/95 shadow-sm hover:bg-emerald-50 hover:text-emerald-900">
                 Partner Register <Building2 className="ml-1 w-4 h-4" />
               </Button>
             </Link>
             <Link to="/login" className="hidden sm:inline-flex" data-testid="hero-cta-partner-login">
-              <Button size="lg" variant="outline" className="rounded-full px-7 h-12 text-base border-emerald-900/20 hover:bg-emerald-50 hover:text-emerald-900">
+              <Button size="lg" variant="outline" className="rounded-full px-7 h-12 text-base border-emerald-900/20 bg-white/95 shadow-sm hover:bg-emerald-50 hover:text-emerald-900">
                 Partner Login <ChevronRight className="ml-1 w-4 h-4" />
               </Button>
             </Link>
             <Link to="/shop" data-testid="hero-cta-shop">
-              <Button size="lg" variant="outline" className="rounded-full px-7 h-12 text-base border-emerald-900/20 hover:bg-emerald-50 hover:text-emerald-900">
+              <Button size="lg" variant="outline" className="rounded-full px-7 h-12 text-base border-emerald-900/20 bg-white/95 shadow-sm hover:bg-emerald-50 hover:text-emerald-900">
                 Browse Products <ChevronRight className="ml-1 w-4 h-4" />
               </Button>
             </Link>
@@ -199,14 +224,14 @@ const Hero = () => {
                   onChange={(e) => setShopSearch(e.target.value)}
                   onKeyDown={onSearchKeyDown}
                   placeholder="Search METHO products"
-                  className="pl-9 h-12 rounded-full border-emerald-900/20 bg-white"
+                  className="pl-9 h-12 rounded-full border-emerald-900/20 bg-white shadow-sm"
                   data-testid="hero-shop-search-input"
                 />
               </div>
               <Button
                 type="button"
                 variant="outline"
-                className="h-12 rounded-full border-emerald-900/20 hover:bg-emerald-50 hover:text-emerald-900"
+                className="h-12 rounded-full border-emerald-900/20 bg-white/95 shadow-sm hover:bg-emerald-50 hover:text-emerald-900"
                 onClick={openShopWithSearch}
                 data-testid="hero-shop-search-button"
               >
@@ -214,65 +239,9 @@ const Hero = () => {
               </Button>
             </div>
           </div>
-          <div className="mt-10 flex items-center gap-6">
-            <div className="flex -space-x-2">
-              {[TEAM_IMG, HERO_IMG, WALLET_IMG].map((src, i) => (
-                <div key={i} className="w-10 h-10 rounded-full border-2 border-white overflow-hidden bg-emerald-100">
-                  <img src={src} alt="member" className="w-full h-full object-cover" />
-                </div>
-              ))}
-            </div>
-            <div>
-              <div className="flex items-center gap-1 text-amber-500">
-                {[1,2,3,4,5].map(i => <Star key={i} className="w-4 h-4 fill-current" />)}
-
-          <div className="mt-8 max-w-5xl rounded-[2rem] border border-slate-200 bg-white p-3 md:p-4 shadow-[0_12px_30px_rgba(15,23,42,0.06)]" data-testid="hero-quick-actions">
-            <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-              {[
-                {
-                  title: "Partner Registration",
-                  href: "/partner-register",
-                  icon: Building2,
-                },
-                {
-                  title: "Member Registration",
-                  href: "/register",
-                  icon: Users,
-                },
-                {
-                  title: "Product Browser",
-                  href: "/shop",
-                  icon: Store,
-                },
-                {
-                  title: "Partner & Services",
-                  href: "/directory",
-                  icon: Globe,
-                },
-              ].map((item) => (
-                <Link
-                  key={item.title}
-                  to={item.href}
-                  className="group flex items-center gap-3 rounded-[1.5rem] border border-slate-200 bg-slate-50 px-4 py-3 text-slate-900 hover:bg-white transition-all min-h-[86px]"
-                  data-testid={`hero-quick-action-${item.title.toLowerCase().replace(/\s+/g, "-")}`}
-                >
-                  <div className="w-11 h-11 rounded-2xl bg-white border border-slate-200 text-slate-700 flex items-center justify-center shrink-0 shadow-sm">
-                    <item.icon className="w-5 h-5" />
-                  </div>
-                  <div className="min-w-0 flex-1">
-                    <p className="text-[9px] uppercase tracking-[0.3em] text-slate-400 font-bold">Quick Access</p>
-                    <h3 className="mt-1 font-display font-black text-[1rem] md:text-[1.08rem] leading-tight tracking-tight text-slate-900 line-clamp-2">
-                      {item.title}
-                    </h3>
-                  </div>
-                  <ChevronRight className="w-4 h-4 text-slate-400 shrink-0 transition-transform group-hover:translate-x-0.5" />
-                </Link>
-              ))}
-            </div>
-          </div>
-              </div>
-              <p className="text-xs text-slate-500 font-body mt-0.5">Trusted by growing partner offices across India</p>
-            </div>
+          <div className="mt-10 flex items-center gap-1 text-amber-500" data-testid="hero-rating-stars">
+            {[1, 2, 3, 4, 5].map((i) => <Star key={i} className="w-4 h-4 fill-current" />)}
+            <p className="ml-2 text-xs text-slate-500 font-body">Trusted by growing partner offices across India</p>
           </div>
         </motion.div>
 
@@ -288,49 +257,80 @@ const Hero = () => {
 
                 <div className="relative z-10 p-4 md:p-5 h-full flex flex-col">
                   <div className="flex items-start justify-between gap-3">
-                    <div className="max-w-[75%]">
-                      <p className="text-[9px] uppercase tracking-[0.3em] text-amber-300 font-bold">Associate Partner Network</p>
-                      <h3 className="mt-2 font-display font-black text-[1.45rem] md:text-[1.85rem] text-white leading-[1.05] tracking-tight">
-                        Verified partner businesses. Better local reach.
+                    <div className="max-w-[78%]">
+                      <p className="text-[9px] uppercase tracking-[0.3em] text-amber-300 font-bold">METHO Corporate Access</p>
+                      <h3 className="mt-2 font-display font-black text-[1.35rem] md:text-[1.7rem] text-white leading-[1.08] tracking-tight">
+                        One gateway for member growth and partner commerce.
                       </h3>
+                      <p className="mt-2 text-[11px] md:text-xs text-emerald-100/80 leading-relaxed">
+                        Join the network, onboard businesses, and discover products and services from one business-ready panel.
+                      </p>
                     </div>
                     <div className="rounded-2xl bg-white/10 border border-white/15 p-2.5 md:p-3 text-white shrink-0 backdrop-blur-sm">
-                      <Store className="w-5 h-5 md:w-6 md:h-6" />
+                      <Building2 className="w-5 h-5 md:w-6 md:h-6" />
                     </div>
                   </div>
 
-                  <div className="mt-4 grid gap-3">
+                  <div className="mt-4 grid gap-2.5">
                     {[
-                      { name: "METHO Care Pharmacy", place: "Kolkata", tag: "Health & Wellness" },
-                      { name: "Nexa Mart Partner", place: "Howrah", tag: "Daily Essentials" },
-                      { name: "Upay Service Point", place: "North 24 Parganas", tag: "Member Benefits Ready" },
-                    ].map((partner) => (
-                      <div key={partner.name} className="rounded-2xl bg-white/10 border border-white/10 backdrop-blur px-4 py-3 text-white shadow-[0_8px_20px_rgba(0,0,0,0.08)]">
-                        <div className="flex items-start justify-between gap-3">
-                          <div>
-                            <p className="font-display font-bold text-[0.96rem] md:text-[1.02rem] leading-tight tracking-tight">{partner.name}</p>
-                            <p className="mt-1 text-[11px] md:text-xs text-emerald-100/78 flex items-center gap-1.5">
-                              <MapPin className="w-3.5 h-3.5 text-amber-300" /> {partner.place}
-                            </p>
+                      {
+                        title: "Member Registration",
+                        subtitle: "Create member account in seconds",
+                        href: "/register",
+                        icon: Users,
+                        tag: "ONBOARD",
+                      },
+                      {
+                        title: "Partner Registration",
+                        subtitle: "List your business with METHO",
+                        href: "/partner-register",
+                        icon: Building2,
+                        tag: "BUSINESS",
+                      },
+                      {
+                        title: "View All Products",
+                        subtitle: "Browse complete METHO product catalog",
+                        href: "/shop",
+                        icon: Store,
+                        tag: "CATALOG",
+                      },
+                      {
+                        title: "View All Partners/Services",
+                        subtitle: "Explore verified shops and service points",
+                        href: "/directory",
+                        icon: Globe,
+                        tag: "DIRECTORY",
+                      },
+                    ].map((item) => (
+                      <Link
+                        key={item.title}
+                        to={item.href}
+                        className="group rounded-2xl bg-emerald-950/78 border border-emerald-100/30 backdrop-blur px-4 py-3 text-white shadow-[0_14px_30px_rgba(0,0,0,0.35)] hover:bg-emerald-950/86 hover:border-amber-200/50 transition-colors"
+                        data-testid={`landing-corporate-access-${item.title.toLowerCase().replace(/[^a-z0-9]+/g, "-")}`}
+                      >
+                        <div className="flex items-center justify-between gap-3">
+                          <div className="min-w-0">
+                            <p className="font-display font-bold text-[0.96rem] md:text-[1.02rem] leading-tight tracking-tight line-clamp-1">{item.title}</p>
+                            <p className="mt-1 text-[11px] md:text-xs text-emerald-50/98 line-clamp-1">{item.subtitle}</p>
                           </div>
-                          <span className="shrink-0 rounded-full bg-amber-300 text-emerald-950 px-2.5 py-1 text-[9px] md:text-[10px] font-bold uppercase tracking-wider whitespace-nowrap">
-                            {partner.tag}
-                          </span>
+                          <div className="flex items-center gap-2 shrink-0">
+                            <span className="rounded-full bg-amber-300 text-emerald-950 px-2.5 py-1 text-[9px] md:text-[10px] font-bold uppercase tracking-wider whitespace-nowrap">
+                              {item.tag}
+                            </span>
+                            <div className="w-8 h-8 rounded-xl bg-emerald-950/70 border border-emerald-100/35 flex items-center justify-center group-hover:bg-emerald-950 transition-colors">
+                              <item.icon className="w-4 h-4" />
+                            </div>
+                          </div>
                         </div>
-                      </div>
+                      </Link>
                     ))}
                   </div>
 
-                  <div className="mt-auto grid grid-cols-2 gap-3">
-                    <div className="bg-white/95 backdrop-blur rounded-xl p-4 border border-white/50 shadow-lg">
-                      <p className="text-[9px] uppercase tracking-[0.22em] text-emerald-800 font-semibold">Monthly Volume</p>
-                      <p className="font-display font-black text-[1.35rem] md:text-[1.75rem] text-emerald-950 leading-none mt-1">₹4,82,340</p>
-                      <p className="text-[11px] md:text-xs text-slate-500 mt-1">Partner channel product sales</p>
-                    </div>
-                    <div className="bg-white/95 backdrop-blur rounded-xl p-4 border border-white/50 shadow-lg">
-                      <p className="text-[9px] uppercase tracking-[0.22em] text-emerald-800 font-semibold">Catalog Depth</p>
-                      <p className="font-display font-black text-[1.35rem] md:text-[1.75rem] text-emerald-950 leading-none mt-1">500+</p>
-                      <p className="text-[11px] md:text-xs text-slate-500 mt-1">METHO and partner-ready SKUs</p>
+                  <div className="mt-auto rounded-xl border border-white/15 bg-white/10 px-4 py-3 backdrop-blur">
+                    <p className="text-[10px] uppercase tracking-[0.24em] text-emerald-100/90 font-semibold">Business Ready Platform</p>
+                    <div className="mt-2 flex items-center justify-between gap-3 text-white">
+                      <p className="text-sm md:text-[15px] font-semibold leading-tight">Registration, commerce, and partner discovery aligned in one workflow.</p>
+                      <ArrowRight className="w-4 h-4 text-amber-300 shrink-0" />
                     </div>
                   </div>
                 </div>
@@ -340,18 +340,52 @@ const Hero = () => {
         </motion.div>
       </div>
 
-          <div className="mt-20 grid grid-cols-2 md:grid-cols-4 gap-4">
-        {[
-              { n: "500+", l: "Active Partners" },
-              { n: "2K+", l: "Registered Members" },
-              { n: "500+", l: "Live Products" },
-              { n: "28", l: "States Presence" },
-        ].map((s, i) => (
-          <div key={i} className="rounded-2xl bg-gradient-to-br from-white to-slate-50 border border-emerald-900/8 p-5 hover:shadow-md transition-shadow">
-            <p className="font-display font-black text-3xl text-emerald-950">{s.n}</p>
-            <p className="text-xs uppercase tracking-[0.15em] text-slate-500 mt-1">{s.l}</p>
+      <div className="mt-16 rounded-[2rem] border border-emerald-900/10 bg-white/90 backdrop-blur p-4 md:p-6 shadow-[0_16px_40px_rgba(15,23,42,0.08)]" data-testid="hero-best-products-grid">
+        <div className="flex items-center justify-between gap-3 mb-4">
+          <div>
+            <p className="text-[10px] uppercase tracking-[0.24em] text-emerald-800 font-semibold">METHO Best Products</p>
+            <h3 className="font-display font-black text-xl md:text-2xl text-emerald-950">Top product images from admin uploads</h3>
           </div>
-        ))}
+          <Link to="/shop" data-testid="hero-best-products-view-all" className="hidden md:inline-flex">
+            <Button variant="outline" className="rounded-full border-emerald-900/20 hover:bg-emerald-50 hover:text-emerald-900">
+              View All Products <ChevronRight className="ml-1 w-4 h-4" />
+            </Button>
+          </Link>
+        </div>
+
+        <div className="grid grid-cols-2 md:grid-cols-3 gap-3 md:gap-4">
+          {(bestProducts.length ? bestProducts : Array.from({ length: 6 })).map((p, i) => (
+            <Link
+              key={p?.id || p?.name || i}
+              to="/shop"
+              className="group rounded-2xl overflow-hidden border border-slate-200 bg-slate-50 hover:bg-white hover:shadow-md transition-all"
+              data-testid={`hero-best-product-${i + 1}`}
+            >
+              <div className="aspect-[4/3] bg-slate-100 overflow-hidden">
+                <img
+                  src={p?.image_url || settings?.product_placeholder_image_url_full || FALLBACK_PRODUCT_IMG}
+                  alt={p?.name || "METHO Product"}
+                  className="w-full h-full object-cover group-hover:scale-[1.03] transition-transform duration-300"
+                  loading="lazy"
+                  onError={(e) => {
+                    if (e.currentTarget.src !== FALLBACK_PRODUCT_IMG) {
+                      e.currentTarget.src = FALLBACK_PRODUCT_IMG;
+                    }
+                  }}
+                />
+              </div>
+              <div className="px-3 py-2.5">
+                <p className="text-xs md:text-sm font-semibold text-emerald-950 line-clamp-1">{p?.name || `Best Product ${i + 1}`}</p>
+              </div>
+            </Link>
+          ))}
+        </div>
+
+        <Link to="/shop" data-testid="hero-best-products-view-all-mobile" className="md:hidden inline-flex mt-4">
+          <Button variant="outline" className="rounded-full border-emerald-900/20 hover:bg-emerald-50 hover:text-emerald-900 w-full">
+            View All Products <ChevronRight className="ml-1 w-4 h-4" />
+          </Button>
+        </Link>
       </div>
     </div>
   </section>
@@ -359,105 +393,155 @@ const Hero = () => {
 };
 
 const Features = () => {
-  const items = [
-    { icon: Users, title: "Genealogy Tree", desc: "Interactive downline visualization with unlimited depth.", span: "md:col-span-5" },
-    { icon: Wallet, title: "Smart Wallet", desc: "Real-time income, rewards & withdrawal via UPI / IMPS / Bank.", span: "md:col-span-3" },
-    { icon: TrendingUp, title: "Smart Cycle™ Engine", desc: "Auto 5-week qualification & 10% bonus payout on METHO sales.", span: "md:col-span-4" },
-    { icon: Shield, title: "MPS Shield™ Fund", desc: "10% of every commission builds your safety-net balance.", span: "md:col-span-4" },
-    { icon: Award, title: "Leader Match Reward™", desc: "Sponsors earn 50% of downline's Smart Cycle Bonus — paid separately.", span: "md:col-span-4" },
-    { icon: Zap, title: "Instant Payouts", desc: "Same-day withdrawal processing.", span: "md:col-span-4" },
-  ];
+  const { settings } = useSettings();
+  const [storeListings, setStoreListings] = React.useState([]);
+  const [loadingStore, setLoadingStore] = React.useState(true);
+
+  useEffect(() => {
+    let active = true;
+    setLoadingStore(true);
+
+    methoStoreApi
+      .adminListOwners()
+      .then((data) => {
+        if (!active) return;
+        const rows = normalizeCollection(data);
+        const next = rows
+          .filter((p) => (p?.is_active ?? p?.active ?? true) !== false)
+          .slice(0, 12);
+        setStoreListings(next);
+      })
+      .catch(() => {
+        if (active) setStoreListings([]);
+      })
+      .finally(() => {
+        if (active) setLoadingStore(false);
+      });
+
+    return () => {
+      active = false;
+    };
+  }, []);
+
   return (
-    <section id="features" className="py-24 bg-white">
+    <section id="features" className="py-24 bg-[linear-gradient(180deg,#ffffff_0%,#f4faf7_100%)]">
       <div className="max-w-7xl mx-auto px-6">
-        <div className="max-w-2xl">
-          <p className="text-xs uppercase tracking-[0.25em] text-emerald-800 font-semibold">The Engine</p>
+        <div className="max-w-3xl">
+          <p className="text-xs uppercase tracking-[0.25em] text-emerald-800 font-semibold">METHO Store</p>
           <h2 className="mt-3 font-display font-black text-4xl md:text-5xl tracking-tight text-emerald-950">
-            Not just a dashboard.
-            <br />
-            <span className="text-amber-500 italic">A calculation engine.</span>
+            Live store listings from admin setup.
+            <span className="text-amber-500 italic"> Auto listed in rows.</span>
           </h2>
-          <p className="mt-4 text-slate-600 font-body">Every rupee tracked. Every level rewarded. Every cycle automated.</p>
+          <p className="mt-4 text-slate-600 font-body">Whenever admin creates or updates a Metho Store, this section automatically shows the latest store listings.</p>
         </div>
-        <div className="mt-12 grid grid-cols-1 md:grid-cols-12 gap-4">
-          {items.map((f, i) => (
-            <motion.div
-              key={i}
-              initial={{ opacity: 0, y: 20 }}
-              whileInView={{ opacity: 1, y: 0 }}
-              viewport={{ once: true }}
-              transition={{ duration: 0.4, delay: i * 0.05 }}
-              className={`${f.span} group rounded-2xl border border-border bg-secondary/30 hover:bg-secondary p-7 hover:shadow-lg hover:-translate-y-0.5 transition-all cursor-default`}
-              data-testid={`feature-card-${i}`}
-            >
-              <div className="w-11 h-11 rounded-lg bg-emerald-900 flex items-center justify-center mb-4 group-hover:bg-amber-500 transition-colors">
-                <f.icon className="w-5 h-5 text-amber-400 group-hover:text-emerald-950 transition-colors" />
-              </div>
-              <h3 className="font-display font-bold text-xl text-emerald-950">{f.title}</h3>
-              <p className="mt-1.5 text-sm text-slate-600 font-body leading-relaxed">{f.desc}</p>
-            </motion.div>
-          ))}
+        <div className="mt-10 rounded-3xl border border-emerald-900/10 bg-white/90 p-4 md:p-5 shadow-sm">
+          {loadingStore ? (
+            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 md:gap-4">
+              {Array.from({ length: 8 }).map((_, i) => (
+                <div key={i} className="rounded-2xl overflow-hidden border border-slate-200 bg-slate-50 animate-pulse">
+                  <div className="aspect-[4/3] bg-slate-200" />
+                  <div className="p-3 space-y-2">
+                    <div className="h-3 rounded bg-slate-200 w-3/4" />
+                    <div className="h-3 rounded bg-slate-200 w-1/2" />
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : storeListings.length === 0 ? (
+            <div className="rounded-2xl border border-dashed border-emerald-200 bg-emerald-50/60 p-6 text-center">
+              <p className="font-semibold text-emerald-900">No METHO Store listings yet.</p>
+              <p className="mt-1 text-sm text-slate-600">Admin Metho Store API data will auto appear here after stores are available.</p>
+            </div>
+          ) : (
+            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 md:gap-4" data-testid="landing-features-store-grid">
+              {storeListings.map((store, i) => (
+                <motion.div
+                  key={store.id || store.owner_id || `${store.owner_code || "store"}-${i}`}
+                  initial={{ opacity: 0, y: 16 }}
+                  whileInView={{ opacity: 1, y: 0 }}
+                  viewport={{ once: true }}
+                  transition={{ duration: 0.3, delay: i * 0.03 }}
+                >
+                  <Link
+                    to="/metho-store"
+                    className="group block rounded-2xl overflow-hidden border border-slate-200 bg-slate-50 hover:bg-white hover:shadow-md transition-all"
+                    data-testid={`landing-feature-store-listing-${i + 1}`}
+                  >
+                    <div className="aspect-[4/3] bg-slate-100 overflow-hidden">
+                      {store.banner_url || store.logo_url ? (
+                        <img
+                          src={store.banner_url || store.logo_url}
+                          alt={store.store_name || store.business_name || "METHO Store"}
+                          className="w-full h-full object-cover group-hover:scale-[1.03] transition-transform duration-300"
+                          loading="lazy"
+                          onError={(e) => {
+                            if (e.currentTarget.src !== FALLBACK_PRODUCT_IMG) {
+                              e.currentTarget.src = FALLBACK_PRODUCT_IMG;
+                            }
+                          }}
+                        />
+                      ) : (
+                        <div className="h-full w-full flex items-center justify-center bg-emerald-50 text-emerald-800">
+                          <Store className="w-8 h-8" />
+                        </div>
+                      )}
+                    </div>
+                    <div className="p-3">
+                      <p className="font-semibold text-emerald-950 text-sm line-clamp-1">{store.store_name || store.business_name || "METHO Store"}</p>
+                      <p className="mt-1 text-xs text-slate-500 line-clamp-1">{store.city || "Unknown city"} • {store.state || "India"}</p>
+                      <p className="mt-1.5 text-[10px] uppercase tracking-wider text-emerald-800 font-bold line-clamp-1">{store.owner_code || store.code || "STORE"}</p>
+                    </div>
+                  </Link>
+                </motion.div>
+              ))}
+            </div>
+          )}
+
+          <div className="mt-5 flex justify-center">
+            <Link to="/shop" data-testid="landing-features-store-view-all">
+              <Button variant="outline" className="rounded-full border-emerald-900/20 bg-white hover:bg-emerald-50 hover:text-emerald-900">
+                View Full METHO Store <ChevronRight className="ml-1 w-4 h-4" />
+              </Button>
+            </Link>
+          </div>
         </div>
       </div>
     </section>
   );
 };
 
-const BusinessPlan = () => (
-  <section id="plan" className="py-24 bg-gradient-to-b from-emerald-950 to-emerald-900 text-white relative overflow-hidden">
-    <div className="absolute inset-0 grain opacity-30" />
-    <div className="max-w-7xl mx-auto px-6 relative">
-      <div className="grid lg:grid-cols-2 gap-16 items-center">
-        <div>
-          <p className="text-xs uppercase tracking-[0.25em] text-amber-400 font-semibold">The Business Plan</p>
+const BusinessPlan = () => {
+  const { settings } = useSettings();
+  const mission = (settings?.mission_statement || "").trim() || DEFAULT_POLICY.mission_statement;
+  const vision = (settings?.vision_statement || "").trim() || DEFAULT_POLICY.vision_statement;
+
+  return (
+    <section id="plan" className="py-24 bg-gradient-to-b from-emerald-950 to-emerald-900 text-white relative overflow-hidden">
+      <div className="absolute inset-0 grain opacity-30" />
+      <div className="max-w-7xl mx-auto px-6 relative">
+        <div className="max-w-3xl mx-auto text-center">
+          <p className="text-xs uppercase tracking-[0.25em] text-amber-400 font-semibold">Our Foundation</p>
           <h2 className="mt-3 font-display font-black text-4xl md:text-5xl tracking-tight">
-            Personal Smart Cycle.
+            Mission and Vision
             <br />
-            <span className="text-amber-400">Real payouts.</span>
+            <span className="text-amber-400">that drive METHO.</span>
           </h2>
-          <div className="mt-8 space-y-4">
-            {[
-              { t: "Personal Smart Cycle™", d: "Every METHO purchase starts your 5-week cycle. Bonus Week pays 10% of qualified sales." },
-              { t: "Leader Match Reward™", d: "Whenever a direct member earns a Smart Cycle Bonus, you receive 50% Leader Match — paid separately by the company." },
-              { t: "Member Value Reward™", d: "50% of every partner commission flows back to you as Value Points." },
-              { t: "Elite Leader Reward™", d: "30% of your team's partner commissions build your Elite Leader balance." },
-              { t: "MPS Shield™ Fund", d: "10% goes into your safety-net fund — automatic protection on every order." },
-              { t: "Associate Partner Network", d: "Shop across our approved partners. Earns Value + MPS (independent from Smart Cycle)." },
-            ].map((it, i) => (
-              <div key={i} className="flex gap-4 group" data-testid={`plan-item-${i}`}>
-                <div className="w-9 h-9 rounded-full bg-amber-400 text-emerald-950 flex items-center justify-center font-display font-black text-sm shrink-0 group-hover:scale-110 transition-transform">
-                  {i+1}
-                </div>
-                <div>
-                  <h4 className="font-display font-bold text-lg">{it.t}</h4>
-                  <p className="text-emerald-100/80 text-sm font-body">{it.d}</p>
-                </div>
-              </div>
-            ))}
-          </div>
-          <Link to="/register" className="mt-10 inline-block" data-testid="plan-cta-register">
-            <Button size="lg" className="bg-amber-400 hover:bg-amber-500 text-emerald-950 rounded-full px-8 h-12 font-bold">
-              Join The Plan <ArrowRight className="ml-2 w-4 h-4" />
-            </Button>
-          </Link>
         </div>
-        <div className="relative">
-          <div className="rounded-2xl overflow-hidden border border-amber-400/20 shadow-2xl">
-            <img src={NETWORK_IMG} alt="Network visualization" className="w-full h-[520px] object-cover" />
-          </div>
-          <div className="absolute -bottom-6 -left-6 bg-white rounded-xl p-4 shadow-xl border border-border w-56">
-            <p className="text-[10px] uppercase tracking-[0.2em] text-emerald-800 font-semibold">Rank Status</p>
-            <p className="font-display font-black text-2xl text-emerald-950 mt-1">Diamond</p>
-            <div className="mt-2 h-1.5 bg-secondary rounded-full overflow-hidden">
-              <div className="h-full bg-gradient-to-r from-amber-400 to-amber-500 w-[82%]" />
+
+        <div className="mt-10 grid md:grid-cols-2 gap-5">
+            <div className="rounded-2xl border border-white/15 bg-white/10 backdrop-blur p-6">
+              <p className="text-[10px] uppercase tracking-[0.24em] text-amber-300 font-semibold">Mission</p>
+              <p className="mt-3 text-sm md:text-base text-emerald-100/90 whitespace-pre-line font-body leading-relaxed">{mission}</p>
             </div>
-            <p className="text-xs text-slate-500 mt-1.5 font-body">82% to next reward</p>
-          </div>
+            <div className="rounded-2xl border border-white/15 bg-white/10 backdrop-blur p-6">
+              <p className="text-[10px] uppercase tracking-[0.24em] text-amber-300 font-semibold">Vision</p>
+              <p className="mt-3 text-sm md:text-base text-emerald-100/90 whitespace-pre-line font-body leading-relaxed">{vision}</p>
+            </div>
         </div>
       </div>
-    </div>
-  </section>
-);
+    </section>
+  );
+};
 
 const ASSOCIATE_TYPES = [
   "All",
@@ -532,15 +616,15 @@ const AssociatePartnerFinder = () => {
             </div>
           </div>
 
-          <div className="lg:col-span-8 rounded-3xl border border-emerald-900/10 bg-white p-4 md:p-5 shadow-sm">
-            <div className="grid md:grid-cols-2 xl:grid-cols-5 gap-2.5">
+          <div className="lg:col-span-8 rounded-3xl border border-emerald-300/70 bg-gradient-to-br from-emerald-100 via-emerald-50 to-amber-50/50 p-4 md:p-5 shadow-md">
+            <div className="grid md:grid-cols-2 xl:grid-cols-5 gap-2.5 rounded-2xl border border-emerald-300/70 bg-gradient-to-r from-emerald-100/90 via-emerald-50/95 to-amber-50/85 p-3 shadow-inner">
               <div className="xl:col-span-2 relative">
                 <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
                 <input
                   value={nameQuery}
                   onChange={(e) => setNameQuery(e.target.value)}
                   placeholder="Name / Partner / Shop"
-                  className="h-11 w-full rounded-xl border border-slate-200 bg-white pl-9 pr-3 text-sm outline-none focus:ring-2 focus:ring-emerald-200"
+                  className="h-11 w-full rounded-xl border border-emerald-200 bg-white/95 backdrop-blur-sm shadow-sm pl-9 pr-3 text-sm outline-none focus:ring-2 focus:ring-emerald-300"
                   data-testid="landing-partner-search-name"
                 />
               </div>
@@ -548,7 +632,7 @@ const AssociatePartnerFinder = () => {
               <select
                 value={city}
                 onChange={(e) => setCity(e.target.value)}
-                className="h-11 rounded-xl border border-slate-200 bg-white px-3 text-sm outline-none focus:ring-2 focus:ring-emerald-200"
+                className="h-11 rounded-xl border border-emerald-200 bg-white/95 backdrop-blur-sm shadow-sm px-3 text-sm outline-none focus:ring-2 focus:ring-emerald-300"
                 data-testid="landing-partner-search-city"
               >
                 <option value="">All city</option>
@@ -558,7 +642,7 @@ const AssociatePartnerFinder = () => {
               <select
                 value={businessType}
                 onChange={(e) => setBusinessType(e.target.value)}
-                className="h-11 rounded-xl border border-slate-200 bg-white px-3 text-sm outline-none focus:ring-2 focus:ring-emerald-200"
+                className="h-11 rounded-xl border border-emerald-200 bg-white/95 backdrop-blur-sm shadow-sm px-3 text-sm outline-none focus:ring-2 focus:ring-emerald-300"
                 data-testid="landing-partner-search-business"
               >
                 {ASSOCIATE_TYPES.map((t) => <option key={t} value={t}>{t}</option>)}
@@ -568,14 +652,14 @@ const AssociatePartnerFinder = () => {
                 value={serviceQuery}
                 onChange={(e) => setServiceQuery(e.target.value)}
                 placeholder="Service"
-                className="h-11 rounded-xl border border-slate-200 bg-white px-3 text-sm outline-none focus:ring-2 focus:ring-emerald-200"
+                className="h-11 rounded-xl border border-emerald-200 bg-white/95 backdrop-blur-sm shadow-sm px-3 text-sm outline-none focus:ring-2 focus:ring-emerald-300"
                 data-testid="landing-partner-search-service"
               />
 
               <select
                 value={category}
                 onChange={(e) => setCategory(e.target.value)}
-                className="h-11 rounded-xl border border-slate-200 bg-white px-3 text-sm outline-none focus:ring-2 focus:ring-emerald-200"
+                className="h-11 rounded-xl border border-emerald-200 bg-white/95 backdrop-blur-sm shadow-sm px-3 text-sm outline-none focus:ring-2 focus:ring-emerald-300"
                 data-testid="landing-partner-search-category"
               >
                 <option value="">All category</option>
@@ -583,7 +667,7 @@ const AssociatePartnerFinder = () => {
               </select>
             </div>
 
-            <div className="mt-3 rounded-2xl border border-slate-200 bg-white p-3 min-h-[214px]">
+            <div className="mt-3 rounded-2xl border border-emerald-200/70 bg-gradient-to-b from-emerald-50/65 to-white p-3 min-h-[214px] shadow-inner">
               {loading ? (
                 <p className="text-sm text-slate-500">Searching verified partner shops...</p>
               ) : results.length === 0 ? (
@@ -594,7 +678,7 @@ const AssociatePartnerFinder = () => {
                     <Link
                       key={p.id || p.partner_code}
                       to={`/partner-shop/${p.partner_code}`}
-                      className="rounded-xl border border-emerald-900/10 bg-emerald-50/40 hover:bg-emerald-50 p-3 transition-colors"
+                      className="rounded-xl border border-emerald-300/45 bg-emerald-100/65 hover:bg-emerald-100 p-3 shadow-sm transition-colors"
                       data-testid={`landing-partner-result-${p.partner_code}`}
                     >
                       <p className="text-[10px] uppercase tracking-widest text-emerald-800 font-bold">{p.partner_code}</p>
@@ -691,47 +775,75 @@ const TopLeaders = () => {
   const { settings } = useSettings();
   const leaders = [
     {
-      name: settings?.top_leader_1_name || "Top Leader 1",
-      title: settings?.top_leader_1_title || "National Achiever",
+      name: settings?.top_leader_1_name || "Leader 1",
+      title: settings?.top_leader_1_title || "MD",
       image: settings?.top_leader_1_image_url_full,
       defaultImage: DEFAULT_LEADER_IMG_1,
     },
     {
-      name: settings?.top_leader_2_name || "Top Leader 2",
-      title: settings?.top_leader_2_title || "Regional Achiever",
+      name: settings?.top_leader_2_name || "Leader 2",
+      title: settings?.top_leader_2_title || "CEO",
       image: settings?.top_leader_2_image_url_full,
       defaultImage: DEFAULT_LEADER_IMG_2,
     },
     {
-      name: settings?.top_leader_3_name || "Top Leader 3",
-      title: settings?.top_leader_3_title || "Fastest Growing Leader",
+      name: settings?.top_leader_3_name || "Leader 3",
+      title: settings?.top_leader_3_title || "Mentor",
       image: settings?.top_leader_3_image_url_full,
       defaultImage: DEFAULT_LEADER_IMG_3,
+    },
+    {
+      name: settings?.top_leader_4_name || "Leader 4",
+      title: settings?.top_leader_4_title || "Growth Mentor",
+      image: settings?.top_leader_4_image_url_full,
+      defaultImage: DEFAULT_LEADER_IMG_4,
+    },
+    {
+      name: settings?.top_leader_5_name || "Leader 5",
+      title: settings?.top_leader_5_title || "Business Leader",
+      image: settings?.top_leader_5_image_url_full,
+      defaultImage: DEFAULT_LEADER_IMG_5,
+    },
+    {
+      name: settings?.top_leader_6_name || "Leader 6",
+      title: settings?.top_leader_6_title || "Senior Advisor",
+      image: settings?.top_leader_6_image_url_full,
+      defaultImage: DEFAULT_LEADER_IMG_6,
     },
   ];
 
   return (
-    <section className="py-24 bg-gradient-to-b from-white to-amber-50/50" data-testid="top-leaders-section">
+    <section className="py-16 bg-gradient-to-b from-white to-amber-50/45" data-testid="top-leaders-section">
       <div className="max-w-7xl mx-auto px-6">
-        <div className="max-w-2xl">
-          <p className="text-xs uppercase tracking-[0.25em] text-emerald-800 font-semibold">Company Management Achievers</p>
-          <h2 className="mt-3 font-display font-black text-4xl md:text-5xl tracking-tight text-emerald-950">
-            Top Leaders
-            <br />
-            <span className="text-amber-500 italic">who inspire growth.</span>
-          </h2>
+        <div className="max-w-3xl">
+          <p className="text-xs uppercase tracking-[0.25em] text-emerald-800 font-semibold">Top Leaders</p>
+          <h2 className="mt-2 font-display font-black text-3xl md:text-4xl tracking-tight text-emerald-950">Leadership Team</h2>
         </div>
-        <div className="mt-10 grid grid-cols-1 md:grid-cols-3 gap-5">
+        <div className="mt-8 grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-4">
           {leaders.map((leader, i) => (
-            <div key={i} className="bg-white rounded-2xl border border-border overflow-hidden shadow-sm hover:shadow-lg transition-shadow" data-testid={`top-leader-card-${i + 1}`}>
-              <div className="aspect-[4/5] overflow-hidden bg-secondary">
+            <div key={i} className="bg-white rounded-2xl border border-emerald-900/10 overflow-hidden shadow-sm hover:shadow-md transition-shadow" data-testid={`top-leader-card-${i + 1}`}>
+              <div className="aspect-square overflow-hidden bg-secondary">
                 <img
                   src={leader.image || leader.defaultImage || FALLBACK_LEADER_IMG}
                   alt={leader.name}
                   data-default-src={leader.defaultImage || ""}
+                  data-original-src={leader.image || ""}
+                  data-has-custom={leader.image ? "1" : "0"}
                   className="w-full h-full object-cover"
                   onError={(e) => {
                     const img = e.currentTarget;
+                    const hasCustom = img.dataset.hasCustom === "1";
+                    const originalSrc = img.dataset.originalSrc || "";
+
+                    // Keep admin-uploaded image sticky: retry once with cache-buster, then stop.
+                    if (hasCustom && originalSrc) {
+                      if (img.dataset.retriedCustom === "1") return;
+                      img.dataset.retriedCustom = "1";
+                      const sep = originalSrc.includes("?") ? "&" : "?";
+                      img.src = `${originalSrc}${sep}img_retry=${Date.now()}`;
+                      return;
+                    }
+
                     const defaultSrc = img.dataset.defaultSrc || "";
                     if (defaultSrc && img.dataset.usedDefault !== "1" && img.src !== defaultSrc) {
                       img.dataset.usedDefault = "1";
@@ -742,9 +854,9 @@ const TopLeaders = () => {
                   }}
                 />
               </div>
-              <div className="p-5">
-                <p className="font-display font-black text-2xl text-emerald-950">{leader.name}</p>
-                <p className="mt-1 text-sm text-amber-700 font-semibold tracking-wide uppercase">{leader.title}</p>
+              <div className="p-3 bg-emerald-50/45 border-t border-emerald-100">
+                <p className="font-display font-bold text-sm text-emerald-950 truncate" title={leader.name}>{leader.name}</p>
+                <p className="mt-0.5 text-[11px] text-amber-700 font-semibold tracking-wide uppercase truncate" title={leader.title}>{leader.title}</p>
               </div>
             </div>
           ))}
@@ -758,17 +870,16 @@ const MissionVisionPolicy = () => {
   const { settings } = useSettings();
   const mission = (settings?.mission_statement || "").trim() || DEFAULT_POLICY.mission_statement;
   const vision = (settings?.vision_statement || "").trim() || DEFAULT_POLICY.vision_statement;
-  const returnPolicy = (settings?.return_policy || "").trim() || DEFAULT_POLICY.return_policy;
 
   return (
     <section className="py-24 bg-secondary/30" data-testid="landing-policy-section">
       <div className="max-w-6xl mx-auto px-6">
-        <p className="text-xs uppercase tracking-[0.25em] text-emerald-800 font-semibold text-center">Our Commitments</p>
+        <p className="text-xs uppercase tracking-[0.25em] text-emerald-800 font-semibold text-center">Business Direction</p>
         <h2 className="mt-3 font-display font-black text-4xl md:text-5xl tracking-tight text-emerald-950 text-center">
-          Mission, Vision & Return Policy
+          Mission and Vision
         </h2>
 
-        <div className="mt-10 grid md:grid-cols-3 gap-4">
+        <div className="mt-10 grid md:grid-cols-2 gap-4">
           <div className="bg-white rounded-2xl border border-border p-6">
             <p className="text-xs uppercase tracking-widest text-emerald-800 font-semibold">Mission</p>
             <p className="mt-2 text-sm text-slate-700 whitespace-pre-line font-body">{mission}</p>
@@ -777,15 +888,101 @@ const MissionVisionPolicy = () => {
             <p className="text-xs uppercase tracking-widest text-emerald-800 font-semibold">Vision</p>
             <p className="mt-2 text-sm text-slate-700 whitespace-pre-line font-body">{vision}</p>
           </div>
-          <div className="bg-white rounded-2xl border border-border p-6">
-            <p className="text-xs uppercase tracking-widest text-emerald-800 font-semibold">Return Policy</p>
-            <p className="mt-2 text-sm text-slate-700 whitespace-pre-line font-body">{returnPolicy}</p>
+        </div>
+      </div>
+    </section>
+  );
+};
+
+const ReturnPolicyBox = () => {
+  const { settings } = useSettings();
+  const mission = (settings?.mission_statement || "").trim() || DEFAULT_POLICY.mission_statement;
+  const vision = (settings?.vision_statement || "").trim() || DEFAULT_POLICY.vision_statement;
+  const returnPolicy = (settings?.return_policy || "").trim() || DEFAULT_POLICY.return_policy;
+
+  return (
+    <section className="py-10 bg-white" data-testid="landing-return-policy-box">
+      <div className="max-w-6xl mx-auto px-6">
+        <div className="rounded-2xl border border-emerald-900/10 bg-gradient-to-br from-white to-emerald-50/40 p-6 md:p-7 shadow-sm">
+          <p className="text-xs uppercase tracking-[0.25em] text-emerald-800 font-semibold">Mission, Vision & Return Policy</p>
+          <div className="mt-4 grid md:grid-cols-3 gap-4">
+            <div className="rounded-xl border border-emerald-100 bg-white/85 p-4">
+              <p className="text-[10px] uppercase tracking-widest text-emerald-800 font-semibold">Mission</p>
+              <p className="mt-2 text-sm text-slate-700 whitespace-pre-line font-body leading-relaxed">{mission}</p>
+            </div>
+            <div className="rounded-xl border border-emerald-100 bg-white/85 p-4">
+              <p className="text-[10px] uppercase tracking-widest text-emerald-800 font-semibold">Vision</p>
+              <p className="mt-2 text-sm text-slate-700 whitespace-pre-line font-body leading-relaxed">{vision}</p>
+            </div>
+            <div className="rounded-xl border border-emerald-100 bg-white/85 p-4">
+              <p className="text-[10px] uppercase tracking-widest text-emerald-800 font-semibold">Return Policy</p>
+              <p className="mt-2 text-sm text-slate-700 whitespace-pre-line font-body leading-relaxed">{returnPolicy}</p>
+            </div>
           </div>
         </div>
       </div>
     </section>
   );
 };
+
+const RegistrationAccessBox = () => (
+  <section className="py-10 bg-white" data-testid="landing-registration-access-box">
+    <div className="max-w-6xl mx-auto px-6">
+      <div className="rounded-2xl border border-emerald-900/20 bg-gradient-to-br from-emerald-100 via-emerald-50 to-amber-50/40 p-4 md:p-5 shadow-md">
+        <p className="text-xs uppercase tracking-[0.25em] text-emerald-800 font-semibold px-2 pb-3">Registration & Access</p>
+        <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+          {[
+            {
+              key: "member",
+              to: "/register",
+              label: "Member",
+              title: "Member Registration",
+              desc: "Create your member account and start onboarding.",
+              icon: Users,
+              testId: "landing-registration-row-member",
+            },
+            {
+              key: "partner",
+              to: "/partner-register",
+              label: "Partner",
+              title: "Partner Registration",
+              desc: "List your business and join the partner network.",
+              icon: Building2,
+              testId: "landing-registration-row-partner",
+            },
+            {
+              key: "login",
+              to: "/login",
+              label: "Account",
+              title: "Login",
+              desc: "Access your dashboard, wallet, and business reports.",
+              icon: Shield,
+              testId: "landing-registration-row-login",
+            },
+            {
+              key: "partner-login",
+              to: "/login",
+              label: "Partner Account",
+              title: "Partner Login",
+              desc: "Manage store activity, orders, and partner actions.",
+              icon: Store,
+              testId: "landing-registration-row-partner-login",
+            },
+          ].map((item) => (
+            <Link key={item.key} to={item.to} className="rounded-xl border border-emerald-300 bg-emerald-950 p-4 hover:shadow-md transition-shadow" data-testid={item.testId}>
+              <div className="w-10 h-10 rounded-xl bg-emerald-900 text-amber-300 flex items-center justify-center">
+                <item.icon className="w-5 h-5" />
+              </div>
+              <p className="text-[10px] uppercase tracking-widest text-emerald-100 font-semibold mt-3">{item.label}</p>
+              <p className="mt-1 font-display font-bold text-white">{item.title}</p>
+              <p className="mt-1 text-xs text-emerald-100/85 font-body leading-relaxed">{item.desc}</p>
+            </Link>
+          ))}
+        </div>
+      </div>
+    </div>
+  </section>
+);
 
 const FAQ = () => {
   const faqs = [
@@ -864,11 +1061,8 @@ export default function LandingPage() {
       <AssociatePartnerFinder />
       <Features />
       <BusinessPlan />
-      <RewardEngineFlow />
-      <Products />
       <TopLeaders />
-      <MissionVisionPolicy />
-      <FAQ />
+      <ReturnPolicyBox />
       <Footer />
     </div>
   );

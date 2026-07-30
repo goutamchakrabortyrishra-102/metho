@@ -2535,7 +2535,7 @@ async def upload_branding_image(purpose: str, file: UploadFile = File(...), curr
     _require_admin_user(current_user)
     allowed_purposes = {
         "site_logo", "landing_hero", "product_placeholder", "directory_hero", "social_share",
-        "top_leader_1", "top_leader_2", "top_leader_3",
+        "top_leader_1", "top_leader_2", "top_leader_3", "top_leader_4", "top_leader_5", "top_leader_6",
     }
     safe_purpose = "".join(ch for ch in str(purpose or "branding") if ch.isalnum() or ch in {"-", "_"}).strip("-_")
     safe_purpose = safe_purpose or "branding"
@@ -2543,6 +2543,22 @@ async def upload_branding_image(purpose: str, file: UploadFile = File(...), curr
         raise HTTPException(status_code=400, detail=f"purpose must be one of {sorted(allowed_purposes)}")
     name = _save_image_upload(file, BRANDING_UPLOAD_DIR, safe_purpose)
     return {"ok": True, "purpose": safe_purpose, "url": f"/api/files/branding_images/{name}"}
+
+
+@router.post("/admin/upload/site-logo")
+async def upload_site_logo_image(file: UploadFile = File(...), current_user=Depends(get_current_user)):
+    _require_admin_user(current_user)
+    name = _save_image_upload(file, BRANDING_UPLOAD_DIR, "site_logo")
+    return {"ok": True, "purpose": "site_logo", "url": f"/api/files/branding_images/{name}"}
+
+
+@router.post("/admin/upload/top-leader-image")
+async def upload_top_leader_image(slot: int, file: UploadFile = File(...), current_user=Depends(get_current_user)):
+    _require_admin_user(current_user)
+    if slot not in {1, 2, 3, 4, 5, 6}:
+        raise HTTPException(status_code=400, detail="slot must be 1 to 6")
+    name = _save_image_upload(file, BRANDING_UPLOAD_DIR, f"top_leader_{slot}")
+    return {"ok": True, "purpose": f"top_leader_{slot}", "url": f"/api/files/branding_images/{name}"}
 
 
 @router.put("/settings")

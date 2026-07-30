@@ -1,73 +1,131 @@
 <!doctype html>
 <html lang="en">
-    <head>
-        <meta charset="utf-8" />
-        <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-        <meta name="theme-color" content="#064e3b" />
-        <meta name="description" content="METHO AAY-UPAY — India's most powerful direct-selling business platform. Aay hobe. Upay hobe." />
-        <meta name="apple-mobile-web-app-capable" content="yes" />
-        <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
-        <meta name="apple-mobile-web-app-title" content="METHO AAY-UPAY" />
-        <meta name="mobile-web-app-capable" content="yes" />
-        <link rel="manifest" href="/manifest.json" />
-        <link rel="icon" type="image/svg+xml" sizes="192x192" href="/icons/icon-192.svg" />
-        <link rel="apple-touch-icon" href="/icons/icon-192.svg" />
-        <link rel="preconnect" href="https://fonts.googleapis.com" />
-        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-        <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700;800;900&family=Hind+Siliguri:wght@400;500;600;700&display=swap" rel="stylesheet" />
-        <title>METHO AAY-UPAY™ | Metho Logistics Private Limited</title>
-        <script>window.addEventListener("error",function(e){if(e.error instanceof DOMException&&e.error.name==="DataCloneError"&&e.message&&e.message.includes("PerformanceServerTiming")){e.stopImmediatePropagation();e.preventDefault()}},true);</script>
-        <script>
-            (function () {
-                try {
-                    if (!("serviceWorker" in navigator)) return;
-                    navigator.serviceWorker.getRegistrations().then(function (registrations) {
-                        registrations.forEach(function (registration) {
-                            registration.unregister().catch(function () {});
-                        });
-                    }).catch(function () {});
 
-                    if (window.caches && caches.keys) {
-                        caches.keys().then(function (keys) {
-                            keys.forEach(function (key) {
-                                caches.delete(key).catch(function () {});
-                            });
-                        }).catch(function () {});
-                    }
-                } catch (e) {}
-            })();
-        </script>
-        <script defer src="https://assets.emergent.sh/scripts/emergent-main.js"></script>
-    </head>
-    <body>
-        <noscript>You need to enable JavaScript to run this app.</noscript>
-        <div id="root"></div>
-        <script>
-            (function () {
-                // Safety net: if a stale browser state causes a blank shell, retry once with a cache-busted URL.
-                var RETRY_KEY = "metho_blank_retry_once";
-                function hasMountedApp() {
-                    var root = document.getElementById("root");
-                    return !!(root && root.children && root.children.length > 0);
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <meta name="theme-color" content="#064e3b" />
+    <meta name="description"
+        content="METHO AAY-UPAY — India's most powerful direct-selling business platform. Aay hobe. Upay hobe." />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="apple-mobile-web-app-title" content="METHO AAY-UPAY" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <link rel="manifest" href="/manifest.json" />
+    <link rel="icon" type="image/svg+xml" sizes="192x192" href="/icons/icon-192.svg" />
+    <link rel="apple-touch-icon" href="/icons/icon-192.svg" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+        href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700;800;900&family=Hind+Siliguri:wght@400;500;600;700&display=swap"
+        rel="stylesheet" />
+    <title>METHO AAY-UPAY™ | Metho Logistics Private Limited</title>
+    <script>window.addEventListener("error", function (e) { if (e.error instanceof DOMException && e.error.name === "DataCloneError" && e.message && e.message.includes("PerformanceServerTiming")) { e.stopImmediatePropagation(); e.preventDefault() } }, true);</script>
+    <script>
+        (function () {
+            try {
+                if (!("serviceWorker" in navigator)) return;
+                navigator.serviceWorker.getRegistrations().then(function (registrations) {
+                    registrations.forEach(function (registration) {
+                        registration.unregister().catch(function () { });
+                    });
+                }).catch(function () { });
+
+                if (window.caches && caches.keys) {
+                    caches.keys().then(function (keys) {
+                        keys.forEach(function (key) {
+                            caches.delete(key).catch(function () { });
+                        });
+                    }).catch(function () { });
                 }
-                window.setTimeout(function () {
-                    try {
-                        if (hasMountedApp()) return;
-                        if (sessionStorage.getItem(RETRY_KEY) === "1") return;
-                        sessionStorage.setItem(RETRY_KEY, "1");
+            } catch (e) { }
+        })();
+    </script>
+    <script defer src="https://assets.emergent.sh/scripts/emergent-main.js"></script>
+</head>
+
+<body>
+    <noscript>You need to enable JavaScript to run this app.</noscript>
+    <div id="root">
+        <div id="metho-boot-placeholder" style="min-height:100vh;display:flex;align-items:center;justify-content:center;background:linear-gradient(180deg,#f8fafc,#ecfdf5);padding:24px;font-family:Outfit,Arial,sans-serif;">
+            <div style="max-width:560px;width:100%;background:#ffffff;border:1px solid #d1fae5;border-radius:16px;padding:22px;box-shadow:0 10px 30px rgba(2,6,23,0.08);">
+                <h2 style="margin:0 0 8px 0;color:#064e3b;font-size:24px;font-weight:800;">METHO is loading</h2>
+                <p style="margin:0;color:#334155;font-size:14px;line-height:1.5;">Please wait a moment. If this screen does not change, refresh once.</p>
+            </div>
+        </div>
+    </div>
+    <script>
+        (function () {
+            // metho_boot_panel_v4: clean fallback script with one-time main bundle reinjection.
+            var RETRY_SCRIPT_KEY = "metho_main_bundle_retry_done";
+
+            function hasMountedApp() {
+                var root = document.getElementById("root");
+                var placeholder = document.getElementById("metho-boot-placeholder");
+                return !!(root && !placeholder);
+            }
+
+            function retryMainBundleOnce() {
+                try {
+                    if (sessionStorage.getItem(RETRY_SCRIPT_KEY) === "1") return false;
+                    var mainScript = document.querySelector('script[src*="/static/js/main."]');
+                    if (!mainScript || !mainScript.src) return false;
+                    sessionStorage.setItem(RETRY_SCRIPT_KEY, "1");
+                    var retryScript = document.createElement("script");
+                    retryScript.defer = true;
+                    retryScript.src = mainScript.src + (mainScript.src.indexOf("?") >= 0 ? "&" : "?") + "retry=" + Date.now();
+                    document.body.appendChild(retryScript);
+                    return true;
+                } catch (e) {
+                    return false;
+                }
+            }
+
+            function renderRecoveryPanel() {
+                var root = document.getElementById("root");
+                if (!root || hasMountedApp()) return;
+                root.innerHTML =
+                    '<div style="min-height:100vh;display:flex;align-items:center;justify-content:center;background:linear-gradient(180deg,#f8fafc,#ecfdf5);padding:24px;font-family:Outfit,Arial,sans-serif;">' +
+                    '<div style="max-width:560px;width:100%;background:#ffffff;border:1px solid #d1fae5;border-radius:16px;padding:22px;box-shadow:0 10px 30px rgba(2,6,23,0.08);">' +
+                    '<h2 style="margin:0 0 8px 0;color:#064e3b;font-size:24px;font-weight:800;">METHO is retrying to load</h2>' +
+                    '<p style="margin:0 0 14px 0;color:#334155;font-size:14px;line-height:1.5;">Your page did not load fully because of browser cache or network timing. Use refresh to continue.</p>' +
+                    '<div style="display:flex;gap:10px;flex-wrap:wrap;">' +
+                    '<button id="metho-reload-btn" style="background:#065f46;color:#fff;border:none;border-radius:999px;padding:10px 16px;font-weight:700;cursor:pointer;">Reload Now</button>' +
+                    '<a href="/register" style="text-decoration:none;background:#f0fdf4;color:#065f46;border:1px solid #a7f3d0;border-radius:999px;padding:10px 16px;font-weight:700;">Open Register</a>' +
+                    '<a href="/" style="text-decoration:none;background:#fffbeb;color:#92400e;border:1px solid #fde68a;border-radius:999px;padding:10px 16px;font-weight:700;">Go Home</a>' +
+                    '</div>' +
+                    '</div>' +
+                    '</div>';
+                var btn = document.getElementById("metho-reload-btn");
+                if (btn) {
+                    btn.addEventListener("click", function () {
                         var url = new URL(window.location.href);
                         url.searchParams.set("_reload", String(Date.now()));
                         window.location.replace(url.toString());
-                    } catch (e) {}
-                }, 3500);
-                window.addEventListener("load", function () {
-                    try {
-                        if (hasMountedApp()) sessionStorage.removeItem(RETRY_KEY);
-                    } catch (e) {}
-                });
-            })();
-        </script>
-        <!--
+                    });
+                }
+            }
+
+            window.setTimeout(function () {
+                try {
+                    if (hasMountedApp()) return;
+                    var retried = retryMainBundleOnce();
+                    window.setTimeout(function () {
+                        if (!hasMountedApp()) renderRecoveryPanel();
+                    }, retried ? 2200 : 0);
+                } catch (e) {
+                    renderRecoveryPanel();
+                }
+            }, 3500);
+
+            window.addEventListener("load", function () {
+                try {
+                    if (hasMountedApp()) sessionStorage.removeItem(RETRY_SCRIPT_KEY);
+                } catch (e) { }
+            });
+        })();
+    </script>
+    <!--
       This HTML file is a template.
       If you open it directly in the browser, you will see an empty page.
 
@@ -77,11 +135,11 @@
       To begin the development, run `npm start` or `yarn start`.
       To create a production bundle, use `npm run build` or `yarn build`.
     -->
-        <script>
-            !(function (t, e) {
-                var o, n, p, r;
-                e.__SV ||
-                    ((window.posthog = e),
+    <script>
+        !(function (t, e) {
+            var o, n, p, r;
+            e.__SV ||
+                ((window.posthog = e),
                     (e._i = []),
                     (e.init = function (i, s, a) {
                         function g(t, e) {
@@ -114,23 +172,23 @@
                         var u = e;
                         for (
                             void 0 !== a ? (u = e[a] = []) : (a = "posthog"),
-                                u.people = u.people || [],
-                                u.toString = function (t) {
-                                    var e = "posthog";
-                                    return (
-                                        "posthog" !== a && (e += "." + a),
-                                        t || (e += " (stub)"),
-                                        e
-                                    );
-                                },
-                                u.people.toString = function () {
-                                    return u.toString(1) + ".people (stub)";
-                                },
-                                o =
-                                    "init me ws ys ps bs capture je Di ks register register_once register_for_session unregister unregister_for_session Ps getFeatureFlag getFeatureFlagPayload isFeatureEnabled reloadFeatureFlags updateEarlyAccessFeatureEnrollment getEarlyAccessFeatures on onFeatureFlags onSurveysLoaded onSessionId getSurveys getActiveMatchingSurveys renderSurvey canRenderSurvey canRenderSurveyAsync identify setPersonProperties group resetGroups setPersonPropertiesForFlags resetPersonPropertiesForFlags setGroupPropertiesForFlags resetGroupPropertiesForFlags reset get_distinct_id getGroups get_session_id get_session_replay_url alias set_config startSessionRecording stopSessionRecording sessionRecordingStarted captureException loadToolbar get_property getSessionProperty Es $s createPersonProfile Is opt_in_capturing opt_out_capturing has_opted_in_capturing has_opted_out_capturing clear_opt_in_out_capturing Ss debug xs getPageViewId captureTraceFeedback captureTraceMetric".split(
-                                        " ",
-                                    ),
-                                n = 0;
+                            u.people = u.people || [],
+                            u.toString = function (t) {
+                                var e = "posthog";
+                                return (
+                                    "posthog" !== a && (e += "." + a),
+                                    t || (e += " (stub)"),
+                                    e
+                                );
+                            },
+                            u.people.toString = function () {
+                                return u.toString(1) + ".people (stub)";
+                            },
+                            o =
+                            "init me ws ys ps bs capture je Di ks register register_once register_for_session unregister unregister_for_session Ps getFeatureFlag getFeatureFlagPayload isFeatureEnabled reloadFeatureFlags updateEarlyAccessFeatureEnrollment getEarlyAccessFeatures on onFeatureFlags onSurveysLoaded onSessionId getSurveys getActiveMatchingSurveys renderSurvey canRenderSurvey canRenderSurveyAsync identify setPersonProperties group resetGroups setPersonPropertiesForFlags resetPersonPropertiesForFlags setGroupPropertiesForFlags resetGroupPropertiesForFlags reset get_distinct_id getGroups get_session_id get_session_replay_url alias set_config startSessionRecording stopSessionRecording sessionRecordingStarted captureException loadToolbar get_property getSessionProperty Es $s createPersonProfile Is opt_in_capturing opt_out_capturing has_opted_in_capturing has_opted_out_capturing clear_opt_in_out_capturing Ss debug xs getPageViewId captureTraceFeedback captureTraceMetric".split(
+                                " ",
+                            ),
+                            n = 0;
                             n < o.length;
                             n++
                         )
@@ -138,16 +196,16 @@
                         e._i.push([i, s, a]);
                     }),
                     (e.__SV = 1));
-            })(document, window.posthog || []);
-            posthog.init("phc_DbsPb39SRc8z3EiQ6Dhj6ikv4H4rTKcht9d4sZSesceP", {
-                api_host: "https://ap.emergent.sh",
-                person_profiles: "identified_only", // or 'always' to create profiles for anonymous users as well,
-                session_recording: {
-                    recordCrossOriginIframes: true,
-                    capturePerformance: false,
-                },
-            });
-        </script>
-    </body>
-</html>
+        })(document, window.posthog || []);
+        posthog.init("phc_DbsPb39SRc8z3EiQ6Dhj6ikv4H4rTKcht9d4sZSesceP", {
+            api_host: "https://ap.emergent.sh",
+            person_profiles: "identified_only", // or 'always' to create profiles for anonymous users as well,
+            session_recording: {
+                recordCrossOriginIframes: true,
+                capturePerformance: false,
+            },
+        });
+    </script>
+</body>
 
+</html>
