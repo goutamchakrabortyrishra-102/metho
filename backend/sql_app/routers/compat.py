@@ -1,4 +1,5 @@
 import uuid
+from types import SimpleNamespace
 import base64
 import hashlib
 import hmac
@@ -1231,6 +1232,13 @@ def offline_billing_create_order(payload: dict, db: Session = Depends(get_db), c
     customer_user_id = member_user.id if member_user else ""
     canonical_member_code = member_code_for_user(member_user.id) if member_user else member_ref
 
+    member_phone_raw = str((member_user.phone if member_user else "") or "").strip()
+    member_phone_digits = "".join(ch for ch in member_phone_raw if ch.isdigit())
+    if len(member_phone_digits) == 10:
+        member_phone_digits = f"91{member_phone_digits}"
+    elif len(member_phone_digits) > 12:
+        member_phone_digits = member_phone_digits[-12:]
+
     row = PublicOrder(
         id=str(uuid.uuid4()),
         customer_user_id=customer_user_id,
@@ -1242,21 +1250,49 @@ def offline_billing_create_order(payload: dict, db: Session = Depends(get_db), c
         payer_name=str(payload.get("payer_name") or payload.get("customer_name") or (member_user.name if member_user else "Offline Customer")).strip(),
         items_json=json.dumps(normalized_items),
         total_amount=round(total, 2),
-        status="paid",
+        status="pending_approval",
     )
     db.add(row)
     db.commit()
+
+    # Use the same approval pipeline as online orders so wallet reserve + commission split rules stay identical.
+    try:
+        admin_approve_order(
+            order_id=row.id,
+            payload={"note": "Auto-approved from offline billing"},
+            db=db,
+            current_user=SimpleNamespace(role="super_admin"),
+        )
+        row = db.query(PublicOrder).filter(PublicOrder.id == row.id).first() or row
+    except HTTPException as exc:
+        return {
+            "ok": True,
+            "order_id": row.id,
+            "order_no": f"ORD-{row.id[:8].upper()}",
+            "payment_mode": payment_mode,
+            "member_code": canonical_member_code,
+            "total_amount": round(total, 2),
+            "status": "pending_approval",
+            "approval_reason": str(exc.detail or "Wallet reserve or stock check pending."),
+            "invoice_path": "",
+            "member_whatsapp_share_url": "",
+        }
+
+    invoice_path = f"/invoice/{row.id}"
+    whatsapp_msg = f"METHO invoice ready. Invoice No: INV-{row.id[:8].upper()}\nView/Download: {invoice_path}"
+    whatsapp_share_url = f"https://wa.me/{member_phone_digits}?text={urllib.parse.quote(whatsapp_msg)}" if member_phone_digits else ""
 
     return {
         "ok": True,
         "order_id": row.id,
         "order_no": f"ORD-{row.id[:8].upper()}",
         "invoice_no": f"INV-{row.id[:8].upper()}",
-        "invoice_path": f"/invoice/{row.id}",
+        "invoice_path": invoice_path,
         "payment_mode": payment_mode,
         "member_code": canonical_member_code,
         "total_amount": round(total, 2),
         "status": "paid",
+        "member_whatsapp_share_url": whatsapp_share_url,
     }
 
 

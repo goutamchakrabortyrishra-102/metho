@@ -145,10 +145,13 @@ export default function OfflineBillingPanel({ title = "Offline Billing", compact
         items: validLines,
       });
       setCreated(data);
-      toast.success(data?.status === "paid" ? "Invoice generated" : "Order submitted for approval");
+      toast.success(data?.status === "paid" ? "Invoice generated" : (data?.approval_reason || "Order submitted for approval"));
       if (data?.order_id && data?.status === "paid") {
         const url = `/invoice/${data.order_id}?autoprint=1`;
         window.open(url, "_blank", "noopener,noreferrer");
+        if (data?.member_whatsapp_share_url) {
+          window.open(data.member_whatsapp_share_url, "_blank", "noopener,noreferrer");
+        }
       }
     } catch (e) {
       toast.error(e?.response?.data?.detail || "Offline billing failed");
