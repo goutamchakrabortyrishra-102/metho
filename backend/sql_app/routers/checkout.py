@@ -3,6 +3,7 @@ import uuid
 import base64
 import hashlib
 import hmac
+from types import SimpleNamespace
 import urllib.error
 import urllib.request
 from pathlib import Path
@@ -392,12 +393,41 @@ def verify_razorpay_and_submit(payload: dict, db: Session = Depends(get_db)):
     row.status = "pending_approval"
     db.commit()
 
-    return {
-        "id": row.id,
-        "status": row.status,
-        "total_amount": float(row.total_amount or 0),
-        "approval_reason": "Payment received. Admin approval pending.",
-    }
+    # Auto-approve verified Razorpay orders so invoice and commission logic run immediately.
+    try:
+        from .compat import admin_approve_order
+
+        approved = admin_approve_order(
+            order_id=order_id,
+            payload={"note": "Auto-approved via Razorpay verification"},
+            db=db,
+            current_user=SimpleNamespace(role="super_admin"),
+        )
+        return {
+            "id": order_id,
+            "status": "paid",
+            "total_amount": float(row.total_amount or 0),
+            "auto_approved": True,
+            "approval_reason": "Payment verified and order auto-approved.",
+            "rewards_earned": approved.get("rewards_earned", {}),
+            "commission_split": approved.get("commission_split", {}),
+        }
+    except HTTPException as exc:
+        return {
+            "id": row.id,
+            "status": row.status,
+            "total_amount": float(row.total_amount or 0),
+            "auto_approved": False,
+            "approval_reason": str(exc.detail or "Payment received. Admin approval pending."),
+        }
+    except Exception:
+        return {
+            "id": row.id,
+            "status": row.status,
+            "total_amount": float(row.total_amount or 0),
+            "auto_approved": False,
+            "approval_reason": "Payment received. Admin approval pending.",
+        }
 
 
 @router.get("/partner/summary")
