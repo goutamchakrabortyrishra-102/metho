@@ -47,6 +47,7 @@ export default function UpiPaymentDialog({
   const [uploading, setUploading] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [copied, setCopied] = useState(false);
+  const [forceManualUpiFlow, setForceManualUpiFlow] = useState(false);
   const requiresShippingAddress = Array.isArray(items)
     ? items.some((item) => !(item?.is_service || String(item?.listing_type || item?.item_kind || "").toLowerCase().includes("service")))
     : true;
@@ -55,6 +56,11 @@ export default function UpiPaymentDialog({
     if (!open) return;
     api.get("/settings").then((r) => setSettings(r.data)).catch(() => {});
   }, [open, paymentConfig]);
+
+  useEffect(() => {
+    if (open) return;
+    setForceManualUpiFlow(false);
+  }, [open]);
 
   const copyUpi = async () => {
     if (!settings?.upi_id) return;
@@ -175,7 +181,19 @@ export default function UpiPaymentDialog({
         return;
       }
 
-      const { data: rp } = await api.post("/payments/razorpay/order", { order_id: createdOrderId });
+      let rp;
+      try {
+        const rpResp = await api.post("/payments/razorpay/order", { order_id: createdOrderId });
+        rp = rpResp.data;
+      } catch (err) {
+        if (err?.response?.status === 404) {
+          setForceManualUpiFlow(true);
+          setSubmitting(false);
+          toast.error("Online Razorpay is unavailable right now. Please submit UPI proof to complete this order.");
+          return;
+        }
+        throw err;
+      }
 
       const options = {
         key: rp.key_id,
@@ -240,7 +258,7 @@ export default function UpiPaymentDialog({
   const payeeName = paymentConfig?.payee_name || settings?.upi_payee_name || "METHOO STORE";
   const qrUrl = paymentConfig?.qr_url || settings?.upi_qr_url;
   const payLabel = paymentConfig?.label || "UPI Payment";
-  const manualUpiEnabled = paymentConfig ? !!paymentConfig.manual_upi_enabled : !!settings?.manual_upi_enabled;
+  const manualUpiEnabled = forceManualUpiFlow || (paymentConfig ? !!paymentConfig.manual_upi_enabled : !!settings?.manual_upi_enabled);
   const razorpayEnabled = paymentConfig
     ? !!paymentConfig.razorpay_enabled && !!settings?.razorpay_enabled && !!settings?.razorpay_key_id
     : !!settings?.razorpay_enabled && !!settings?.razorpay_key_id;
@@ -481,7 +499,7 @@ export default function UpiPaymentDialog({
 
           <DialogFooter className={manualUpiEnabled ? "md:col-span-2" : ""}>
             <div className="w-full space-y-2">
-              {razorpayEnabled ? (
+              {razorpayEnabled && !forceManualUpiFlow ? (
                 <Button
                   type="button"
                   disabled={submitting || uploading}
