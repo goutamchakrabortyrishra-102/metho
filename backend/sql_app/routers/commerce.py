@@ -1,6 +1,7 @@
 from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends, HTTPException
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from ..database import get_db
@@ -162,6 +163,8 @@ def list_products(db: Session = Depends(get_db)):
 
     out = []
     for p in products:
+        if bool(hidden_map.get(p.id, False)):
+            continue
         m = meta_map.get(p.id)
         mrp = float(m.mrp if m and m.mrp else p.price)
         discount_percent = float(m.discount_percent if m else 0)
@@ -188,6 +191,8 @@ def list_products(db: Session = Depends(get_db)):
             }
         )
     for p in partner_products:
+        if bool(hidden_map.get(p.id, False)):
+            continue
         out.append(
             {
                 "id": p.id,
@@ -376,6 +381,41 @@ def patch_product(product_id: str, payload: dict, db: Session = Depends(get_db),
         "stock": int(target.stock),
         "hidden": bool(hidden if hidden is not None else _get_product_hidden_map(db).get(product_id, False)),
     }
+
+
+@router.delete("/products/{product_id}")
+def delete_product(product_id: str, db: Session = Depends(get_db), current_user=Depends(get_current_user)):
+    if current_user.role not in ("super_admin", "company_admin", "admin"):
+        raise HTTPException(status_code=403, detail="Insufficient permissions")
+
+    product = db.query(Product).filter(Product.id == product_id).first()
+    if product:
+        meta = db.query(ProductMeta).filter(ProductMeta.product_id == product_id).first()
+        if meta:
+            db.delete(meta)
+
+        db.delete(product)
+        try:
+            db.commit()
+            return {"ok": True, "id": product_id, "mode": "hard"}
+        except IntegrityError:
+            # Product has dependent rows (typically order history). Hide instead of failing.
+            db.rollback()
+            product = db.query(Product).filter(Product.id == product_id).first()
+            if product:
+                product.stock = 0
+                _set_product_hidden_flag(db, product_id, True)
+                db.commit()
+            return {"ok": True, "id": product_id, "mode": "soft"}
+
+    partner_product = db.query(PartnerProduct).filter(PartnerProduct.id == product_id).first()
+    if partner_product:
+        db.delete(partner_product)
+        db.commit()
+        _set_product_hidden_flag(db, product_id, True)
+        return {"ok": True, "id": product_id, "mode": "hard"}
+
+    return {"ok": True, "id": product_id}
 
 
 # Legacy single-item order endpoint kept for compatibility.
