@@ -34,15 +34,18 @@ UPI_QR_UPLOAD_DIR = ROOT_DIR / "uploaded_objects" / "payment_screenshots"
 UPI_QR_UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
 BRANDING_UPLOAD_DIR = ROOT_DIR / "uploaded_objects" / "branding_images"
 BRANDING_UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
+PARTNER_IMAGE_MAX_UPLOAD_BYTES = 200 * 1024
+GLOBAL_IMAGE_MAX_UPLOAD_BYTES = 200 * 1024
 
 
-def _save_image_upload(file: UploadFile, target_dir: Path, prefix: str) -> str:
+def _save_image_upload(file: UploadFile, target_dir: Path, prefix: str, max_bytes: int = GLOBAL_IMAGE_MAX_UPLOAD_BYTES) -> str:
     ext = Path(file.filename or f"{prefix}.jpg").suffix.lower() or ".jpg"
     if ext not in {".jpg", ".jpeg", ".png", ".webp", ".gif", ".svg"}:
         raise HTTPException(status_code=400, detail="Unsupported file type")
     content = file.file.read()
-    if len(content) > 5 * 1024 * 1024:
-        raise HTTPException(status_code=400, detail="File too large (max 5MB)")
+    if len(content) > max(1, int(max_bytes or 0)):
+        kb = max(1, int(max_bytes // 1024))
+        raise HTTPException(status_code=400, detail=f"File too large (max {kb}KB)")
     name = f"{prefix}-{uuid.uuid4().hex}{ext}"
     target = target_dir / name
     target.write_bytes(content)
@@ -1872,7 +1875,7 @@ async def partner_upload_payment_qr(file: UploadFile = File(...), db: Session = 
     if not partner:
         raise HTTPException(status_code=404, detail="Partner profile not found")
 
-    name = _save_image_upload(file, BRANDING_UPLOAD_DIR, "partner-payment-qr")
+    name = _save_image_upload(file, BRANDING_UPLOAD_DIR, "partner-payment-qr", PARTNER_IMAGE_MAX_UPLOAD_BYTES)
     relative_url = f"/api/files/branding_images/{name}"
     payload = {"qr_url": relative_url, "updated_at": now_iso()}
     row = db.query(AppSetting).filter(AppSetting.key == _partner_payment_qr_key(partner.id)).first()
@@ -1889,7 +1892,7 @@ async def partner_upload_payment_qr(file: UploadFile = File(...), db: Session = 
 async def partner_upload_topup_proof(file: UploadFile = File(...), current_user=Depends(get_current_user)):
     if getattr(current_user, "role", "") != "partner":
         raise HTTPException(status_code=403, detail="Partner access only")
-    name = _save_image_upload(file, UPI_QR_UPLOAD_DIR, "partner-topup-proof")
+    name = _save_image_upload(file, UPI_QR_UPLOAD_DIR, "partner-topup-proof", PARTNER_IMAGE_MAX_UPLOAD_BYTES)
     return {"ok": True, "url": f"/api/files/payment_screenshots/{name}", "storage_path": f"payment_screenshots/{name}"}
 
 
@@ -1897,7 +1900,7 @@ async def partner_upload_topup_proof(file: UploadFile = File(...), current_user=
 async def partner_upload_product_image(file: UploadFile = File(...), current_user=Depends(get_current_user)):
     if getattr(current_user, "role", "") != "partner":
         raise HTTPException(status_code=403, detail="Partner access only")
-    name = _save_image_upload(file, PRODUCT_UPLOAD_DIR, "partner-product")
+    name = _save_image_upload(file, PRODUCT_UPLOAD_DIR, "partner-product", PARTNER_IMAGE_MAX_UPLOAD_BYTES)
     return {"ok": True, "url": f"/api/files/product_images/{name}", "storage_path": f"product_images/{name}"}
 
 
@@ -1931,7 +1934,7 @@ async def partner_upload_shop_banner(file: UploadFile = File(...), db: Session =
     if not partner:
         raise HTTPException(status_code=404, detail="Partner profile not found")
 
-    name = _save_image_upload(file, BRANDING_UPLOAD_DIR, "partner-shop-banner")
+    name = _save_image_upload(file, BRANDING_UPLOAD_DIR, "partner-shop-banner", PARTNER_IMAGE_MAX_UPLOAD_BYTES)
     relative_url = f"/api/files/branding_images/{name}"
     payload = {"banner_url": relative_url, "updated_at": now_iso()}
     row = db.query(AppSetting).filter(AppSetting.key == _partner_banner_key(partner.id)).first()
@@ -1993,7 +1996,7 @@ async def partner_upload_featured_image(slot: int, file: UploadFile = File(...),
         except Exception:
             items = ["", "", "", "", ""]
 
-    name = _save_image_upload(file, BRANDING_UPLOAD_DIR, f"partner-featured-{slot}")
+    name = _save_image_upload(file, BRANDING_UPLOAD_DIR, f"partner-featured-{slot}", PARTNER_IMAGE_MAX_UPLOAD_BYTES)
     items[slot - 1] = f"/api/files/branding_images/{name}"
 
     payload = {"items": items, "updated_at": now_iso()}
@@ -2876,8 +2879,8 @@ async def upload_product_image(file: UploadFile = File(...), current_user=Depend
     if ext not in {".jpg", ".jpeg", ".png", ".webp", ".gif"}:
         raise HTTPException(status_code=400, detail="Unsupported file type")
     content = await file.read()
-    if len(content) > 5 * 1024 * 1024:
-        raise HTTPException(status_code=400, detail="File too large (max 5MB)")
+    if len(content) > GLOBAL_IMAGE_MAX_UPLOAD_BYTES:
+        raise HTTPException(status_code=400, detail="File too large (max 200KB)")
     name = f"product-{uuid.uuid4().hex}{ext}"
     target = PRODUCT_UPLOAD_DIR / name
     target.write_bytes(content)

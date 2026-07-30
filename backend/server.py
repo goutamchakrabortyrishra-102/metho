@@ -2628,7 +2628,8 @@ async def ai_generate_description(req: DescribeRequest, admin: dict = Depends(re
 # ===================== IMAGE UPLOAD =====================
 ALLOWED_IMAGE_EXTS = {"jpg", "jpeg", "png", "webp", "gif"}
 MIME_BY_EXT = {"jpg": "image/jpeg", "jpeg": "image/jpeg", "png": "image/png", "webp": "image/webp", "gif": "image/gif"}
-MAX_UPLOAD_BYTES = 5 * 1024 * 1024  # 5 MB
+MAX_UPLOAD_BYTES = 200 * 1024  # 200 KB
+MAX_UPLOAD_LABEL = "200KB"
 
 @api_router.post("/admin/upload/product-image")
 async def upload_product_image(
@@ -2640,7 +2641,7 @@ async def upload_product_image(
         raise HTTPException(status_code=400, detail=f"Only {', '.join(ALLOWED_IMAGE_EXTS)} allowed")
     data = await file.read()
     if len(data) > MAX_UPLOAD_BYTES:
-        raise HTTPException(status_code=400, detail=f"File too large (max {MAX_UPLOAD_BYTES // (1024*1024)} MB)")
+        raise HTTPException(status_code=400, detail=f"File too large (max {MAX_UPLOAD_LABEL})")
     content_type = MIME_BY_EXT.get(ext, "application/octet-stream")
     file_uuid = str(uuid.uuid4())
     storage_path = f"{APP_NAME}/product-images/{file_uuid}.{ext}"
@@ -2684,7 +2685,7 @@ async def partner_upload_product_image(
         raise HTTPException(status_code=400, detail=f"Only {', '.join(ALLOWED_IMAGE_EXTS)} allowed")
     data = await file.read()
     if len(data) > MAX_UPLOAD_BYTES:
-        raise HTTPException(status_code=400, detail=f"File too large (max {MAX_UPLOAD_BYTES // (1024*1024)} MB)")
+        raise HTTPException(status_code=400, detail=f"File too large (max {MAX_UPLOAD_LABEL})")
     content_type = MIME_BY_EXT.get(ext, "application/octet-stream")
     file_uuid = str(uuid.uuid4())
     storage_path = f"{APP_NAME}/product-images/{file_uuid}.{ext}"
@@ -2728,7 +2729,7 @@ async def upload_image(
         raise HTTPException(status_code=400, detail=f"Only {', '.join(ALLOWED_IMAGE_EXTS)} allowed")
     data = await file.read()
     if len(data) > MAX_UPLOAD_BYTES:
-        raise HTTPException(status_code=400, detail=f"File too large (max {MAX_UPLOAD_BYTES // (1024*1024)} MB)")
+        raise HTTPException(status_code=400, detail=f"File too large (max {MAX_UPLOAD_LABEL})")
     content_type = MIME_BY_EXT.get(ext, file.content_type or "application/octet-stream")
     file_uuid = str(uuid.uuid4())
     storage_path = f"{APP_NAME}/images/{file_uuid}.{ext}"
@@ -3347,7 +3348,7 @@ async def upload_payment_screenshot(
         raise HTTPException(status_code=400, detail=f"Only {', '.join(ALLOWED_IMAGE_EXTS)} allowed")
     data = await file.read()
     if len(data) > MAX_UPLOAD_BYTES:
-        raise HTTPException(status_code=400, detail=f"File too large (max {MAX_UPLOAD_BYTES // (1024*1024)} MB)")
+        raise HTTPException(status_code=400, detail=f"File too large (max {MAX_UPLOAD_LABEL})")
     content_type = MIME_BY_EXT.get(ext, "application/octet-stream")
     file_uuid = str(uuid.uuid4())
     storage_path = f"{APP_NAME}/payment-screenshots/{user['id']}/{file_uuid}.{ext}"
@@ -3388,7 +3389,7 @@ async def upload_member_upi_qr(
         raise HTTPException(status_code=400, detail=f"Only {', '.join(ALLOWED_IMAGE_EXTS)} allowed")
     data = await file.read()
     if len(data) > MAX_UPLOAD_BYTES:
-        raise HTTPException(status_code=400, detail=f"File too large (max {MAX_UPLOAD_BYTES // (1024*1024)} MB)")
+        raise HTTPException(status_code=400, detail=f"File too large (max {MAX_UPLOAD_LABEL})")
     content_type = MIME_BY_EXT.get(ext, "application/octet-stream")
     file_uuid = str(uuid.uuid4())
     storage_path = f"{APP_NAME}/member-upi-qr/{user['id']}/{file_uuid}.{ext}"
@@ -3430,7 +3431,7 @@ async def upload_upi_qr(
         raise HTTPException(status_code=400, detail=f"Only {', '.join(ALLOWED_IMAGE_EXTS)} allowed")
     data = await file.read()
     if len(data) > MAX_UPLOAD_BYTES:
-        raise HTTPException(status_code=400, detail="File too large")
+        raise HTTPException(status_code=400, detail=f"File too large (max {MAX_UPLOAD_LABEL})")
     content_type = MIME_BY_EXT.get(ext, "application/octet-stream")
     file_uuid = str(uuid.uuid4())
     storage_path = f"{APP_NAME}/upi-qr/{file_uuid}.{ext}"
@@ -3473,7 +3474,7 @@ async def upload_branding_image(
         raise HTTPException(status_code=400, detail=f"Only {', '.join(ALLOWED_IMAGE_EXTS)} allowed")
     data = await file.read()
     if len(data) > MAX_UPLOAD_BYTES:
-        raise HTTPException(status_code=400, detail="File too large")
+        raise HTTPException(status_code=400, detail=f"File too large (max {MAX_UPLOAD_LABEL})")
     content_type = MIME_BY_EXT.get(ext, "application/octet-stream")
     file_uuid = str(uuid.uuid4())
     storage_path = f"{APP_NAME}/branding/{purpose}/{file_uuid}.{ext}"

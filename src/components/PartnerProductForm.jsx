@@ -23,6 +23,8 @@ const EMPTY = {
   listing_type: "product",
 };
 
+const PARTNER_IMAGE_MAX_BYTES = 200 * 1024;
+
 const resolveListingType = (item) => {
   if (!item) return "product";
   const hint = [item?.listing_type, item?.item_kind, item?.kind, item?.type, item?.product_kind]
@@ -95,8 +97,8 @@ export default function PartnerProductForm({ product, onSaved, disabled = false,
   const uploadImage = async (e) => {
     const file = e.target.files?.[0];
     if (!file) return;
-    if (file.size > 5 * 1024 * 1024) {
-      toast.error("File too large (max 5MB)");
+    if (file.size > PARTNER_IMAGE_MAX_BYTES) {
+      toast.error("File too large (max 200KB)");
       return;
     }
     setUploadingImage(true);
@@ -293,7 +295,7 @@ export default function PartnerProductForm({ product, onSaved, disabled = false,
                 </div>
               )}
             </div>
-            <p className="text-[11px] text-muted-foreground mt-1">JPG/PNG/WebP/GIF/SVG, max 5MB. The uploaded image is converted and stored only as a PDF link.</p>
+            <p className="text-[11px] text-muted-foreground mt-1">JPG/PNG/WebP/GIF/SVG, max 200KB. The uploaded image is converted and stored only as a PDF link.</p>
             {form.pdf_url ? (
               <p className="text-[11px] text-emerald-700 mt-1 break-all">PDF: {form.pdf_url}</p>
             ) : null}

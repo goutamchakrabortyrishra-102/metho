@@ -135,7 +135,7 @@ function UpiSection({ form, setF, readOnly }) {
   const handleFile = async (e) => {
     const f = e.target.files?.[0];
     if (!f) return;
-    if (f.size > 5 * 1024 * 1024) return toast.error("File too large (max 5MB)");
+    if (f.size > 200 * 1024) return toast.error("File too large (max 200KB)");
     setUploading(true);
     try {
       const fd = new FormData();
@@ -279,7 +279,7 @@ function UpiSection({ form, setF, readOnly }) {
                 </Button>
               )}
               <p className="text-[11px] text-muted-foreground">
-                Optional — QR না দিলেও UPI ID copy করেই customer pay করতে পারবেন। PNG/JPG, max 5MB।
+                Optional — QR না দিলেও UPI ID copy করেই customer pay করতে পারবেন। PNG/JPG, max 200KB।
               </p>
             </div>
           </div>
@@ -429,8 +429,8 @@ function BrandingImageUpload({ purpose, label, hint, value, onChange, onPersist,
   const upload = async (e) => {
     const f = e.target.files?.[0];
     if (!f) return;
-    if (f.size > 2 * 1024 * 1024) {
-      toast.error("Image too large for reliable save (max 2MB)");
+    if (f.size > 200 * 1024) {
+      toast.error("Image too large for reliable save (max 200KB)");
       if (inputRef.current) inputRef.current.value = "";
       return;
     }
