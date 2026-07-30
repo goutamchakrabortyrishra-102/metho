@@ -397,12 +397,12 @@ const Features = () => {
     setLoadingStore(true);
 
     methoStoreApi
-      .adminListOwners()
+      .publicListStoreListings()
       .then((data) => {
         if (!active) return;
         const rows = normalizeCollection(data);
         const next = rows
-          .filter((p) => (p?.is_active ?? p?.active ?? true) !== false)
+          .filter((p) => (p?.is_active ?? p?.active ?? p?.approved ?? true) !== false)
           .slice(0, 12);
         setStoreListings(next);
       })
@@ -493,7 +493,7 @@ const Features = () => {
           )}
 
           <div className="mt-5 flex justify-center">
-            <Link to="/shop" data-testid="landing-features-store-view-all">
+            <Link to="/metho-store" data-testid="landing-features-store-view-all">
               <Button variant="outline" className="rounded-full border-emerald-900/20 bg-white hover:bg-emerald-50 hover:text-emerald-900">
                 View Full METHO Store <ChevronRight className="ml-1 w-4 h-4" />
               </Button>

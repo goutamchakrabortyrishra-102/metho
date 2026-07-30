@@ -26,6 +26,14 @@ export const methoStoreApi = {
     const { data } = await api.get("/metho-store/admin/owners");
     return data;
   },
+  publicListStoreListings: async () => {
+    return callFirst([
+      () => api.get("/metho-store/public/owners"),
+      () => api.get("/metho-store/owners"),
+      () => api.get("/metho-store/admin/owners"),
+      () => api.get("/directory/partners"),
+    ]);
+  },
   adminCreateOwner: async (payload) => {
     const { data } = await api.post("/metho-store/admin/owners", payload);
     return data;
