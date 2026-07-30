@@ -36,6 +36,7 @@ BRANDING_UPLOAD_DIR = ROOT_DIR / "uploaded_objects" / "branding_images"
 BRANDING_UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
 PARTNER_IMAGE_MAX_UPLOAD_BYTES = 200 * 1024
 GLOBAL_IMAGE_MAX_UPLOAD_BYTES = 200 * 1024
+PARTNER_PRODUCT_GALLERY_MAX_UPLOAD_BYTES = 5 * 1024 * 1024
 
 
 def _save_image_upload(file: UploadFile, target_dir: Path, prefix: str, max_bytes: int = GLOBAL_IMAGE_MAX_UPLOAD_BYTES) -> str:
@@ -1900,8 +1901,28 @@ async def partner_upload_topup_proof(file: UploadFile = File(...), current_user=
 async def partner_upload_product_image(file: UploadFile = File(...), current_user=Depends(get_current_user)):
     if getattr(current_user, "role", "") != "partner":
         raise HTTPException(status_code=403, detail="Partner access only")
-    name = _save_image_upload(file, PRODUCT_UPLOAD_DIR, "partner-product", PARTNER_IMAGE_MAX_UPLOAD_BYTES)
+    name = _save_image_upload(file, PRODUCT_UPLOAD_DIR, "partner-product", PARTNER_PRODUCT_GALLERY_MAX_UPLOAD_BYTES)
     return {"ok": True, "url": f"/api/files/product_images/{name}", "storage_path": f"product_images/{name}"}
+
+
+@router.post("/partner/upload/product-pdf")
+async def partner_upload_product_pdf(file: UploadFile = File(...), current_user=Depends(get_current_user)):
+    if getattr(current_user, "role", "") != "partner":
+        raise HTTPException(status_code=403, detail="Partner access only")
+
+    filename = str(file.filename or "catalog.pdf").strip().lower()
+    content_type = str(getattr(file, "content_type", "") or "").strip().lower()
+    if not (filename.endswith(".pdf") or content_type == "application/pdf"):
+        raise HTTPException(status_code=400, detail="Only PDF file allowed")
+
+    content = await file.read()
+    if len(content) > PARTNER_PRODUCT_GALLERY_MAX_UPLOAD_BYTES:
+        raise HTTPException(status_code=400, detail="File too large (max 5MB)")
+
+    name = f"partner-product-{uuid.uuid4().hex}.pdf"
+    target = PRODUCT_UPLOAD_DIR / name
+    target.write_bytes(content)
+    return {"ok": True, "url": f"/api/files/product_images/{name}", "pdf_url": f"/api/files/product_images/{name}", "storage_path": f"product_images/{name}"}
 
 
 @router.get("/partner/banner")

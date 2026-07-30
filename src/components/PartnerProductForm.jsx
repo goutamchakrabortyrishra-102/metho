@@ -23,7 +23,7 @@ const EMPTY = {
   listing_type: "product",
 };
 
-const PARTNER_IMAGE_MAX_BYTES = 200 * 1024;
+const PARTNER_IMAGE_MAX_BYTES = 5 * 1024 * 1024;
 
 const resolveListingType = (item) => {
   if (!item) return "product";
@@ -98,7 +98,7 @@ export default function PartnerProductForm({ product, onSaved, disabled = false,
     const file = e.target.files?.[0];
     if (!file) return;
     if (file.size > PARTNER_IMAGE_MAX_BYTES) {
-      toast.error("File too large (max 200KB)");
+      toast.error("File too large (max 5MB)");
       return;
     }
     setUploadingImage(true);
@@ -107,11 +107,22 @@ export default function PartnerProductForm({ product, onSaved, disabled = false,
       if (localPreviewUrl) URL.revokeObjectURL(localPreviewUrl);
       setLocalPreviewUrl(preview);
 
+      const imageFd = new FormData();
+      imageFd.append("file", file);
+      const imageRes = await api.post("/partner/upload/product-image", imageFd, {
+        headers: { "Content-Type": "multipart/form-data" },
+      });
+      const imageData = imageRes?.data || {};
+      const imageUrl = resolveImageUrl(imageData?.url || imageData?.image_url || "");
+      if (!imageUrl) {
+        throw new Error("Image upload response missing url");
+      }
+
       const pdfBlob = await imageToPdfBlob(file);
       const pdfFile = new File([pdfBlob], `${Date.now()}-catalog.pdf`, { type: "application/pdf" });
 
       let uploaded = null;
-      const endpoints = ["/partner/upload/product-pdf", "/admin/upload/product-pdf", "/partner/upload/product-image"];
+      const endpoints = ["/partner/upload/product-pdf", "/admin/upload/product-pdf"];
       for (const endpoint of endpoints) {
         try {
           const fd = new FormData();
@@ -128,14 +139,15 @@ export default function PartnerProductForm({ product, onSaved, disabled = false,
 
       const data = uploaded?.data || {};
       const pdfUrl = resolveImageUrl(data?.pdf_url || data?.url || data?.file_url || data?.link || "");
-      if (!pdfUrl) {
-        toast.error("PDF upload succeeded but link not returned");
-      } else {
-        setForm((prev) => ({ ...prev, image_url: "", pdf_url: pdfUrl }));
-        toast.success("Image converted and uploaded as PDF link");
-      }
+      setForm((prev) => ({
+        ...prev,
+        image_url: imageUrl,
+        pdf_url: pdfUrl || prev.pdf_url || "",
+      }));
+      if (pdfUrl) toast.success("Image uploaded and auto-converted to PDF");
+      else toast.success("Image uploaded. PDF link was not returned by server.");
     } catch (err) {
-      toast.error(err?.response?.data?.detail || "PDF upload failed. Partner PDF upload permission required.");
+      toast.error(err?.response?.data?.detail || err?.message || "Image/PDF upload failed.");
     } finally {
       setUploadingImage(false);
       if (fileRef.current) fileRef.current.value = "";
@@ -144,8 +156,8 @@ export default function PartnerProductForm({ product, onSaved, disabled = false,
 
   const save = async (e) => {
     e.preventDefault();
-    if (!String(form.pdf_url || "").trim()) {
-      toast.error("PDF link required. Please upload product image first to auto-convert PDF.");
+    if (!String(form.image_url || "").trim()) {
+      toast.error("Product image required. Please upload product image first.");
       return;
     }
     setBusy(true);
@@ -157,7 +169,7 @@ export default function PartnerProductForm({ product, onSaved, disabled = false,
         stock: Number(form.stock || (isService ? 1 : 0)),
         discount_percent: Number(form.discount_percent || 0),
         gst_percent: Number(form.gst_percent || 0),
-        image_url: "",
+        image_url: String(form.image_url || "").trim(),
         listing_type: isService ? "service" : "product",
         item_kind: isService ? "service" : "product",
         is_service: isService,
@@ -295,7 +307,7 @@ export default function PartnerProductForm({ product, onSaved, disabled = false,
                 </div>
               )}
             </div>
-            <p className="text-[11px] text-muted-foreground mt-1">JPG/PNG/WebP/GIF/SVG, max 200KB. The uploaded image is converted and stored only as a PDF link.</p>
+            <p className="text-[11px] text-muted-foreground mt-1">JPG/PNG/WebP/GIF/SVG, max 5MB. Image stays visible in gallery/cart and is also auto-converted to PDF when supported.</p>
             {form.pdf_url ? (
               <p className="text-[11px] text-emerald-700 mt-1 break-all">PDF: {form.pdf_url}</p>
             ) : null}
