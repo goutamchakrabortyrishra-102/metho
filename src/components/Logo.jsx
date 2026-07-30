@@ -10,7 +10,16 @@ const LOGO_TAP_TS_KEY = "metho_logo_tap_ts";
 export const Logo = ({ className = "", showTagline = false, variant = "store", size = "md" }) => {
   const nav = useNavigate();
   const { settings } = useSettings();
-  const src = settings?.site_logo_url_full || (variant === "logistics" ? LOGO_LOGISTICS_URL : DEFAULT_LOGO_URL);
+  const hasCustomLogo = Boolean(settings?.site_logo_url_full);
+  const fallbackSrc = variant === "logistics" ? LOGO_LOGISTICS_URL : DEFAULT_LOGO_URL;
+  const requestedSrc = settings?.site_logo_url_full || fallbackSrc;
+  const [imgSrc, setImgSrc] = React.useState(requestedSrc);
+  const [retriedCustom, setRetriedCustom] = React.useState(false);
+
+  React.useEffect(() => {
+    setImgSrc(requestedSrc);
+    setRetriedCustom(false);
+  }, [requestedSrc]);
   const dim = size === "lg" ? "w-16 h-16" : size === "sm" ? "w-10 h-10" : "w-12 h-12";
   const badgeRadius = size === "lg" ? "rounded-[1.35rem]" : size === "sm" ? "rounded-[0.95rem]" : "rounded-[1.05rem]";
   const innerRadius = size === "lg" ? "rounded-[1.05rem]" : size === "sm" ? "rounded-[0.75rem]" : "rounded-[0.85rem]";
@@ -37,32 +46,26 @@ export const Logo = ({ className = "", showTagline = false, variant = "store", s
       nav("/admin-login");
       return;
     }
-
-    // On mobile web, single-tap logo can open native install prompt when available.
-    const promptEvent = window.__methoInstallPrompt;
-    const isStandalone = window.matchMedia("(display-mode: standalone)").matches || window.navigator.standalone;
-    if (!isStandalone && promptEvent && typeof promptEvent.prompt === "function") {
-      e.preventDefault();
-      promptEvent.prompt();
-      promptEvent.userChoice
-        .then(({ outcome }) => {
-          if (outcome === "accepted") {
-            localStorage.setItem("install-prompt-dismissed", "1");
-          }
-        })
-        .finally(() => {
-          window.__methoInstallPrompt = null;
-        });
-    }
   };
 
   return (
     <Link to="/" onClick={onLogoClick} className={`flex items-center gap-3 ${className}`} data-testid="brand-logo">
       <span className={`${dim} inline-flex items-center justify-center ${badgeRadius} bg-red-600 p-1.5 shadow-md ring-2 ring-white overflow-hidden shrink-0`}>
         <img
-          src={src}
+          src={imgSrc}
           alt={brandName}
           className={`h-full w-full ${innerRadius} object-contain bg-transparent`}
+          onError={() => {
+            // Keep admin-uploaded logo sticky: retry once with cache-buster, then stop.
+            if (hasCustomLogo) {
+              if (retriedCustom) return;
+              setRetriedCustom(true);
+              const sep = requestedSrc.includes("?") ? "&" : "?";
+              setImgSrc(`${requestedSrc}${sep}img_retry=${Date.now()}`);
+              return;
+            }
+            setImgSrc(fallbackSrc);
+          }}
         />
       </span>
       <div className="flex min-w-0 flex-col justify-center leading-none">

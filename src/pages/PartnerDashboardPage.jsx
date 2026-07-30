@@ -636,6 +636,16 @@ export default function PartnerDashboardPage() {
                         className="w-28 h-28 object-contain rounded-lg border border-border bg-white mt-2"
                       />
                     )}
+                    {(paymentProfile?.metho_bank_account_holder || paymentProfile?.metho_bank_name || paymentProfile?.metho_bank_account_number || paymentProfile?.metho_bank_ifsc) ? (
+                      <div className="mt-3 rounded-md border border-emerald-200 bg-emerald-50 p-2.5 text-[11px] text-emerald-900">
+                        <p className="font-semibold">METHO Bank Account</p>
+                        {paymentProfile?.metho_bank_account_holder ? <p>Holder: {paymentProfile.metho_bank_account_holder}</p> : null}
+                        {paymentProfile?.metho_bank_name ? <p>Bank: {paymentProfile.metho_bank_name}</p> : null}
+                        {paymentProfile?.metho_bank_branch ? <p>Branch: {paymentProfile.metho_bank_branch}</p> : null}
+                        {paymentProfile?.metho_bank_account_number ? <p className="font-mono">A/C: {paymentProfile.metho_bank_account_number}</p> : null}
+                        {paymentProfile?.metho_bank_ifsc ? <p className="font-mono">IFSC: {paymentProfile.metho_bank_ifsc}</p> : null}
+                      </div>
+                    ) : null}
                   </div>
 
                   <div className="space-y-2">

@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="Metho AAY-UPAY maskable app icon">
+  <rect width="512" height="512" fill="#FFE400"/>
+  <rect x="24" y="24" width="464" height="464" rx="104" fill="#FFE400"/>
+  <path d="M72 156h48l72 78 88-102h86c-46 14-97 47-151 100l-99 97z" fill="#0C8A5A"/>
+  <text x="162" y="315" font-family="Outfit, Arial, sans-serif" font-weight="800" font-size="118" fill="#2D2F78">Metho</text>
+  <text x="167" y="377" font-family="Outfit, Arial, sans-serif" font-weight="900" font-size="72" fill="#2D2F78">AAY-UPA</text>
+  <path d="M429 318c-26 17-37 33-48 59h34c6-14 16-26 31-38l18-21z" fill="#0C8A5A"/>
+</svg>

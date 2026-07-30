@@ -1,4 +1,3 @@
-import uuid
 from pathlib import Path
 import os
 import smtplib
@@ -28,11 +27,64 @@ SMTP_PASSWORD = os.getenv("SMTP_PASSWORD", "")
 SMTP_FROM_EMAIL = os.getenv("SMTP_FROM_EMAIL", SMTP_USERNAME or "no-reply@metho.com")
 SMTP_FROM_NAME = os.getenv("SMTP_FROM_NAME", "METHO AAY-UPAY")
 SMTP_USE_TLS = str(os.getenv("SMTP_USE_TLS", "true")).lower() in {"1", "true", "yes", "y"}
+MEMBER_ID_PREFIX = "MAU"
+DEFAULT_ADMIN_SPONSOR_ID = os.getenv("DEFAULT_ADMIN_SPONSOR_ID", "MAU00001").strip().upper()
 
 
 def member_code_for_user(user_id: str) -> str:
-    clean = (user_id or "").replace("-", "")
-    return f"MTH-{clean[:6].upper()}"
+    normalized = str(user_id or "").strip().upper()
+    if normalized.startswith(MEMBER_ID_PREFIX):
+        return normalized
+    clean = normalized.replace("-", "")
+    return f"MTH-{clean[:6]}"
+
+
+def _is_member_id(value: str) -> bool:
+    text = str(value or "").strip().upper()
+    return len(text) == 8 and text.startswith(MEMBER_ID_PREFIX) and text[3:].isdigit()
+
+
+def _next_member_id(db: Session) -> str:
+    max_suffix = 9999
+    rows = db.query(User.id).filter(User.id.like(f"{MEMBER_ID_PREFIX}%")).all()
+    for row in rows:
+        candidate = str((row[0] if row else "") or "").strip().upper()
+        if _is_member_id(candidate):
+            max_suffix = max(max_suffix, int(candidate[3:]))
+    return f"{MEMBER_ID_PREFIX}{max_suffix + 1:05d}"
+
+
+def _resolve_user_by_identifier(db: Session, identifier: str) -> User | None:
+    ref = str(identifier or "").strip().upper()
+    if not ref:
+        return None
+
+    by_id = db.query(User).filter(User.id == ref).first()
+    if by_id:
+        return by_id
+
+    by_email = db.query(User).filter(User.email == ref).first()
+    if by_email:
+        return by_email
+
+    users = db.query(User).all()
+    for candidate in users:
+        if member_code_for_user(candidate.id) == ref:
+            return candidate
+    return None
+
+
+def _resolve_default_admin_sponsor(db: Session) -> User | None:
+    preferred = _resolve_user_by_identifier(db, DEFAULT_ADMIN_SPONSOR_ID)
+    if preferred and preferred.role in {"super_admin", "company_admin", "admin"}:
+        return preferred
+
+    return (
+        db.query(User)
+        .filter(User.role.in_(["super_admin", "company_admin", "admin"]))
+        .order_by(User.created_at.asc())
+        .first()
+    )
 
 
 def build_welcome_pdf(user: User) -> str:
@@ -101,20 +153,18 @@ def get_current_user(
 
 @router.post("/register")
 def register(payload: RegisterRequest, db: Session = Depends(get_db)):
-    login_id = str(payload.email or "").strip()
-    if not login_id:
-        raise HTTPException(status_code=400, detail="Login ID is required")
+    requested_member_id = str(payload.email or "").strip().upper()
     if len(str(payload.password or "")) < 6:
         raise HTTPException(status_code=400, detail="Password must be at least 6 characters")
 
-    existing = db.query(User).filter(User.email == login_id).first()
-    if existing:
-        raise HTTPException(status_code=400, detail="Login ID already registered")
+    member_id = requested_member_id if _is_member_id(requested_member_id) else _next_member_id(db)
+    if db.query(User).filter(User.id == member_id).first() or db.query(User).filter(User.email == member_id).first():
+        member_id = _next_member_id(db)
 
     user = User(
-        id=str(uuid.uuid4()),
+        id=member_id,
         name=payload.name,
-        email=login_id,
+        email=member_id,
         phone=payload.phone,
         password=hash_password(payload.password),
         role="member",
@@ -123,19 +173,17 @@ def register(payload: RegisterRequest, db: Session = Depends(get_db)):
     db.add(user)
     db.commit()
 
-    sponsor_code = (payload.sponsor_code or "").strip().upper()
-    if sponsor_code:
-        sponsor = None
-        users = db.query(User).all()
-        for candidate in users:
-            if member_code_for_user(candidate.id) == sponsor_code and candidate.id != user.id:
-                sponsor = candidate
-                break
-        if sponsor:
-            existing_rel = db.query(UserReferral).filter(UserReferral.user_id == user.id).first()
-            if not existing_rel:
-                db.add(UserReferral(user_id=user.id, sponsor_user_id=sponsor.id, sponsor_code=sponsor_code))
-                db.commit()
+    requested_sponsor = (payload.sponsor_code or "").strip().upper()
+    sponsor_user = _resolve_user_by_identifier(db, requested_sponsor) if requested_sponsor else None
+    if not sponsor_user:
+        sponsor_user = _resolve_default_admin_sponsor(db)
+
+    sponsor_code = member_code_for_user(sponsor_user.id) if sponsor_user else requested_sponsor
+    if sponsor_user and sponsor_user.id != user.id:
+        existing_rel = db.query(UserReferral).filter(UserReferral.user_id == user.id).first()
+        if not existing_rel:
+            db.add(UserReferral(user_id=user.id, sponsor_user_id=sponsor_user.id, sponsor_code=sponsor_code))
+            db.commit()
 
     welcome_letter_url = build_welcome_pdf(user)
     member_code = member_code_for_user(user.id)
@@ -226,12 +274,9 @@ def sponsor_info(code: str, db: Session = Depends(get_db)):
     if not normalized:
         raise HTTPException(status_code=404, detail="Sponsor not found")
 
-    user = None
-    users = db.query(User).all()
-    for candidate in users:
-        if member_code_for_user(candidate.id) == normalized:
-            user = candidate
-            break
+    user = _resolve_user_by_identifier(db, normalized)
+    if not user and normalized == DEFAULT_ADMIN_SPONSOR_ID:
+        user = _resolve_default_admin_sponsor(db)
     if not user:
         raise HTTPException(status_code=404, detail="Sponsor not found")
 

@@ -20,6 +20,29 @@ export default function LoginPage({ adminOnly = false }) {
   const adminRoles = ["super_admin", "company_admin", "admin"];
   const ownerRoles = ["store_owner", "metho_store_owner", "owner"];
 
+  const extractDetailText = (detail) => {
+    if (!detail) return "";
+    if (typeof detail === "string") return detail;
+    if (Array.isArray(detail)) {
+      return detail
+        .map((item) => {
+          if (typeof item === "string") return item;
+          if (item && typeof item === "object") {
+            if (typeof item.msg === "string") return item.msg;
+            if (typeof item.message === "string") return item.message;
+          }
+          return "";
+        })
+        .filter(Boolean)
+        .join(" | ");
+    }
+    if (typeof detail === "object") {
+      if (typeof detail.message === "string") return detail.message;
+      if (typeof detail.msg === "string") return detail.msg;
+    }
+    return String(detail || "");
+  };
+
   const buildLoginCandidates = (raw) => {
     const input = String(raw || "").trim();
     const candidates = [];
@@ -49,6 +72,11 @@ export default function LoginPage({ adminOnly = false }) {
       return "Server unreachable. Please start backend and try again.";
     }
     const detail = err?.response?.data?.detail;
+    const detailText = extractDetailText(detail).toLowerCase();
+    const status = Number(err?.response?.status || 0);
+    if (status === 422 && (detailText.includes("valid dictionary") || detailText.includes("valid object") || detailText.includes("field required"))) {
+      return "Invalid username or password";
+    }
     if (typeof detail === "string" && detail.trim()) return detail;
     if (Array.isArray(detail) && detail.length > 0) {
       const first = detail[0];
@@ -58,11 +86,6 @@ export default function LoginPage({ adminOnly = false }) {
     if (detail && typeof detail === "object") {
       if (typeof detail.message === "string" && detail.message.trim()) return detail.message;
       if (typeof detail.msg === "string" && detail.msg.trim()) return detail.msg;
-    }
-    const rawDetail = String(detail || "").toLowerCase();
-    const status = Number(err?.response?.status || 0);
-    if (status === 422 && (rawDetail.includes("valid dictionary") || rawDetail.includes("valid object") || rawDetail.includes("field required"))) {
-      return "Invalid username or password";
     }
     if (typeof err?.message === "string" && err.message.trim()) return err.message;
     return "Login failed";
@@ -86,7 +109,7 @@ export default function LoginPage({ adminOnly = false }) {
         } catch (err) {
           lastError = err;
           const status = Number(err?.response?.status || 0);
-          const detail = String(err?.response?.data?.detail || "").toLowerCase();
+          const detail = extractDetailText(err?.response?.data?.detail).toLowerCase();
           const isInvalidCred = err?.response?.status === 401 && detail.includes("invalid username or password");
           const isShapeValidation = status === 422 && (detail.includes("valid dictionary") || detail.includes("valid object") || detail.includes("field required"));
           if (!isInvalidCred && !isShapeValidation) throw err;
@@ -144,8 +167,8 @@ export default function LoginPage({ adminOnly = false }) {
           </div>
           <div className="space-y-4">
             <div>
-                <Label htmlFor="username">Email / Phone / Member Code</Label>
-                <Input id="username" name="username" type="text" required value={username} onChange={e => setUsername(e.target.value)} placeholder={adminMode ? "Try: admin@metho.com or MTH-ADMIN" : "Enter email, phone, or member code"} data-testid="login-username-input" className="mt-1.5 h-11" />
+              <Label htmlFor="username">Login ID / Phone / Member Code</Label>
+              <Input id="username" name="username" type="text" required value={username} onChange={e => setUsername(e.target.value)} placeholder={adminMode ? "Try: admin or MTH-ADMIN" : "Enter login ID, phone, or member code"} data-testid="login-username-input" className="mt-1.5 h-11" />
             </div>
             <div>
               <Label htmlFor="password">Password</Label>

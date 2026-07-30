@@ -630,7 +630,7 @@ export default function PartnerGalleryPage() {
                         <button
                           onClick={e => {
                             e.stopPropagation();
-                            if (isService && isBookNowRole) {
+                            if (isService) {
                               handleBookNow(p);
                               return;
                             }
@@ -640,7 +640,7 @@ export default function PartnerGalleryPage() {
                           className="w-7 h-7 rounded-full bg-emerald-900 text-white flex items-center justify-center hover:bg-emerald-950 shrink-0"
                           data-testid={`quick-add-${p.id}`}
                         >
-                          {isService && isBookNowRole ? <CalendarCheck2 className="w-3.5 h-3.5" /> : <Plus className="w-3.5 h-3.5" />}
+                          {isService ? <CalendarCheck2 className="w-3.5 h-3.5" /> : <Plus className="w-3.5 h-3.5" />}
                         </button>
                       )}
                     </div>

@@ -682,7 +682,6 @@ export default function PartnerShopPage() {
         ) : (
           <div className="mt-6 grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
             {filteredServices.map((service) => {
-              const qty = cart[service.id] || 0;
               const pdfUrl = getPdfUrl(service);
               return (
                 <div key={service.id} className="border border-border rounded-xl overflow-hidden bg-white" data-testid={`shop-service-${service.id}`}>
@@ -716,45 +715,14 @@ export default function PartnerShopPage() {
                       <span className="text-[11px] text-slate-500">Service</span>
                     </div>
 
-                    {isBookNowRole ? (
-                      <Button
-                        type="button"
-                        onClick={() => bookServiceNow(service)}
-                        className="w-full mt-3 rounded-full bg-emerald-900 hover:bg-emerald-950 text-white"
-                        data-testid={`shop-book-service-${service.id}`}
-                      >
-                        <CalendarCheck2 className="w-4 h-4 mr-2" /> Book Now
-                      </Button>
-                    ) : qty > 0 ? (
-                      <div className="mt-3 flex items-center justify-between bg-emerald-50 rounded-full px-2 py-1.5">
-                        <button
-                          type="button"
-                          onClick={() => dec(service.id)}
-                          className="w-8 h-8 rounded-full bg-white flex items-center justify-center"
-                          data-testid={`shop-dec-service-${service.id}`}
-                        >
-                          <Minus className="w-4 h-4" />
-                        </button>
-                        <span className="font-bold text-emerald-950">{qty}</span>
-                        <button
-                          type="button"
-                          onClick={() => inc(service.id)}
-                          className="w-8 h-8 rounded-full bg-white flex items-center justify-center"
-                          data-testid={`shop-inc-service-${service.id}`}
-                        >
-                          <Plus className="w-4 h-4" />
-                        </button>
-                      </div>
-                    ) : (
-                      <Button
-                        type="button"
-                        onClick={() => inc(service.id)}
-                        className="w-full mt-3 rounded-full bg-emerald-900 hover:bg-emerald-950 text-white"
-                        data-testid={`shop-add-service-${service.id}`}
-                      >
-                        <ShoppingCart className="w-4 h-4 mr-2" /> Add to Cart
-                      </Button>
-                    )}
+                    <Button
+                      type="button"
+                      onClick={() => bookServiceNow(service)}
+                      className="w-full mt-3 rounded-full bg-emerald-900 hover:bg-emerald-950 text-white"
+                      data-testid={`shop-book-service-${service.id}`}
+                    >
+                      <CalendarCheck2 className="w-4 h-4 mr-2" /> Book Now
+                    </Button>
                   </div>
                 </div>
               );

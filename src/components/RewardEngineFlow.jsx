@@ -126,14 +126,10 @@ export default function RewardEngineFlow() {
                 </p>
                 <div className="mt-6 flex flex-wrap justify-center gap-2 text-[11px] font-mono">
                   {[
-                    `METHO commission = sale × ${settings.metho_commission_percent}%`,
-                    `Smart Cycle = qualified × ${settings.smart_cycle_bonus_percent}%`,
-                    `Leader Match = Smart Cycle × ${settings.leader_match_percent}%`,
-                    `Member Pool = ${settings.commission_split_member_pool}%`,
-                    `Leader Pool = ${settings.commission_split_leader_pool}%`,
-                    `MPS Fund = ${settings.commission_split_mps_fund}%`,
-                    `Company Fund = ${settings.commission_split_company_fund}%`,
-                    `Tech Reserve = ${settings.commission_split_technology_reserve}%`,
+                    "Metho Product",
+                    "Metho Store",
+                    "Partner Products",
+                    "Services",
                   ].map((c, i) => (
                     <span key={i} className="px-3 py-1.5 rounded-full bg-emerald-800/70 text-amber-300 border border-emerald-700">{c}</span>
                   ))}

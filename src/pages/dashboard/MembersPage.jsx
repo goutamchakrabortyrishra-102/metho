@@ -34,6 +34,20 @@ export default function MembersPage() {
     is_active: true,
   });
 
+  const clearTestMembers = async () => {
+    if (!window.confirm("Clear all member test profiles? This will permanently remove current member accounts.")) return;
+    setBusy(true);
+    try {
+      const { data } = await api.post("/admin/users/clear-test-members", {});
+      toast.success(data?.message || "Member test profiles cleared");
+      await load();
+    } catch (err) {
+      toast.error(adminActionError(err, "Failed to clear member profiles"));
+    } finally {
+      setBusy(false);
+    }
+  };
+
   const adminActionError = (err, fallback) => {
     const code = err?.response?.status;
     const detail = err?.response?.data?.detail;
@@ -49,7 +63,7 @@ export default function MembersPage() {
     return detail || fallback;
   };
 
-  const getMemberDisplayId = (m) => String(m?.member_code || m?.email || "-").trim();
+  const getMemberDisplayId = (m) => String(m?.member_code || m?.id || m?.email || "-").trim().toUpperCase();
 
   const load = () => {
     if (isAdmin) {
@@ -79,7 +93,7 @@ export default function MembersPage() {
   const filtered = useMemo(
     () =>
       scopedMembers.filter((m) =>
-        [m.name, m.member_code, m.email, m.phone, m.pan_no]
+        [m.name, m.member_code, m.id, m.email, m.phone, m.pan_no]
           .filter(Boolean)
           .some((v) => String(v).toLowerCase().includes(q.toLowerCase()))
       ),
@@ -191,15 +205,22 @@ export default function MembersPage() {
             <Button variant="outline" className="rounded-full" onClick={() => nav("/app/genealogy")}>
               <Network className="w-4 h-4 mr-2" /> View Tree
             </Button>
+            <Button
+              variant="outline"
+              className="rounded-full border-red-200 text-red-700 hover:bg-red-50"
+              onClick={clearTestMembers}
+              disabled={busy}
+            >
+              {busy ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" /> Clearing...</> : "Clear Test Members"}
+            </Button>
           </div>
         )}
       </div>
 
       <div className="bg-white rounded-xl border border-border overflow-hidden">
-        <div className={`grid px-5 py-3 bg-secondary/50 text-xs uppercase tracking-[0.15em] text-slate-600 font-semibold`} style={{ gridTemplateColumns: isAdmin ? "2.2fr 1.7fr 1.8fr 1.4fr 1.4fr 1fr 1.2fr" : "3fr 2fr 1.5fr 1.5fr 1fr" }}>
+        <div className={`grid px-5 py-3 bg-secondary/50 text-xs uppercase tracking-[0.15em] text-slate-600 font-semibold`} style={{ gridTemplateColumns: isAdmin ? "2.4fr 1.9fr 1.5fr 1.5fr 1fr 1.2fr" : "3fr 2fr 1.5fr 1.5fr 1fr" }}>
           <div>Member</div>
           <div>Member ID</div>
-          <div>Login Username</div>
           <div>Phone</div>
           <div>PAN</div>
           <div className="text-right">Status</div>
@@ -210,7 +231,7 @@ export default function MembersPage() {
             <p className="p-6 text-sm text-muted-foreground font-body">No members found.</p>
           )}
           {filtered.map((m, i) => (
-            <div key={m.id} className={`grid items-center px-5 py-3 hover:bg-secondary/30 transition-colors ${m.active === false ? "opacity-60 bg-red-50/40" : ""}`} style={{ gridTemplateColumns: isAdmin ? "2.2fr 1.7fr 1.8fr 1.4fr 1.4fr 1fr 1.2fr" : "3fr 2fr 1.5fr 1.5fr 1fr" }} data-testid={`member-row-${i}`}>
+            <div key={m.id} className={`grid items-center px-5 py-3 hover:bg-secondary/30 transition-colors ${m.active === false ? "opacity-60 bg-red-50/40" : ""}`} style={{ gridTemplateColumns: isAdmin ? "2.4fr 1.9fr 1.5fr 1.5fr 1fr 1.2fr" : "3fr 2fr 1.5fr 1.5fr 1fr" }} data-testid={`member-row-${i}`}>
               <div className="flex items-center gap-3 min-w-0">
                 <div className="w-9 h-9 rounded-full bg-emerald-900 text-amber-400 flex items-center justify-center font-bold text-sm shrink-0">
                   {m.name?.[0]?.toUpperCase()}
@@ -223,7 +244,6 @@ export default function MembersPage() {
                   <p className="text-xs text-muted-foreground truncate">{m.role}</p>
                 </div>
               </div>
-              <div className="text-sm font-mono text-slate-700 truncate">{getMemberDisplayId(m)}</div>
               <div className="text-sm font-mono text-slate-700 truncate">{getMemberDisplayId(m)}</div>
               <div className="text-sm text-slate-700 truncate">{m.phone || "-"}</div>
               <div className="text-sm font-mono text-slate-700 truncate">{m.pan_no || "-"}</div>
@@ -268,7 +288,6 @@ export default function MembersPage() {
           <div className="grid gap-2 text-sm">
             <p><span className="font-semibold">Member ID:</span> {getMemberDisplayId(profileTarget)}</p>
             <p><span className="font-semibold">Name:</span> {profileTarget?.name}</p>
-            <p><span className="font-semibold">Username:</span> {getMemberDisplayId(profileTarget)}</p>
             <p><span className="font-semibold">Phone:</span> {profileTarget?.phone || "-"}</p>
             <p><span className="font-semibold">Sponsor Code:</span> {profileTarget?.sponsor_code || "-"}</p>
             <p><span className="font-semibold">DOB:</span> {profileTarget?.dob || "-"}</p>
@@ -309,7 +328,7 @@ export default function MembersPage() {
             </div>
             <div>
               <Label>Sponsor Code (Optional)</Label>
-              <Input value={editForm.sponsor_code || ""} onChange={(e) => setEditForm({ ...editForm, sponsor_code: e.target.value.toUpperCase() })} placeholder="MTH-XXXXXX" className="mt-1.5 h-11 font-mono uppercase" />
+              <Input value={editForm.sponsor_code || ""} onChange={(e) => setEditForm({ ...editForm, sponsor_code: e.target.value.toUpperCase() })} placeholder="MAU12345" className="mt-1.5 h-11 font-mono uppercase" />
             </div>
             <div>
               <Label>DOB</Label>

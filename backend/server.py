@@ -1590,7 +1590,7 @@ async def patch_product(product_id: str, updates: dict = Body(...), admin: dict 
     return updated
 
 @api_router.delete("/products/{product_id}")
-async def delete_product(product_id: str, admin: dict = Depends(require_role("super_admin", "company_admin"))):
+async def delete_product(product_id: str, admin: dict = Depends(require_role("super_admin", "company_admin", "admin"))):
     existing = await db.products.find_one({"id": product_id}, {"_id": 0, "name": 1, "category": 1, "product_type": 1})
     r = await db.products.delete_one({"id": product_id})
     if r.deleted_count == 0:

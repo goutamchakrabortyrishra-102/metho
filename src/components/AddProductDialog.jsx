@@ -423,9 +423,24 @@ export default function AddProductDialog({
         product_type: form.product_type,
         partner_id: form.product_type === "associate_partner" ? (form.partner_id || null) : null,
       };
-      const { data } = isEdit
-        ? await api.put(`/products/${product.id}`, payload)
-        : await api.post("/products", payload);
+      let data;
+      if (isEdit) {
+        try {
+          const resp = await api.put(`/products/${product.id}`, payload);
+          data = resp?.data;
+        } catch (err) {
+          const status = Number(err?.response?.status || 0);
+          if (status === 404 || status === 405) {
+            const resp = await api.patch(`/products/${product.id}`, payload);
+            data = resp?.data;
+          } else {
+            throw err;
+          }
+        }
+      } else {
+        const resp = await api.post("/products", payload);
+        data = resp?.data;
+      }
       if (isEdit) {
         toast.success("Product updated!");
       } else if (data?.product_code) {

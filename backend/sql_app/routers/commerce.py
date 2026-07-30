@@ -1,6 +1,7 @@
 from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends, HTTPException
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from ..database import get_db
@@ -162,6 +163,8 @@ def list_products(db: Session = Depends(get_db)):
 
     out = []
     for p in products:
+        if bool(hidden_map.get(p.id, False)):
+            continue
         m = meta_map.get(p.id)
         mrp = float(m.mrp if m and m.mrp else p.price)
         discount_percent = float(m.discount_percent if m else 0)
@@ -188,6 +191,8 @@ def list_products(db: Session = Depends(get_db)):
             }
         )
     for p in partner_products:
+        if bool(hidden_map.get(p.id, False)):
+            continue
         out.append(
             {
                 "id": p.id,
@@ -321,6 +326,101 @@ def create_product(payload: ProductCreate, db: Session = Depends(get_db), curren
     }
 
 
+@router.put("/products/{product_id}")
+def update_product(product_id: str, payload: ProductCreate, db: Session = Depends(get_db), current_user=Depends(get_current_user)):
+    if current_user.role not in ("super_admin", "company_admin", "admin"):
+        raise HTTPException(status_code=403, detail="Insufficient permissions")
+
+    product_type = (payload.product_type or "metho").strip() or "metho"
+
+    product = db.query(Product).filter(Product.id == product_id).first()
+    partner_product = db.query(PartnerProduct).filter(PartnerProduct.id == product_id).first()
+    if not product and not partner_product:
+        raise HTTPException(status_code=404, detail="Product not found")
+
+    discount_percent = max(0.0, min(95.0, float(payload.discount_percent or 0)))
+    mrp = float(payload.mrp if payload.mrp is not None else payload.price)
+    if mrp <= 0:
+        raise HTTPException(status_code=400, detail="MRP must be greater than 0")
+    effective_price = round(mrp * (1 - (discount_percent / 100)), 2)
+    gst_percent = float(payload.gst_percent or 0)
+    if product_type == "metho" and gst_percent < 0:
+        gst_percent = 0
+
+    # Prevent destructive type migration between Product and PartnerProduct tables.
+    if product and product_type == "associate_partner":
+        raise HTTPException(status_code=400, detail="Cannot change METHO product into associate partner product")
+    if partner_product and product_type == "metho":
+        raise HTTPException(status_code=400, detail="Cannot change associate partner product into METHO product")
+
+    if partner_product:
+        if product_type != "associate_partner":
+            raise HTTPException(status_code=400, detail="Partner product type must be associate_partner")
+        partner_id = str(getattr(payload, "partner_id", "") or "").strip() or partner_product.partner_id
+        partner = db.query(AssociatePartner).filter(AssociatePartner.id == partner_id).first()
+        if not partner:
+            raise HTTPException(status_code=400, detail="Valid partner_id is required for associate partner product")
+
+        partner_product.partner_id = partner_id
+        partner_product.name = payload.name
+        partner_product.category = payload.category
+        partner_product.description = payload.description
+        partner_product.image_url = (payload.image_url or "").strip()
+        partner_product.price = effective_price
+        partner_product.stock = int(payload.stock)
+        partner_product.approval_status = "approved"
+        partner_product.active = True
+
+        db.commit()
+        product_code = _ensure_product_code(db, partner_product.id, "associate_partner")
+        saved_tiers = _set_product_pricing_tiers(db, partner_product.id, payload.pricing_tiers)
+        return {
+            "id": partner_product.id,
+            "product_code": product_code,
+            "message": "Partner product updated",
+            "pricing": {
+                "mrp": mrp,
+                "discount_percent": discount_percent,
+                "final_price": effective_price,
+                "gst_percent": 0,
+            },
+            "pricing_tiers": saved_tiers,
+        }
+
+    # Standard METHO product update.
+    product.name = payload.name
+    product.category = payload.category
+    product.description = payload.description
+    product.price = effective_price
+    product.stock = int(payload.stock)
+
+    meta = db.query(ProductMeta).filter(ProductMeta.product_id == product_id).first()
+    if not meta:
+        meta = ProductMeta(product_id=product_id)
+        db.add(meta)
+    meta.product_type = product_type
+    meta.image_url = (payload.image_url or "").strip()
+    meta.mrp = mrp
+    meta.discount_percent = discount_percent
+    meta.gst_percent = (gst_percent if product_type == "metho" else 0)
+
+    db.commit()
+    product_code = _ensure_product_code(db, product.id, product_type)
+    saved_tiers = _set_product_pricing_tiers(db, product.id, payload.pricing_tiers)
+    return {
+        "id": product.id,
+        "product_code": product_code,
+        "message": "Product updated",
+        "pricing": {
+            "mrp": mrp,
+            "discount_percent": discount_percent,
+            "final_price": effective_price,
+            "gst_percent": (gst_percent if product_type == "metho" else 0),
+        },
+        "pricing_tiers": saved_tiers,
+    }
+
+
 @router.put("/admin/products/{product_id}/pricing-tiers")
 def update_product_pricing_tiers(product_id: str, payload: dict, db: Session = Depends(get_db), current_user=Depends(get_current_user)):
     if current_user.role not in ("super_admin", "company_admin"):
@@ -376,6 +476,41 @@ def patch_product(product_id: str, payload: dict, db: Session = Depends(get_db),
         "stock": int(target.stock),
         "hidden": bool(hidden if hidden is not None else _get_product_hidden_map(db).get(product_id, False)),
     }
+
+
+@router.delete("/products/{product_id}")
+def delete_product(product_id: str, db: Session = Depends(get_db), current_user=Depends(get_current_user)):
+    if current_user.role not in ("super_admin", "company_admin", "admin"):
+        raise HTTPException(status_code=403, detail="Insufficient permissions")
+
+    product = db.query(Product).filter(Product.id == product_id).first()
+    if product:
+        meta = db.query(ProductMeta).filter(ProductMeta.product_id == product_id).first()
+        if meta:
+            db.delete(meta)
+
+        db.delete(product)
+        try:
+            db.commit()
+            return {"ok": True, "id": product_id, "mode": "hard"}
+        except IntegrityError:
+            # Product has dependent rows (typically order history). Hide instead of failing.
+            db.rollback()
+            product = db.query(Product).filter(Product.id == product_id).first()
+            if product:
+                product.stock = 0
+                _set_product_hidden_flag(db, product_id, True)
+                db.commit()
+            return {"ok": True, "id": product_id, "mode": "soft"}
+
+    partner_product = db.query(PartnerProduct).filter(PartnerProduct.id == product_id).first()
+    if partner_product:
+        db.delete(partner_product)
+        db.commit()
+        _set_product_hidden_flag(db, product_id, True)
+        return {"ok": True, "id": product_id, "mode": "hard"}
+
+    return {"ok": True, "id": product_id}
 
 
 # Legacy single-item order endpoint kept for compatibility.

@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useRef } from "react";
 import { toast } from "sonner";
-import { Settings as SettingsIcon, Save, Sparkles, Users, PieChart, Award, QrCode, Upload, Loader2, MessageCircle, Gift, Image as ImageIcon, FileCheck2 } from "lucide-react";
+import { Settings as SettingsIcon, Save, Sparkles, Users, PieChart, Award, QrCode, Upload, Loader2, MessageCircle, Gift, Image as ImageIcon, FileCheck2, Share2, Copy } from "lucide-react";
 import api from "@/services/api";
 import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
@@ -195,6 +195,56 @@ function UpiSection({ form, setF, readOnly }) {
             className="mt-1.5 h-11"
           />
         </div>
+        <div>
+          <Label>METHO Bank Account Holder</Label>
+          <Input
+            value={form.metho_bank_account_holder ?? ""}
+            onChange={(e) => setF("metho_bank_account_holder")(e.target.value)}
+            placeholder="e.g. METHO Logistics Pvt Ltd"
+            data-testid="settings-metho-bank-holder"
+            className="mt-1.5 h-11"
+          />
+        </div>
+        <div>
+          <Label>METHO Bank Name</Label>
+          <Input
+            value={form.metho_bank_name ?? ""}
+            onChange={(e) => setF("metho_bank_name")(e.target.value)}
+            placeholder="e.g. HDFC Bank"
+            data-testid="settings-metho-bank-name"
+            className="mt-1.5 h-11"
+          />
+        </div>
+        <div>
+          <Label>METHO Bank Branch</Label>
+          <Input
+            value={form.metho_bank_branch ?? ""}
+            onChange={(e) => setF("metho_bank_branch")(e.target.value)}
+            placeholder="e.g. Kolkata Main"
+            data-testid="settings-metho-bank-branch"
+            className="mt-1.5 h-11"
+          />
+        </div>
+        <div>
+          <Label>METHO Bank Account Number</Label>
+          <Input
+            value={form.metho_bank_account_number ?? ""}
+            onChange={(e) => setF("metho_bank_account_number")(e.target.value)}
+            placeholder="e.g. 123456789012"
+            data-testid="settings-metho-bank-account-number"
+            className="mt-1.5 h-11 font-mono"
+          />
+        </div>
+        <div>
+          <Label>METHO Bank IFSC</Label>
+          <Input
+            value={form.metho_bank_ifsc ?? ""}
+            onChange={(e) => setF("metho_bank_ifsc")(String(e.target.value || "").toUpperCase())}
+            placeholder="e.g. HDFC0001234"
+            data-testid="settings-metho-bank-ifsc"
+            className="mt-1.5 h-11 font-mono uppercase"
+          />
+        </div>
         <div className="md:col-span-2">
           <Label>UPI QR Code (upload image)</Label>
           <div className="mt-1.5 flex flex-wrap items-center gap-3">
@@ -234,6 +284,87 @@ function UpiSection({ form, setF, readOnly }) {
             </div>
           </div>
         </div>
+      </div>
+    </div>
+  );
+}
+
+function InstallShareSection() {
+  const installUrl = typeof window !== "undefined"
+    ? `${window.location.origin}/install`
+    : "https://methoaayupay.com/install";
+
+  const shareText = [
+    "METHO AAY-UPAY app install করুন:",
+    installUrl,
+    "Android: Open in Chrome and tap Install Now.",
+    "iPhone: Open in Safari, tap Share -> Add to Home Screen.",
+  ].join("\n");
+
+  const copyTemplate = async () => {
+    try {
+      await navigator.clipboard.writeText(shareText);
+      toast.success("Install share template copied");
+    } catch {
+      toast.error("Could not copy share template");
+    }
+  };
+
+  const shareWhatsapp = () => {
+    window.open(`https://wa.me/?text=${encodeURIComponent(shareText)}`, "_blank", "noopener,noreferrer");
+  };
+
+  const shareNative = async () => {
+    if (!navigator.share) {
+      shareWhatsapp();
+      return;
+    }
+    try {
+      await navigator.share({
+        title: "METHO AAY-UPAY Install",
+        text: shareText,
+        url: installUrl,
+      });
+    } catch {
+      // User cancelled share sheet.
+    }
+  };
+
+  return (
+    <div className="bg-white rounded-xl border border-border p-6" data-testid="install-share-section">
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <h3 className="font-display font-bold text-emerald-950">Install Link Share Template</h3>
+          <p className="text-xs text-muted-foreground font-body mt-0.5">
+            Admin dashboard থেকে ready message copy করে WhatsApp-এ share করতে পারবেন।
+          </p>
+        </div>
+        <span className="text-[10px] font-semibold uppercase tracking-widest bg-emerald-100 text-emerald-800 px-2 py-1 rounded-full">Install</span>
+      </div>
+
+      <div className="mt-4 rounded-lg border border-border bg-slate-50 p-3">
+        <p className="text-[11px] uppercase tracking-wider text-emerald-800 font-semibold">Install URL</p>
+        <p className="mt-1 font-mono text-xs text-slate-700 break-all" data-testid="settings-install-url">{installUrl}</p>
+      </div>
+
+      <Textarea
+        value={shareText}
+        readOnly
+        rows={6}
+        className="mt-3 font-mono text-xs"
+        data-testid="settings-install-share-template"
+      />
+
+      <div className="mt-3 flex flex-wrap gap-2">
+        <Button type="button" variant="outline" onClick={copyTemplate} className="rounded-full" data-testid="settings-install-share-copy">
+          <Copy className="w-4 h-4 mr-2" /> Copy Template
+        </Button>
+        <Button type="button" onClick={shareWhatsapp} className="rounded-full bg-[#25D366] hover:bg-[#20b858] text-white" data-testid="settings-install-share-whatsapp">
+          <MessageCircle className="w-4 h-4 mr-2" /> Share to WhatsApp
+        </Button>
+        <Button type="button" variant="outline" onClick={shareNative} className="rounded-full" data-testid="settings-install-share-native">
+          <Share2 className="w-4 h-4 mr-2" /> Share
+        </Button>
       </div>
     </div>
   );
@@ -283,21 +414,58 @@ function Field({ label, testId, value, onChange, suffix, hint, type = "number", 
   );
 }
 
-function BrandingImageUpload({ purpose, label, hint, value, onChange, onPersist, readOnly, testId }) {
+function BrandingImageUpload({ purpose, label, hint, value, onChange, onPersist, readOnly, testId, uploadEndpoint }) {
   const inputRef = useRef(null);
   const [busy, setBusy] = useState(false);
+
+  const readAsDataUrl = (file) =>
+    new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(String(reader.result || ""));
+      reader.onerror = () => reject(new Error("Could not read image"));
+      reader.readAsDataURL(file);
+    });
 
   const upload = async (e) => {
     const f = e.target.files?.[0];
     if (!f) return;
+    if (f.size > 2 * 1024 * 1024) {
+      toast.error("Image too large for reliable save (max 2MB)");
+      if (inputRef.current) inputRef.current.value = "";
+      return;
+    }
     setBusy(true);
     try {
-      const fd = new FormData();
-      fd.append("file", f);
-      const { data } = await api.post(`/admin/upload/branding-image?purpose=${purpose}`, fd, {
-        headers: { "Content-Type": "multipart/form-data" },
-      });
-      const nextUrl = data?.url || "";
+      let nextUrl = "";
+      const makeFormData = () => {
+        const fd = new FormData();
+        fd.append("file", f);
+        return fd;
+      };
+      if (uploadEndpoint) {
+        let data;
+        try {
+          const res = await api.post(uploadEndpoint, makeFormData(), {
+            headers: { "Content-Type": "multipart/form-data" },
+          });
+          data = res?.data;
+        } catch (err) {
+          // Production safety: if dedicated endpoint is not yet deployed, fallback to legacy generic endpoint.
+          if (err?.response?.status === 404 && purpose) {
+            const fallbackRes = await api.post(`/admin/upload/branding-image?purpose=${encodeURIComponent(purpose)}`, makeFormData(), {
+              headers: { "Content-Type": "multipart/form-data" },
+            });
+            data = fallbackRes?.data;
+          } else {
+            throw err;
+          }
+        }
+        nextUrl = String(data?.url || "").trim();
+        if (!nextUrl) throw new Error("Upload response missing url");
+      } else {
+        // Keep existing data-url flow for non-critical branding fields.
+        nextUrl = await readAsDataUrl(f);
+      }
       onChange(nextUrl);
       if (onPersist) {
         await onPersist(nextUrl);
@@ -464,6 +632,15 @@ export default function SettingsPage() {
     top_leader_3_name: source.top_leader_3_name || "",
     top_leader_3_title: source.top_leader_3_title || "",
     top_leader_3_image_url: source.top_leader_3_image_url || "",
+    top_leader_4_name: source.top_leader_4_name || "",
+    top_leader_4_title: source.top_leader_4_title || "",
+    top_leader_4_image_url: source.top_leader_4_image_url || "",
+    top_leader_5_name: source.top_leader_5_name || "",
+    top_leader_5_title: source.top_leader_5_title || "",
+    top_leader_5_image_url: source.top_leader_5_image_url || "",
+    top_leader_6_name: source.top_leader_6_name || "",
+    top_leader_6_title: source.top_leader_6_title || "",
+    top_leader_6_image_url: source.top_leader_6_image_url || "",
   });
 
   const persistFormToServer = async (source, successMessage) => {
@@ -478,7 +655,15 @@ export default function SettingsPage() {
     // Persist only the changed branding field to avoid stale full-form overwrites.
     setForm((prev) => ({ ...prev, [field]: value }));
     const { data } = await api.put("/settings", { [field]: value });
-    setForm((prev) => ({ ...prev, ...(data || {}) }));
+    const nextServerValue = data && Object.prototype.hasOwnProperty.call(data, field) ? data[field] : undefined;
+    setForm((prev) => {
+      const merged = { ...prev, ...(data || {}) };
+      // If server responds without the updated field value, keep the latest uploaded value.
+      if ((nextServerValue === undefined || nextServerValue === null || nextServerValue === "") && value) {
+        merged[field] = value;
+      }
+      return merged;
+    });
   };
 
   const save = async (e) => {
@@ -838,6 +1023,8 @@ export default function SettingsPage() {
 
           <ReferralMessageSection form={form} setF={setF} memberCode={user?.member_code} />
 
+          <InstallShareSection />
+
           <Section
             title="Partner Slab Pricing Policy"
             subtitle="Associate Partner product-এ slab pricing apply হবে কি না তা toggle করুন।"
@@ -961,6 +1148,7 @@ export default function SettingsPage() {
                 onPersist={(value) => persistBrandingField("site_logo_url", value)}
                 readOnly={readOnly}
                 testId="branding-logo"
+                uploadEndpoint="/admin/upload/site-logo"
               />
               <BrandingImageUpload
                 purpose="landing_hero"
@@ -1027,16 +1215,16 @@ export default function SettingsPage() {
 
           <Section
             title="Company Management Achievers"
-            subtitle="Top Leaders image, name, title — admin upload/edit/change করতে পারবেন।"
+            subtitle="Top Leaders image, name, rank edit করতে পারবেন। Order: Leader 1=MD, Leader 2=CEO, Leader 3=Mentor, তারপর অন্যান্য Leader।"
             icon={Users}
             badge="Top Leaders"
           >
             <div className="md:col-span-2 grid gap-4">
               <div className="rounded-xl border border-border p-4 bg-slate-50/40">
-                <p className="font-semibold text-emerald-950 mb-2">Leader 1</p>
+                <p className="font-semibold text-emerald-950 mb-2">Leader 1 (MD)</p>
                 <div className="grid md:grid-cols-2 gap-3">
                   <Field label="Name" testId="settings-top-leader-1-name" value={form.top_leader_1_name} onChange={setF("top_leader_1_name")} type="text" />
-                  <Field label="Title" testId="settings-top-leader-1-title" value={form.top_leader_1_title} onChange={setF("top_leader_1_title")} type="text" />
+                  <Field label="Rank / Position (default: MD)" testId="settings-top-leader-1-title" value={form.top_leader_1_title} onChange={setF("top_leader_1_title")} type="text" />
                 </div>
                 <div className="mt-3">
                   <BrandingImageUpload
@@ -1053,10 +1241,10 @@ export default function SettingsPage() {
               </div>
 
               <div className="rounded-xl border border-border p-4 bg-slate-50/40">
-                <p className="font-semibold text-emerald-950 mb-2">Leader 2</p>
+                <p className="font-semibold text-emerald-950 mb-2">Leader 2 (CEO)</p>
                 <div className="grid md:grid-cols-2 gap-3">
                   <Field label="Name" testId="settings-top-leader-2-name" value={form.top_leader_2_name} onChange={setF("top_leader_2_name")} type="text" />
-                  <Field label="Title" testId="settings-top-leader-2-title" value={form.top_leader_2_title} onChange={setF("top_leader_2_title")} type="text" />
+                  <Field label="Rank / Position (default: CEO)" testId="settings-top-leader-2-title" value={form.top_leader_2_title} onChange={setF("top_leader_2_title")} type="text" />
                 </div>
                 <div className="mt-3">
                   <BrandingImageUpload
@@ -1073,10 +1261,10 @@ export default function SettingsPage() {
               </div>
 
               <div className="rounded-xl border border-border p-4 bg-slate-50/40">
-                <p className="font-semibold text-emerald-950 mb-2">Leader 3</p>
+                <p className="font-semibold text-emerald-950 mb-2">Leader 3 (Mentor)</p>
                 <div className="grid md:grid-cols-2 gap-3">
                   <Field label="Name" testId="settings-top-leader-3-name" value={form.top_leader_3_name} onChange={setF("top_leader_3_name")} type="text" />
-                  <Field label="Title" testId="settings-top-leader-3-title" value={form.top_leader_3_title} onChange={setF("top_leader_3_title")} type="text" />
+                  <Field label="Rank / Position (default: Mentor)" testId="settings-top-leader-3-title" value={form.top_leader_3_title} onChange={setF("top_leader_3_title")} type="text" />
                 </div>
                 <div className="mt-3">
                   <BrandingImageUpload
@@ -1088,6 +1276,66 @@ export default function SettingsPage() {
                     onPersist={(value) => persistBrandingField("top_leader_3_image_url", value)}
                     readOnly={readOnly}
                     testId="branding-top-leader-3"
+                  />
+                </div>
+              </div>
+
+              <div className="rounded-xl border border-border p-4 bg-slate-50/40">
+                <p className="font-semibold text-emerald-950 mb-2">Leader 4</p>
+                <div className="grid md:grid-cols-2 gap-3">
+                  <Field label="Name" testId="settings-top-leader-4-name" value={form.top_leader_4_name} onChange={setF("top_leader_4_name")} type="text" />
+                  <Field label="Rank / Position" testId="settings-top-leader-4-title" value={form.top_leader_4_title} onChange={setF("top_leader_4_title")} type="text" />
+                </div>
+                <div className="mt-3">
+                  <BrandingImageUpload
+                    purpose="top_leader_4"
+                    label="Leader 4 Image"
+                    hint="Recommended: square portrait image"
+                    value={form.top_leader_4_image_url}
+                    onChange={setF("top_leader_4_image_url")}
+                    onPersist={(value) => persistBrandingField("top_leader_4_image_url", value)}
+                    readOnly={readOnly}
+                    testId="branding-top-leader-4"
+                  />
+                </div>
+              </div>
+
+              <div className="rounded-xl border border-border p-4 bg-slate-50/40">
+                <p className="font-semibold text-emerald-950 mb-2">Leader 5</p>
+                <div className="grid md:grid-cols-2 gap-3">
+                  <Field label="Name" testId="settings-top-leader-5-name" value={form.top_leader_5_name} onChange={setF("top_leader_5_name")} type="text" />
+                  <Field label="Rank / Position" testId="settings-top-leader-5-title" value={form.top_leader_5_title} onChange={setF("top_leader_5_title")} type="text" />
+                </div>
+                <div className="mt-3">
+                  <BrandingImageUpload
+                    purpose="top_leader_5"
+                    label="Leader 5 Image"
+                    hint="Recommended: square portrait image"
+                    value={form.top_leader_5_image_url}
+                    onChange={setF("top_leader_5_image_url")}
+                    onPersist={(value) => persistBrandingField("top_leader_5_image_url", value)}
+                    readOnly={readOnly}
+                    testId="branding-top-leader-5"
+                  />
+                </div>
+              </div>
+
+              <div className="rounded-xl border border-border p-4 bg-slate-50/40">
+                <p className="font-semibold text-emerald-950 mb-2">Leader 6</p>
+                <div className="grid md:grid-cols-2 gap-3">
+                  <Field label="Name" testId="settings-top-leader-6-name" value={form.top_leader_6_name} onChange={setF("top_leader_6_name")} type="text" />
+                  <Field label="Rank / Position" testId="settings-top-leader-6-title" value={form.top_leader_6_title} onChange={setF("top_leader_6_title")} type="text" />
+                </div>
+                <div className="mt-3">
+                  <BrandingImageUpload
+                    purpose="top_leader_6"
+                    label="Leader 6 Image"
+                    hint="Recommended: square portrait image"
+                    value={form.top_leader_6_image_url}
+                    onChange={setF("top_leader_6_image_url")}
+                    onPersist={(value) => persistBrandingField("top_leader_6_image_url", value)}
+                    readOnly={readOnly}
+                    testId="branding-top-leader-6"
                   />
                 </div>
               </div>

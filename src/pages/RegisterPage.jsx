@@ -16,7 +16,7 @@ const DEFAULT_POLICY = {
     "3. The company may update policies, plans, and operational rules with notice through official channels.",
 };
 
-const DEFAULT_METHO_ADMIN_SPONSOR_ID = "MTH-21E906";
+const DEFAULT_METHO_ADMIN_SPONSOR_ID = "MAU00001";
 
 const generateMemberId = () => {
   const randomFiveDigits = Math.floor(10000 + Math.random() * 90000);

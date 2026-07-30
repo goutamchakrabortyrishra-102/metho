@@ -47,6 +47,7 @@ export default function UpiPaymentDialog({
   const [uploading, setUploading] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [copied, setCopied] = useState(false);
+  const [forceManualUpiFlow, setForceManualUpiFlow] = useState(false);
   const requiresShippingAddress = Array.isArray(items)
     ? items.some((item) => !(item?.is_service || String(item?.listing_type || item?.item_kind || "").toLowerCase().includes("service")))
     : true;
@@ -55,6 +56,11 @@ export default function UpiPaymentDialog({
     if (!open) return;
     api.get("/settings").then((r) => setSettings(r.data)).catch(() => {});
   }, [open, paymentConfig]);
+
+  useEffect(() => {
+    if (open) return;
+    setForceManualUpiFlow(false);
+  }, [open]);
 
   const copyUpi = async () => {
     if (!settings?.upi_id) return;
@@ -109,14 +115,12 @@ export default function UpiPaymentDialog({
         payment_screenshot_url: screenshot.url,
         payer_name: payerName || undefined,
       };
-      if (isGuest) {
-        const ref = (memberRef || "").trim();
-        if (ref) {
-          const looksLikeMemberCode = /^MTH-/i.test(ref);
-          if (looksLikeMemberCode) payload.member_code = ref.toUpperCase();
-          else payload.member_id = ref;
-        }
-      } else if (user?.id) {
+      const ref = (memberRef || "").trim();
+      if (ref) {
+        const looksLikeMemberCode = /^MTH-/i.test(ref);
+        if (looksLikeMemberCode) payload.member_code = ref.toUpperCase();
+        else payload.member_id = ref;
+      } else if (!isGuest && user?.id) {
         payload.member_id = user.id;
       }
       const endpoint = existingOrderId ? `/orders/${existingOrderId}/submit-payment` : "/orders";
@@ -158,19 +162,18 @@ export default function UpiPaymentDialog({
         payment_method: "razorpay",
         payer_name: payerName || undefined,
       };
-      if (isGuest) {
-        const ref = (memberRef || "").trim();
-        if (ref) {
-          const looksLikeMemberCode = /^MTH-/i.test(ref);
-          if (looksLikeMemberCode) orderPayload.member_code = ref.toUpperCase();
-          else orderPayload.member_id = ref;
-        }
-      } else if (user?.id) {
+      const ref = (memberRef || "").trim();
+      if (ref) {
+        const looksLikeMemberCode = /^MTH-/i.test(ref);
+        if (looksLikeMemberCode) orderPayload.member_code = ref.toUpperCase();
+        else orderPayload.member_id = ref;
+      } else if (!isGuest && user?.id) {
         orderPayload.member_id = user.id;
       }
 
       const { data: created } = await api.post("/orders", orderPayload);
-      if (!created?.order_id) throw new Error("Order creation failed");
+      const createdOrderId = String(created?.order_id || created?.id || "").trim();
+      if (!createdOrderId) throw new Error("Order creation failed");
 
       const sdkLoaded = await loadRazorpayScript();
       if (!sdkLoaded) {
@@ -178,7 +181,19 @@ export default function UpiPaymentDialog({
         return;
       }
 
-      const { data: rp } = await api.post("/payments/razorpay/order", { order_id: created.order_id });
+      let rp;
+      try {
+        const rpResp = await api.post("/payments/razorpay/order", { order_id: createdOrderId });
+        rp = rpResp.data;
+      } catch (err) {
+        if (err?.response?.status === 404) {
+          setForceManualUpiFlow(true);
+          setSubmitting(false);
+          toast.error("Online Razorpay is unavailable right now. Please submit UPI proof to complete this order.");
+          return;
+        }
+        throw err;
+      }
 
       const options = {
         key: rp.key_id,
@@ -190,7 +205,7 @@ export default function UpiPaymentDialog({
         handler: async (resp) => {
           try {
             const { data: verified } = await api.post("/payments/razorpay/verify-and-submit", {
-              order_id: created.order_id,
+              order_id: createdOrderId,
               razorpay_order_id: resp.razorpay_order_id,
               razorpay_payment_id: resp.razorpay_payment_id,
               razorpay_signature: resp.razorpay_signature,
@@ -220,7 +235,7 @@ export default function UpiPaymentDialog({
           name: payerName || undefined,
         },
         notes: {
-          metho_order_id: created.order_id,
+          metho_order_id: createdOrderId,
         },
         theme: {
           color: "#065f46",
@@ -243,7 +258,7 @@ export default function UpiPaymentDialog({
   const payeeName = paymentConfig?.payee_name || settings?.upi_payee_name || "METHOO STORE";
   const qrUrl = paymentConfig?.qr_url || settings?.upi_qr_url;
   const payLabel = paymentConfig?.label || "UPI Payment";
-  const manualUpiEnabled = paymentConfig ? !!paymentConfig.manual_upi_enabled : !!settings?.manual_upi_enabled;
+  const manualUpiEnabled = forceManualUpiFlow || (paymentConfig ? !!paymentConfig.manual_upi_enabled : !!settings?.manual_upi_enabled);
   const razorpayEnabled = paymentConfig
     ? !!paymentConfig.razorpay_enabled && !!settings?.razorpay_enabled && !!settings?.razorpay_key_id
     : !!settings?.razorpay_enabled && !!settings?.razorpay_key_id;
@@ -347,7 +362,7 @@ export default function UpiPaymentDialog({
                   </p>
                 </div>
 
-                {isGuest && !existingOrderId && (
+                {!existingOrderId && (
               <div>
                 <Label htmlFor="member-ref">Member ID / Member Code (optional)</Label>
                 <Input
@@ -433,7 +448,7 @@ export default function UpiPaymentDialog({
                   : "Razorpay is disabled in this checkout flow. Partner payments require the UPI/QR proof flow to stay active."}
               </div>
 
-              {isGuest && !existingOrderId ? (
+              {!existingOrderId ? (
                 <div>
                   <Label htmlFor="member-ref-razorpay">Member ID / Member Code (optional)</Label>
                   <Input
@@ -484,7 +499,7 @@ export default function UpiPaymentDialog({
 
           <DialogFooter className={manualUpiEnabled ? "md:col-span-2" : ""}>
             <div className="w-full space-y-2">
-              {razorpayEnabled ? (
+              {razorpayEnabled && !forceManualUpiFlow ? (
                 <Button
                   type="button"
                   disabled={submitting || uploading}
