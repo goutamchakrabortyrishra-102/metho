@@ -507,8 +507,8 @@ export default function MethoStoreAdminPage() {
           <Panel icon={Receipt} title="Owner invoices" subtitle="Admin can create and monitor owner invoices.">
             <div className="space-y-4">
               <div className="grid gap-3 sm:grid-cols-2">
-                <Field label="Member code"><Input value={invoiceForm.member_code} onChange={(e) => setInvoiceForm((prev) => ({ ...prev, member_code: e.target.value }))} placeholder="Optional" /></Field>
-                <Field label="Member ID"><Input value={invoiceForm.member_id} onChange={(e) => setInvoiceForm((prev) => ({ ...prev, member_id: e.target.value }))} placeholder="Optional" /></Field>
+                <Field label="Member code"><Input value={invoiceForm.member_code} onChange={(e) => setInvoiceForm((prev) => ({ ...prev, member_code: e.target.value, member_id: "" }))} placeholder="Optional" /></Field>
+                <Field label="Member ID"><Input value={invoiceForm.member_id} onChange={(e) => setInvoiceForm((prev) => ({ ...prev, member_id: e.target.value, member_code: "" }))} placeholder="Optional" /></Field>
               </div>
               {invoiceMemberInfo ? (
                 <p className="text-xs text-emerald-700">

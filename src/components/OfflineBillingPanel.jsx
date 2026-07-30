@@ -91,8 +91,13 @@ export default function OfflineBillingPanel({ title = "Offline Billing", compact
     try {
       const { data } = await api.get(`/offline-billing/member/${encodeURIComponent(ref)}`);
       setMemberInfo(data);
-      if (!customerName.trim()) setCustomerName(data?.name || "");
-      if (!customerPhone.trim()) setCustomerPhone(data?.phone || "");
+      const resolvedRef = String(data?.member_code || data?.id || ref).trim().toUpperCase();
+      setMemberRef((prev) => {
+        const current = String(prev || "").trim().toUpperCase();
+        return resolvedRef && resolvedRef !== current ? resolvedRef : prev;
+      });
+      setCustomerName(String(data?.name || "").trim());
+      setCustomerPhone(String(data?.phone || "").trim());
       if (!silent) toast.success("Member found");
       return true;
     } catch (e) {
@@ -102,7 +107,7 @@ export default function OfflineBillingPanel({ title = "Offline Billing", compact
     } finally {
       setMemberSearching(false);
     }
-  }, [customerName, customerPhone]);
+  }, []);
 
   const lookupMember = async () => {
     const ref = memberRef.trim();

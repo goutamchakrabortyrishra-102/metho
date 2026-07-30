@@ -164,10 +164,10 @@ export default function MethoStoreOwnerPage() {
             <p className="text-sm text-slate-500 font-body">Use a valid member id or member code. Backend auto-attaches approved owner code and auto-approves only when member and owner validation both pass.</p>
             <div className="mt-4 space-y-3 rounded-2xl border border-border bg-slate-50 p-4">
               <Field label="Member code">
-                <Input value={invoiceForm.member_code} onChange={(e) => setInvoiceForm((prev) => ({ ...prev, member_code: e.target.value }))} placeholder="Optional member code" />
+                <Input value={invoiceForm.member_code} onChange={(e) => setInvoiceForm((prev) => ({ ...prev, member_code: e.target.value, member_id: "" }))} placeholder="Optional member code" />
               </Field>
               <Field label="Member ID">
-                <Input value={invoiceForm.member_id} onChange={(e) => setInvoiceForm((prev) => ({ ...prev, member_id: e.target.value }))} placeholder="Optional member ID" />
+                <Input value={invoiceForm.member_id} onChange={(e) => setInvoiceForm((prev) => ({ ...prev, member_id: e.target.value, member_code: "" }))} placeholder="Optional member ID" />
               </Field>
               {invoiceMemberInfo ? (
                 <p className="text-xs text-emerald-700">
