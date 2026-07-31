@@ -17,6 +17,21 @@ import { Input } from "@/components/ui/input";
 const FALLBACK = "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 400 400'><rect width='400' height='400' fill='%23e2e8f0'/><text x='50%25' y='50%25' dominant-baseline='middle' text-anchor='middle' fill='%23475569' font-size='20' font-family='Arial'>No Image</text></svg>";
 const PDF_PREVIEW = "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 400 400'><rect width='400' height='400' fill='%23f1f5f9'/><rect x='80' y='50' width='240' height='300' rx='14' fill='%23ffffff' stroke='%2394a3b8' stroke-width='4'/><text x='200' y='190' text-anchor='middle' fill='%23dc2626' font-size='46' font-family='Arial' font-weight='bold'>PDF</text><text x='200' y='228' text-anchor='middle' fill='%23334155' font-size='16' font-family='Arial'>Tap to Open</text></svg>";
 
+const isLikelyAssetRef = (value) => {
+  const s = String(value || "").trim();
+  if (!s) return false;
+  if (s.startsWith("http://") || s.startsWith("https://") || s.startsWith("data:") || s.startsWith("blob:")) return true;
+  if (s.startsWith("/")) return true;
+  return /(media\/|uploads\/|static\/|\.(png|jpe?g|webp|gif|svg|pdf)(\?|$))/i.test(s);
+};
+
+const firstValidAssetRef = (...values) => {
+  for (const value of values) {
+    if (typeof value === "string" && isLikelyAssetRef(value)) return resolveAssetUrl(value);
+  }
+  return "";
+};
+
 const getPdfUrl = (product) => {
   if (!product) return "";
   if (product.pdf_url) return resolveAssetUrl(product.pdf_url);
@@ -33,18 +48,37 @@ const getPdfUrl = (product) => {
 
 const getDisplayImage = (product) => {
   if (product?.image_url) return resolveAssetUrl(product.image_url);
+  if (product?.fallback_image_url) return resolveAssetUrl(product.fallback_image_url);
   return getPdfUrl(product) ? PDF_PREVIEW : FALLBACK;
+};
+
+const applyImageFallback = (event, fallbackUrl) => {
+  const target = event.currentTarget;
+  const next = String(fallbackUrl || "").trim();
+  const retried = target.dataset.retryFallback === "1";
+  if (!retried && next && target.src !== next) {
+    target.dataset.retryFallback = "1";
+    target.src = next;
+    return;
+  }
+  if (target.src !== FALLBACK) target.src = FALLBACK;
 };
 
 const pickImageUrl = (value) => {
   if (!value) return "";
-  if (typeof value === "string") return resolveAssetUrl(value);
+  if (typeof value === "string") return isLikelyAssetRef(value) ? resolveAssetUrl(value) : "";
   if (typeof value === "object") {
-    return resolveAssetUrl(
+    return firstValidAssetRef(
       value.url ||
       value.image_url ||
       value.featured_image_url ||
       value.path ||
+      value.file_url ||
+      value.public_url ||
+      value.secure_url ||
+      value.src ||
+      value.image ||
+      value.link ||
       ""
     );
   }
@@ -78,15 +112,25 @@ const normalizeFeaturedImages = (raw) => {
 const normalizePartnerPayload = (payload) => {
   const partner = payload?.partner || {};
   const featuredImages = normalizeFeaturedImages(payload?.featured_images || payload?.partner?.featured_images);
-  const partnerBanner = resolveAssetUrl(partner?.banner_url || "");
-  const partnerLogo = resolveAssetUrl(partner?.logo_url || "");
+  const partnerBanner = firstValidAssetRef(partner?.banner_url, partner?.shop_banner_url, partner?.banner, partner?.cover_url);
+  const partnerLogo = firstValidAssetRef(partner?.logo_url, partner?.logo, partner?.shop_logo_url);
   const fallbackPool = [...featuredImages, partnerBanner, partnerLogo].filter(Boolean);
   const products = Array.isArray(payload?.products)
     ? payload.products.map((item, index) => {
-      const resolvedImage = resolveAssetUrl(item?.image_url || "");
+      const resolvedImage = firstValidAssetRef(
+        item?.image_url,
+        item?.product_image_url,
+        item?.image,
+        item?.thumbnail_url,
+        item?.thumb_url,
+        item?.cover_url,
+        item?.photo_url
+      );
+      const fallbackImage = fallbackPool[index % Math.max(1, fallbackPool.length)] || "";
       return {
         ...item,
-        image_url: resolvedImage || fallbackPool[index % Math.max(1, fallbackPool.length)] || "",
+        image_url: resolvedImage || fallbackImage,
+        fallback_image_url: fallbackImage,
         pdf_url: getPdfUrl(item),
       };
     })
@@ -136,7 +180,7 @@ function ProductModal({ product, onClose, onAdd, onDec, qty, galleryUrl, isBookN
             src={getDisplayImage(product)}
             alt={product.name}
             className="w-full h-full object-cover"
-            onError={e => { if (e.currentTarget.src !== FALLBACK) e.currentTarget.src = FALLBACK; }}
+            onError={e => { applyImageFallback(e, product?.fallback_image_url || ""); }}
           />
           {canDownloadPdf && pdfUrl ? (
             <button
@@ -653,7 +697,7 @@ export default function PartnerGalleryPage() {
                       src={getDisplayImage(p)}
                       alt={p.name}
                       className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
-                      onError={e => { if (e.currentTarget.src !== FALLBACK) e.currentTarget.src = FALLBACK; }}
+                      onError={e => { applyImageFallback(e, p?.fallback_image_url || ""); }}
                     />
                     {outOfStock && (
                       <div className="absolute inset-0 bg-black/40 flex items-center justify-center">

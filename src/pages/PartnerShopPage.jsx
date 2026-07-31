@@ -63,9 +63,26 @@ const getProductImageUrl = (product) => firstValidAssetRef(
 
 const getDisplayImage = (product, placeholder) => {
   const image = getProductImageUrl(product);
+  if (!image && product?.fallback_image_url) return resolveAssetUrl(product.fallback_image_url);
   if (image) return image;
   if (getPdfUrl(product)) return PDF_PREVIEW;
   return placeholder || "";
+};
+
+const applyImageFallback = (event, fallbackUrl, finalFallback = "") => {
+  const target = event.currentTarget;
+  const next = String(fallbackUrl || "").trim();
+  const last = String(finalFallback || "").trim();
+  const alreadyRetried = target.dataset.retryFallback === "1";
+
+  if (!alreadyRetried && next && target.src !== next) {
+    target.dataset.retryFallback = "1";
+    target.src = next;
+    return;
+  }
+  if (last && target.src !== last) {
+    target.src = last;
+  }
 };
 
 const pickImageUrl = (value) => {
@@ -130,6 +147,7 @@ const normalizePartnerPayload = (payload) => {
   const products = Array.isArray(payload?.products) ? payload.products.map((item) => ({
     ...item,
     image_url: getProductImageUrl(item) || fallbackPool[0] || "",
+    fallback_image_url: fallbackPool[0] || "",
     pdf_url: getPdfUrl(item),
   })) : [];
   return {
@@ -304,7 +322,14 @@ export default function PartnerShopPage() {
       <div className="bg-gradient-to-br from-emerald-900 to-emerald-950 text-white relative overflow-hidden">
         {p.banner_url ? (
           <div className="absolute inset-0 opacity-25">
-            <img src={p.banner_url} alt="Shop banner" className="w-full h-full object-cover" />
+            <img
+              src={p.banner_url}
+              alt="Shop banner"
+              className="w-full h-full object-cover"
+              onError={(e) => {
+                applyImageFallback(e, featuredImages[0] || p.logo_url || "", placeholder || "");
+              }}
+            />
             <div className="absolute inset-0 bg-emerald-950/55" />
           </div>
         ) : null}
@@ -420,7 +445,11 @@ export default function PartnerShopPage() {
                       alt={fallbackProduct?.name || `Featured ${slot + 1}`}
                       className="w-full h-full object-cover"
                       onError={(e) => {
-                        e.currentTarget.src = getDisplayImage(fallbackProduct, placeholder) || PDF_PREVIEW;
+                        applyImageFallback(
+                          e,
+                          fallbackProduct?.fallback_image_url || featuredImages[slot] || "",
+                          placeholder || PDF_PREVIEW
+                        );
                       }}
                     />
                   ) : (
@@ -520,9 +549,11 @@ export default function PartnerShopPage() {
                         alt={product.name}
                         className="w-full h-full object-cover"
                         onError={(e) => {
-                          if (e.currentTarget.src !== (placeholder || PDF_PREVIEW)) {
-                            e.currentTarget.src = placeholder || PDF_PREVIEW;
-                          }
+                          applyImageFallback(
+                            e,
+                            product?.fallback_image_url || featuredImages[0] || "",
+                            placeholder || PDF_PREVIEW
+                          );
                         }}
                       />
                       {pdfUrl ? (
@@ -699,9 +730,11 @@ export default function PartnerShopPage() {
                       alt={service.name}
                       className="w-full h-full object-cover"
                       onError={(e) => {
-                        if (e.currentTarget.src !== (placeholder || PDF_PREVIEW)) {
-                          e.currentTarget.src = placeholder || PDF_PREVIEW;
-                        }
+                        applyImageFallback(
+                          e,
+                          service?.fallback_image_url || featuredImages[0] || "",
+                          placeholder || PDF_PREVIEW
+                        );
                       }}
                     />
                     {pdfUrl ? (
