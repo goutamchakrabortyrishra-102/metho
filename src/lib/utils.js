@@ -50,6 +50,20 @@ export function resolveAssetUrl(rawUrl) {
     const base = getBackendBaseUrl();
     return base ? `${base}${url}` : url;
   }
+  // Legacy/compact API paths can arrive without a leading slash.
+  if (url.startsWith("api/")) {
+    const base = getBackendBaseUrl();
+    return base ? `${base}/${url}` : `/${url}`;
+  }
+  // Storage paths from older payloads should resolve through /api/files.
+  if (url.startsWith("product_images/") || url.startsWith("payment_screenshots/")) {
+    const base = getBackendBaseUrl();
+    return base ? `${base}/api/files/${url}` : `/api/files/${url}`;
+  }
+  if (url.startsWith("metho-aay-upay/product-images/")) {
+    const base = getBackendBaseUrl();
+    return base ? `${base}/api/files/${url}` : `/api/files/${url}`;
+  }
   if (url.startsWith("media/") || url.startsWith("uploads/") || url.startsWith("static/")) {
     const base = getBackendBaseUrl();
     return base ? `${base}/${url}` : url;

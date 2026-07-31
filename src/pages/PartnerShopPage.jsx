@@ -143,12 +143,18 @@ const normalizePartnerPayload = (payload) => {
   const bannerFallback = firstValidAssetRef(partner?.banner_url, partner?.shop_banner_url, partner?.banner, partner?.cover_url);
   const logoFallback = firstValidAssetRef(partner?.logo_url, partner?.logo, partner?.shop_logo_url);
   const fallbackPool = [...featuredImages, bannerFallback, logoFallback].filter(Boolean);
-  const products = Array.isArray(payload?.products) ? payload.products.map((item) => ({
-    ...item,
-    image_url: getProductImageUrl(item) || fallbackPool[0] || "",
-    fallback_image_url: fallbackPool[0] || "",
-    pdf_url: getPdfUrl(item),
-  })) : [];
+  const products = Array.isArray(payload?.products)
+    ? payload.products.map((item, index) => {
+      const resolvedImage = getProductImageUrl(item);
+      const fallbackImage = fallbackPool[index % Math.max(1, fallbackPool.length)] || "";
+      return {
+        ...item,
+        image_url: resolvedImage || "",
+        fallback_image_url: fallbackImage,
+        pdf_url: getPdfUrl(item),
+      };
+    })
+    : [];
   return {
     ...payload,
     partner: {
