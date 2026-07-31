@@ -9,16 +9,10 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogTrigger, DialogFooter } from "@/components/ui/dialog";
-
-const BACKEND_URL = process.env.REACT_APP_BACKEND_URL || "";
+import { resolveAssetUrl } from "@/lib/utils";
 
 const buildImageUrl = (rawUrl) => {
-  const url = String(rawUrl || "").trim();
-  if (!url) return "";
-  if (url.startsWith("http://") || url.startsWith("https://") || url.startsWith("data:")) return url;
-  const apiBase = String(api?.defaults?.baseURL || "").replace(/\/?api\/?$/, "");
-  const base = BACKEND_URL || apiBase;
-  return base ? `${base}${url}` : url;
+  return resolveAssetUrl(rawUrl);
 };
 
 const CATEGORIES = [
@@ -385,8 +379,8 @@ export default function AddProductDialog({
       const { data } = await api.post("/admin/upload/product-image", fd, {
         headers: { "Content-Type": "multipart/form-data" },
       });
-      const fullUrl = buildImageUrl(data?.url);
-      setForm(x => ({ ...x, image_url: fullUrl }));
+      const canonical = String(data?.url || data?.image_url || "").trim();
+      setForm(x => ({ ...x, image_url: canonical }));
       toast.success("Image uploaded ✓");
     } catch (err) {
       toast.error(err?.response?.data?.detail || "Upload failed");

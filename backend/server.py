@@ -14,6 +14,7 @@ import uuid
 import jwt
 import bcrypt
 from pathlib import Path
+import mimetypes
 from urllib.parse import quote_plus
 from pydantic import BaseModel, Field, EmailStr, ConfigDict
 from typing import List, Optional, Literal
@@ -2762,14 +2763,40 @@ async def upload_image(
 async def serve_file(path: str):
     # Product images are publicly viewable (used in shop, landing page)
     # For private files, add auth check here
-    record = await db.files.find_one({"storage_path": path, "is_deleted": False}, {"_id": 0})
-    if not record:
+    requested = str(path or "").strip().lstrip("/")
+    if not requested or ".." in requested.split("/"):
         raise HTTPException(status_code=404, detail="File not found")
+
     try:
-        data, content_type = get_object(path)
-    except Exception as e:
-        raise HTTPException(status_code=404, detail=f"Object not found in storage: {e}")
-    return Response(content=data, media_type=record.get("content_type", content_type))
+        record = await db.files.find_one({"storage_path": requested, "is_deleted": False}, {"_id": 0})
+    except Exception:
+        record = None
+
+    # First attempt: storage abstraction.
+    try:
+        data, detected_type = get_object(requested)
+        media_type = (record or {}).get("content_type") or detected_type or mimetypes.guess_type(requested)[0] or "application/octet-stream"
+        return Response(content=data, media_type=media_type)
+    except HTTPException:
+        pass
+    except Exception:
+        pass
+
+    # Fallback: direct local filesystem lookup for legacy paths.
+    candidates = [
+        LOCAL_STORAGE_DIR / requested,
+        LOCAL_STORAGE_DIR / requested.replace("product_images/", f"{APP_NAME}/product-images/"),
+        LOCAL_STORAGE_DIR / requested.replace("branding_images/", f"{APP_NAME}/branding/"),
+        LOCAL_STORAGE_DIR / requested.replace("payment_screenshots/", f"{APP_NAME}/payment-screenshots/"),
+    ]
+    for fp in candidates:
+        try:
+            if fp.exists() and fp.is_file():
+                return Response(content=fp.read_bytes(), media_type=mimetypes.guess_type(str(fp))[0] or "application/octet-stream")
+        except Exception:
+            continue
+
+    raise HTTPException(status_code=404, detail="File not found")
 
 @api_router.get("/categories")
 async def list_categories():
