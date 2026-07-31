@@ -2761,26 +2761,41 @@ async def upload_image(
 # ===================== PUBLIC FILE SERVE =====================
 @api_router.get("/files/{path:path}")
 async def serve_file(path: str):
-    requested = str(path or "").strip().lstrip("/")
-    if not requested or ".." in requested.split("/"):
-        raise HTTPException(status_code=404, detail="File not found")
+    try:
+        requested = str(path or "").strip().lstrip("/")
+        if not requested or ".." in requested.split("/"):
+            raise HTTPException(status_code=404, detail="File not found")
 
-    candidate_paths = [
-        requested,
-        requested.replace("product_images/", f"{APP_NAME}/product-images/"),
-        requested.replace("payment_screenshots/", f"{APP_NAME}/payment-screenshots/"),
-        requested.replace("branding_images/", f"{APP_NAME}/branding_images/"),
-    ]
+        candidate_paths = [
+            requested,
+            requested.replace("product_images/", f"{APP_NAME}/product-images/"),
+            requested.replace("payment_screenshots/", f"{APP_NAME}/payment-screenshots/"),
+            requested.replace("branding_images/", f"{APP_NAME}/branding_images/"),
+        ]
 
-    seen = set()
-    for rel_path in candidate_paths:
-        rel = str(rel_path or "").strip().lstrip("/")
-        if not rel or rel in seen:
-            continue
-        seen.add(rel)
-        fp = LOCAL_STORAGE_DIR / rel
-        if fp.exists() and fp.is_file():
-            return FileResponse(fp, media_type=mimetypes.guess_type(str(fp))[0] or "application/octet-stream")
+        base_dir = LOCAL_STORAGE_DIR.resolve()
+        seen = set()
+        for rel_path in candidate_paths:
+            rel = str(rel_path or "").strip().lstrip("/")
+            if not rel or rel in seen:
+                continue
+            seen.add(rel)
+
+            try:
+                fp = (LOCAL_STORAGE_DIR / rel).resolve(strict=False)
+            except Exception:
+                continue
+
+            if not str(fp).startswith(str(base_dir)):
+                continue
+
+            if fp.exists() and fp.is_file():
+                media_type = mimetypes.guess_type(str(fp))[0] or "application/octet-stream"
+                return FileResponse(path=str(fp), media_type=media_type)
+    except HTTPException:
+        raise
+    except Exception:
+        logger.exception("serve_file failed for path=%s", path)
 
     raise HTTPException(status_code=404, detail="File not found")
 
