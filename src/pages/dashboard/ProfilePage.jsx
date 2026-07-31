@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { resolveAssetUrl } from "@/lib/utils";
 
 export default function ProfilePage() {
   const { user } = useAuth();
@@ -204,7 +205,7 @@ export default function ProfilePage() {
             <Label>UPI QR</Label>
             <div className="mt-1.5 flex items-center gap-3">
               {payout.upi_qr_url ? (
-                <img src={payout.upi_qr_url} alt="UPI QR" className="h-20 w-20 object-contain border border-border rounded-md p-1 bg-white" />
+                <img src={resolveAssetUrl(payout.upi_qr_url)} alt="UPI QR" className="h-20 w-20 object-contain border border-border rounded-md p-1 bg-white" />
               ) : (
                 <div className="h-20 w-20 rounded-md border-2 border-dashed border-slate-300 flex items-center justify-center text-slate-400 text-xs">No QR</div>
               )}

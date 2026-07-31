@@ -28,7 +28,24 @@ export function getBackendBaseUrlOrDefault(fallback = "http://localhost:8000") {
 export function resolveAssetUrl(rawUrl) {
   const url = String(rawUrl || "").trim();
   if (!url) return "";
-  if (url.startsWith("http://") || url.startsWith("https://") || url.startsWith("data:") || url.startsWith("blob:")) return url;
+  if (url.startsWith("data:") || url.startsWith("blob:")) return url;
+  if (url.startsWith("http://") || url.startsWith("https://")) {
+    if (typeof window !== "undefined" && window.location.protocol === "https:" && url.startsWith("http://")) {
+      try {
+        const parsed = new URL(url);
+        const backendBase = getBackendBaseUrl();
+        const backendHost = backendBase ? new URL(backendBase).host : "";
+        const sameBackendHost = backendHost && parsed.host === backendHost;
+        const renderHost = parsed.host.endsWith(".onrender.com");
+        if (sameBackendHost || renderHost) {
+          return `https://${url.slice("http://".length)}`;
+        }
+      } catch {
+        // Fall through and return raw absolute URL on parse failure.
+      }
+    }
+    return url;
+  }
   if (url.startsWith("/")) {
     const base = getBackendBaseUrl();
     return base ? `${base}${url}` : url;

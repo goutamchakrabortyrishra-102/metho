@@ -7,6 +7,7 @@ from types import SimpleNamespace
 import urllib.error
 import urllib.request
 from pathlib import Path
+import os
 from fastapi import APIRouter, Depends, File, Header, HTTPException, UploadFile
 from fastapi.responses import FileResponse
 from sqlalchemy.orm import Session
@@ -22,6 +23,47 @@ router = APIRouter(prefix="/api", tags=["checkout"])
 
 UPLOAD_DIR = UPLOADED_OBJECTS_DIR / "payment_screenshots"
 UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
+
+
+def _candidate_upload_roots() -> list[Path]:
+    roots: list[Path] = []
+
+    def _add(root: Path | None):
+        if not root:
+            return
+        try:
+            resolved = root.resolve()
+        except Exception:
+            resolved = root
+        key = str(resolved)
+        if key not in {str(r) for r in roots}:
+            roots.append(resolved)
+
+    _add(UPLOADED_OBJECTS_DIR)
+
+    explicit = (os.getenv("METHO_UPLOAD_ROOT") or os.getenv("UPLOADED_OBJECTS_DIR") or "").strip()
+    if explicit:
+        _add(Path(explicit))
+
+    render_disk_path = (os.getenv("RENDER_DISK_PATH") or os.getenv("RENDER_DISK_MOUNT_PATH") or "").strip()
+    if render_disk_path:
+        _add(Path(render_disk_path) / "uploaded_objects")
+
+    # Legacy roots used by previous backend builds.
+    _add(Path(__file__).resolve().parents[3] / "uploaded_objects")
+    _add(Path(__file__).resolve().parents[4] / "uploaded_objects")
+    return roots
+
+
+def _resolve_uploaded_file(path: str) -> Path | None:
+    safe = str(path or "").replace("\\", "/").lstrip("/")
+    if not safe or ".." in safe.split("/"):
+        return None
+    for root in _candidate_upload_roots():
+        candidate = root / safe
+        if candidate.exists() and candidate.is_file():
+            return candidate
+    return None
 
 
 def _load_checkout_razorpay_settings(db: Session) -> tuple[dict, str, str]:
@@ -191,8 +233,8 @@ async def upload_payment_screenshot(file: UploadFile = File(...)):
 
 @router.get("/files/{path:path}")
 def get_file(path: str):
-    file_path = UPLOADED_OBJECTS_DIR / path
-    if not file_path.exists() or not file_path.is_file():
+    file_path = _resolve_uploaded_file(path)
+    if not file_path:
         raise HTTPException(status_code=404, detail="File not found")
     return FileResponse(file_path)
 

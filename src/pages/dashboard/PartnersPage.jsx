@@ -13,6 +13,7 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 import api from "@/services/api";
 import { useAuth } from "@/contexts/AuthContext";
 import OfflineBillingPanel from "@/components/OfflineBillingPanel";
+import { resolveAssetUrl } from "@/lib/utils";
 
 const inr = (v) => `₹${(Number(v) || 0).toLocaleString("en-IN", { maximumFractionDigits: 2 })}`;
 const mapsUrl = (p) => {
@@ -1231,8 +1232,8 @@ export default function PartnersPage() {
                       <p className="text-xs text-slate-600 font-mono">Txn: {req.txn_id}</p>
                     </div>
                     {req.proof_url ? (
-                      <a href={req.proof_url} target="_blank" rel="noreferrer">
-                        <img src={req.proof_url} alt="Top-up proof" className="w-20 h-20 object-cover rounded-lg border border-border" />
+                      <a href={resolveAssetUrl(req.proof_url)} target="_blank" rel="noreferrer">
+                        <img src={resolveAssetUrl(req.proof_url)} alt="Top-up proof" className="w-20 h-20 object-cover rounded-lg border border-border" />
                       </a>
                     ) : null}
                   </div>

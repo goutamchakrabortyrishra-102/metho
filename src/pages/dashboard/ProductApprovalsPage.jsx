@@ -7,6 +7,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
 import api from "@/services/api";
 import { useAuth } from "@/contexts/AuthContext";
+import { resolveAssetUrl } from "@/lib/utils";
 
 const inr = (v) => `₹${(Number(v) || 0).toLocaleString("en-IN")}`;
 
@@ -53,7 +54,7 @@ export default function ProductApprovalsPage() {
           {items.map(p => (
             <div key={p.id} className="bg-white rounded-xl border border-amber-200 p-4 flex gap-4" data-testid={`pending-product-${p.id}`}>
               <div className="w-24 h-24 rounded-lg bg-secondary shrink-0 overflow-hidden">
-                <img src={p.image_url || undefined} alt={p.name} className="w-full h-full object-cover" />
+                <img src={resolveAssetUrl(p.image_url) || undefined} alt={p.name} className="w-full h-full object-cover" />
               </div>
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-2"><Clock className="w-3.5 h-3.5 text-amber-700" /><span className="text-[10px] uppercase font-bold text-amber-800">Pending Review</span></div>
