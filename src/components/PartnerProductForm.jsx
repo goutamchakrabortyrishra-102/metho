@@ -189,7 +189,7 @@ export default function PartnerProductForm({ product, onSaved, disabled = false,
         }).catch(() => {});
       }
 
-      toast.success(product?.id ? "Product updated (pending admin approval if changed)" : "Product submitted — awaiting Admin approval");
+      toast.success(product?.id ? "Product updated and live" : "Product uploaded and live in gallery");
       setOpen(false);
       onSaved?.();
     } catch (err) {

@@ -541,14 +541,14 @@ def partner_products_create(payload: dict, db: Session = Depends(get_db), curren
         image_url=str((payload or {}).get("image_url") or "").strip(),
         price=price,
         stock=stock,
-        approval_status="pending",
+        approval_status="approved",
         active=True,
     )
     db.add(row)
     db.commit()
     db.refresh(row)
 
-    return {"ok": True, "message": "Product submitted — awaiting Admin approval"}
+    return {"ok": True, "message": "Product created and live"}
 
 
 @router.put("/partner/products/{product_id}")
@@ -598,8 +598,8 @@ def partner_products_update(product_id: str, payload: dict, db: Session = Depend
             stock = 0
         product.stock = max(0, stock)
 
-    # Any partner edit requires re-approval before storefront usage.
-    product.approval_status = "pending"
+    # Partner edits stay live unless explicitly deactivated by admin.
+    product.approval_status = "approved"
     db.commit()
 
     return {"ok": True, "id": product_id, "message": "Product updated"}
