@@ -128,7 +128,7 @@ function ReferralMessageSection({ form, setF, memberCode }) {
   );
 }
 
-function UpiSection({ form, setF, readOnly }) {
+function UpiSection({ form, setF, readOnly, onPersist }) {
   const inputRef = useRef(null);
   const [uploading, setUploading] = useState(false);
 
@@ -143,8 +143,14 @@ function UpiSection({ form, setF, readOnly }) {
       const { data } = await api.post("/admin/upload/upi-qr", fd, {
         headers: { "Content-Type": "multipart/form-data" },
       });
-      setF("upi_qr_url")(data.url);
-      toast.success("QR uploaded. Save settings to activate.");
+      const nextUrl = String(data?.url || "").trim();
+      setF("upi_qr_url")(nextUrl);
+      if (onPersist) {
+        await onPersist(nextUrl);
+        toast.success("QR uploaded and saved.");
+      } else {
+        toast.success("QR uploaded. Save settings to activate.");
+      }
     } catch (err) {
       toast.error(err?.response?.data?.detail || "Upload failed");
     } finally {
@@ -270,7 +276,20 @@ function UpiSection({ form, setF, readOnly }) {
                 <Button
                   type="button"
                   variant="outline"
-                  onClick={() => setF("upi_qr_url")("")}
+                  onClick={async () => {
+                    setF("upi_qr_url")("");
+                    if (onPersist) {
+                      setUploading(true);
+                      try {
+                        await onPersist("");
+                        toast.success("QR removed and saved.");
+                      } catch (err) {
+                        toast.error(err?.response?.data?.detail || "Save failed");
+                      } finally {
+                        setUploading(false);
+                      }
+                    }
+                  }}
                   disabled={readOnly}
                   className="rounded-full ml-2"
                   data-testid="settings-upi-qr-remove"
@@ -540,6 +559,21 @@ export default function SettingsPage() {
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
 
+  const dedupeImageFields = [
+    "site_logo_url",
+    "landing_hero_image_url",
+    "directory_hero_image_url",
+    "product_placeholder_image_url",
+    "social_share_image_url",
+    "top_leader_1_image_url",
+    "top_leader_2_image_url",
+    "top_leader_3_image_url",
+    "top_leader_4_image_url",
+    "top_leader_5_image_url",
+    "top_leader_6_image_url",
+    "upi_qr_url",
+  ];
+
   useEffect(() => {
     setLoading(true);
     api.get("/settings").then((r) => setForm(r.data)).finally(() => setLoading(false));
@@ -652,15 +686,25 @@ export default function SettingsPage() {
 
   const persistBrandingField = async (field, value) => {
     if (readOnly) return;
+    const normalized = String(value || "").trim();
+    if (normalized && form) {
+      const duplicateOn = dedupeImageFields.find(
+        (key) => key !== field && String(form[key] || "").trim() === normalized
+      );
+      if (duplicateOn) {
+        toast.error("Same image is already used in another section. Please upload/select a different image.");
+        return;
+      }
+    }
     // Persist only the changed branding field to avoid stale full-form overwrites.
-    setForm((prev) => ({ ...prev, [field]: value }));
-    const { data } = await api.put("/settings", { [field]: value });
+    setForm((prev) => ({ ...prev, [field]: normalized }));
+    const { data } = await api.put("/settings", { [field]: normalized });
     const nextServerValue = data && Object.prototype.hasOwnProperty.call(data, field) ? data[field] : undefined;
     setForm((prev) => {
       const merged = { ...prev, ...(data || {}) };
       // If server responds without the updated field value, keep the latest uploaded value.
-      if ((nextServerValue === undefined || nextServerValue === null || nextServerValue === "") && value) {
-        merged[field] = value;
+      if ((nextServerValue === undefined || nextServerValue === null || nextServerValue === "") && normalized) {
+        merged[field] = normalized;
       }
       return merged;
     });
@@ -959,7 +1003,12 @@ export default function SettingsPage() {
             </div>
           </Section>
 
-          <UpiSection form={form} setF={setF} readOnly={readOnly} />
+          <UpiSection
+            form={form}
+            setF={setF}
+            readOnly={readOnly}
+            onPersist={(value) => persistBrandingField("upi_qr_url", value)}
+          />
 
           <Section
             title="Razorpay Gateway"
@@ -1159,6 +1208,7 @@ export default function SettingsPage() {
                 onPersist={(value) => persistBrandingField("landing_hero_image_url", value)}
                 readOnly={readOnly}
                 testId="branding-hero"
+                uploadEndpoint="/admin/upload/branding-image?purpose=landing_hero"
               />
               <BrandingImageUpload
                 purpose="directory_hero"
@@ -1169,6 +1219,7 @@ export default function SettingsPage() {
                 onPersist={(value) => persistBrandingField("directory_hero_image_url", value)}
                 readOnly={readOnly}
                 testId="branding-dir-hero"
+                uploadEndpoint="/admin/upload/branding-image?purpose=directory_hero"
               />
               <BrandingImageUpload
                 purpose="product_placeholder"
@@ -1179,6 +1230,7 @@ export default function SettingsPage() {
                 onPersist={(value) => persistBrandingField("product_placeholder_image_url", value)}
                 readOnly={readOnly}
                 testId="branding-placeholder"
+                uploadEndpoint="/admin/upload/branding-image?purpose=product_placeholder"
               />
               <BrandingImageUpload
                 purpose="social_share"
@@ -1189,6 +1241,7 @@ export default function SettingsPage() {
                 onPersist={(value) => persistBrandingField("social_share_image_url", value)}
                 readOnly={readOnly}
                 testId="branding-og"
+                uploadEndpoint="/admin/upload/branding-image?purpose=social_share"
               />
             </div>
             <Field
@@ -1236,6 +1289,7 @@ export default function SettingsPage() {
                     onPersist={(value) => persistBrandingField("top_leader_1_image_url", value)}
                     readOnly={readOnly}
                     testId="branding-top-leader-1"
+                    uploadEndpoint="/admin/upload/top-leader-image?slot=1"
                   />
                 </div>
               </div>
@@ -1256,6 +1310,7 @@ export default function SettingsPage() {
                     onPersist={(value) => persistBrandingField("top_leader_2_image_url", value)}
                     readOnly={readOnly}
                     testId="branding-top-leader-2"
+                    uploadEndpoint="/admin/upload/top-leader-image?slot=2"
                   />
                 </div>
               </div>
@@ -1276,6 +1331,7 @@ export default function SettingsPage() {
                     onPersist={(value) => persistBrandingField("top_leader_3_image_url", value)}
                     readOnly={readOnly}
                     testId="branding-top-leader-3"
+                    uploadEndpoint="/admin/upload/top-leader-image?slot=3"
                   />
                 </div>
               </div>
@@ -1296,6 +1352,7 @@ export default function SettingsPage() {
                     onPersist={(value) => persistBrandingField("top_leader_4_image_url", value)}
                     readOnly={readOnly}
                     testId="branding-top-leader-4"
+                    uploadEndpoint="/admin/upload/top-leader-image?slot=4"
                   />
                 </div>
               </div>
@@ -1316,6 +1373,7 @@ export default function SettingsPage() {
                     onPersist={(value) => persistBrandingField("top_leader_5_image_url", value)}
                     readOnly={readOnly}
                     testId="branding-top-leader-5"
+                    uploadEndpoint="/admin/upload/top-leader-image?slot=5"
                   />
                 </div>
               </div>
@@ -1336,6 +1394,7 @@ export default function SettingsPage() {
                     onPersist={(value) => persistBrandingField("top_leader_6_image_url", value)}
                     readOnly={readOnly}
                     testId="branding-top-leader-6"
+                    uploadEndpoint="/admin/upload/top-leader-image?slot=6"
                   />
                 </div>
               </div>
