@@ -28,46 +28,53 @@ export function getBackendBaseUrlOrDefault(fallback = "http://localhost:8000") {
 export function resolveAssetUrl(rawUrl) {
   const url = String(rawUrl || "").trim();
   if (!url) return "";
-  if (url.startsWith("data:") || url.startsWith("blob:")) return url;
-  if (url.startsWith("http://") || url.startsWith("https://")) {
+
+  const normalizeApiFilePath = (value) => {
+    const v = String(value || "");
+    return v.replace(/^\/api\/files\//, "/api/public-files/").replace(/^api\/files\//, "api/public-files/");
+  };
+
+  const normalizedUrl = normalizeApiFilePath(url);
+  if (normalizedUrl.startsWith("data:") || normalizedUrl.startsWith("blob:")) return normalizedUrl;
+  if (normalizedUrl.startsWith("http://") || normalizedUrl.startsWith("https://")) {
     if (typeof window !== "undefined" && window.location.protocol === "https:" && url.startsWith("http://")) {
       try {
-        const parsed = new URL(url);
+        const parsed = new URL(normalizedUrl);
         const backendBase = getBackendBaseUrl();
         const backendHost = backendBase ? new URL(backendBase).host : "";
         const sameBackendHost = backendHost && parsed.host === backendHost;
         const renderHost = parsed.host.endsWith(".onrender.com");
         if (sameBackendHost || renderHost) {
-          return `https://${url.slice("http://".length)}`;
+          return `https://${normalizedUrl.slice("http://".length)}`;
         }
       } catch {
         // Fall through and return raw absolute URL on parse failure.
       }
     }
-    return url;
+    return normalizedUrl;
   }
-  if (url.startsWith("/")) {
+  if (normalizedUrl.startsWith("/")) {
     const base = getBackendBaseUrl();
-    return base ? `${base}${url}` : url;
+    return base ? `${base}${normalizedUrl}` : normalizedUrl;
   }
   // Legacy/compact API paths can arrive without a leading slash.
-  if (url.startsWith("api/")) {
+  if (normalizedUrl.startsWith("api/")) {
     const base = getBackendBaseUrl();
-    return base ? `${base}/${url}` : `/${url}`;
+    return base ? `${base}/${normalizedUrl}` : `/${normalizedUrl}`;
   }
   // Storage paths from older payloads should resolve through /api/files.
-  if (url.startsWith("product_images/") || url.startsWith("payment_screenshots/")) {
+  if (normalizedUrl.startsWith("product_images/") || normalizedUrl.startsWith("payment_screenshots/")) {
     const base = getBackendBaseUrl();
-    return base ? `${base}/api/files/${url}` : `/api/files/${url}`;
+    return base ? `${base}/api/public-files/${normalizedUrl}` : `/api/public-files/${normalizedUrl}`;
   }
-  if (url.startsWith("metho-aay-upay/product-images/")) {
+  if (normalizedUrl.startsWith("metho-aay-upay/product-images/")) {
     const base = getBackendBaseUrl();
-    return base ? `${base}/api/files/${url}` : `/api/files/${url}`;
+    return base ? `${base}/api/public-files/${normalizedUrl}` : `/api/public-files/${normalizedUrl}`;
   }
-  if (url.startsWith("media/") || url.startsWith("uploads/") || url.startsWith("static/")) {
+  if (normalizedUrl.startsWith("media/") || normalizedUrl.startsWith("uploads/") || normalizedUrl.startsWith("static/")) {
     const base = getBackendBaseUrl();
-    return base ? `${base}/${url}` : url;
+    return base ? `${base}/${normalizedUrl}` : normalizedUrl;
   }
-  return url;
+  return normalizedUrl;
 }
 

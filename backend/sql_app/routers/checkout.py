@@ -249,6 +249,12 @@ def get_file(path: str):
         raise HTTPException(status_code=404, detail="File not found")
 
 
+@router.get("/public-files/{path:path}")
+def get_public_file(path: str):
+    # Alias route used when upstream/proxy rules interfere with /api/files/* paths.
+    return get_file(path)
+
+
 @router.post("/orders")
 def create_public_order(payload: dict, db: Session = Depends(get_db), authorization: str | None = Header(None)):
     items = payload.get("items") or []
