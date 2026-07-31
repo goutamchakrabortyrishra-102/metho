@@ -75,6 +75,11 @@ SENSITIVE_RATE_LIMITS: list[tuple[str, int]] = [
 _rate_limit_store: dict[str, deque[float]] = defaultdict(deque)
 _rate_limit_lock = Lock()
 
+PUBLIC_RESOURCE_PATH_PREFIXES = (
+    "/api/files/",
+    "/api/public-files/",
+)
+
 
 def _rate_limit_key(client_ip: str, path: str) -> str:
     return f"{client_ip}:{path}"
@@ -239,7 +244,8 @@ async def security_headers_middleware(request: Request, call_next):
     response.headers.setdefault("X-Frame-Options", "DENY")
     response.headers.setdefault("Referrer-Policy", "strict-origin-when-cross-origin")
     response.headers.setdefault("Permissions-Policy", "camera=(), microphone=(), geolocation=()")
-    response.headers.setdefault("Cross-Origin-Resource-Policy", "same-site")
+    resource_policy = "cross-origin" if request.url.path.startswith(PUBLIC_RESOURCE_PATH_PREFIXES) else "same-site"
+    response.headers.setdefault("Cross-Origin-Resource-Policy", resource_policy)
     response.headers.setdefault("Cross-Origin-Opener-Policy", "same-origin")
     response.headers.setdefault("Cross-Origin-Embedder-Policy", "unsafe-none")
     if request.url.scheme == "https":
