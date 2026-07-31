@@ -10,7 +10,11 @@ def _resolve_upload_root() -> Path:
     if explicit_root:
         return Path(explicit_root)
 
-    render_disk_path = (os.getenv("RENDER_DISK_PATH") or "").strip()
+    render_disk_path = (
+        os.getenv("RENDER_DISK_PATH")
+        or os.getenv("RENDER_DISK_MOUNT_PATH")
+        or ""
+    ).strip()
     if render_disk_path:
         return Path(render_disk_path) / "uploaded_objects"
 
