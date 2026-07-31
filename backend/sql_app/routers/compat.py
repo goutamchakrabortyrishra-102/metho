@@ -319,9 +319,14 @@ def _resolve_user_by_member_code(db: Session, member_code: str) -> User | None:
     by_id = db.query(User).filter(User.id == ref).first()
     if by_id:
         return by_id
-    for user in db.query(User).all():
-        if member_code_for_user(user.id) == ref:
-            return user
+
+    # Legacy codes can be in MTH-XXXXXX form mapped from the first 6 chars of user id.
+    if ref.startswith("MTH-"):
+        prefix = ref.replace("-", "")[3:9]
+        if prefix:
+            by_prefix = db.query(User).filter(User.id.ilike(f"{prefix}%")).order_by(User.created_at.asc()).first()
+            if by_prefix:
+                return by_prefix
     return None
 
 
@@ -368,10 +373,23 @@ def _resolve_member_user_by_ref(db: Session, member_ref: str) -> User | None:
     if by_email and getattr(by_email, "role", "") == "member":
         return by_email
 
-    # Member code format in this stack is derived from user id.
-    for user in db.query(User).filter(User.role == "member").all():
-        if member_code_for_user(user.id).upper() == ref:
-            return user
+    # Member code format in this stack is MAU***** for SQL ids and MTH-XXXXXX for legacy ids.
+    if ref.startswith("MAU"):
+        by_member_id = db.query(User).filter(User.id == ref, User.role == "member").first()
+        if by_member_id:
+            return by_member_id
+
+    if ref.startswith("MTH-"):
+        prefix = ref.replace("-", "")[3:9]
+        if prefix:
+            by_legacy_prefix = (
+                db.query(User)
+                .filter(User.role == "member", User.id.ilike(f"{prefix}%"))
+                .order_by(User.created_at.asc())
+                .first()
+            )
+            if by_legacy_prefix:
+                return by_legacy_prefix
     return None
 
 
