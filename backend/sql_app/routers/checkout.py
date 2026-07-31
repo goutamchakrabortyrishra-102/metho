@@ -61,8 +61,11 @@ def _resolve_uploaded_file(path: str) -> Path | None:
         return None
     for root in _candidate_upload_roots():
         candidate = root / safe
-        if candidate.exists() and candidate.is_file():
-            return candidate
+        try:
+            if candidate.exists() and candidate.is_file() and os.access(candidate, os.R_OK):
+                return candidate
+        except Exception:
+            continue
     return None
 
 
@@ -236,7 +239,13 @@ def get_file(path: str):
     file_path = _resolve_uploaded_file(path)
     if not file_path:
         raise HTTPException(status_code=404, detail="File not found")
-    return FileResponse(file_path)
+    try:
+        # Guard against unreadable files or invalid mount points producing 500s.
+        with file_path.open("rb") as f:
+            f.read(1)
+        return FileResponse(str(file_path))
+    except Exception:
+        raise HTTPException(status_code=404, detail="File not found")
 
 
 @router.post("/orders")
