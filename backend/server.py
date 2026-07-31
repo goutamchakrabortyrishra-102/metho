@@ -4,7 +4,7 @@ Powered by METHO Logistics Pvt. Ltd.
 FastAPI + MongoDB + JWT Auth
 """
 from fastapi import FastAPI, APIRouter, HTTPException, Depends, status, Header, UploadFile, File, Response, Body
-from fastapi.responses import StreamingResponse
+from fastapi.responses import StreamingResponse, FileResponse
 from dotenv import load_dotenv
 from starlette.middleware.cors import CORSMiddleware
 from motor.motor_asyncio import AsyncIOMotorClient
@@ -2761,40 +2761,26 @@ async def upload_image(
 # ===================== PUBLIC FILE SERVE =====================
 @api_router.get("/files/{path:path}")
 async def serve_file(path: str):
-    # Product images are publicly viewable (used in shop, landing page)
-    # For private files, add auth check here
     requested = str(path or "").strip().lstrip("/")
     if not requested or ".." in requested.split("/"):
         raise HTTPException(status_code=404, detail="File not found")
 
-    try:
-        record = await db.files.find_one({"storage_path": requested, "is_deleted": False}, {"_id": 0})
-    except Exception:
-        record = None
-
-    # First attempt: storage abstraction.
-    try:
-        data, detected_type = get_object(requested)
-        media_type = (record or {}).get("content_type") or detected_type or mimetypes.guess_type(requested)[0] or "application/octet-stream"
-        return Response(content=data, media_type=media_type)
-    except HTTPException:
-        pass
-    except Exception:
-        pass
-
-    # Fallback: direct local filesystem lookup for legacy paths.
-    candidates = [
-        LOCAL_STORAGE_DIR / requested,
-        LOCAL_STORAGE_DIR / requested.replace("product_images/", f"{APP_NAME}/product-images/"),
-        LOCAL_STORAGE_DIR / requested.replace("branding_images/", f"{APP_NAME}/branding/"),
-        LOCAL_STORAGE_DIR / requested.replace("payment_screenshots/", f"{APP_NAME}/payment-screenshots/"),
+    candidate_paths = [
+        requested,
+        requested.replace("product_images/", f"{APP_NAME}/product-images/"),
+        requested.replace("payment_screenshots/", f"{APP_NAME}/payment-screenshots/"),
+        requested.replace("branding_images/", f"{APP_NAME}/branding_images/"),
     ]
-    for fp in candidates:
-        try:
-            if fp.exists() and fp.is_file():
-                return Response(content=fp.read_bytes(), media_type=mimetypes.guess_type(str(fp))[0] or "application/octet-stream")
-        except Exception:
+
+    seen = set()
+    for rel_path in candidate_paths:
+        rel = str(rel_path or "").strip().lstrip("/")
+        if not rel or rel in seen:
             continue
+        seen.add(rel)
+        fp = LOCAL_STORAGE_DIR / rel
+        if fp.exists() and fp.is_file():
+            return FileResponse(fp, media_type=mimetypes.guess_type(str(fp))[0] or "application/octet-stream")
 
     raise HTTPException(status_code=404, detail="File not found")
 
