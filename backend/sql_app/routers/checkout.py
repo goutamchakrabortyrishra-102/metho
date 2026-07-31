@@ -86,6 +86,7 @@ def _resolve_uploaded_file(path: str) -> Path | None:
     if safe.startswith("branding_images/") and filename:
         rel_candidates.extend([
             f"metho-aay-upay/branding_images/{filename}",
+            f"metho-aay-upay/branding-images/{filename}",
             f"branding-images/{filename}",
         ])
 
@@ -95,6 +96,47 @@ def _resolve_uploaded_file(path: str) -> Path | None:
             try:
                 if candidate.exists() and candidate.is_file() and os.access(candidate, os.R_OK):
                     return candidate
+            except Exception:
+                continue
+
+    if filename:
+        fallback_rel_prefixes = []
+        if safe.startswith("product_images/"):
+            fallback_rel_prefixes = [
+                "product_images",
+                "product-images",
+                "metho-aay-upay/product_images",
+                "metho-aay-upay/product-images",
+            ]
+        elif safe.startswith("payment_screenshots/"):
+            fallback_rel_prefixes = [
+                "payment_screenshots",
+                "payment-screenshots",
+                "metho-aay-upay/payment_screenshots",
+                "metho-aay-upay/payment-screenshots",
+            ]
+        elif safe.startswith("branding_images/"):
+            fallback_rel_prefixes = [
+                "branding_images",
+                "branding-images",
+                "metho-aay-upay/branding_images",
+                "metho-aay-upay/branding-images",
+            ]
+
+        for root in _candidate_upload_roots():
+            for rel_prefix in fallback_rel_prefixes:
+                candidate = root / rel_prefix / filename
+                try:
+                    if candidate.exists() and candidate.is_file() and os.access(candidate, os.R_OK):
+                        return candidate
+                except Exception:
+                    continue
+
+            # Final recovery path for legacy/moved folders.
+            try:
+                for candidate in root.rglob(filename):
+                    if candidate.exists() and candidate.is_file() and os.access(candidate, os.R_OK):
+                        return candidate
             except Exception:
                 continue
     return None
