@@ -443,21 +443,16 @@ export default function PartnerShopPage() {
             </div>
             <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
               {[0, 1, 2, 3, 4].map((slot) => {
-                const fallbackProduct = bestFiveProducts[slot];
-                const imageSrc = featuredImages[slot] || featuredImages[0] || getProductImageUrl(fallbackProduct) || heroBannerSrc || "";
+                const imageSrc = featuredImages[slot] || "";
                 return (
                 <div key={`best-product-${slot}`} className="aspect-square rounded-lg overflow-hidden border border-border bg-slate-100 relative">
                   {imageSrc ? (
                     <img
                       src={imageSrc}
-                      alt={fallbackProduct?.name || `Featured ${slot + 1}`}
+                      alt={`Featured ${slot + 1}`}
                       className="w-full h-full object-cover"
                       onError={(e) => {
-                        applyImageFallback(
-                          e,
-                          featuredImages[slot] || featuredImages[0] || getProductImageUrl(fallbackProduct) || heroBannerSrc || "",
-                          ""
-                        );
+                        applyImageFallback(e, "", "");
                       }}
                     />
                   ) : (
@@ -465,11 +460,6 @@ export default function PartnerShopPage() {
                       Upload Image
                     </div>
                   )}
-                  {fallbackProduct?.name ? (
-                    <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/70 to-transparent px-2 py-2">
-                      <p className="text-white text-[11px] font-semibold truncate">{fallbackProduct.name}</p>
-                    </div>
-                  ) : null}
                 </div>
               );
             })}
