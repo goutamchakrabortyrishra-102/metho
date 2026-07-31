@@ -65,13 +65,36 @@ def _resolve_uploaded_file(path: str) -> Path | None:
     safe = str(path or "").replace("\\", "/").lstrip("/")
     if not safe or ".." in safe.split("/"):
         return None
+
+    parts = safe.split("/")
+    filename = parts[-1] if parts else ""
+    rel_candidates = [safe]
+
+    # Legacy/full-backend layouts used different subfolders for the same files.
+    if safe.startswith("product_images/") and filename:
+        rel_candidates.extend([
+            f"metho-aay-upay/product-images/{filename}",
+            f"product-images/{filename}",
+        ])
+    if safe.startswith("payment_screenshots/") and filename:
+        rel_candidates.extend([
+            f"metho-aay-upay/payment-screenshots/{filename}",
+            f"payment-screenshots/{filename}",
+        ])
+    if safe.startswith("branding_images/") and filename:
+        rel_candidates.extend([
+            f"metho-aay-upay/branding_images/{filename}",
+            f"branding-images/{filename}",
+        ])
+
     for root in _candidate_upload_roots():
-        candidate = root / safe
-        try:
-            if candidate.exists() and candidate.is_file() and os.access(candidate, os.R_OK):
-                return candidate
-        except Exception:
-            continue
+        for rel in rel_candidates:
+            candidate = root / rel
+            try:
+                if candidate.exists() and candidate.is_file() and os.access(candidate, os.R_OK):
+                    return candidate
+            except Exception:
+                continue
     return None
 
 
