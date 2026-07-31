@@ -74,11 +74,13 @@ def _resolve_uploaded_file(path: str) -> Path | None:
     if safe.startswith("product_images/") and filename:
         rel_candidates.extend([
             f"metho-aay-upay/product-images/{filename}",
+            f"metho-aay-upay/product_images/{filename}",
             f"product-images/{filename}",
         ])
     if safe.startswith("payment_screenshots/") and filename:
         rel_candidates.extend([
             f"metho-aay-upay/payment-screenshots/{filename}",
+            f"metho-aay-upay/payment_screenshots/{filename}",
             f"payment-screenshots/{filename}",
         ])
     if safe.startswith("branding_images/") and filename:

@@ -8,6 +8,7 @@ import { Logo } from "@/components/Logo";
 import api from "@/services/api";
 import { methoStoreApi, normalizeCollection } from "@/services/methoStore";
 import { useSettings } from "@/contexts/SettingsContext";
+import { resolveAssetUrl } from "@/lib/utils";
 
 function ReferralEntryStrip() {
   const [params] = useSearchParams();
@@ -358,7 +359,7 @@ const Hero = () => {
             >
               <div className="aspect-[4/3] bg-slate-100 overflow-hidden">
                 <img
-                  src={p?.image_url || FALLBACK_PRODUCT_IMG}
+                  src={resolveAssetUrl(p?.image_url) || FALLBACK_PRODUCT_IMG}
                   alt={p?.name || "METHO Product"}
                   className="w-full h-full object-cover group-hover:scale-[1.03] transition-transform duration-300"
                   loading="lazy"
@@ -731,7 +732,7 @@ const Products = () => {
             <div key={p.id} className="group bg-white/95 backdrop-blur rounded-2xl overflow-hidden border border-emerald-900/10 hover:shadow-xl hover:shadow-emerald-900/10 transition-all" data-testid={`product-card-${i}`}>
               <div className="aspect-square overflow-hidden bg-gradient-to-br from-white to-emerald-50/40">
                 <img
-                  src={p.image_url || FALLBACK_PRODUCT_IMG}
+                  src={resolveAssetUrl(p.image_url) || FALLBACK_PRODUCT_IMG}
                   alt={p.name}
                   className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
                   onError={(e) => { if (e.currentTarget.src !== FALLBACK_PRODUCT_IMG) e.currentTarget.src = FALLBACK_PRODUCT_IMG; }}
