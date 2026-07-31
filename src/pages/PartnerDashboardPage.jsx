@@ -17,15 +17,36 @@ const PARTNER_IMAGE_MAX_BYTES = 200 * 1024;
 const PARTNER_IMAGE_MAX_TEXT = "200KB";
 const PDF_PREVIEW = "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 400 400'><rect width='400' height='400' fill='%23f1f5f9'/><rect x='80' y='50' width='240' height='300' rx='14' fill='%23ffffff' stroke='%2394a3b8' stroke-width='4'/><text x='200' y='190' text-anchor='middle' fill='%23dc2626' font-size='46' font-family='Arial' font-weight='bold'>PDF</text><text x='200' y='228' text-anchor='middle' fill='%23334155' font-size='16' font-family='Arial'>Tap to Open</text></svg>";
 
+const isLikelyAssetRef = (value) => {
+  const s = String(value || "").trim();
+  if (!s) return false;
+  if (s.startsWith("http://") || s.startsWith("https://") || s.startsWith("data:") || s.startsWith("blob:")) return true;
+  if (s.startsWith("/")) return true;
+  return /(media\/|uploads\/|static\/|\.(png|jpe?g|webp|gif|svg|pdf)(\?|$))/i.test(s);
+};
+
+const firstValidAssetRef = (...values) => {
+  for (const value of values) {
+    if (typeof value === "string" && isLikelyAssetRef(value)) return resolveAssetUrl(value);
+  }
+  return "";
+};
+
 const pickImageUrl = (value) => {
   if (!value) return "";
-  if (typeof value === "string") return resolveAssetUrl(value);
+  if (typeof value === "string") return firstValidAssetRef(value);
   if (typeof value === "object") {
-    return resolveAssetUrl(
+    return firstValidAssetRef(
       value.url ||
       value.image_url ||
       value.featured_image_url ||
       value.path ||
+      value.file_url ||
+      value.public_url ||
+      value.secure_url ||
+      value.src ||
+      value.image ||
+      value.link ||
       ""
     );
   }
@@ -34,7 +55,13 @@ const pickImageUrl = (value) => {
 
 const normalizeFeaturedImages = (raw) => {
   const source = raw?.items ?? raw?.featured_images ?? raw;
-  if (Array.isArray(source)) return source.map((u) => pickImageUrl(u)).filter(Boolean).slice(0, 5);
+  if (Array.isArray(source)) {
+    const items = ["", "", "", "", ""];
+    for (let idx = 0; idx < Math.min(5, source.length); idx += 1) {
+      items[idx] = pickImageUrl(source[idx]);
+    }
+    return items;
+  }
   if (source && typeof source === "object") {
     const ordered = [1, 2, 3, 4, 5].map((slot) => (
       source[String(slot)] ||
@@ -42,11 +69,13 @@ const normalizeFeaturedImages = (raw) => {
       source[`featured_${slot}`] ||
       source[`featured_${slot}_url`] ||
       source[`image_${slot}`] ||
+      source[`slot_${slot}`] ||
+      source[`slot_${slot}_url`] ||
       ""
     ));
-    return ordered.map((u) => pickImageUrl(u)).filter(Boolean);
+    return ordered.map((u) => pickImageUrl(u));
   }
-  return [];
+  return ["", "", "", "", ""];
 };
 
 const getPdfUrl = (product) => {
@@ -345,7 +374,7 @@ export default function PartnerDashboardPage() {
       const { data } = await api.post("/partner/upload/shop-banner", fd, {
         headers: { "Content-Type": "multipart/form-data" },
       });
-      setShopBannerUrl(data?.url || "");
+      setShopBannerUrl(resolveAssetUrl(data?.url || ""));
       toast.success("Shop banner uploaded");
       loadAll();
     } catch (err) {
