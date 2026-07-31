@@ -150,12 +150,6 @@ def _set_product_hidden_flag(db: Session, product_id: str, hidden: bool) -> bool
 @router.get("/products")
 def list_products(db: Session = Depends(get_db)):
     products = db.query(Product).order_by(Product.created_at.desc()).all()
-    partner_products = (
-        db.query(PartnerProduct)
-        .filter(PartnerProduct.active.is_(True), PartnerProduct.approval_status == "approved")
-        .order_by(PartnerProduct.created_at.desc())
-        .all()
-    )
     meta_rows = db.query(ProductMeta).all()
     meta_map = {m.product_id: m for m in meta_rows}
     pricing_tier_map = _get_pricing_tier_map(db)
@@ -186,27 +180,6 @@ def list_products(db: Session = Depends(get_db)):
                 "stock": p.stock,
                 "product_type": (m.product_type if m else "metho"),
                 "image_url": (m.image_url if m else ""),
-                "pricing_tiers": pricing_tier_map.get(p.id, []),
-                "hidden": bool(hidden_map.get(p.id, False)),
-            }
-        )
-    for p in partner_products:
-        if bool(hidden_map.get(p.id, False)):
-            continue
-        out.append(
-            {
-                "id": p.id,
-                "product_code": _ensure_product_code(db, p.id, "associate_partner"),
-                "name": p.name,
-                "category": p.category,
-                "description": p.description,
-                "price": float(p.price),
-                "mrp": float(p.price),
-                "discount_percent": 0,
-                "gst_percent": 0,
-                "stock": p.stock,
-                "product_type": "associate_partner",
-                "image_url": p.image_url or "",
                 "pricing_tiers": pricing_tier_map.get(p.id, []),
                 "hidden": bool(hidden_map.get(p.id, False)),
             }

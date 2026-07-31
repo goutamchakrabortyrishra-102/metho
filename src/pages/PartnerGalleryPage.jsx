@@ -306,7 +306,7 @@ export default function PartnerGalleryPage() {
         .join(" ");
       return haystack.includes(q);
     }) : activeListings;
-    return source.slice(0, 5);
+    return source;
   }, [activeListings, gallerySearch]);
   const canDownloadPdf = user?.role === "partner";
 
