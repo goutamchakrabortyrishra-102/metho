@@ -51,15 +51,20 @@ const firstValidAssetRef = (...values) => {
   return "";
 };
 
-const getProductImageUrl = (product) => firstValidAssetRef(
-  product?.image_url,
-  product?.product_image_url,
-  product?.image,
-  product?.thumbnail_url,
-  product?.thumb_url,
-  product?.cover_url,
-  product?.photo_url
-);
+const isPdfUrl = (value) => /\.pdf($|\?)/i.test(String(value || ""));
+
+const getProductImageUrl = (product) => {
+  const url = firstValidAssetRef(
+    product?.image_url,
+    product?.product_image_url,
+    product?.image,
+    product?.thumbnail_url,
+    product?.thumb_url,
+    product?.cover_url,
+    product?.photo_url
+  );
+  return isPdfUrl(url) ? "" : url;
+};
 
 const getDisplayImage = (product, placeholder) => {
   const image = getProductImageUrl(product);
@@ -439,7 +444,7 @@ export default function PartnerShopPage() {
             <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
               {[0, 1, 2, 3, 4].map((slot) => {
                 const fallbackProduct = bestFiveProducts[slot];
-                const imageSrc = getProductImageUrl(fallbackProduct) || featuredImages[slot] || featuredImages[0] || heroBannerSrc || "";
+                const imageSrc = featuredImages[slot] || featuredImages[0] || getProductImageUrl(fallbackProduct) || heroBannerSrc || "";
                 return (
                 <div key={`best-product-${slot}`} className="aspect-square rounded-lg overflow-hidden border border-border bg-slate-100 relative">
                   {imageSrc ? (
@@ -450,7 +455,7 @@ export default function PartnerShopPage() {
                       onError={(e) => {
                         applyImageFallback(
                           e,
-                          getProductImageUrl(fallbackProduct) || featuredImages[slot] || featuredImages[0] || heroBannerSrc || "",
+                          featuredImages[slot] || featuredImages[0] || getProductImageUrl(fallbackProduct) || heroBannerSrc || "",
                           ""
                         );
                       }}
