@@ -433,7 +433,7 @@ export default function PartnerShopPage() {
             <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
               {[0, 1, 2, 3, 4].map((slot) => {
                 const fallbackProduct = bestFiveProducts[slot];
-                const imageSrc = getProductImageUrl(fallbackProduct) || featuredImages[slot] || featuredImages[0] || heroBannerSrc || placeholder || "";
+                const imageSrc = getProductImageUrl(fallbackProduct) || featuredImages[slot] || featuredImages[0] || heroBannerSrc || "";
                 return (
                 <div key={`best-product-${slot}`} className="aspect-square rounded-lg overflow-hidden border border-border bg-slate-100 relative">
                   {imageSrc ? (
@@ -445,7 +445,7 @@ export default function PartnerShopPage() {
                         applyImageFallback(
                           e,
                           getProductImageUrl(fallbackProduct) || featuredImages[slot] || featuredImages[0] || heroBannerSrc || "",
-                          placeholder || ""
+                          ""
                         );
                       }}
                     />
