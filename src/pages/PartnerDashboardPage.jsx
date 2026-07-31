@@ -78,6 +78,13 @@ const normalizeFeaturedImages = (raw) => {
   return ["", "", "", "", ""];
 };
 
+const mergeFeaturedBySlot = (current, slot, nextUrl) => {
+  const items = Array.isArray(current) ? [...current] : ["", "", "", "", ""];
+  while (items.length < 5) items.push("");
+  if (slot >= 1 && slot <= 5) items[slot - 1] = pickImageUrl(nextUrl);
+  return items.slice(0, 5);
+};
+
 const getPdfUrl = (product) => {
   if (!product) return "";
   if (product.pdf_url) return resolveAssetUrl(product.pdf_url);
@@ -138,7 +145,12 @@ export default function PartnerDashboardPage() {
     api.get("/settings").then(r => setSettings(r.data)).catch(() => setSettings(null));
     api.get("/partner/payment-profile").then(r => setPaymentProfile(r.data)).catch(() => setPaymentProfile(null));
     api.get("/partner/banner").then(r => setShopBannerUrl(resolveAssetUrl(r.data?.banner_url || ""))).catch(() => setShopBannerUrl(""));
-    api.get("/partner/featured-images").then(r => setFeaturedImages(normalizeFeaturedImages(r.data))).catch(() => setFeaturedImages(["", "", "", "", ""]));
+    api.get("/partner/featured-images").then(r => {
+      const normalized = normalizeFeaturedImages(r.data);
+      setFeaturedImages(normalized);
+    }).catch(() => {
+      // Keep current UI state if reload fails; avoid wiping freshly uploaded previews.
+    });
   };
 
   useEffect(() => {
@@ -398,7 +410,14 @@ export default function PartnerDashboardPage() {
       const { data } = await api.post(`/partner/upload/featured-image/${slot}`, fd, {
         headers: { "Content-Type": "multipart/form-data" },
       });
-      setFeaturedImages(normalizeFeaturedImages(data));
+      const normalized = normalizeFeaturedImages(data);
+      const hasAnyImage = normalized.some(Boolean);
+      if (hasAnyImage) {
+        setFeaturedImages(normalized);
+      } else {
+        const directUrl = data?.url || data?.image_url || data?.file_url || data?.path || "";
+        setFeaturedImages((prev) => mergeFeaturedBySlot(prev, slot, directUrl));
+      }
       toast.success(`Featured image ${slot} uploaded`);
       loadAll();
     } catch (err) {
