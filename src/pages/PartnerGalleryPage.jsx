@@ -15,7 +15,6 @@ import { resolveAssetUrl } from "@/lib/utils";
 import { Input } from "@/components/ui/input";
 
 const FALLBACK = "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 400 400'><rect width='400' height='400' fill='%23e2e8f0'/><text x='50%25' y='50%25' dominant-baseline='middle' text-anchor='middle' fill='%23475569' font-size='20' font-family='Arial'>No Image</text></svg>";
-const PDF_PREVIEW = "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 400 400'><rect width='400' height='400' fill='%23f1f5f9'/><rect x='80' y='50' width='240' height='300' rx='14' fill='%23ffffff' stroke='%2394a3b8' stroke-width='4'/><text x='200' y='190' text-anchor='middle' fill='%23dc2626' font-size='46' font-family='Arial' font-weight='bold'>PDF</text><text x='200' y='228' text-anchor='middle' fill='%23334155' font-size='16' font-family='Arial'>Tap to Open</text></svg>";
 
 const isLikelyAssetRef = (value) => {
   const s = String(value || "").trim();
@@ -49,7 +48,7 @@ const getPdfUrl = (product) => {
 const getDisplayImage = (product) => {
   if (product?.image_url) return resolveAssetUrl(product.image_url);
   if (product?.fallback_image_url) return resolveAssetUrl(product.fallback_image_url);
-  return getPdfUrl(product) ? PDF_PREVIEW : FALLBACK;
+  return FALLBACK;
 };
 
 const applyImageFallback = (event, fallbackUrl) => {

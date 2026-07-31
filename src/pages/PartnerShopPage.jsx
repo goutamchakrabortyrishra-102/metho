@@ -65,7 +65,6 @@ const getDisplayImage = (product, placeholder) => {
   const image = getProductImageUrl(product);
   if (!image && product?.fallback_image_url) return resolveAssetUrl(product.fallback_image_url);
   if (image) return image;
-  if (getPdfUrl(product)) return PDF_PREVIEW;
   return placeholder || "";
 };
 
@@ -210,10 +209,7 @@ export default function PartnerShopPage() {
   const productListings = useMemo(() => products.filter((item) => !isServiceListing(item)), [products]);
   const serviceListings = useMemo(() => products.filter((item) => isServiceListing(item)), [products]);
   const featuredImages = useMemo(() => normalizeFeaturedImages(data?.featured_images), [data?.featured_images]);
-  const bestFiveProducts = useMemo(
-    () => productListings.filter((item) => !!getProductImageUrl(item)).slice(0, 5),
-    [productListings]
-  );
+  const bestFiveProducts = useMemo(() => productListings.slice(0, 5), [productListings]);
   const getStock = (product) => Math.max(0, Number(product?.stock ?? 0));
   const isBookNowRole = !user || ["member", "customer"].includes(String(user?.role || "").toLowerCase());
   const filteredProducts = useMemo(() => {
@@ -306,6 +302,7 @@ export default function PartnerShopPage() {
   if (!data) return <div className="min-h-screen flex items-center justify-center text-slate-500">Loading shop...</div>;
 
   const addr = [p.address, p.city, p.state, p.pincode].filter(Boolean).join(", ");
+  const heroBannerSrc = p?.banner_url || featuredImages[0] || getProductImageUrl(bestFiveProducts[0]) || p?.logo_url || "";
 
   return (
     <div className="min-h-screen bg-slate-50 pb-24 md:pb-8" data-testid="partner-shop-page">
@@ -320,14 +317,14 @@ export default function PartnerShopPage() {
 
       {/* SHOP HERO */}
       <div className="bg-gradient-to-br from-emerald-900 to-emerald-950 text-white relative overflow-hidden">
-        {p.banner_url ? (
+        {heroBannerSrc ? (
           <div className="absolute inset-0 opacity-25">
             <img
-              src={p.banner_url}
+              src={heroBannerSrc}
               alt="Shop banner"
               className="w-full h-full object-cover"
               onError={(e) => {
-                applyImageFallback(e, featuredImages[0] || p.logo_url || "", placeholder || "");
+                applyImageFallback(e, featuredImages[0] || getProductImageUrl(bestFiveProducts[0]) || p.logo_url || "", placeholder || "");
               }}
             />
             <div className="absolute inset-0 bg-emerald-950/55" />
@@ -436,7 +433,7 @@ export default function PartnerShopPage() {
             <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
               {[0, 1, 2, 3, 4].map((slot) => {
                 const fallbackProduct = bestFiveProducts[slot];
-                const imageSrc = featuredImages[slot] || getDisplayImage(fallbackProduct, placeholder);
+                const imageSrc = getProductImageUrl(fallbackProduct) || featuredImages[slot] || featuredImages[0] || heroBannerSrc || placeholder || "";
                 return (
                 <div key={`best-product-${slot}`} className="aspect-square rounded-lg overflow-hidden border border-border bg-slate-100 relative">
                   {imageSrc ? (
@@ -447,8 +444,8 @@ export default function PartnerShopPage() {
                       onError={(e) => {
                         applyImageFallback(
                           e,
-                          fallbackProduct?.fallback_image_url || featuredImages[slot] || "",
-                          placeholder || PDF_PREVIEW
+                          getProductImageUrl(fallbackProduct) || featuredImages[slot] || featuredImages[0] || heroBannerSrc || "",
+                          placeholder || ""
                         );
                       }}
                     />
@@ -551,8 +548,8 @@ export default function PartnerShopPage() {
                         onError={(e) => {
                           applyImageFallback(
                             e,
-                            product?.fallback_image_url || featuredImages[0] || "",
-                            placeholder || PDF_PREVIEW
+                            getProductImageUrl(product) || product?.fallback_image_url || featuredImages[0] || heroBannerSrc || "",
+                            placeholder || ""
                           );
                         }}
                       />
@@ -732,8 +729,8 @@ export default function PartnerShopPage() {
                       onError={(e) => {
                         applyImageFallback(
                           e,
-                          service?.fallback_image_url || featuredImages[0] || "",
-                          placeholder || PDF_PREVIEW
+                            getProductImageUrl(service) || service?.fallback_image_url || featuredImages[0] || heroBannerSrc || "",
+                            placeholder || ""
                         );
                       }}
                     />
