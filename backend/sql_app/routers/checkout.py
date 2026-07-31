@@ -3,13 +3,14 @@ import uuid
 import base64
 import hashlib
 import hmac
+import mimetypes
 from types import SimpleNamespace
 import urllib.error
 import urllib.request
 from pathlib import Path
 import os
 from fastapi import APIRouter, Depends, File, Header, HTTPException, UploadFile
-from fastapi.responses import FileResponse
+from fastapi.responses import Response
 from sqlalchemy.orm import Session
 
 from ..database import get_db
@@ -240,10 +241,10 @@ def get_file(path: str):
     if not file_path:
         raise HTTPException(status_code=404, detail="File not found")
     try:
-        # Guard against unreadable files or invalid mount points producing 500s.
-        with file_path.open("rb") as f:
-            f.read(1)
-        return FileResponse(str(file_path))
+        # Read and return bytes directly to avoid sendfile/mount incompatibility on some hosts.
+        content = file_path.read_bytes()
+        media_type = mimetypes.guess_type(str(file_path))[0] or "application/octet-stream"
+        return Response(content=content, media_type=media_type)
     except Exception:
         raise HTTPException(status_code=404, detail="File not found")
 
