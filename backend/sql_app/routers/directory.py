@@ -1,11 +1,39 @@
+import json
+
 from sqlalchemy import func
 from sqlalchemy.orm import Session
 from fastapi import APIRouter, Depends, HTTPException
 
 from ..database import get_db
-from ..models import AssociatePartner, PartnerProduct
+from ..models import AppSetting, AssociatePartner, PartnerProduct
 
 router = APIRouter(prefix="/api", tags=["directory"])
+
+
+def _partner_banner_and_featured(db: Session, partner_id: str) -> tuple[str, list[str]]:
+    banner_url = ""
+    featured_items = ["", "", "", "", ""]
+
+    banner_row = db.query(AppSetting).filter(AppSetting.key == f"partner_banner:{partner_id}").first()
+    if banner_row and banner_row.value_json:
+        try:
+            banner_payload = json.loads(banner_row.value_json or "{}")
+            banner_url = str(banner_payload.get("banner_url") or "").strip()
+        except Exception:
+            banner_url = ""
+
+    featured_row = db.query(AppSetting).filter(AppSetting.key == f"partner_featured_images:{partner_id}").first()
+    if featured_row and featured_row.value_json:
+        try:
+            featured_payload = json.loads(featured_row.value_json or "{}")
+            raw_items = featured_payload.get("items") if isinstance(featured_payload, dict) else []
+            if isinstance(raw_items, list):
+                for idx in range(min(5, len(raw_items))):
+                    featured_items[idx] = str(raw_items[idx] or "").strip()
+        except Exception:
+            featured_items = ["", "", "", "", ""]
+
+    return banner_url, featured_items
 
 
 def _partner_to_dict(p: AssociatePartner):
@@ -110,19 +138,27 @@ def partner_public_page(partner_code: str, db: Session = Depends(get_db)):
     if not partner:
         raise HTTPException(status_code=404, detail="Partner not found")
 
+    banner_url, featured_items = _partner_banner_and_featured(db, partner.id)
+
     products = (
         db.query(PartnerProduct)
         .filter(
             PartnerProduct.partner_id == partner.id,
             PartnerProduct.active.is_(True),
-            PartnerProduct.approval_status.in_(["approved", "pending", None]),
+            PartnerProduct.approval_status == "approved",
+            PartnerProduct.image_url.isnot(None),
+            PartnerProduct.image_url != "",
         )
         .order_by(PartnerProduct.created_at.desc())
         .all()
     )
 
+    partner_doc = _partner_to_dict(partner)
+    partner_doc["banner_url"] = banner_url
+
     return {
-        "partner": _partner_to_dict(partner),
+        "partner": partner_doc,
+        "featured_images": {"items": featured_items},
         "products": [
             {
                 "id": p.id,

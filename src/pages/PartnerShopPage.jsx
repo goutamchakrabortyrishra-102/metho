@@ -188,7 +188,10 @@ export default function PartnerShopPage() {
   const productListings = useMemo(() => products.filter((item) => !isServiceListing(item)), [products]);
   const serviceListings = useMemo(() => products.filter((item) => isServiceListing(item)), [products]);
   const featuredImages = useMemo(() => normalizeFeaturedImages(data?.featured_images), [data?.featured_images]);
-  const bestFiveProducts = useMemo(() => productListings.slice(0, 5), [productListings]);
+  const bestFiveProducts = useMemo(
+    () => productListings.filter((item) => !!getProductImageUrl(item)).slice(0, 5),
+    [productListings]
+  );
   const getStock = (product) => Math.max(0, Number(product?.stock ?? 0));
   const isBookNowRole = !user || ["member", "customer"].includes(String(user?.role || "").toLowerCase());
   const filteredProducts = useMemo(() => {
