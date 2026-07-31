@@ -8,6 +8,7 @@ import { useSettings } from "@/contexts/SettingsContext";
 import AddProductDialog from "@/components/AddProductDialog";
 import UpiPaymentDialog from "@/components/UpiPaymentDialog";
 import { Button } from "@/components/ui/button";
+import { resolveAssetUrl } from "@/lib/utils";
 
 const normalizeCategories = (value) => {
   if (Array.isArray(value)) return value;
@@ -181,7 +182,16 @@ export default function ProductsPage() {
         </div>
       ) : null}
       <div className="aspect-square overflow-hidden bg-secondary relative">
-        <img src={p.image_url || undefined} alt={p.name} className="w-full h-full object-cover group-hover:scale-105 transition-transform" />
+        <img
+          src={resolveAssetUrl(p.image_url) || placeholder || undefined}
+          alt={p.name}
+          className="w-full h-full object-cover group-hover:scale-105 transition-transform"
+          onError={(e) => {
+            if (placeholder && e.currentTarget.src !== placeholder) {
+              e.currentTarget.src = placeholder;
+            }
+          }}
+        />
         <span className={
           "absolute top-2 left-2 text-[9px] font-bold uppercase tracking-widest px-2 py-1 rounded-full " +
           (p.product_type === "associate_partner"
