@@ -1,5 +1,10 @@
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
+from starlette.middleware.trustedhost import TrustedHostMiddleware
+from starlette.responses import JSONResponse
+from collections import defaultdict, deque
+from threading import Lock
+import os
 import logging
 import time
 
@@ -9,6 +14,96 @@ from .routers import auth, checkout, commerce, compat, directory, health, partne
 from .security import hash_password
 
 logger = logging.getLogger(__name__)
+
+
+def _csv_env(name: str, default: list[str]) -> list[str]:
+    raw = (os.getenv(name, "") or "").strip()
+    if not raw:
+        return default
+    values = [item.strip() for item in raw.split(",")]
+    return [item for item in values if item]
+
+
+def _int_env(name: str, default: int) -> int:
+    try:
+        value = int((os.getenv(name, "") or "").strip())
+        return value if value > 0 else default
+    except Exception:
+        return default
+
+
+DEFAULT_CORS_ORIGINS = [
+    "https://methoaayupay.com",
+    "https://www.methoaayupay.com",
+    "https://metho-bmz.pages.dev",
+    "https://*.metho-bmz.pages.dev",
+    "http://localhost:3000",
+    "http://127.0.0.1:3000",
+]
+DEFAULT_ALLOWED_HOSTS = [
+    "localhost",
+    "127.0.0.1",
+    "metho-backend.onrender.com",
+    "*.onrender.com",
+    "methoaayupay.com",
+    "www.methoaayupay.com",
+    "*.metho-bmz.pages.dev",
+]
+
+CORS_ALLOW_ORIGINS = _csv_env("CORS_ALLOW_ORIGINS", DEFAULT_CORS_ORIGINS)
+ALLOWED_HOSTS = _csv_env("ALLOWED_HOSTS", DEFAULT_ALLOWED_HOSTS)
+
+# Request-window limiter for brute-force and upload abuse mitigation.
+RATE_LIMIT_WINDOW_SECONDS = _int_env("RATE_LIMIT_WINDOW_SECONDS", 60)
+RATE_LIMIT_LOGIN = _int_env("RATE_LIMIT_LOGIN", 20)
+RATE_LIMIT_REGISTER = _int_env("RATE_LIMIT_REGISTER", 10)
+RATE_LIMIT_PASSWORD = _int_env("RATE_LIMIT_PASSWORD", 8)
+RATE_LIMIT_UPLOAD = _int_env("RATE_LIMIT_UPLOAD", 30)
+
+SENSITIVE_RATE_LIMITS: list[tuple[str, int]] = [
+    ("/api/login", RATE_LIMIT_LOGIN),
+    ("/api/auth/login", RATE_LIMIT_LOGIN),
+    ("/api/register", RATE_LIMIT_REGISTER),
+    ("/api/auth/register", RATE_LIMIT_REGISTER),
+    ("/api/auth/forgot-password", RATE_LIMIT_PASSWORD),
+    ("/api/auth/reset-password", RATE_LIMIT_PASSWORD),
+    ("/api/upload/", RATE_LIMIT_UPLOAD),
+    ("/api/partner/upload/", RATE_LIMIT_UPLOAD),
+    ("/api/admin/upload/", RATE_LIMIT_UPLOAD),
+]
+
+_rate_limit_store: dict[str, deque[float]] = defaultdict(deque)
+_rate_limit_lock = Lock()
+
+
+def _rate_limit_key(client_ip: str, path: str) -> str:
+    return f"{client_ip}:{path}"
+
+
+def _match_rate_limit(path: str) -> tuple[str, int] | None:
+    for prefix, limit in SENSITIVE_RATE_LIMITS:
+        if path == prefix or path.startswith(prefix):
+            return prefix, limit
+    return None
+
+
+def _is_rate_limited(client_ip: str, path: str, now_ts: float) -> tuple[bool, int]:
+    matched = _match_rate_limit(path)
+    if not matched:
+        return False, 0
+    prefix, limit = matched
+    key = _rate_limit_key(client_ip, prefix)
+    window_start = now_ts - RATE_LIMIT_WINDOW_SECONDS
+
+    with _rate_limit_lock:
+        bucket = _rate_limit_store[key]
+        while bucket and bucket[0] < window_start:
+            bucket.popleft()
+        if len(bucket) >= limit:
+            retry_after = max(1, int(bucket[0] + RATE_LIMIT_WINDOW_SECONDS - now_ts))
+            return True, retry_after
+        bucket.append(now_ts)
+    return False, 0
 
 
 def _seed_demo_admin():
@@ -112,13 +207,44 @@ def _initialize_database_with_retry(max_attempts: int = 8, delay_seconds: int = 
 
 app = FastAPI(title="METHO AAY-UPAY ERP v3.0 (SQL Starter)")
 
+app.add_middleware(TrustedHostMiddleware, allowed_hosts=ALLOWED_HOSTS)
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=CORS_ALLOW_ORIGINS,
+    allow_origin_regex=r"https://([a-z0-9-]+\.)*metho-bmz\.pages\.dev",
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+
+@app.middleware("http")
+async def rate_limit_middleware(request: Request, call_next):
+    client_ip = request.client.host if request.client and request.client.host else "unknown"
+    limited, retry_after = _is_rate_limited(client_ip, request.url.path, time.time())
+    if limited:
+        return JSONResponse(
+            status_code=429,
+            headers={"Retry-After": str(retry_after)},
+            content={"detail": "Too many requests, please try again shortly."},
+        )
+    return await call_next(request)
+
+
+@app.middleware("http")
+async def security_headers_middleware(request: Request, call_next):
+    response = await call_next(request)
+    response.headers.setdefault("X-Content-Type-Options", "nosniff")
+    response.headers.setdefault("X-Frame-Options", "DENY")
+    response.headers.setdefault("Referrer-Policy", "strict-origin-when-cross-origin")
+    response.headers.setdefault("Permissions-Policy", "camera=(), microphone=(), geolocation=()")
+    response.headers.setdefault("Cross-Origin-Resource-Policy", "same-site")
+    response.headers.setdefault("Cross-Origin-Opener-Policy", "same-origin")
+    response.headers.setdefault("Cross-Origin-Embedder-Policy", "unsafe-none")
+    if request.url.scheme == "https":
+        response.headers.setdefault("Strict-Transport-Security", "max-age=31536000; includeSubDomains; preload")
+    return response
 
 app.include_router(health.router)
 app.include_router(auth.router)
