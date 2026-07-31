@@ -123,9 +123,13 @@ const isServiceListing = (item) => {
 
 const normalizePartnerPayload = (payload) => {
   const partner = payload?.partner || {};
+  const featuredImages = normalizeFeaturedImages(payload?.featured_images || payload?.partner?.featured_images);
+  const bannerFallback = firstValidAssetRef(partner?.banner_url, partner?.shop_banner_url, partner?.banner, partner?.cover_url);
+  const logoFallback = firstValidAssetRef(partner?.logo_url, partner?.logo, partner?.shop_logo_url);
+  const fallbackPool = [...featuredImages, bannerFallback, logoFallback].filter(Boolean);
   const products = Array.isArray(payload?.products) ? payload.products.map((item) => ({
     ...item,
-    image_url: getProductImageUrl(item),
+    image_url: getProductImageUrl(item) || fallbackPool[0] || "",
     pdf_url: getPdfUrl(item),
   })) : [];
   return {
@@ -136,7 +140,7 @@ const normalizePartnerPayload = (payload) => {
       banner_url: firstValidAssetRef(partner?.banner_url, partner?.shop_banner_url, partner?.banner, partner?.cover_url) || firstValidAssetRef(partner?.logo_url, partner?.logo, partner?.shop_logo_url),
     },
     products,
-    featured_images: normalizeFeaturedImages(payload?.featured_images || payload?.partner?.featured_images),
+    featured_images: featuredImages,
   };
 };
 
@@ -204,10 +208,7 @@ export default function PartnerShopPage() {
       return haystack.includes(q);
     });
   }, [productListings, productSearch]);
-  const displayedProducts = useMemo(
-    () => filteredProducts.filter((p) => !!getProductImageUrl(p)).slice(0, 5),
-    [filteredProducts]
-  );
+  const displayedProducts = useMemo(() => filteredProducts.slice(0, 5), [filteredProducts]);
   const filteredServices = useMemo(() => {
     const q = serviceSearch.trim().toLowerCase();
     if (!q) return serviceListings;

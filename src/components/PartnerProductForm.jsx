@@ -180,15 +180,6 @@ export default function PartnerProductForm({ product, onSaved, disabled = false,
       if (product?.id) saved = await api.put(`/partner/products/${product.id}`, payload);
       else saved = await api.post("/partner/products", payload);
 
-      const productId = product?.id || saved?.data?.id || saved?.data?.product_id;
-      if (payload.pdf_url && productId) {
-        await api.put(`/products/${productId}/pdfs`, {
-          pdf_urls: [payload.pdf_url],
-          links: [payload.pdf_url],
-          urls: [payload.pdf_url],
-        }).catch(() => {});
-      }
-
       toast.success(product?.id ? "Product updated and live" : "Product uploaded and live in gallery");
       setOpen(false);
       onSaved?.();

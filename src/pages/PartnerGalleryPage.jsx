@@ -78,12 +78,15 @@ const normalizeFeaturedImages = (raw) => {
 const normalizePartnerPayload = (payload) => {
   const partner = payload?.partner || {};
   const featuredImages = normalizeFeaturedImages(payload?.featured_images || payload?.partner?.featured_images);
+  const partnerBanner = resolveAssetUrl(partner?.banner_url || "");
+  const partnerLogo = resolveAssetUrl(partner?.logo_url || "");
+  const fallbackPool = [...featuredImages, partnerBanner, partnerLogo].filter(Boolean);
   const products = Array.isArray(payload?.products)
     ? payload.products.map((item, index) => {
       const resolvedImage = resolveAssetUrl(item?.image_url || "");
       return {
         ...item,
-        image_url: resolvedImage || featuredImages[index % Math.max(1, featuredImages.length)] || "",
+        image_url: resolvedImage || fallbackPool[index % Math.max(1, fallbackPool.length)] || "",
         pdf_url: getPdfUrl(item),
       };
     })
