@@ -266,10 +266,27 @@ def _file_url(path: str, request: Request) -> str:
     raw = str(path or "").strip()
     if not raw:
         return ""
+    forwarded_proto = str(request.headers.get("x-forwarded-proto") or "").split(",", 1)[0].strip().lower()
+    forwarded_host = str(request.headers.get("x-forwarded-host") or "").split(",", 1)[0].strip()
+    public_base = str(os.getenv("METHO_PUBLIC_BASE_URL") or "").strip().rstrip("/")
+
     if raw.startswith("http://") or raw.startswith("https://"):
+        if raw.startswith("http://") and (forwarded_proto == "https" or public_base.startswith("https://")):
+            return f"https://{raw[len('http://') :]}"
         return raw
-    base = str(request.base_url).rstrip("/")
+
     normalized = raw if raw.startswith("/") else f"/{raw}"
+    if public_base:
+        return f"{public_base}{normalized}"
+    if forwarded_host:
+        scheme = forwarded_proto or str(request.url.scheme or "https")
+        if scheme not in {"http", "https"}:
+            scheme = "https"
+        return f"{scheme}://{forwarded_host}{normalized}"
+
+    base = str(request.base_url).rstrip("/")
+    if base.startswith("http://") and (forwarded_proto == "https" or ".onrender.com" in base):
+        base = f"https://{base[len('http://') :]}"
     return f"{base}{normalized}"
 
 

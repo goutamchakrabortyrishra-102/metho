@@ -138,7 +138,7 @@ export default function PartnerDashboardPage() {
     api.get("/settings").then(r => setSettings(r.data)).catch(() => setSettings(null));
     api.get("/partner/payment-profile").then(r => setPaymentProfile(r.data)).catch(() => setPaymentProfile(null));
     api.get("/partner/banner").then(r => setShopBannerUrl(resolveAssetUrl(r.data?.banner_url || ""))).catch(() => setShopBannerUrl(""));
-    api.get("/partner/featured-images").then(r => setFeaturedImages(normalizeFeaturedImages(r.data))).catch(() => setFeaturedImages([]));
+    api.get("/partner/featured-images").then(r => setFeaturedImages(normalizeFeaturedImages(r.data))).catch(() => setFeaturedImages(["", "", "", "", ""]));
   };
 
   useEffect(() => {
@@ -562,7 +562,19 @@ export default function PartnerDashboardPage() {
                       <p className="text-[10px] uppercase tracking-widest text-slate-500 font-bold mb-2">Image {slot}</p>
                       <div className="aspect-square rounded-lg overflow-hidden bg-white border border-border flex items-center justify-center">
                         {url ? (
-                          <img src={url} alt={`Featured ${slot}`} className="w-full h-full object-cover" />
+                          <img
+                            src={url}
+                            alt={`Featured ${slot}`}
+                            className="w-full h-full object-cover"
+                            onError={() => {
+                              setFeaturedImages((prev) => {
+                                const next = Array.isArray(prev) ? [...prev] : ["", "", "", "", ""];
+                                while (next.length < 5) next.push("");
+                                next[slot - 1] = "";
+                                return next;
+                              });
+                            }}
+                          />
                         ) : (
                           <Images className="w-8 h-8 text-slate-300" />
                         )}
