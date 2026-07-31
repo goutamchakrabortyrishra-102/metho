@@ -37,6 +37,7 @@ BRANDING_UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
 PARTNER_IMAGE_MAX_UPLOAD_BYTES = 200 * 1024
 GLOBAL_IMAGE_MAX_UPLOAD_BYTES = 200 * 1024
 PARTNER_PRODUCT_GALLERY_MAX_UPLOAD_BYTES = 5 * 1024 * 1024
+PRODUCT_IMAGE_MAX_UPLOAD_BYTES = 5 * 1024 * 1024
 
 
 def _save_image_upload(file: UploadFile, target_dir: Path, prefix: str, max_bytes: int = GLOBAL_IMAGE_MAX_UPLOAD_BYTES) -> str:
@@ -2935,8 +2936,8 @@ async def upload_product_image(file: UploadFile = File(...), current_user=Depend
     if ext not in {".jpg", ".jpeg", ".png", ".webp", ".gif"}:
         raise HTTPException(status_code=400, detail="Unsupported file type")
     content = await file.read()
-    if len(content) > GLOBAL_IMAGE_MAX_UPLOAD_BYTES:
-        raise HTTPException(status_code=400, detail="File too large (max 200KB)")
+    if len(content) > PRODUCT_IMAGE_MAX_UPLOAD_BYTES:
+        raise HTTPException(status_code=400, detail="File too large (max 5MB)")
     name = f"product-{uuid.uuid4().hex}{ext}"
     target = PRODUCT_UPLOAD_DIR / name
     target.write_bytes(content)

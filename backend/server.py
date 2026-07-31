@@ -2631,6 +2631,8 @@ ALLOWED_IMAGE_EXTS = {"jpg", "jpeg", "png", "webp", "gif"}
 MIME_BY_EXT = {"jpg": "image/jpeg", "jpeg": "image/jpeg", "png": "image/png", "webp": "image/webp", "gif": "image/gif"}
 MAX_UPLOAD_BYTES = 200 * 1024  # 200 KB
 MAX_UPLOAD_LABEL = "200KB"
+PRODUCT_IMAGE_MAX_UPLOAD_BYTES = 5 * 1024 * 1024
+PRODUCT_IMAGE_MAX_UPLOAD_LABEL = "5MB"
 
 @api_router.post("/admin/upload/product-image")
 async def upload_product_image(
@@ -2641,8 +2643,8 @@ async def upload_product_image(
     if ext not in ALLOWED_IMAGE_EXTS:
         raise HTTPException(status_code=400, detail=f"Only {', '.join(ALLOWED_IMAGE_EXTS)} allowed")
     data = await file.read()
-    if len(data) > MAX_UPLOAD_BYTES:
-        raise HTTPException(status_code=400, detail=f"File too large (max {MAX_UPLOAD_LABEL})")
+    if len(data) > PRODUCT_IMAGE_MAX_UPLOAD_BYTES:
+        raise HTTPException(status_code=400, detail=f"File too large (max {PRODUCT_IMAGE_MAX_UPLOAD_LABEL})")
     content_type = MIME_BY_EXT.get(ext, "application/octet-stream")
     file_uuid = str(uuid.uuid4())
     storage_path = f"{APP_NAME}/product-images/{file_uuid}.{ext}"
@@ -2685,8 +2687,8 @@ async def partner_upload_product_image(
     if ext not in ALLOWED_IMAGE_EXTS:
         raise HTTPException(status_code=400, detail=f"Only {', '.join(ALLOWED_IMAGE_EXTS)} allowed")
     data = await file.read()
-    if len(data) > MAX_UPLOAD_BYTES:
-        raise HTTPException(status_code=400, detail=f"File too large (max {MAX_UPLOAD_LABEL})")
+    if len(data) > PRODUCT_IMAGE_MAX_UPLOAD_BYTES:
+        raise HTTPException(status_code=400, detail=f"File too large (max {PRODUCT_IMAGE_MAX_UPLOAD_LABEL})")
     content_type = MIME_BY_EXT.get(ext, "application/octet-stream")
     file_uuid = str(uuid.uuid4())
     storage_path = f"{APP_NAME}/product-images/{file_uuid}.{ext}"

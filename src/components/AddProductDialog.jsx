@@ -368,8 +368,8 @@ export default function AddProductDialog({
   const uploadImage = async (e) => {
     const f = e.target.files?.[0];
     if (!f) return; 
-    if (f.size > 200 * 1024) {
-      toast.error("Image too large (max 200KB)");
+    if (f.size > 5 * 1024 * 1024) {
+      toast.error("Image too large (max 5MB)");
       return;
     }
     setUploading(true);
