@@ -22,17 +22,17 @@ from sqlalchemy.orm import Session
 from ..database import get_db
 from ..models import AppSetting, AssociatePartner, Order, PartnerProduct, PartnerRequest, Product, ProductMeta, PublicOrder, User, UserReferral
 from ..security import hash_password, verify_password
+from ..storage import UPLOADED_OBJECTS_DIR
 from .auth import get_current_user
 from .settings import load_settings, save_settings
 
 router = APIRouter(prefix="/api", tags=["compat"])
 
-ROOT_DIR = Path(__file__).resolve().parents[2]
-PRODUCT_UPLOAD_DIR = ROOT_DIR / "uploaded_objects" / "product_images"
+PRODUCT_UPLOAD_DIR = UPLOADED_OBJECTS_DIR / "product_images"
 PRODUCT_UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
-UPI_QR_UPLOAD_DIR = ROOT_DIR / "uploaded_objects" / "payment_screenshots"
+UPI_QR_UPLOAD_DIR = UPLOADED_OBJECTS_DIR / "payment_screenshots"
 UPI_QR_UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
-BRANDING_UPLOAD_DIR = ROOT_DIR / "uploaded_objects" / "branding_images"
+BRANDING_UPLOAD_DIR = UPLOADED_OBJECTS_DIR / "branding_images"
 BRANDING_UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
 PARTNER_IMAGE_MAX_UPLOAD_BYTES = 200 * 1024
 GLOBAL_IMAGE_MAX_UPLOAD_BYTES = 200 * 1024

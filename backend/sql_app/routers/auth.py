@@ -13,11 +13,11 @@ from ..database import get_db
 from ..models import User, UserReferral
 from ..schemas import LoginRequest, RegisterRequest
 from ..security import create_token, decode_token, hash_password, verify_password
+from ..storage import UPLOADED_OBJECTS_DIR
 
 router = APIRouter(prefix="/api", tags=["auth"])
 
-ROOT_DIR = Path(__file__).resolve().parents[2]
-WELCOME_DIR = ROOT_DIR / "uploaded_objects" / "welcome_letters"
+WELCOME_DIR = UPLOADED_OBJECTS_DIR / "welcome_letters"
 WELCOME_DIR.mkdir(parents=True, exist_ok=True)
 
 SMTP_HOST = os.getenv("SMTP_HOST", "")

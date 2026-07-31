@@ -14,13 +14,13 @@ from sqlalchemy.orm import Session
 from ..database import get_db
 from ..models import AppSetting, AssociatePartner, PartnerProduct, Product, ProductMeta, PublicOrder
 from ..security import decode_token
+from ..storage import UPLOADED_OBJECTS_DIR
 from .auth import get_current_user
 from .settings import load_settings
 
 router = APIRouter(prefix="/api", tags=["checkout"])
 
-ROOT_DIR = Path(__file__).resolve().parents[2]
-UPLOAD_DIR = ROOT_DIR / "uploaded_objects" / "payment_screenshots"
+UPLOAD_DIR = UPLOADED_OBJECTS_DIR / "payment_screenshots"
 UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
 
 
@@ -191,7 +191,7 @@ async def upload_payment_screenshot(file: UploadFile = File(...)):
 
 @router.get("/files/{path:path}")
 def get_file(path: str):
-    file_path = ROOT_DIR / "uploaded_objects" / path
+    file_path = UPLOADED_OBJECTS_DIR / path
     if not file_path.exists() or not file_path.is_file():
         raise HTTPException(status_code=404, detail="File not found")
     return FileResponse(file_path)
