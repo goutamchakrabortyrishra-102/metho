@@ -204,6 +204,10 @@ export default function PartnerShopPage() {
       return haystack.includes(q);
     });
   }, [productListings, productSearch]);
+  const displayedProducts = useMemo(
+    () => filteredProducts.filter((p) => !!getProductImageUrl(p)).slice(0, 5),
+    [filteredProducts]
+  );
   const filteredServices = useMemo(() => {
     const q = serviceSearch.trim().toLowerCase();
     if (!q) return serviceListings;
@@ -478,7 +482,7 @@ export default function PartnerShopPage() {
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div>
               <p className="text-[10px] uppercase tracking-widest text-emerald-800 font-semibold">All Product View</p>
-              <h3 className="font-display font-bold text-emerald-950 text-lg mt-1">Products ({filteredProducts.length})</h3>
+              <h3 className="font-display font-bold text-emerald-950 text-lg mt-1">Products ({displayedProducts.length})</h3>
             </div>
             <div className="flex items-center gap-2 w-full md:w-auto">
               <div className="flex items-center gap-2 border border-border rounded-full px-3 h-11 bg-slate-50 w-full md:w-72">
@@ -497,13 +501,13 @@ export default function PartnerShopPage() {
             </div>
           </div>
 
-          {filteredProducts.length === 0 ? (
+          {displayedProducts.length === 0 ? (
             <div className="mt-6 rounded-xl border border-dashed border-border p-10 text-center text-slate-500">
               No product found for this search.
             </div>
           ) : (
             <div className="mt-6 grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
-              {filteredProducts.map((product) => {
+              {displayedProducts.map((product) => {
                 const qty = cart[product.id] || 0;
                 const outOfStock = getStock(product) <= 0;
                 const pdfUrl = getPdfUrl(product);

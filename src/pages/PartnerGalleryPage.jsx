@@ -36,14 +36,57 @@ const getDisplayImage = (product) => {
   return getPdfUrl(product) ? PDF_PREVIEW : FALLBACK;
 };
 
+const pickImageUrl = (value) => {
+  if (!value) return "";
+  if (typeof value === "string") return resolveAssetUrl(value);
+  if (typeof value === "object") {
+    return resolveAssetUrl(
+      value.url ||
+      value.image_url ||
+      value.featured_image_url ||
+      value.path ||
+      ""
+    );
+  }
+  return "";
+};
+
+const normalizeFeaturedImages = (raw) => {
+  const source = raw?.items ?? raw?.featured_images ?? raw;
+  if (Array.isArray(source)) return source.map((u) => pickImageUrl(u)).filter(Boolean).slice(0, 5);
+  if (source && typeof source === "object") {
+    const ordered = [1, 2, 3, 4, 5].map((slot) => (
+      source[String(slot)] ||
+      source[slot] ||
+      source[`featured_${slot}`] ||
+      source[`featured_${slot}_url`] ||
+      source[`image_${slot}`] ||
+      source[`slot_${slot}`] ||
+      source[`slot_${slot}_url`] ||
+      ""
+    ));
+    const direct = ordered.map((u) => pickImageUrl(u)).filter(Boolean);
+    if (direct.length) return direct.slice(0, 5);
+    return Object.values(source)
+      .map((u) => pickImageUrl(u))
+      .filter(Boolean)
+      .slice(0, 5);
+  }
+  return [];
+};
+
 const normalizePartnerPayload = (payload) => {
   const partner = payload?.partner || {};
+  const featuredImages = normalizeFeaturedImages(payload?.featured_images || payload?.partner?.featured_images);
   const products = Array.isArray(payload?.products)
-    ? payload.products.map((item) => ({
-      ...item,
-      image_url: resolveAssetUrl(item?.image_url || ""),
-      pdf_url: getPdfUrl(item),
-    }))
+    ? payload.products.map((item, index) => {
+      const resolvedImage = resolveAssetUrl(item?.image_url || "");
+      return {
+        ...item,
+        image_url: resolvedImage || featuredImages[index % Math.max(1, featuredImages.length)] || "",
+        pdf_url: getPdfUrl(item),
+      };
+    })
     : [];
   return {
     ...payload,
@@ -53,6 +96,7 @@ const normalizePartnerPayload = (payload) => {
       banner_url: resolveAssetUrl(partner?.banner_url || ""),
     },
     products,
+    featured_images: { items: featuredImages },
   };
 };
 
@@ -209,14 +253,14 @@ export default function PartnerGalleryPage() {
   const isBookNowRole = !user || ["member", "customer"].includes(String(user?.role || "").toLowerCase());
   const getStock = (product) => Math.max(0, Number(product?.stock ?? 0));
   const visibleProducts = useMemo(() => {
-    if (!gallerySearch) return activeListings;
-    const q = gallerySearch.toLowerCase();
-    return activeListings.filter((p) => {
+    const source = gallerySearch ? activeListings.filter((p) => {
+      const q = gallerySearch.toLowerCase();
       const haystack = [p?.name, p?.category, p?.description]
         .map((v) => String(v || "").toLowerCase())
         .join(" ");
       return haystack.includes(q);
-    });
+    }) : activeListings;
+    return source.slice(0, 5);
   }, [activeListings, gallerySearch]);
   const canDownloadPdf = user?.role === "partner";
 
