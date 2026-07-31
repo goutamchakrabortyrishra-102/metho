@@ -51,8 +51,13 @@ def _candidate_upload_roots() -> list[Path]:
         _add(Path(render_disk_path) / "uploaded_objects")
 
     # Legacy roots used by previous backend builds.
-    _add(Path(__file__).resolve().parents[3] / "uploaded_objects")
-    _add(Path(__file__).resolve().parents[4] / "uploaded_objects")
+    # Avoid fixed parent indexes because deployment paths can be shallower.
+    try:
+        current = Path(__file__).resolve()
+    except Exception:
+        current = Path(__file__)
+    for ancestor in current.parents:
+        _add(ancestor / "uploaded_objects")
     return roots
 
 
