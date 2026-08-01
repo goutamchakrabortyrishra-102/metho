@@ -348,24 +348,30 @@ export default function ShopPage() {
             const isOutOfStock = stock <= 0;
             return (
             <div key={p.id} className="bg-white rounded-xl overflow-hidden border border-border group hover:shadow-lg transition-all" data-testid={`shop-product-${i}`}>
-              <div className="aspect-square overflow-hidden bg-secondary relative">
-                <button
-                  type="button"
-                  onClick={() => setPreviewProduct(p)}
-                  className="block w-full h-full"
-                  data-testid={`shop-open-image-${i}`}
-                >
-                  <img
-                    src={getDisplayImage(p)}
-                    alt={p.name}
-                    className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
-                    onError={(e) => {
-                      if (e.currentTarget.src !== FALLBACK_IMAGE) e.currentTarget.src = FALLBACK_IMAGE;
-                    }}
-                  />
-                </button>
+              <div
+                className="aspect-square overflow-hidden bg-secondary relative cursor-zoom-in"
+                onClick={() => setPreviewProduct(p)}
+                role="button"
+                tabIndex={0}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" || e.key === " ") {
+                    e.preventDefault();
+                    setPreviewProduct(p);
+                  }
+                }}
+                data-testid={`shop-open-image-${i}`}
+                aria-label={`Open preview for ${p?.name || "product"}`}
+              >
+                <img
+                  src={getDisplayImage(p)}
+                  alt={p.name}
+                  className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                  onError={(e) => {
+                    if (e.currentTarget.src !== FALLBACK_IMAGE) e.currentTarget.src = FALLBACK_IMAGE;
+                  }}
+                />
                 <span className={
-                  "absolute top-2 left-2 text-[9px] font-bold uppercase tracking-widest px-2 py-1 rounded-full " +
+                  "absolute top-2 left-2 pointer-events-none text-[9px] font-bold uppercase tracking-widest px-2 py-1 rounded-full " +
                   "bg-amber-500 text-emerald-950"
                 }>
                   METHO
