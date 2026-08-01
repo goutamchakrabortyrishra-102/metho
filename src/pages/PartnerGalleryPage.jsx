@@ -562,12 +562,12 @@ export default function PartnerGalleryPage() {
     <div className="min-h-screen bg-slate-50 pb-28" data-testid="partner-gallery-page">
       {/* Header */}
       <header className="bg-emerald-950 text-white sticky top-0 z-30">
-        <div className="max-w-4xl mx-auto px-4 py-3 flex items-center justify-between">
+        <div className="max-w-4xl mx-auto px-4 py-3 flex flex-wrap items-center justify-between gap-2">
           <Link to={`/partner-shop/${partnerCode}`} className="flex items-center gap-2 text-sm hover:text-amber-400">
             <ArrowLeft className="w-4 h-4" /> Back
           </Link>
           <Logo />
-          <div className="flex items-center gap-2">
+          <div className="flex items-center flex-wrap justify-end gap-2">
             <button onClick={copyLink} className="p-2 rounded-full hover:bg-white/10" title="Copy Link">
               <Share2 className="w-4 h-4" />
             </button>
@@ -584,7 +584,7 @@ export default function PartnerGalleryPage() {
       </header>
 
       {/* Partner info strip */}
-      <div className="bg-gradient-to-r from-emerald-900 to-emerald-800 text-white">
+      <div className={`bg-gradient-to-r from-emerald-900 to-emerald-800 text-white ${items.length > 0 ? "mt-20 md:mt-0" : ""}`}>
         <div className="max-w-4xl mx-auto px-4 py-5 flex flex-wrap items-center gap-4">
           <div className="w-14 h-14 rounded-xl bg-amber-400 text-emerald-950 flex items-center justify-center shrink-0 overflow-hidden">
             {partner.logo_url ? <img src={partner.logo_url} alt="" className="w-full h-full object-cover" /> : <Store className="w-7 h-7" />}
@@ -612,7 +612,7 @@ export default function PartnerGalleryPage() {
         <p className="text-sm text-slate-600 font-body">
           {activeTab === "services" ? "Tap the image to view details and book the service" : "Tap the image to view details and add it to the cart"}
         </p>
-        <div className="flex gap-2">
+        <div className="flex flex-wrap gap-2 w-full sm:w-auto">
           <Link to={`/gallery/${partnerCode}?tab=products${gallerySearch ? `&q=${encodeURIComponent(gallerySearch)}` : ""}`}>
             <Button variant={activeTab === "products" ? "default" : "outline"} size="sm" className={`rounded-full text-xs ${activeTab === "products" ? "bg-emerald-900 hover:bg-emerald-950 text-white" : "border-emerald-300 text-emerald-900 hover:bg-emerald-50"}`}>
               Products
@@ -758,8 +758,8 @@ export default function PartnerGalleryPage() {
 
       {/* Cart bar */}
       {items.length > 0 && (
-        <div className="fixed bottom-0 left-0 right-0 z-40 p-3 bg-white border-t border-border shadow-2xl" data-testid="gallery-cart-bar">
-          <div className="max-w-4xl mx-auto flex items-center justify-between gap-3">
+        <div className="fixed top-14 md:top-auto md:bottom-0 left-0 right-0 z-40 p-3 bg-white border-b md:border-b-0 md:border-t border-border shadow-2xl" data-testid="gallery-cart-bar">
+          <div className="max-w-4xl mx-auto flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
             <div className="min-w-0">
               <p className="text-xs uppercase tracking-wider text-emerald-800 font-bold flex items-center gap-1.5">
                 <ShoppingCart className="w-3.5 h-3.5" /> {items.length} item(s)
@@ -770,7 +770,7 @@ export default function PartnerGalleryPage() {
             </div>
             <Button
               onClick={() => setCheckoutOpen(true)}
-              className="bg-emerald-900 hover:bg-emerald-950 text-white rounded-full px-5 shrink-0"
+              className="bg-emerald-900 hover:bg-emerald-950 text-white rounded-full px-5 shrink-0 w-full sm:w-auto"
               data-testid="gallery-checkout-btn"
             >
               Checkout · ₹{total.toLocaleString("en-IN")}

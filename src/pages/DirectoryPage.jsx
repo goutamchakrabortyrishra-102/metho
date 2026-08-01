@@ -67,11 +67,11 @@ export default function DirectoryPage() {
   return (
     <div className="min-h-screen bg-slate-50" data-testid="directory-page">
       <header className="bg-emerald-950 text-white sticky top-0 z-10">
-        <div className="max-w-6xl mx-auto px-4 py-4 flex items-center justify-between">
+        <div className="max-w-6xl mx-auto px-4 py-4 flex flex-wrap items-center justify-between gap-2">
           <Logo />
-          <div className="flex gap-2">
+          <div className="flex flex-wrap justify-end gap-2">
             <Link to="/partner-register">
-              <Button variant="outline" size="sm" className="border-amber-400 bg-transparent text-amber-400 hover:bg-amber-400 hover:text-emerald-950 rounded-full font-semibold" data-testid="dir-become-partner">
+              <Button variant="outline" size="sm" className="border-amber-400 bg-transparent text-amber-400 hover:bg-amber-400 hover:text-emerald-950 rounded-full font-semibold px-2.5 sm:px-3 text-[11px] sm:text-sm" data-testid="dir-become-partner">
                 <Store className="w-3.5 h-3.5 mr-1" /> Become a Partner
               </Button>
             </Link>
@@ -79,8 +79,8 @@ export default function DirectoryPage() {
               <Link to="/app"><Button size="sm" className="bg-amber-400 text-emerald-950 hover:bg-amber-500 rounded-full font-semibold" data-testid="dir-goto-dashboard">Dashboard</Button></Link>
             ) : (
               <>
-                <Link to="/login"><Button variant="outline" size="sm" className="border-white/20 bg-white/10 text-white hover:bg-white/20 rounded-full">Sign In</Button></Link>
-                <Link to="/register"><Button size="sm" className="bg-amber-400 text-emerald-950 hover:bg-amber-500 rounded-full font-semibold">Join</Button></Link>
+                <Link to="/login"><Button variant="outline" size="sm" className="border-white/20 bg-white/10 text-white hover:bg-white/20 rounded-full px-2.5 sm:px-3 text-[11px] sm:text-sm">Sign In</Button></Link>
+                <Link to="/register"><Button size="sm" className="bg-amber-400 text-emerald-950 hover:bg-amber-500 rounded-full font-semibold px-2.5 sm:px-3 text-[11px] sm:text-sm">Join</Button></Link>
               </>
             )}
           </div>
@@ -110,14 +110,14 @@ export default function DirectoryPage() {
               <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
               <Input placeholder="Search partner, shop or owner..." value={q} onChange={(e) => setQ(e.target.value)} className="h-11 pl-9 bg-white text-slate-900" data-testid="dir-search" />
             </div>
-            <select value={city} onChange={(e) => setCity(e.target.value)} className="h-11 rounded-md border border-input px-3 bg-white text-slate-900 min-w-[140px]" data-testid="dir-city">
+            <select value={city} onChange={(e) => setCity(e.target.value)} className="h-11 rounded-md border border-input px-3 bg-white text-slate-900 min-w-[140px] w-full md:w-auto" data-testid="dir-city">
               <option value="">All cities</option>
               {cities.map(c => <option key={c} value={c}>{c}</option>)}
             </select>
-            <select value={type} onChange={(e) => setType(e.target.value)} className="h-11 rounded-md border border-input px-3 bg-white text-slate-900 min-w-[140px]" data-testid="dir-type">
+            <select value={type} onChange={(e) => setType(e.target.value)} className="h-11 rounded-md border border-input px-3 bg-white text-slate-900 min-w-[140px] w-full md:w-auto" data-testid="dir-type">
               {TYPES.map(t => <option key={t} value={t}>{t}</option>)}
             </select>
-            <select value={category} onChange={(e) => setCategory(e.target.value)} className="h-11 rounded-md border border-input px-3 bg-white text-slate-900 min-w-[140px]" data-testid="dir-category">
+            <select value={category} onChange={(e) => setCategory(e.target.value)} className="h-11 rounded-md border border-input px-3 bg-white text-slate-900 min-w-[140px] w-full md:w-auto" data-testid="dir-category">
               <option value="">All categories</option>
               {categories.map(c => <option key={c} value={c}>{c}</option>)}
             </select>

@@ -434,7 +434,7 @@ export default function PartnerShopPage() {
         </div>
       )}
 
-      <main className="max-w-6xl mx-auto px-4 py-8">
+      <main className={`max-w-6xl mx-auto px-4 py-8 ${items.length > 0 ? "pt-28 md:pt-8" : ""}`}>
         {(featuredImages.length > 0 || bestFiveProducts.length > 0) && (
           <div className="mb-8 bg-white rounded-xl border border-border p-6">
             <div className="flex items-center gap-2 mb-4">
@@ -486,7 +486,7 @@ export default function PartnerShopPage() {
             </div>
             <h3 className="font-display font-bold text-emerald-950 text-lg mt-1">Product Name / Category</h3>
             <p className="text-sm text-slate-600 mt-3">Filter the gallery by product name or category.</p>
-            <div className="mt-6 flex gap-2">
+            <div className="mt-6 flex flex-col sm:flex-row gap-2">
               <Input
                 value={productSearch}
                 onChange={(e) => setProductSearch(e.target.value)}
@@ -497,7 +497,7 @@ export default function PartnerShopPage() {
               />
               <Button
                 onClick={() => openGallery(productSearch, "products")}
-                className="bg-emerald-900 hover:bg-emerald-950 text-white rounded-full shrink-0"
+                className="bg-emerald-900 hover:bg-emerald-950 text-white rounded-full shrink-0 w-full sm:w-auto"
                 data-testid="partner-shop-product-search-btn"
               >
                 Search
@@ -512,7 +512,7 @@ export default function PartnerShopPage() {
               <p className="text-[10px] uppercase tracking-widest text-emerald-800 font-semibold">All Product View</p>
               <h3 className="font-display font-bold text-emerald-950 text-lg mt-1">Products ({displayedProducts.length})</h3>
             </div>
-            <div className="flex items-center gap-2 w-full md:w-auto">
+            <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 w-full md:w-auto">
               <div className="flex items-center gap-2 border border-border rounded-full px-3 h-11 bg-slate-50 w-full md:w-72">
                 <Search className="w-4 h-4 text-slate-500" />
                 <input
@@ -523,7 +523,7 @@ export default function PartnerShopPage() {
                   data-testid="partner-shop-inline-search"
                 />
               </div>
-              <Button variant="outline" className="rounded-full" onClick={() => openGallery(productSearch, "products")} data-testid="partner-shop-view-all-link">
+              <Button variant="outline" className="rounded-full w-full sm:w-auto" onClick={() => openGallery(productSearch, "products")} data-testid="partner-shop-view-all-link">
                 View All
               </Button>
             </div>
@@ -639,8 +639,8 @@ export default function PartnerShopPage() {
 
       {/* Sticky Cart Bar */}
       {items.length > 0 && (
-        <div className="fixed bottom-0 inset-x-0 z-30 bg-emerald-950 text-white shadow-2xl border-t border-emerald-800" data-testid="sticky-cart-bar">
-          <div className="max-w-6xl mx-auto px-4 py-3 flex items-center justify-between gap-3">
+        <div className="fixed top-14 md:top-auto md:bottom-0 inset-x-0 z-40 bg-emerald-950 text-white shadow-2xl border-b md:border-b-0 md:border-t border-emerald-800" data-testid="sticky-cart-bar">
+          <div className="max-w-6xl mx-auto px-4 py-3 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
             <div className="min-w-0">
               <p className="text-[10px] uppercase tracking-widest text-amber-400 font-bold">Cart</p>
               <p className="font-display font-bold text-lg leading-tight">{items.length} item{items.length !== 1 ? "s" : ""} · ₹{total.toLocaleString("en-IN")}</p>
@@ -648,7 +648,7 @@ export default function PartnerShopPage() {
             </div>
             <Button
               onClick={() => setOpen(true)}
-              className="bg-amber-400 hover:bg-amber-500 text-emerald-950 rounded-full font-bold h-11 px-6"
+              className="bg-amber-400 hover:bg-amber-500 text-emerald-950 rounded-full font-bold h-11 px-6 w-full sm:w-auto"
               data-testid="shop-checkout"
             >
               <ShoppingCart className="w-4 h-4 mr-2" /> Checkout

@@ -201,7 +201,7 @@ export default function PartnerProductForm({ product, onSaved, disabled = false,
           {product?.id ? <Pencil className="w-4 h-4 mr-1" /> : <Plus className="w-4 h-4 mr-1" />} {product?.id ? "Edit" : "Add to Gallery"}
         </Button>
       </DialogTrigger>
-      <DialogContent>
+      <DialogContent className="w-[calc(100vw-1rem)] max-w-lg sm:max-w-2xl max-h-[88vh] overflow-y-auto p-4 sm:p-6">
         <DialogHeader>
           <DialogTitle>{product?.id ? "Edit Product" : "New Product"}</DialogTitle>
           <DialogDescription>
@@ -239,13 +239,13 @@ export default function PartnerProductForm({ product, onSaved, disabled = false,
               <Input required value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} className="mt-1" data-testid="my-prod-name" />
             </div>
           </div>
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div><Label>Category *</Label><Input required value={form.category} onChange={(e) => setForm({ ...form, category: e.target.value })} className="mt-1" data-testid="my-prod-cat" /></div>
             <div><Label>PDF Link</Label><Input value={form.pdf_url || ""} onChange={(e) => setForm({ ...form, pdf_url: e.target.value })} className="mt-1" placeholder="https://...pdf" data-testid="my-prod-pdf" /></div>
           </div>
           <div>
               <Label>{form.listing_type === "service" ? "Service Image Upload (Saved as PDF)" : "Product Image Upload (Saved as PDF)"}</Label>
-            <div className="mt-1.5 flex items-center gap-3">
+            <div className="mt-1.5 flex flex-wrap items-center gap-3">
               <input
                 ref={fileRef}
                 type="file"
@@ -259,7 +259,7 @@ export default function PartnerProductForm({ product, onSaved, disabled = false,
                 onClick={() => fileRef.current?.click()}
                 variant="outline"
                 disabled={uploadingImage}
-                className="rounded-full"
+                className="rounded-full w-full sm:w-auto"
                 data-testid={product?.id ? "partner-edit-product-image-upload-button" : "partner-add-product-image-upload-button"}
               >
                 {uploadingImage ? (
@@ -306,11 +306,11 @@ export default function PartnerProductForm({ product, onSaved, disabled = false,
               <p className="text-[11px] text-emerald-700 mt-1">If you upload a new image, it will be saved as a PDF link.</p>
             ) : null}
           </div>
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div><Label>{form.listing_type === "service" ? "Booking Price (₹) *" : "Price (₹) *"}</Label><Input type="number" required value={form.price} onChange={(e) => setForm({ ...form, price: e.target.value })} className="mt-1" data-testid="my-prod-price" /></div>
             <div><Label>{form.listing_type === "service" ? "Daily Slot / Capacity" : "Stock"}</Label><Input type="number" value={form.stock} onChange={(e) => setForm({ ...form, stock: e.target.value })} className="mt-1" data-testid="my-prod-stock" /></div>
           </div>
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
               <Label>Discount (%)</Label>
               <Input

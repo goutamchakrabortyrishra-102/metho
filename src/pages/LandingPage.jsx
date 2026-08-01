@@ -67,7 +67,7 @@ const DEFAULT_POLICY = {
 
 const Nav = () => (
   <header className="fixed top-0 left-0 right-0 z-50 glass" data-testid="landing-nav">
-    <div className="max-w-7xl mx-auto px-4 md:px-6 py-3 flex items-center justify-between gap-2">
+    <div className="max-w-7xl mx-auto px-4 md:px-6 py-3 flex items-center justify-between gap-3">
       <Logo showTagline />
       <nav className="hidden md:flex items-center gap-8 font-body text-sm">
         <a href="#features" className="text-slate-700 hover:text-emerald-900 transition-colors">Features</a>
@@ -76,9 +76,9 @@ const Nav = () => (
         <a href="#products" className="text-slate-700 hover:text-emerald-900 transition-colors">Products</a>
         <a href="#faq" className="text-slate-700 hover:text-emerald-900 transition-colors">FAQ</a>
       </nav>
-      <div className="flex items-center gap-2">
+      <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
         <Link to="/metho-store" className="md:hidden" data-testid="nav-mobile-metho-store-link">
-          <Button variant="ghost" size="sm" className="px-2 hover:bg-emerald-50 hover:text-emerald-900">View Metho Store</Button>
+          <Button variant="ghost" size="sm" className="px-2 text-[11px] sm:text-xs hover:bg-emerald-50 hover:text-emerald-900">Metho Store</Button>
         </Link>
         <Link to="/partner-register" className="hidden md:inline-flex" data-testid="nav-partner-register-link">
           <Button variant="ghost" className="hover:bg-emerald-50 hover:text-emerald-900">Partner Register</Button>
@@ -193,7 +193,7 @@ const Hero = () => {
             ))}
           </div>
           <div className="mt-8 flex flex-wrap items-center gap-3 rounded-[1.75rem] border border-emerald-900/10 bg-gradient-to-r from-white/95 via-emerald-50/75 to-white/95 p-2.5 shadow-sm">
-            <Link to="/register" data-testid="hero-cta-register">
+            <Link to="/register" className="w-full sm:w-auto" data-testid="hero-cta-register">
               <Button size="lg" className="bg-gradient-to-r from-emerald-900 to-emerald-800 hover:from-emerald-950 hover:to-emerald-900 text-white rounded-full px-7 h-12 text-base font-semibold w-full sm:w-auto shadow-lg shadow-emerald-900/20">
                 Register Free — in 60 seconds <ArrowRight className="ml-2 w-4 h-4" />
               </Button>
@@ -208,8 +208,8 @@ const Hero = () => {
                 Partner Login <ChevronRight className="ml-1 w-4 h-4" />
               </Button>
             </Link>
-            <Link to="/shop" data-testid="hero-cta-shop">
-              <Button size="lg" variant="outline" className="rounded-full px-7 h-12 text-base border-emerald-900/20 bg-white/95 shadow-sm hover:bg-emerald-50 hover:text-emerald-900">
+            <Link to="/shop" className="w-full sm:w-auto" data-testid="hero-cta-shop">
+              <Button size="lg" variant="outline" className="rounded-full px-7 h-12 text-base border-emerald-900/20 bg-white/95 shadow-sm hover:bg-emerald-50 hover:text-emerald-900 w-full sm:w-auto">
                 Browse Products <ChevronRight className="ml-1 w-4 h-4" />
               </Button>
             </Link>

@@ -84,7 +84,7 @@ const GlobalHomeTab = () => {
   return (
     <Link
       to="/"
-      className="fixed bottom-5 right-5 z-50 inline-flex items-center rounded-full bg-emerald-900 text-white px-4 py-2 text-sm font-semibold shadow-lg hover:bg-emerald-950 transition-colors"
+      className="fixed top-4 right-4 md:top-auto md:bottom-5 z-50 inline-flex items-center rounded-full bg-emerald-900 text-white px-4 py-2 text-sm font-semibold shadow-lg hover:bg-emerald-950 transition-colors"
       data-testid="global-home-tab"
     >
       Home

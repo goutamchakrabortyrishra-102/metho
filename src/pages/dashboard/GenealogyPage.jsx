@@ -97,7 +97,7 @@ export default function GenealogyPage() {
       const { width } = wrapRef.current.getBoundingClientRect();
       setTranslate({ x: width / 2, y: 80 });
     }
-  }, [wrapRef.current, view]);
+  }, [view]);
 
   const d3Tree = useMemo(() => toD3(tree), [tree]);
   const totalNodes = tree ? countNodes(tree) - 1 : 0; // exclude self
@@ -130,14 +130,14 @@ export default function GenealogyPage() {
         </div>
       </div>
 
-      <div className="grid grid-cols-3 gap-3">
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
         <div className="bg-white rounded-xl border border-border p-4"><p className="text-[10px] uppercase tracking-widest text-slate-500 font-semibold">Direct Members</p><p className="font-display font-black text-2xl text-emerald-950">{directs}</p></div>
         <div className="bg-white rounded-xl border border-border p-4"><p className="text-[10px] uppercase tracking-widest text-slate-500 font-semibold">Total Downline</p><p className="font-display font-black text-2xl text-emerald-950">{totalNodes}</p></div>
         <div className="bg-white rounded-xl border border-border p-4"><p className="text-[10px] uppercase tracking-widest text-slate-500 font-semibold">Depth</p><p className="font-display font-black text-2xl text-emerald-950">{depth} <span className="text-xs font-normal text-slate-500">level{depth !== 1 ? "s" : ""}</span></p></div>
       </div>
 
       {view === "tree" ? (
-        <div ref={wrapRef} className="relative bg-gradient-to-b from-slate-50 to-white rounded-xl border border-border overflow-hidden" style={{ height: 620 }} data-testid="tree-canvas">
+        <div ref={wrapRef} className="relative bg-gradient-to-b from-slate-50 to-white rounded-xl border border-border overflow-hidden h-[520px] md:h-[620px]" data-testid="tree-canvas">
           {/* Controls */}
           <div className="absolute top-3 right-3 z-10 flex gap-1 bg-white/90 backdrop-blur rounded-full border border-border p-1">
             <button onClick={() => setZoom(z => Math.min(2, z + 0.15))} className="w-8 h-8 rounded-full hover:bg-emerald-50 flex items-center justify-center" data-testid="zoom-in"><ZoomIn className="w-3.5 h-3.5" /></button>
@@ -146,7 +146,7 @@ export default function GenealogyPage() {
             <button onClick={() => setOrientation(o => o === "vertical" ? "horizontal" : "vertical")} className="w-8 h-8 rounded-full hover:bg-emerald-50 flex items-center justify-center" data-testid="toggle-orientation"><Maximize2 className="w-3.5 h-3.5" /></button>
           </div>
 
-          <div className="absolute bottom-3 left-3 z-10 flex gap-3 text-[10px]">
+          <div className="absolute bottom-3 left-3 z-10 flex flex-wrap gap-3 text-[10px] pr-3">
             {Object.entries(RANK_COLORS).map(([k, v]) => (
               <div key={k} className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded-full" style={{ background: v }} /><span className="font-semibold text-slate-700">{k}</span></div>
             ))}
@@ -177,7 +177,8 @@ export default function GenealogyPage() {
         </div>
       ) : (
         <div className="bg-white rounded-xl border border-border overflow-hidden">
-          <table className="w-full text-sm">
+          <div className="overflow-x-auto">
+            <table className="w-full min-w-[620px] text-sm">
             <thead className="bg-secondary/40">
               <tr>
                 <th className="px-3 py-2 text-left font-semibold text-slate-700 text-xs uppercase">Level</th>
@@ -200,7 +201,8 @@ export default function GenealogyPage() {
                 </tr>
               ))}
             </tbody>
-          </table>
+            </table>
+          </div>
         </div>
       )}
     </div>

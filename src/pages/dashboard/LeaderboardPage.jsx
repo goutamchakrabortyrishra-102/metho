@@ -68,7 +68,7 @@ export default function LeaderboardPage() {
           </h1>
           <p className="text-sm text-muted-foreground font-body mt-1">Ranking for members with the highest number of referrals.</p>
         </div>
-        <div className="flex gap-1 bg-white border border-border rounded-full p-1" data-testid="lb-period-tabs">
+        <div className="flex gap-1 bg-white border border-border rounded-full p-1 w-full sm:w-auto overflow-x-auto" data-testid="lb-period-tabs">
           {[{ v: "week", l: "This Week" }, { v: "month", l: "This Month" }, { v: "all", l: "All-time" }].map(o => (
             <button key={o.v} onClick={() => setPeriod(o.v)} className={`px-4 py-1.5 rounded-full text-xs font-bold uppercase tracking-widest transition ${period === o.v ? "bg-emerald-900 text-white" : "text-slate-600 hover:bg-emerald-50"}`} data-testid={`lb-period-${o.v}`}>{o.l}</button>
           ))}
@@ -195,7 +195,8 @@ export default function LeaderboardPage() {
           {/* Rest of the list */}
           {data.leaders.length > 3 && (
             <div className="bg-white rounded-xl border border-border overflow-hidden">
-              <table className="w-full text-sm">
+              <div className="overflow-x-auto">
+                <table className="w-full min-w-[640px] text-sm">
                 <thead className="bg-secondary/40">
                   <tr>
                     <th className="px-3 py-2 text-left font-semibold text-slate-700 text-xs uppercase">Rank</th>
@@ -216,7 +217,8 @@ export default function LeaderboardPage() {
                     </tr>
                   ))}
                 </tbody>
-              </table>
+                </table>
+              </div>
             </div>
           )}
         </>
