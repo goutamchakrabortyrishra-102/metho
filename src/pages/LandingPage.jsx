@@ -404,6 +404,7 @@ const Hero = () => {
 
 const Features = () => {
   const { settings } = useSettings();
+  const showMethoStore = settings?.landing_show_metho_store !== false;
   const [storeListings, setStoreListings] = React.useState([]);
   const [loadingStore, setLoadingStore] = React.useState(true);
 
@@ -432,6 +433,8 @@ const Features = () => {
       active = false;
     };
   }, []);
+
+  if (!showMethoStore) return null;
 
   return (
     <section id="features" className="py-24 bg-[linear-gradient(180deg,#ffffff_0%,#f4faf7_100%)]">
@@ -566,6 +569,8 @@ const ASSOCIATE_TYPES = [
 ];
 
 const AssociatePartnerFinder = () => {
+  const { settings } = useSettings();
+  const showPartnerShop = settings?.landing_show_partner_shop !== false;
   const [cities, setCities] = React.useState([]);
   const [categories, setCategories] = React.useState([]);
   const [results, setResults] = React.useState([]);
@@ -596,6 +601,8 @@ const AssociatePartnerFinder = () => {
       .catch(() => setResults([]))
       .finally(() => setLoading(false));
   }, [nameQuery, city, businessType, serviceQuery, category]);
+
+  if (!showPartnerShop) return null;
 
   return (
     <section className="py-16 bg-gradient-to-b from-white to-emerald-50/35" data-testid="landing-associate-partner-finder">

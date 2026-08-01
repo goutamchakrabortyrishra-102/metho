@@ -654,6 +654,8 @@ export default function SettingsPage() {
     landing_hero_image_url: source.landing_hero_image_url || "",
     landing_tagline: source.landing_tagline || "",
     landing_subheading: source.landing_subheading || "",
+    landing_show_metho_store: source.landing_show_metho_store !== false,
+    landing_show_partner_shop: source.landing_show_partner_shop !== false,
     product_placeholder_image_url: source.product_placeholder_image_url || "",
     directory_hero_image_url: source.directory_hero_image_url || "",
     social_share_image_url: source.social_share_image_url || "",
@@ -1263,6 +1265,32 @@ export default function SettingsPage() {
                 placeholder="Short pitch under the headline"
               />
               <p className="text-[11px] text-muted-foreground mt-1">Headline-এর নিচে ছোট বর্ণনা।</p>
+            </div>
+            <div className="md:col-span-2 rounded-xl border border-emerald-200 bg-emerald-50/40 p-4" data-testid="settings-landing-section-visibility">
+              <p className="text-sm font-semibold text-emerald-950">Landing Section Visibility</p>
+              <p className="text-[11px] text-muted-foreground mt-1">Landing page-এ কোন section দেখাবেন সেটা এখান থেকে control করুন।</p>
+              <div className="mt-3 grid md:grid-cols-2 gap-3">
+                <Label className="flex items-center gap-2 rounded-lg border border-emerald-200 bg-white p-3">
+                  <input
+                    type="checkbox"
+                    checked={form.landing_show_metho_store !== false}
+                    onChange={(e) => setF("landing_show_metho_store")(e.target.checked)}
+                    className="w-4 h-4"
+                    data-testid="settings-landing-show-metho-store"
+                  />
+                  Show METHO Store section
+                </Label>
+                <Label className="flex items-center gap-2 rounded-lg border border-emerald-200 bg-white p-3">
+                  <input
+                    type="checkbox"
+                    checked={form.landing_show_partner_shop !== false}
+                    onChange={(e) => setF("landing_show_partner_shop")(e.target.checked)}
+                    className="w-4 h-4"
+                    data-testid="settings-landing-show-partner-shop"
+                  />
+                  Show Partner Shop section
+                </Label>
+              </div>
             </div>
           </Section>
 

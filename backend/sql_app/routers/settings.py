@@ -77,6 +77,8 @@ DEFAULT_SETTINGS = {
     "landing_hero_image_url": "",
     "landing_tagline": "",
     "landing_subheading": "",
+    "landing_show_metho_store": True,
+    "landing_show_partner_shop": True,
     "product_placeholder_image_url": "",
     "directory_hero_image_url": "",
     "social_share_image_url": "",
