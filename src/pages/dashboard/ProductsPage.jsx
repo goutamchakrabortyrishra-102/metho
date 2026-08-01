@@ -67,6 +67,8 @@ export default function ProductsPage() {
   const [editOpen, setEditOpen] = useState(false);
   const [editingProduct, setEditingProduct] = useState(null);
   const [selectedCategory, setSelectedCategory] = useState("all");
+  const [landingTopProductIds, setLandingTopProductIds] = useState([]);
+  const [savingTopProducts, setSavingTopProducts] = useState(false);
   const getStock = (product) => Math.max(0, Number(product?.stock ?? 0));
 
   const loadProducts = () => api.get("/products").then(r => setProducts(r.data));
@@ -80,6 +82,51 @@ export default function ProductsPage() {
       setUploadOpen(true);
     }
   }, [isAdmin, searchParams]);
+
+  useEffect(() => {
+    const raw = settings?.landing_top_product_ids;
+    if (!Array.isArray(raw)) {
+      setLandingTopProductIds([]);
+      return;
+    }
+    const next = raw
+      .map((id) => String(id || "").trim())
+      .filter(Boolean)
+      .slice(0, 6);
+    setLandingTopProductIds(next);
+  }, [settings?.landing_top_product_ids]);
+
+  const saveLandingTopProductIds = async (nextIds) => {
+    setSavingTopProducts(true);
+    try {
+      await api.put("/settings", { landing_top_product_ids: nextIds });
+      setLandingTopProductIds(nextIds);
+      toast.success("Landing top products updated");
+    } catch (err) {
+      toast.error(err?.response?.data?.detail || "Failed to update landing top products");
+    } finally {
+      setSavingTopProducts(false);
+    }
+  };
+
+  const toggleLandingTopProduct = (product) => {
+    const productId = String(product?.id || "").trim();
+    if (!productId) return;
+    if (String(product?.product_type || "metho").toLowerCase() !== "metho") {
+      toast.error("Only METHO products can be shown in landing top products");
+      return;
+    }
+    const exists = landingTopProductIds.includes(productId);
+    if (exists) {
+      saveLandingTopProductIds(landingTopProductIds.filter((id) => id !== productId));
+      return;
+    }
+    if (landingTopProductIds.length >= 6) {
+      toast.error("Maximum 6 top products can be selected");
+      return;
+    }
+    saveLandingTopProductIds([...landingTopProductIds, productId]);
+  };
 
   const deleteProduct = async (product) => {
     if (!window.confirm(`Delete ${product?.name || "this product"}? This cannot be undone.`)) return;
@@ -247,6 +294,21 @@ export default function ProductsPage() {
             >
               <Trash2 className="w-3.5 h-3.5 mr-1" /> Delete
             </Button>
+            {String(p.product_type || "metho").toLowerCase() === "metho" ? (
+              <Button
+                type="button"
+                size="sm"
+                variant={landingTopProductIds.includes(String(p.id)) ? "default" : "outline"}
+                onClick={() => toggleLandingTopProduct(p)}
+                disabled={savingTopProducts}
+                className="rounded-full h-8 text-xs"
+                data-testid={`toggle-top-product-${i}`}
+              >
+                {landingTopProductIds.includes(String(p.id))
+                  ? `Top #${landingTopProductIds.indexOf(String(p.id)) + 1}`
+                  : "Set Top"}
+              </Button>
+            ) : null}
           </div>
         ) : null}
         <div className="mt-3 flex items-center justify-between gap-2">

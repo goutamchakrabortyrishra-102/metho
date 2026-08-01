@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { motion } from "framer-motion";
 import { ArrowRight, TrendingUp, Users, Wallet, Shield, Award, Sparkles, Check, ChevronRight, Star, Building2, Zap, Globe, MapPin, Store, Search } from "lucide-react";
@@ -107,6 +107,14 @@ const Hero = () => {
   const [shopSearch, setShopSearch] = useState("");
   const [bestProducts, setBestProducts] = useState([]);
   const hasBestProducts = bestProducts.length > 0;
+  const selectedTopProductIds = useMemo(() => {
+    const raw = settings?.landing_top_product_ids;
+    if (!Array.isArray(raw)) return [];
+    return raw
+      .map((id) => String(id || "").trim())
+      .filter(Boolean)
+      .slice(0, 6);
+  }, [settings?.landing_top_product_ids]);
   const HERO_IMG = settings?.landing_hero_image_url_full || DEFAULT_HERO_IMG;
   const tagline = settings?.landing_tagline;
   const subheading = settings?.landing_subheading;
@@ -118,9 +126,14 @@ const Hero = () => {
       .then((r) => {
         if (!active) return;
         const rows = Array.isArray(r.data) ? r.data : [];
-        const picks = rows
-          .filter(isVisibleMethoProduct)
-          .slice(0, 6);
+        const visibleProducts = rows.filter(isVisibleMethoProduct);
+        const productById = new Map(visibleProducts.map((product) => [String(product?.id || ""), product]));
+        const selectedProducts = selectedTopProductIds
+          .map((id) => productById.get(id))
+          .filter(Boolean);
+        const selectedIdSet = new Set(selectedProducts.map((product) => String(product?.id || "")));
+        const remainingProducts = visibleProducts.filter((product) => !selectedIdSet.has(String(product?.id || "")));
+        const picks = [...selectedProducts, ...remainingProducts].slice(0, 6);
         setBestProducts(picks);
       })
       .catch(() => {
@@ -130,7 +143,7 @@ const Hero = () => {
     return () => {
       active = false;
     };
-  }, []);
+  }, [selectedTopProductIds]);
 
   const openShopWithSearch = () => {
     const q = String(shopSearch || "").trim();
