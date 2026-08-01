@@ -131,9 +131,7 @@ const Hero = () => {
         const selectedProducts = selectedTopProductIds
           .map((id) => productById.get(id))
           .filter(Boolean);
-        const selectedIdSet = new Set(selectedProducts.map((product) => String(product?.id || "")));
-        const remainingProducts = visibleProducts.filter((product) => !selectedIdSet.has(String(product?.id || "")));
-        const picks = [...selectedProducts, ...remainingProducts].slice(0, 6);
+        const picks = selectedProducts.length > 0 ? selectedProducts.slice(0, 6) : visibleProducts.slice(0, 6);
         setBestProducts(picks);
       })
       .catch(() => {
@@ -405,6 +403,17 @@ const Hero = () => {
 const Features = () => {
   const { settings } = useSettings();
   const showMethoStore = settings?.landing_show_metho_store !== false;
+  const featuredStoreIds = useMemo(() => {
+    const raw = settings?.landing_featured_store_ids;
+    if (!Array.isArray(raw)) return [];
+    const ids = [];
+    raw.forEach((item) => {
+      const id = String(item || "").trim();
+      if (!id || ids.includes(id)) return;
+      ids.push(id);
+    });
+    return ids.slice(0, 4);
+  }, [settings?.landing_featured_store_ids]);
   const [storeListings, setStoreListings] = React.useState([]);
   const [loadingStore, setLoadingStore] = React.useState(true);
 
@@ -417,9 +426,11 @@ const Features = () => {
       .then((data) => {
         if (!active) return;
         const rows = normalizeCollection(data);
-        const next = rows
-          .filter((p) => (p?.is_active ?? p?.active ?? p?.approved ?? true) !== false)
-          .slice(0, 12);
+        const activeRows = rows.filter((p) => (p?.is_active ?? p?.active ?? p?.approved ?? true) !== false);
+        const keyOf = (item) => String(item?.id || item?.owner_id || item?.owner_code || item?.code || "").trim();
+        const byId = new Map(activeRows.map((item) => [keyOf(item), item]));
+        const selected = featuredStoreIds.map((id) => byId.get(id)).filter(Boolean);
+        const next = selected.length > 0 ? selected.slice(0, 4) : activeRows.slice(0, 4);
         setStoreListings(next);
       })
       .catch(() => {
@@ -432,7 +443,7 @@ const Features = () => {
     return () => {
       active = false;
     };
-  }, []);
+  }, [featuredStoreIds]);
 
   if (!showMethoStore) return null;
 
@@ -571,6 +582,17 @@ const ASSOCIATE_TYPES = [
 const AssociatePartnerFinder = () => {
   const { settings } = useSettings();
   const showPartnerShop = settings?.landing_show_partner_shop !== false;
+  const featuredPartnerIds = useMemo(() => {
+    const raw = settings?.landing_featured_partner_ids;
+    if (!Array.isArray(raw)) return [];
+    const ids = [];
+    raw.forEach((item) => {
+      const id = String(item || "").trim();
+      if (!id || ids.includes(id)) return;
+      ids.push(id);
+    });
+    return ids.slice(0, 4);
+  }, [settings?.landing_featured_partner_ids]);
   const [cities, setCities] = React.useState([]);
   const [categories, setCategories] = React.useState([]);
   const [results, setResults] = React.useState([]);
@@ -597,10 +619,21 @@ const AssociatePartnerFinder = () => {
 
     setLoading(true);
     api.get(`/directory/partners?${params.toString()}`)
-      .then((r) => setResults(Array.isArray(r.data) ? r.data.slice(0, 6) : []))
+      .then((r) => {
+        const rows = Array.isArray(r.data) ? r.data : [];
+        const hasSearchFilters = Boolean(q || city || (businessType && businessType !== "All") || category);
+        if (hasSearchFilters) {
+          setResults(rows.slice(0, 6));
+          return;
+        }
+        const keyOf = (item) => String(item?.id || item?.partner_code || "").trim();
+        const byId = new Map(rows.map((item) => [keyOf(item), item]));
+        const selected = featuredPartnerIds.map((id) => byId.get(id)).filter(Boolean);
+        setResults((selected.length > 0 ? selected : rows).slice(0, 4));
+      })
       .catch(() => setResults([]))
       .finally(() => setLoading(false));
-  }, [nameQuery, city, businessType, serviceQuery, category]);
+  }, [nameQuery, city, businessType, serviceQuery, category, featuredPartnerIds]);
 
   if (!showPartnerShop) return null;
 
