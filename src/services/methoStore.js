@@ -31,7 +31,6 @@ export const methoStoreApi = {
       () => api.get("/metho-store/public/owners"),
       () => api.get("/metho-store/owners"),
       () => api.get("/metho-store/admin/owners"),
-      () => api.get("/directory/partners"),
     ]);
   },
   adminCreateOwner: async (payload) => {
