@@ -155,7 +155,7 @@ const isServiceListing = (item) => {
   return false;
 };
 
-function ProductModal({ product, onClose, onAdd, onDec, qty, galleryUrl, isBookNowRole, onBookNow }) {
+function ProductModal({ product, onClose, onAdd, onDec, qty, galleryUrl, isBookNowRole, onBookNow, canAccessProductPdf }) {
   if (!product) return null;
   const productUrl = `${galleryUrl}?p=${product.id}`;
   const pdfUrl = getPdfUrl(product);
@@ -165,7 +165,7 @@ function ProductModal({ product, onClose, onAdd, onDec, qty, galleryUrl, isBookN
   const waMsg = mediaLine
     ? `${mediaLine}\n\n🛍️ *${product.name}*\n💰 ₹${product.price}  |  ${product.category || ""}\n\n👉 এখানে দেখুন ও Order করুন:\n${productUrl}`
     : `🛍️ *${product.name}*\n💰 ₹${product.price}  |  ${product.category || ""}\n\n👉 এখানে দেখুন ও Order করুন:\n${productUrl}`;
-  const canDownloadPdf = !!pdfUrl;
+  const canDownloadPdf = !!pdfUrl && !!canAccessProductPdf;
   const openPdfPreview = (url) => {
     if (!url) return;
     const withViewerFlags = `${url}${url.includes("#") ? "&" : "#"}toolbar=0&navpanes=0&scrollbar=1`;
@@ -297,6 +297,7 @@ export default function PartnerGalleryPage() {
   const activeTab = requestedTab === "services" ? "services" : "products";
   const activeListings = activeTab === "services" ? serviceListings : productListings;
   const isBookNowRole = !user || ["member", "customer"].includes(String(user?.role || "").toLowerCase());
+  const canAccessProductPdf = ["partner", "admin", "super_admin", "company_admin"].includes(String(user?.role || "").toLowerCase());
   const getStock = (product) => Math.max(0, Number(product?.stock ?? 0));
   const visibleProducts = useMemo(() => {
     const source = gallerySearch ? activeListings.filter((p) => {
@@ -750,6 +751,7 @@ export default function PartnerGalleryPage() {
           galleryUrl={galleryUrl}
           isBookNowRole={isBookNowRole}
           onBookNow={handleBookNow}
+          canAccessProductPdf={canAccessProductPdf}
           onClose={() => setSelected(null)}
           onAdd={id => { addToCart(id); }}
           onDec={id => { decCart(id); if ((cart[id] || 0) <= 1) setSelected(null); }}

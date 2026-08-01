@@ -87,7 +87,7 @@ export default function ShopPage() {
   const [guestMemberRef, setGuestMemberRef] = useState("");
   const isGalleryView = searchParams.get("view") === "gallery";
   const autoPdfTriggered = useRef(false);
-  const allowPdfDownload = true;
+  const allowPdfDownload = ["partner", "admin", "super_admin", "company_admin"].includes(String(user?.role || "").toLowerCase());
 
   const getStock = (product) => Math.max(0, Number(product?.stock ?? 0));
 

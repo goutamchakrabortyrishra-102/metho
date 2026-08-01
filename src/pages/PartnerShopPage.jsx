@@ -223,6 +223,7 @@ export default function PartnerShopPage() {
   const bestFiveProducts = useMemo(() => productListings.slice(0, 5), [productListings]);
   const getStock = (product) => Math.max(0, Number(product?.stock ?? 0));
   const isBookNowRole = !user || ["member", "customer"].includes(String(user?.role || "").toLowerCase());
+  const canAccessProductPdf = ["partner", "admin", "super_admin", "company_admin"].includes(String(user?.role || "").toLowerCase());
   const filteredProducts = useMemo(() => {
     const q = productSearch.trim().toLowerCase();
     if (!q) return productListings;
@@ -554,7 +555,7 @@ export default function PartnerShopPage() {
                           );
                         }}
                       />
-                      {pdfUrl ? (
+                      {canAccessProductPdf && pdfUrl ? (
                         <button
                           type="button"
                           onClick={() => window.open(pdfUrl, "_blank")}
@@ -735,7 +736,7 @@ export default function PartnerShopPage() {
                         );
                       }}
                     />
-                    {pdfUrl ? (
+                    {canAccessProductPdf && pdfUrl ? (
                       <button
                         type="button"
                         onClick={() => window.open(pdfUrl, "_blank")}
