@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { useParams, Link, useNavigate } from "react-router-dom";
-import { Building2, MapPin, Phone, ArrowLeft, Store, ShoppingCart, Plus, Minus, Navigation, Share2, LogIn, MessageCircle, Gift, Star, Images, Search, FileText, CalendarCheck2 } from "lucide-react";
+import { Building2, MapPin, Phone, ArrowLeft, Store, ShoppingCart, Plus, Minus, Navigation, Share2, LogIn, MessageCircle, Gift, Star, Images, Search, FileText, CalendarCheck2, X } from "lucide-react";
 import { toast } from "sonner";
 import api from "@/services/api";
 import { Button } from "@/components/ui/button";
@@ -182,6 +182,7 @@ export default function PartnerShopPage() {
   const [paymentProfile, setPaymentProfile] = useState(null);
   const [err, setErr] = useState(null);
   const [cart, setCart] = useState({});
+  const [previewItem, setPreviewItem] = useState(null);
   const [open, setOpen] = useState(false);
   const [guestMemberRef, setGuestMemberRef] = useState("");
   const [cashback, setCashback] = useState(null); // {percent, max, eligible}
@@ -304,6 +305,8 @@ export default function PartnerShopPage() {
     setOpen(true);
     toast.success(`${service.name || "Service"} booking started`);
   };
+
+  const closePreview = () => setPreviewItem(null);
 
   if (err) return (
     <div className="min-h-screen flex flex-col items-center justify-center bg-slate-50 p-4">
@@ -543,22 +546,32 @@ export default function PartnerShopPage() {
                 return (
                   <div key={product.id} className="border border-border rounded-xl overflow-hidden bg-white" data-testid={`shop-product-${product.id}`}>
                     <div className="aspect-square bg-slate-100 relative">
-                      <img
-                        src={getDisplayImage(product, placeholder)}
-                        alt={product.name}
-                        className="w-full h-full object-cover"
-                        onError={(e) => {
-                          applyImageFallback(
-                            e,
-                            getProductImageUrl(product) || product?.fallback_image_url || featuredImages[0] || heroBannerSrc || "",
-                            placeholder || ""
-                          );
-                        }}
-                      />
+                      <button
+                        type="button"
+                        onClick={() => setPreviewItem(product)}
+                        className="block w-full h-full"
+                        data-testid={`shop-open-image-${product.id}`}
+                      >
+                        <img
+                          src={getDisplayImage(product, placeholder)}
+                          alt={product.name}
+                          className="w-full h-full object-cover"
+                          onError={(e) => {
+                            applyImageFallback(
+                              e,
+                              getProductImageUrl(product) || product?.fallback_image_url || featuredImages[0] || heroBannerSrc || "",
+                              placeholder || ""
+                            );
+                          }}
+                        />
+                      </button>
                       {canAccessProductPdf && pdfUrl ? (
                         <button
                           type="button"
-                          onClick={() => window.open(pdfUrl, "_blank")}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            window.open(pdfUrl, "_blank");
+                          }}
                           className="absolute top-2 left-2 rounded-full bg-white/90 text-emerald-900 text-[10px] font-bold px-2.5 py-1"
                           data-testid={`shop-open-pdf-${product.id}`}
                         >
@@ -724,22 +737,32 @@ export default function PartnerShopPage() {
               return (
                 <div key={service.id} className="border border-border rounded-xl overflow-hidden bg-white" data-testid={`shop-service-${service.id}`}>
                   <div className="aspect-square bg-slate-100 relative">
-                    <img
-                      src={getDisplayImage(service, placeholder)}
-                      alt={service.name}
-                      className="w-full h-full object-cover"
-                      onError={(e) => {
-                        applyImageFallback(
-                          e,
-                            getProductImageUrl(service) || service?.fallback_image_url || featuredImages[0] || heroBannerSrc || "",
-                            placeholder || ""
-                        );
-                      }}
-                    />
+                    <button
+                      type="button"
+                      onClick={() => setPreviewItem(service)}
+                      className="block w-full h-full"
+                      data-testid={`shop-open-service-image-${service.id}`}
+                    >
+                      <img
+                        src={getDisplayImage(service, placeholder)}
+                        alt={service.name}
+                        className="w-full h-full object-cover"
+                        onError={(e) => {
+                          applyImageFallback(
+                            e,
+                              getProductImageUrl(service) || service?.fallback_image_url || featuredImages[0] || heroBannerSrc || "",
+                              placeholder || ""
+                          );
+                        }}
+                      />
+                    </button>
                     {canAccessProductPdf && pdfUrl ? (
                       <button
                         type="button"
-                        onClick={() => window.open(pdfUrl, "_blank")}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          window.open(pdfUrl, "_blank");
+                        }}
                         className="absolute top-2 left-2 rounded-full bg-white/90 text-emerald-900 text-[10px] font-bold px-2.5 py-1"
                         data-testid={`shop-open-service-pdf-${service.id}`}
                       >
@@ -771,6 +794,39 @@ export default function PartnerShopPage() {
         )}
       </section>
 
+      {previewItem ? (
+        <div className="fixed inset-0 z-50 flex items-end md:items-center justify-center bg-black/60 backdrop-blur-sm p-4" onClick={closePreview}>
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm overflow-hidden" onClick={(e) => e.stopPropagation()}>
+            <div className="aspect-square overflow-hidden bg-slate-100 relative">
+              <img
+                src={getDisplayImage(previewItem, placeholder)}
+                alt={previewItem?.name || "Product image"}
+                className="w-full h-full object-cover"
+                onError={(e) => {
+                  applyImageFallback(
+                    e,
+                    getProductImageUrl(previewItem) || previewItem?.fallback_image_url || featuredImages[0] || heroBannerSrc || "",
+                    placeholder || ""
+                  );
+                }}
+              />
+              <button onClick={closePreview} className="absolute top-3 right-3 w-8 h-8 rounded-full bg-black/40 text-white flex items-center justify-center hover:bg-black/60">
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+            <div className="p-5">
+              <p className="text-[10px] uppercase tracking-widest text-emerald-800 font-bold">{previewItem?.category || "General"}</p>
+              <h3 className="font-display font-black text-emerald-950 text-xl mt-1">{previewItem?.name || "Product"}</h3>
+              {previewItem?.description ? <p className="text-sm text-slate-600 mt-2">{previewItem.description}</p> : <p className="text-sm text-slate-500 mt-2">No description provided.</p>}
+              <div className="mt-3 flex items-center justify-between">
+                <span className="font-display font-black text-3xl text-emerald-950">₹{previewItem?.price || 0}</span>
+                <span className="text-sm text-slate-500">{isServiceListing(previewItem) ? "Service" : `Stock: ${getStock(previewItem)}`}</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      ) : null}
+
       <UpiPaymentDialog
         open={open}
         onOpenChange={setOpen}
@@ -780,7 +836,7 @@ export default function PartnerShopPage() {
           upi_id: paymentProfile.upi_id,
           payee_name: paymentProfile.payee_name,
           qr_url: paymentProfile.qr_url,
-          manual_upi_enabled: paymentProfile.manual_upi_enabled,
+          manual_upi_enabled: paymentProfile.manual_upi_enabled !== false,
           razorpay_enabled: false,
           label: "Partner UPI Payment",
         } : null}

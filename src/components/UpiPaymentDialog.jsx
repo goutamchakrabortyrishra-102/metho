@@ -258,7 +258,7 @@ export default function UpiPaymentDialog({
   const payeeName = paymentConfig?.payee_name || settings?.upi_payee_name || "METHOO STORE";
   const qrUrl = paymentConfig?.qr_url || settings?.upi_qr_url;
   const payLabel = paymentConfig?.label || "UPI Payment";
-  const manualUpiEnabled = forceManualUpiFlow || (paymentConfig ? !!paymentConfig.manual_upi_enabled : !!settings?.manual_upi_enabled);
+  const manualUpiEnabled = forceManualUpiFlow || (paymentConfig ? paymentConfig.manual_upi_enabled !== false : !!settings?.manual_upi_enabled);
   const razorpayEnabled = paymentConfig
     ? !!paymentConfig.razorpay_enabled && !!settings?.razorpay_enabled && !!settings?.razorpay_key_id
     : !!settings?.razorpay_enabled && !!settings?.razorpay_key_id;

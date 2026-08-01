@@ -31,7 +31,8 @@ export function resolveAssetUrl(rawUrl) {
 
   const normalizeApiFilePath = (value) => {
     const v = String(value || "");
-    return v.replace(/^\/api\/files\//, "/api/public-files/").replace(/^api\/files\//, "api/public-files/");
+    // Keep one canonical route for compatibility across both backend variants.
+    return v.replace(/^\/api\/public-files\//, "/api/files/").replace(/^api\/public-files\//, "api/files/");
   };
 
   const normalizedUrl = normalizeApiFilePath(url);
@@ -65,11 +66,11 @@ export function resolveAssetUrl(rawUrl) {
   // Storage paths from older payloads should resolve through /api/files.
   if (normalizedUrl.startsWith("product_images/") || normalizedUrl.startsWith("payment_screenshots/")) {
     const base = getBackendBaseUrl();
-    return base ? `${base}/api/public-files/${normalizedUrl}` : `/api/public-files/${normalizedUrl}`;
+    return base ? `${base}/api/files/${normalizedUrl}` : `/api/files/${normalizedUrl}`;
   }
   if (normalizedUrl.startsWith("metho-aay-upay/product-images/")) {
     const base = getBackendBaseUrl();
-    return base ? `${base}/api/public-files/${normalizedUrl}` : `/api/public-files/${normalizedUrl}`;
+    return base ? `${base}/api/files/${normalizedUrl}` : `/api/files/${normalizedUrl}`;
   }
   if (normalizedUrl.startsWith("media/") || normalizedUrl.startsWith("uploads/") || normalizedUrl.startsWith("static/")) {
     const base = getBackendBaseUrl();

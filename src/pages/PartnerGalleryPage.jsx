@@ -790,6 +790,7 @@ export default function PartnerGalleryPage() {
           upi_id: paymentProfile.upi_id,
           payee_name: paymentProfile.payee_name,
           qr_url: paymentProfile.qr_url,
+          manual_upi_enabled: paymentProfile.manual_upi_enabled !== false,
           label: "Partner UPI Payment",
         } : null}
         isGuest={!user}

@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
-import { ArrowLeft, Minus, Plus, ShoppingCart, Images, Search } from "lucide-react";
+import { ArrowLeft, Minus, Plus, ShoppingCart, Images, Search, X } from "lucide-react";
 import { jsPDF } from "jspdf";
 import { toast } from "sonner";
 import api from "@/services/api";
@@ -83,6 +83,7 @@ export default function ShopPage() {
   const [query, setQuery] = useState(searchParams.get("q") || "");
   const [loadError, setLoadError] = useState("");
   const [cart, setCart] = useState({});
+  const [previewProduct, setPreviewProduct] = useState(null);
   const [checkoutOpen, setCheckoutOpen] = useState(false);
   const [guestMemberRef, setGuestMemberRef] = useState("");
   const isGalleryView = searchParams.get("view") === "gallery";
@@ -348,14 +349,21 @@ export default function ShopPage() {
             return (
             <div key={p.id} className="bg-white rounded-xl overflow-hidden border border-border group hover:shadow-lg transition-all" data-testid={`shop-product-${i}`}>
               <div className="aspect-square overflow-hidden bg-secondary relative">
-                <img
-                  src={getDisplayImage(p)}
-                  alt={p.name}
-                  className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
-                  onError={(e) => {
-                    if (e.currentTarget.src !== FALLBACK_IMAGE) e.currentTarget.src = FALLBACK_IMAGE;
-                  }}
-                />
+                <button
+                  type="button"
+                  onClick={() => setPreviewProduct(p)}
+                  className="block w-full h-full"
+                  data-testid={`shop-open-image-${i}`}
+                >
+                  <img
+                    src={getDisplayImage(p)}
+                    alt={p.name}
+                    className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                    onError={(e) => {
+                      if (e.currentTarget.src !== FALLBACK_IMAGE) e.currentTarget.src = FALLBACK_IMAGE;
+                    }}
+                  />
+                </button>
                 <span className={
                   "absolute top-2 left-2 text-[9px] font-bold uppercase tracking-widest px-2 py-1 rounded-full " +
                   "bg-amber-500 text-emerald-950"
@@ -417,6 +425,35 @@ export default function ShopPage() {
           );})}
         </div>
       </div>
+
+      {previewProduct ? (
+        <div className="fixed inset-0 z-50 flex items-end md:items-center justify-center bg-black/60 backdrop-blur-sm p-4" onClick={() => setPreviewProduct(null)}>
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm overflow-hidden" onClick={(e) => e.stopPropagation()}>
+            <div className="aspect-square overflow-hidden bg-slate-100 relative">
+              <img
+                src={getDisplayImage(previewProduct)}
+                alt={previewProduct?.name || "Product image"}
+                className="w-full h-full object-cover"
+                onError={(e) => {
+                  if (e.currentTarget.src !== FALLBACK_IMAGE) e.currentTarget.src = FALLBACK_IMAGE;
+                }}
+              />
+              <button onClick={() => setPreviewProduct(null)} className="absolute top-3 right-3 w-8 h-8 rounded-full bg-black/40 text-white flex items-center justify-center hover:bg-black/60">
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+            <div className="p-5">
+              <p className="text-[10px] uppercase tracking-widest text-emerald-800 font-bold">{previewProduct?.category || "General"}</p>
+              <h3 className="font-display font-black text-emerald-950 text-xl mt-1">{previewProduct?.name || "Product"}</h3>
+              {previewProduct?.description ? <p className="text-sm text-slate-600 mt-2 whitespace-pre-line">{previewProduct.description}</p> : <p className="text-sm text-slate-500 mt-2">No description provided.</p>}
+              <div className="mt-3 flex items-center justify-between">
+                <span className="font-display font-black text-3xl text-emerald-950">₹{previewProduct?.price || 0}</span>
+                <span className="text-sm text-slate-500">Stock: {Math.max(0, Number(previewProduct?.stock ?? 0))}</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      ) : null}
 
       {items.length > 0 && (
         <div className="fixed top-20 left-1/2 -translate-x-1/2 z-40 w-[min(680px,calc(100vw-1.5rem))] bg-white border border-border rounded-2xl shadow-xl px-4 py-3" data-testid="shop-cart-bar">
