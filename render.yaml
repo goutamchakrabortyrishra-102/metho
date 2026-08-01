@@ -1,0 +1,14 @@
+services:
+  - type: web
+    name: Metho-backend
+    runtime: python
+    rootDir: backend
+    buildCommand: pip install --upgrade pip && pip install -r requirements.txt
+    startCommand: sh start_backend.sh
+    healthCheckPath: /api/health
+    autoDeployTrigger: commit
+    buildFilter:
+      paths:
+        - backend/**
+      ignoredPaths:
+        - backend/**/*.md
