@@ -22,6 +22,7 @@ const getInventoryPrice = (row) => Number(row?.price ?? row?.unit_price ?? row?.
 
 export default function MethoStoreOwnerPage() {
   const [inventory, setInventory] = useState([]);
+  const [productQuery, setProductQuery] = useState("");
   const [invoiceForm, setInvoiceForm] = useState({
     member_code: "",
     member_id: "",
@@ -36,6 +37,25 @@ export default function MethoStoreOwnerPage() {
   const [invoiceMemberInfo, setInvoiceMemberInfo] = useState(null);
 
   const inventoryRows = useMemo(() => normalizeCollection(inventory), [inventory]);
+  const filteredInventoryRows = useMemo(() => {
+    const q = String(productQuery || "").trim().toLowerCase();
+    if (!q) return inventoryRows;
+    return inventoryRows.filter((row) => {
+      const text = [
+        row?.name,
+        row?.item_name,
+        row?.sku,
+        row?.catalog_item_id,
+        row?.id,
+        row?.note,
+        row?.status,
+      ]
+        .filter(Boolean)
+        .join(" ")
+        .toLowerCase();
+      return text.includes(q);
+    });
+  }, [inventoryRows, productQuery]);
   const selectedInventoryItem = useMemo(
     () => inventoryRows.find((row) => getInventoryId(row) === String(invoiceForm.catalog_item_id).trim()),
     [inventoryRows, invoiceForm.catalog_item_id]
@@ -182,28 +202,56 @@ export default function MethoStoreOwnerPage() {
               <Field label="Notes">
                 <Input value={invoiceForm.notes} onChange={(e) => setInvoiceForm((prev) => ({ ...prev, notes: e.target.value }))} placeholder="Add any note" />
               </Field>
-              <Field label="Inventory item">
-                <select
-                  value={invoiceForm.catalog_item_id}
-                  onChange={(e) => setInvoiceForm((prev) => ({ ...prev, catalog_item_id: e.target.value }))}
-                  className="h-11 w-full rounded-lg border border-input bg-white px-3 text-sm"
-                >
-                  <option value="">Choose inventory item</option>
-                  {inventoryRows.map((row, index) => {
-                    const value = getInventoryId(row) || String(index);
+              <div>
+                <Label>Inventory item</Label>
+                <Input
+                  value={productQuery}
+                  onChange={(e) => setProductQuery(e.target.value)}
+                  placeholder="Search inventory item"
+                  className="mt-1.5 h-11"
+                />
+                <div className="mt-3 grid gap-2 max-h-[16rem] overflow-y-auto pr-1">
+                  {filteredInventoryRows.length === 0 ? (
+                    <p className="text-sm text-slate-500 rounded-xl border border-dashed border-slate-300 bg-white p-3">No inventory item found.</p>
+                  ) : filteredInventoryRows.map((row, index) => {
+                    const itemId = getInventoryId(row) || String(index);
+                    const isSelected = String(invoiceForm.catalog_item_id).trim() === String(itemId).trim();
                     return (
-                      <option key={value} value={value}>
-                        {getInventoryLabel(row)} {getInventoryQty(row) > 0 ? `(qty ${getInventoryQty(row)})` : ""}
-                      </option>
+                      <button
+                        key={itemId}
+                        type="button"
+                        onClick={() => setInvoiceForm((prev) => ({ ...prev, catalog_item_id: itemId }))}
+                        className={
+                          "text-left rounded-xl border p-3 transition-colors " +
+                          (isSelected
+                            ? "border-emerald-500 bg-emerald-50"
+                            : "border-slate-200 bg-white hover:border-emerald-300 hover:bg-emerald-50/60")
+                        }
+                        data-testid={`owner-inventory-pick-${itemId}`}
+                      >
+                        <div className="flex items-start justify-between gap-3">
+                          <div className="min-w-0">
+                            <p className="font-semibold text-emerald-950 line-clamp-1">{getInventoryLabel(row)}</p>
+                            <p className="text-xs text-slate-500 mt-1">SKU: {fmt(row.sku || row.product_code || row.catalog_item_id || itemId)}</p>
+                          </div>
+                          <span className="text-[10px] uppercase tracking-widest font-bold text-emerald-800">Tap</span>
+                        </div>
+                        <div className="mt-2 flex flex-wrap gap-2 text-[11px] text-slate-500">
+                          <span>Qty {getInventoryQty(row)}</span>
+                          <span>Price {getInventoryPrice(row) || 0}</span>
+                        </div>
+                      </button>
                     );
                   })}
-                </select>
+                </div>
                 {selectedInventoryItem && (
-                  <p className="mt-1 text-xs text-slate-500">
-                    Available: {getInventoryQty(selectedInventoryItem)} | Suggested price: {getInventoryPrice(selectedInventoryItem) || "-"}
-                  </p>
+                  <div className="mt-3 rounded-xl border border-emerald-200 bg-emerald-50 p-3 text-xs text-emerald-900">
+                    Selected: <span className="font-semibold">{getInventoryLabel(selectedInventoryItem)}</span>
+                    <span> · Available {getInventoryQty(selectedInventoryItem)}</span>
+                    <span> · Suggested price {getInventoryPrice(selectedInventoryItem) || "-"}</span>
+                  </div>
                 )}
-              </Field>
+              </div>
               <div className="grid gap-3 sm:grid-cols-2">
                 <Field label="Quantity">
                   <Input type="number" value={invoiceForm.quantity} onChange={(e) => setInvoiceForm((prev) => ({ ...prev, quantity: e.target.value }))} />
