@@ -72,9 +72,9 @@ const Nav = () => (
       <nav className="hidden md:flex items-center gap-8 font-body text-sm">
         <a href="#features" className="text-slate-700 hover:text-emerald-900 transition-colors">Features</a>
         <a href="#plan" className="text-slate-700 hover:text-emerald-900 transition-colors">Growth Plan</a>
-        <a href="#engine" className="text-slate-700 hover:text-emerald-900 transition-colors">Engine</a>
+        <a href="#partner-finder" className="text-slate-700 hover:text-emerald-900 transition-colors">Partner Finder</a>
         <a href="#products" className="text-slate-700 hover:text-emerald-900 transition-colors">Products</a>
-        <a href="#faq" className="text-slate-700 hover:text-emerald-900 transition-colors">FAQ</a>
+        <a href="#return-policy" className="text-slate-700 hover:text-emerald-900 transition-colors">Return Policy</a>
       </nav>
       <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
         <Link to="/metho-store" className="md:hidden" data-testid="nav-mobile-metho-store-link">
@@ -350,7 +350,7 @@ const Hero = () => {
         </motion.div>
       </div>
 
-      <div className="mt-16 rounded-[2rem] border border-emerald-900/10 bg-white/90 backdrop-blur p-4 md:p-6 shadow-[0_16px_40px_rgba(15,23,42,0.08)]" data-testid="hero-best-products-grid">
+      <div id="products" className="mt-16 rounded-[2rem] border border-emerald-900/10 bg-white/90 backdrop-blur p-4 md:p-6 shadow-[0_16px_40px_rgba(15,23,42,0.08)]" data-testid="hero-best-products-grid">
         <div className="flex items-center justify-between gap-3 mb-4">
           <div>
             <p className="text-[10px] uppercase tracking-[0.24em] text-emerald-800 font-semibold">METHO Best Products</p>
@@ -605,7 +605,7 @@ const AssociatePartnerFinder = () => {
   if (!showPartnerShop) return null;
 
   return (
-    <section className="py-16 bg-gradient-to-b from-white to-emerald-50/35" data-testid="landing-associate-partner-finder">
+    <section id="partner-finder" className="py-16 bg-gradient-to-b from-white to-emerald-50/35" data-testid="landing-associate-partner-finder">
       <div className="max-w-7xl mx-auto px-6">
         <div className="grid lg:grid-cols-12 gap-5">
           <div className="lg:col-span-4 rounded-3xl border border-emerald-900/10 bg-gradient-to-br from-emerald-950 via-emerald-900 to-emerald-800 text-white p-6 md:p-7 shadow-xl shadow-emerald-900/20">
@@ -914,7 +914,7 @@ const ReturnPolicyBox = () => {
   const returnPolicy = (settings?.return_policy || "").trim() || DEFAULT_POLICY.return_policy;
 
   return (
-    <section className="py-10 bg-white" data-testid="landing-return-policy-box">
+    <section id="return-policy" className="py-10 bg-white" data-testid="landing-return-policy-box">
       <div className="max-w-6xl mx-auto px-6">
         <div className="rounded-2xl border border-emerald-900/10 bg-gradient-to-br from-white to-emerald-50/40 p-6 md:p-7 shadow-sm">
           <p className="text-xs uppercase tracking-[0.25em] text-emerald-800 font-semibold">Mission, Vision & Return Policy</p>
