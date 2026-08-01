@@ -1,7 +1,7 @@
 {
   "name": "metho-cloudflare-frontend-shim",
   "private": true,
-  "version": "1.0.0",
+  "version": "1.0.1",
   "scripts": {
     "build": "node -e \"const c=require('child_process'); const fs=require('fs'); const path=require('path'); c.execSync('npm --prefix .. ci',{stdio:'inherit'}); c.execSync('npm --prefix .. run build',{stdio:'inherit'}); const src=path.resolve(process.cwd(),'..','build'); const dst=path.resolve(process.cwd(),'build'); fs.rmSync(dst,{recursive:true,force:true}); fs.cpSync(src,dst,{recursive:true}); console.log('Shim build complete:', dst);\""
   }
