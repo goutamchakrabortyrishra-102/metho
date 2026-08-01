@@ -17,7 +17,7 @@ const links = [
   { to: "/app/business", icon: TrendingUp, label: "Business", testId: "nav-business" },
   { to: "/app/products", icon: Package, label: "Products", testId: "nav-products" },
   { to: "/app/metho-store-owner", icon: Store, label: "Metho Store Owner", testId: "nav-metho-store-owner", ownerOnly: true },
-  { to: "/app/products?upload=1", icon: Upload, label: "Product Upload", testId: "nav-product-upload", adminOnly: true },
+  { to: "/app/products?upload=1", icon: Upload, label: "Image Upload", testId: "nav-product-upload", adminOnly: true },
   { to: "/directory", icon: Compass, label: "Explore Partners", testId: "nav-explore", external: true },
   { to: "/app/metho-store-admin", icon: Warehouse, label: "Store Owner Admin", testId: "nav-metho-store-admin", adminOnly: true },
   { to: "/app/partners", icon: Store, label: "Partners", testId: "nav-partners", adminOnly: true },

@@ -616,7 +616,7 @@ export default function PartnerShopPage() {
                           className="w-full mt-3 rounded-full bg-emerald-900 hover:bg-emerald-950 text-white"
                           data-testid={`shop-add-${product.id}`}
                         >
-                          <ShoppingCart className="w-4 h-4 mr-2" /> Add to Cart
+                          <CalendarCheck2 className="w-4 h-4 mr-2" /> Book Now
                         </Button>
                       )}
                     </div>
@@ -656,7 +656,7 @@ export default function PartnerShopPage() {
         <div className="fixed top-14 md:top-auto md:bottom-0 inset-x-0 z-40 bg-emerald-950 text-white shadow-2xl border-b md:border-b-0 md:border-t border-emerald-800" data-testid="sticky-cart-bar">
           <div className="max-w-6xl mx-auto px-4 py-3 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
             <div className="min-w-0">
-              <p className="text-[10px] uppercase tracking-widest text-amber-400 font-bold">Cart</p>
+              <p className="text-[10px] uppercase tracking-widest text-amber-400 font-bold">Bookings</p>
               <p className="font-display font-bold text-lg leading-tight">{items.length} item{items.length !== 1 ? "s" : ""} · ₹{total.toLocaleString("en-IN")}</p>
               {!user && <p className="text-[11px] text-emerald-100/80">Guest checkout: reward percentage only if Member ID/Code is provided.</p>}
             </div>
@@ -665,7 +665,7 @@ export default function PartnerShopPage() {
               className="bg-amber-400 hover:bg-amber-500 text-emerald-950 rounded-full font-bold h-11 px-6 w-full sm:w-auto"
               data-testid="shop-checkout"
             >
-              <ShoppingCart className="w-4 h-4 mr-2" /> Checkout
+              <CalendarCheck2 className="w-4 h-4 mr-2" /> Book Now
             </Button>
           </div>
         </div>

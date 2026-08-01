@@ -226,7 +226,7 @@ function ProductModal({ product, onClose, onAdd, onDec, qty, galleryUrl, isBookN
               </div>
             ) : (
               <Button onClick={() => onAdd(product.id)} className="w-full bg-emerald-900 hover:bg-emerald-950 text-white rounded-full text-base h-12">
-                {isService ? <CalendarCheck2 className="w-4 h-4 mr-2" /> : <ShoppingCart className="w-4 h-4 mr-2" />} {isService ? "Book Now" : "Add to Cart"}
+                {isService ? <CalendarCheck2 className="w-4 h-4 mr-2" /> : <CalendarCheck2 className="w-4 h-4 mr-2" />} {"Book Now"}
               </Button>
             )}
             {/* Share this product on WhatsApp */}
@@ -462,7 +462,7 @@ export default function PartnerGalleryPage() {
     doc.text(`METHO + ${partner.business_name}`, 11, 34);
     doc.setFont("helvetica", "normal");
     doc.setTextColor(21, 128, 61);
-    doc.textWithLink("Open Partner Shop (Add to Cart)", W - 67, 34, { url: galleryUrl });
+    doc.textWithLink("Open Partner Shop (Book Now)", W - 67, 34, { url: galleryUrl });
 
     let y = 40;
 
@@ -521,7 +521,7 @@ export default function PartnerGalleryPage() {
       doc.setFont("helvetica", "bold");
       doc.setFontSize(7);
       doc.setTextColor(21, 128, 61);
-      doc.textWithLink("View in Gallery / Add to Cart", x + 3, infoY + 18, { url: productLink });
+      doc.textWithLink("View in Gallery / Book Now", x + 3, infoY + 18, { url: productLink });
     }
 
     // Footer
@@ -611,7 +611,7 @@ export default function PartnerGalleryPage() {
       {/* Toolbar */}
       <div className="max-w-4xl mx-auto px-4 py-4 flex flex-wrap items-center justify-between gap-3">
         <p className="text-sm text-slate-600 font-body">
-          {activeTab === "services" ? "Tap the image to view details and book the service" : "Tap the image to view details and add it to the cart"}
+          {activeTab === "services" ? "Tap the image to view details and book the service" : "Tap the image to view details and book now"}
         </p>
         <div className="flex flex-wrap gap-2 w-full sm:w-auto">
           <Link to={`/gallery/${partnerCode}?tab=products${gallerySearch ? `&q=${encodeURIComponent(gallerySearch)}` : ""}`}>

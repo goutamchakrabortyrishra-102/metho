@@ -488,7 +488,7 @@ export default function PartnerDashboardPage() {
                   className="bg-emerald-900 hover:bg-emerald-950 text-white rounded-full"
                   data-testid="go-to-gallery-products-tab"
                 >
-                  Open Gallery Product Upload
+                  Open Gallery Image Upload
                 </Button>
               </div>
             </div>
@@ -766,7 +766,7 @@ export default function PartnerDashboardPage() {
         {tab === "products" && (
           <div className="bg-white rounded-xl border border-border p-6">
             <div className="flex items-center justify-between mb-4">
-              <h3 className="font-display font-bold text-emerald-950 text-lg">Gallery Product/Service Upload</h3>
+              <h3 className="font-display font-bold text-emerald-950 text-lg">Gallery Image Upload</h3>
               <div className="flex items-center gap-2">
                 {summary?.partner_code && (
                   <Link to={`/gallery/${summary.partner_code}`} target="_blank">
@@ -794,10 +794,10 @@ export default function PartnerDashboardPage() {
               </div>
             </div>
             <p className="mb-4 text-xs text-slate-600">
-              Partner এক এক করে product/service (name, rate, stock/capacity, image) upload করবে। View Gallery এ listing দেখবেন; Share PDF on WhatsApp এ PDF link পাঠাতে পারবেন।
+              Partner এক এক করে shop/service listing-এর image, name, rate, stock/capacity upload করবে। View Gallery এ listing দেখবেন; Share PDF on WhatsApp এ PDF link পাঠাতে পারবেন।
             </p>
             {products.length === 0 ? (
-              <p className="text-sm text-muted-foreground">No listing yet. Click "Add to Gallery" to upload your first product or service.</p>
+              <p className="text-sm text-muted-foreground">No listing yet. Click "Image Upload" to upload your first shop or service image.</p>
             ) : (
               <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                 {products.map(p => (

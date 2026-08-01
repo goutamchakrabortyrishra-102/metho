@@ -157,7 +157,7 @@ export default function PartnerProductForm({ product, onSaved, disabled = false,
   const save = async (e) => {
     e.preventDefault();
     if (!String(form.image_url || "").trim()) {
-      toast.error("Product image required. Please upload product image first.");
+      toast.error("Listing image required. Please upload image first.");
       return;
     }
     setBusy(true);
@@ -180,7 +180,7 @@ export default function PartnerProductForm({ product, onSaved, disabled = false,
       if (product?.id) saved = await api.put(`/partner/products/${product.id}`, payload);
       else saved = await api.post("/partner/products", payload);
 
-      toast.success(product?.id ? "Product updated and live" : "Product uploaded and live in gallery");
+      toast.success(product?.id ? "Listing updated and live" : "Image uploaded and live in gallery");
       setOpen(false);
       onSaved?.();
     } catch (err) {
@@ -198,19 +198,19 @@ export default function PartnerProductForm({ product, onSaved, disabled = false,
           disabled={!product?.id && disabled}
           title={!product?.id && disabled && disabledReason ? disabledReason : undefined}
         >
-          {product?.id ? <Pencil className="w-4 h-4 mr-1" /> : <Plus className="w-4 h-4 mr-1" />} {product?.id ? "Edit" : "Add to Gallery"}
+          {product?.id ? <Pencil className="w-4 h-4 mr-1" /> : <Plus className="w-4 h-4 mr-1" />} {product?.id ? "Edit Listing" : "Image Upload"}
         </Button>
       </DialogTrigger>
       <DialogContent className="w-[calc(100vw-1rem)] max-w-lg sm:max-w-2xl max-h-[88vh] overflow-y-auto p-4 sm:p-6">
         <DialogHeader>
-          <DialogTitle>{product?.id ? "Edit Product" : "New Product"}</DialogTitle>
+          <DialogTitle>{product?.id ? "Edit Listing" : "New Listing"}</DialogTitle>
           <DialogDescription>
-            {product?.id ? "Update partner product details and optionally replace the image, which is saved as a PDF link." : "Create a new partner product for admin approval. The uploaded image is saved as a PDF link."}
+            {product?.id ? "Update partner listing details and optionally replace the image, which is saved as a PDF link." : "Create a new partner shop/service listing. The uploaded image is saved as a PDF link."}
           </DialogDescription>
         </DialogHeader>
         {product?.id ? (
           <div className="rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs text-emerald-900" data-testid="partner-edit-flow-note">
-            Update the product details first, then click <b>Update Product</b>. You can reopen Edit later and replace the image whenever needed.
+            Update the listing details first, then save changes. You can reopen Edit later and replace the image whenever needed.
           </div>
         ) : null}
         <form onSubmit={save} className="space-y-3" data-testid="partner-product-form">
@@ -244,7 +244,7 @@ export default function PartnerProductForm({ product, onSaved, disabled = false,
             <div><Label>PDF Link</Label><Input value={form.pdf_url || ""} onChange={(e) => setForm({ ...form, pdf_url: e.target.value })} className="mt-1" placeholder="https://...pdf" data-testid="my-prod-pdf" /></div>
           </div>
           <div>
-              <Label>{form.listing_type === "service" ? "Service Image Upload (Saved as PDF)" : "Product Image Upload (Saved as PDF)"}</Label>
+              <Label>Image Upload (Saved as PDF)</Label>
             <div className="mt-1.5 flex flex-wrap items-center gap-3">
               <input
                 ref={fileRef}
@@ -265,7 +265,7 @@ export default function PartnerProductForm({ product, onSaved, disabled = false,
                 {uploadingImage ? (
                   <><Loader2 className="w-4 h-4 mr-2 animate-spin" /> Uploading...</>
                 ) : (
-                  <><Upload className="w-4 h-4 mr-2" /> {product?.id ? "Change Image (saved as PDF)" : "Upload Image (saved as PDF)"}</>
+                  <><Upload className="w-4 h-4 mr-2" /> {product?.id ? "Change Image (saved as PDF)" : "Image Upload (saved as PDF)"}</>
                 )}
               </Button>
               {localPreviewUrl || form.image_url || form.pdf_url ? (

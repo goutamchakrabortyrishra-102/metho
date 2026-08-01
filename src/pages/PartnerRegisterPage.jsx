@@ -9,7 +9,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Logo } from "@/components/Logo";
 
-const BUSINESS_TYPES = ["Retail Shop", "Super Market", "Pharmacy", "Restaurant", "Service Provider", "Distributor", "Wholesaler", "Online Seller"];
+const BUSINESS_TYPES = ["Shop", "Service"];
 
 const DEFAULT_POLICY = {
   mission_statement: "To build a trusted, product-driven smart earning ecosystem that delivers fair and sustainable income opportunities for everyone.",
@@ -29,7 +29,7 @@ const DEFAULT_POLICY = {
 export default function PartnerRegisterPage() {
   const nav = useNavigate();
   const [form, setForm] = useState({
-    business_name: "", business_type: "Retail Shop",
+    business_name: "", business_type: "Shop",
     contact_person: "", phone: "", dob: "", email: "", password: "", whatsapp_no: "",
     address: "", city: "", state: "", pincode: "",
     gst_no: "", upi_id: "", website: "", social_link: "",
@@ -38,6 +38,7 @@ export default function PartnerRegisterPage() {
   const [busy, setBusy] = useState(false);
   const [done, setDone] = useState(null);
   const [policy, setPolicy] = useState(DEFAULT_POLICY);
+  const isService = form.business_type === "Service";
 
   useEffect(() => {
     api.get("/settings").then((r) => {
@@ -115,12 +116,12 @@ export default function PartnerRegisterPage() {
             <Store className="w-3.5 h-3.5" /> Become a METHO Associate Partner
           </div>
           <h1 className="mt-4 font-display font-black text-3xl md:text-5xl leading-tight tracking-tight">
-            Grow your business with <span className="text-amber-400">METHOO STORE</span>
+            Register your <span className="text-amber-400">Shop or Service</span> with METHO
           </h1>
           <p className="mt-3 text-emerald-100/85 font-body max-w-2xl">
-            Connect your shop or business to METHO's growing member network.
-            Get verified customers, monthly commission, a dedicated dashboard, and GST-compliant invoicing in one place.
-            Fill out the form below. After admin approval, your partner login activates with your chosen username and password.
+            Choose only one sector: Shop or Service.
+            One mobile number and one PAN/GST/business ID can be used for only one partner registration.
+            After admin approval, your partner login activates with your chosen username and password.
           </p>
         </div>
       </div>
@@ -132,22 +133,23 @@ export default function PartnerRegisterPage() {
             <h2 className="font-display font-black text-lg text-emerald-950">Business Details</h2>
             <div className="grid md:grid-cols-2 gap-4 mt-4">
               <div className="md:col-span-2">
-                <Label>Business Name *</Label>
-                <Input required value={form.business_name} onChange={upd("business_name")} placeholder="e.g. Sharma Kirana Store" className="mt-1.5 h-11" data-testid="reg-business-name" />
+                <Label>{isService ? "Service Name *" : "Shop Name *"}</Label>
+                <Input required value={form.business_name} onChange={upd("business_name")} placeholder={isService ? "e.g. City Care Diagnostics" : "e.g. Sharma Kirana Store"} className="mt-1.5 h-11" data-testid="reg-business-name" />
               </div>
               <div>
-                <Label>Business Type *</Label>
+                <Label>Sector *</Label>
                 <select required value={form.business_type} onChange={upd("business_type")} className="mt-1.5 h-11 w-full rounded-md border border-input bg-white px-3 text-sm" data-testid="reg-business-type">
                   {BUSINESS_TYPES.map(t => <option key={t} value={t}>{t}</option>)}
                 </select>
               </div>
               <div>
-                <Label>GST No (optional)</Label>
-                <Input value={form.gst_no} onChange={upd("gst_no")} placeholder="19AABCM1234N1Z9" maxLength={15} className="mt-1.5 h-11 font-mono uppercase" data-testid="reg-gst" />
+                <Label>PAN / GST / Business ID (optional)</Label>
+                <Input value={form.gst_no} onChange={upd("gst_no")} placeholder="PAN, GST or other business ID" maxLength={30} className="mt-1.5 h-11 font-mono uppercase" data-testid="reg-gst" />
+                <p className="text-[11px] text-muted-foreground mt-1">If provided, this ID can be used for only one Shop or Service registration.</p>
               </div>
               <div className="md:col-span-2">
-                <Label>Business Description (optional)</Label>
-                <Textarea rows={3} value={form.business_description} onChange={upd("business_description")} placeholder="Briefly describe your business..." className="mt-1.5" data-testid="reg-description" />
+                <Label>{isService ? "Service Description (optional)" : "Shop Description (optional)"}</Label>
+                <Textarea rows={3} value={form.business_description} onChange={upd("business_description")} placeholder={isService ? "Briefly describe your service, slots or specialties..." : "Briefly describe your shop and available items..."} className="mt-1.5" data-testid="reg-description" />
               </div>
             </div>
           </section>
@@ -156,7 +158,7 @@ export default function PartnerRegisterPage() {
             <h2 className="font-display font-black text-lg text-emerald-950">Contact Person</h2>
             <div className="grid md:grid-cols-2 gap-4 mt-4">
               <div>
-                <Label>Owner / Manager Name *</Label>
+                <Label>{isService ? "Owner / Service Manager Name *" : "Owner / Shop Manager Name *"}</Label>
                 <Input required value={form.contact_person} onChange={upd("contact_person")} placeholder="Full name" className="mt-1.5 h-11" data-testid="reg-contact-name" />
               </div>
               <div>
@@ -262,7 +264,7 @@ export default function PartnerRegisterPage() {
 
           <div className="border-t border-border pt-4 flex flex-wrap items-center justify-between gap-3">
             <p className="text-xs text-muted-foreground font-body max-w-md">
-              By submitting, you agree to the Partner Agreement Policy above. Your shop appears in directory only after admin approval.
+              By submitting, you agree to the Partner Agreement Policy above. Your Shop or Service appears in directory only after admin approval.
             </p>
             <Button type="submit" disabled={busy} className="bg-emerald-900 hover:bg-emerald-950 text-white rounded-full px-8 h-12" data-testid="reg-submit">
               {busy ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" /> Submitting...</> : <><Send className="w-4 h-4 mr-2" /> Submit Application</>}
