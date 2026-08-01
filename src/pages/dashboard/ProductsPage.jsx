@@ -128,6 +128,18 @@ export default function ProductsPage() {
     saveLandingTopProductIds([...landingTopProductIds, productId]);
   };
 
+  const moveLandingTopProduct = (productId, direction) => {
+    const currentIndex = landingTopProductIds.indexOf(productId);
+    if (currentIndex < 0) return;
+    const nextIndex = direction === "up" ? currentIndex - 1 : currentIndex + 1;
+    if (nextIndex < 0 || nextIndex >= landingTopProductIds.length) return;
+    const nextIds = [...landingTopProductIds];
+    const temp = nextIds[currentIndex];
+    nextIds[currentIndex] = nextIds[nextIndex];
+    nextIds[nextIndex] = temp;
+    saveLandingTopProductIds(nextIds);
+  };
+
   const deleteProduct = async (product) => {
     if (!window.confirm(`Delete ${product?.name || "this product"}? This cannot be undone.`)) return;
     try {
@@ -295,19 +307,62 @@ export default function ProductsPage() {
               <Trash2 className="w-3.5 h-3.5 mr-1" /> Delete
             </Button>
             {String(p.product_type || "metho").toLowerCase() === "metho" ? (
-              <Button
-                type="button"
-                size="sm"
-                variant={landingTopProductIds.includes(String(p.id)) ? "default" : "outline"}
-                onClick={() => toggleLandingTopProduct(p)}
-                disabled={savingTopProducts}
-                className="rounded-full h-8 text-xs"
-                data-testid={`toggle-top-product-${i}`}
-              >
-                {landingTopProductIds.includes(String(p.id))
-                  ? `Top #${landingTopProductIds.indexOf(String(p.id)) + 1}`
-                  : "Set Top"}
-              </Button>
+              (() => {
+                const isTopProduct = landingTopProductIds.includes(String(p.id));
+                const topIndex = landingTopProductIds.indexOf(String(p.id));
+                return isTopProduct ? (
+                  <div className="flex items-center gap-1">
+                    <span className="inline-flex items-center rounded-full bg-emerald-900 text-white px-2 py-1 text-[10px] font-semibold">
+                      Top #{topIndex + 1}
+                    </span>
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="outline"
+                      onClick={() => moveLandingTopProduct(String(p.id), "up")}
+                      disabled={savingTopProducts || topIndex === 0}
+                      className="rounded-full h-8 text-xs"
+                      data-testid={`move-top-product-up-${i}`}
+                    >
+                      Up
+                    </Button>
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="outline"
+                      onClick={() => moveLandingTopProduct(String(p.id), "down")}
+                      disabled={savingTopProducts || topIndex === landingTopProductIds.length - 1}
+                      className="rounded-full h-8 text-xs"
+                      data-testid={`move-top-product-down-${i}`}
+                    >
+                      Down
+                    </Button>
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="outline"
+                      onClick={() => toggleLandingTopProduct(p)}
+                      disabled={savingTopProducts}
+                      className="rounded-full h-8 text-xs border-amber-200 text-amber-700 hover:bg-amber-50"
+                      data-testid={`remove-top-product-${i}`}
+                    >
+                      Remove
+                    </Button>
+                  </div>
+                ) : (
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    onClick={() => toggleLandingTopProduct(p)}
+                    disabled={savingTopProducts}
+                    className="rounded-full h-8 text-xs"
+                    data-testid={`toggle-top-product-${i}`}
+                  >
+                    Add To Landing
+                  </Button>
+                );
+              })()
             ) : null}
           </div>
         ) : null}

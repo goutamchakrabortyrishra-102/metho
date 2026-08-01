@@ -750,7 +750,12 @@ const Products = () => {
         </div>
         <div className="mt-10 grid grid-cols-2 md:grid-cols-4 gap-4">
           {products.map((p, i) => (
-            <div key={p.id} className="group bg-white/95 backdrop-blur rounded-2xl overflow-hidden border border-emerald-900/10 hover:shadow-xl hover:shadow-emerald-900/10 transition-all" data-testid={`product-card-${i}`}>
+            <Link
+              key={p.id}
+              to={p?.name ? `/shop?q=${encodeURIComponent(p.name)}` : "/shop"}
+              className="group block bg-white/95 backdrop-blur rounded-2xl overflow-hidden border border-emerald-900/10 hover:shadow-xl hover:shadow-emerald-900/10 transition-all"
+              data-testid={`product-card-${i}`}
+            >
               <div className="aspect-square overflow-hidden bg-gradient-to-br from-white to-emerald-50/40">
                 <img
                   src={resolveAssetUrl(p.image_url) || FALLBACK_PRODUCT_IMG}
@@ -770,8 +775,13 @@ const Products = () => {
                     <span className="text-xs bg-amber-100 text-amber-900 px-2 py-0.5 rounded-full font-semibold">METHO</span>
                   )}
                 </div>
+                <div className="mt-3">
+                  <span className="inline-flex items-center text-xs font-semibold text-emerald-800">
+                    Open Product <ChevronRight className="ml-1 w-3.5 h-3.5" />
+                  </span>
+                </div>
               </div>
-            </div>
+            </Link>
           ))}
           {products.length === 0 && (
             <div className="col-span-full rounded-2xl border border-emerald-900/10 bg-white/90 p-6 text-center">
