@@ -57,6 +57,10 @@ export default function MethoStoreAdminPage() {
 
   const ownerOptions = useMemo(() => normalizeCollection(owners), [owners]);
   const catalogRows = useMemo(() => normalizeCollection(catalog), [catalog]);
+  const selectedCatalogItem = useMemo(
+    () => catalogRows.find((item) => String(item.id || item.catalog_item_id || item.sku || "").trim() === String(invoiceForm.catalog_item_id || "").trim()),
+    [catalogRows, invoiceForm.catalog_item_id]
+  );
 
   const loadAll = useCallback(async () => {
     setLoading(true);
@@ -519,8 +523,28 @@ export default function MethoStoreAdminPage() {
               ) : null}
               <div className="grid gap-3 sm:grid-cols-2">
                 <Field label="Invoice no"><Input value={invoiceForm.invoice_no} onChange={(e) => setInvoiceForm((prev) => ({ ...prev, invoice_no: e.target.value }))} placeholder="Optional" /></Field>
-                <Field label="Catalog item ID"><Input value={invoiceForm.catalog_item_id} onChange={(e) => setInvoiceForm((prev) => ({ ...prev, catalog_item_id: e.target.value }))} placeholder="Required" /></Field>
+                <Field label="Catalog item">
+                  <select
+                    value={invoiceForm.catalog_item_id}
+                    onChange={(e) => setInvoiceForm((prev) => ({ ...prev, catalog_item_id: e.target.value }))}
+                    className="h-11 w-full rounded-lg border border-input bg-white px-3 text-sm"
+                  >
+                    <option value="">Choose store product</option>
+                    {catalogRows.map((item, index) => {
+                      const value = String(item.id || item.catalog_item_id || item.sku || index).trim();
+                      const label = `${item.name || item.title || item.sku || value}${item.product_type ? ` · ${item.product_type}` : ""}${item.price ? ` · ₹${item.price}` : ""}`;
+                      return <option key={value} value={value}>{label}</option>;
+                    })}
+                  </select>
+                </Field>
               </div>
+              {selectedCatalogItem ? (
+                <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-3 text-xs text-emerald-900">
+                  Selected product: <span className="font-semibold">{selectedCatalogItem.name || selectedCatalogItem.title || selectedCatalogItem.sku || selectedCatalogItem.id}</span>
+                  {selectedCatalogItem.sku ? <span> · SKU {selectedCatalogItem.sku}</span> : null}
+                  {selectedCatalogItem.price !== undefined ? <span> · ₹{selectedCatalogItem.price}</span> : null}
+                </div>
+              ) : null}
               <div className="grid gap-3 sm:grid-cols-2">
                 <Field label="Quantity"><Input type="number" value={invoiceForm.quantity} onChange={(e) => setInvoiceForm((prev) => ({ ...prev, quantity: e.target.value }))} /></Field>
                 <Field label="Unit price"><Input type="number" value={invoiceForm.unit_price} onChange={(e) => setInvoiceForm((prev) => ({ ...prev, unit_price: e.target.value }))} /></Field>
