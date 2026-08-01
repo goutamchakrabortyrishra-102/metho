@@ -2,6 +2,12 @@
 
 AI coding agents should use this file as the fast-start guide for this repository.
 
+## Read This First
+
+- Primary newcomer guide: [SYSTEM_GUIDE.md](SYSTEM_GUIDE.md)
+- Root overview for GitHub readers: [README.md](README.md)
+- Backend boot path: `backend/sql_app/main.py`
+
 ## Scope
 
 - Repository: Metho Frontend (React + CRACO).
@@ -25,16 +31,20 @@ AI coding agents should use this file as the fast-start guide for this repositor
 - App entry and route tree: src/App.js
 - React root providers: src/index.js
 - API client and auth token handling: src/services/api.js
+- Global settings and branding resolution: src/contexts/SettingsContext.jsx
+- Asset URL normalization: src/lib/utils.js
 - Pages: src/pages and src/pages/dashboard
 - Layouts: src/layouts
 - Shared components: src/components
 - Context providers: src/contexts
+- Backend router modules: backend/sql_app/routers
 
 ## Project Conventions
 
 - Use alias imports via @ for src (configured in craco.config.js).
 - Add protected routes under PrivateRoute; admin-only pages must use AdminRoute.
 - Backend calls should go through src/services/api.js to keep auth interceptor behavior consistent.
+- Keep Metho Store data and partner directory data separate. Do not use partner-directory fallbacks for Metho Store UI blocks.
 - Preserve existing React Query defaults in src/index.js unless there is a clear performance reason.
 - Follow current UI/flow behavior described by QA and handover docs before refactoring route/page behavior.
 
@@ -42,6 +52,7 @@ AI coding agents should use this file as the fast-start guide for this repositor
 
 - Do not hardcode backend URLs in page components; use the API client.
 - If a change affects role access, verify both member and admin paths.
+- If a change affects images/PDFs/uploads, verify stored path, resolved URL, and backend file serving together.
 - This codebase contains vercel.json, but deployment and verification should stay aligned with Cloudflare-hosted frontend workflows when applying ops/deployment changes.
 
 ## Validation Checklist For Changes
@@ -54,6 +65,7 @@ AI coding agents should use this file as the fast-start guide for this repositor
 
 ## Reference Docs (Link, Do Not Duplicate)
 
+- Full system map: [SYSTEM_GUIDE.md](SYSTEM_GUIDE.md)
 - Flow and architecture overview: [PROJECT_FLOWCHART.md](PROJECT_FLOWCHART.md)
 - QA verification checklist: [QA_RUNBOOK_BN.md](QA_RUNBOOK_BN.md)
 - Handover and setup notes: [README_HANDOVER_BN.md](README_HANDOVER_BN.md)
