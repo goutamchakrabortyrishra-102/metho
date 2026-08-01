@@ -13,6 +13,14 @@ import { resolveAssetUrl } from "@/lib/utils";
 
 const FALLBACK_IMAGE = "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 600 600'><rect width='600' height='600' fill='%23e2e8f0'/><text x='50%25' y='50%25' dominant-baseline='middle' text-anchor='middle' fill='%23475569' font-size='28' font-family='Arial, sans-serif'>METHOO STORE Product</text></svg>";
 
+const normalizeCollection = (value) => {
+  if (Array.isArray(value)) return value;
+  if (Array.isArray(value?.items)) return value.items;
+  if (Array.isArray(value?.rows)) return value.rows;
+  if (Array.isArray(value?.data)) return value.data;
+  return [];
+};
+
 const getPdfUrl = (product) => {
   if (!product) return "";
   if (product.pdf_url) return resolveAssetUrl(product.pdf_url);
@@ -97,7 +105,7 @@ export default function ShopPage() {
     api
       .get("/products")
       .then((r) => {
-        setProducts(Array.isArray(r.data) ? r.data : []);
+        setProducts(normalizeCollection(r.data));
         setLoadError("");
       })
       .catch(() => {
@@ -144,7 +152,12 @@ export default function ShopPage() {
   }, [products]);
 
   const methoProducts = useMemo(() => {
-    return (products || []).filter((p) => String(p?.product_type || "metho").toLowerCase() === "metho" && !p.hidden);
+    return (products || []).filter((p) => {
+      const typeOk = String(p?.product_type || "metho").toLowerCase() === "metho";
+      const hiddenRaw = p?.hidden;
+      const isHidden = hiddenRaw === true || String(hiddenRaw).toLowerCase() === "true" || String(hiddenRaw) === "1";
+      return typeOk && !isHidden;
+    });
   }, [products]);
 
   const visibleProducts = useMemo(() => {

@@ -6,6 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Logo } from "@/components/Logo";
 import { useSettings } from "@/contexts/SettingsContext";
 import { methoStoreApi, normalizeCollection } from "@/services/methoStore";
+import api from "@/services/api";
 
 const mapsUrl = (partner) => {
   const q = [partner.business_name, partner.address, partner.city, partner.state].filter(Boolean).join(", ");

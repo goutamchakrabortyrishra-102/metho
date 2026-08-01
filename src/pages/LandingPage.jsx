@@ -55,7 +55,12 @@ const TEAM_IMG = "https://images.pexels.com/photos/7580944/pexels-photo-7580944.
 const WALLET_IMG = "https://images.pexels.com/photos/7580855/pexels-photo-7580855.jpeg?auto=compress&cs=tinysrgb&w=500";
 const FALLBACK_PRODUCT_IMG = "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 600 600'><rect width='600' height='600' fill='%23f1f5f9'/><text x='50%25' y='50%25' dominant-baseline='middle' text-anchor='middle' fill='%23475569' font-size='26' font-family='Arial'>METHOO STORE Product</text></svg>";
 const FALLBACK_LEADER_IMG = "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 700 875'><defs><linearGradient id='g' x1='0' y1='0' x2='0' y2='1'><stop offset='0%25' stop-color='%23f8fafc'/><stop offset='100%25' stop-color='%23e2e8f0'/></linearGradient></defs><rect width='700' height='875' fill='url(%23g)'/><circle cx='350' cy='305' r='104' fill='%2394a3b8' opacity='0.42'/><rect x='170' y='430' width='360' height='280' rx='180' fill='%2394a3b8' opacity='0.35'/><rect x='0' y='760' width='700' height='115' fill='%23cbd5e1' opacity='0.4'/></svg>";
-const isVisibleMethoProduct = (product) => String(product?.product_type || "metho").toLowerCase() === "metho" && !product?.hidden;
+const isVisibleMethoProduct = (product) => {
+  const typeOk = String(product?.product_type || "metho").toLowerCase() === "metho";
+  const hiddenRaw = product?.hidden;
+  const isHidden = hiddenRaw === true || String(hiddenRaw).toLowerCase() === "true" || String(hiddenRaw) === "1";
+  return typeOk && !isHidden;
+};
 const DEFAULT_POLICY = {
   mission_statement: "To build a trusted, product-driven smart earning ecosystem that delivers fair and sustainable income opportunities for everyone.",
   vision_statement: "Our vision is to empower marginalized people, transform small businesses from local to global, and build sustainable financial freedom with a special focus on women.",
@@ -125,7 +130,7 @@ const Hero = () => {
       .get("/products")
       .then((r) => {
         if (!active) return;
-        const rows = Array.isArray(r.data) ? r.data : [];
+        const rows = normalizeCollection(r.data);
         const visibleProducts = rows.filter(isVisibleMethoProduct);
         const productById = new Map(visibleProducts.map((product) => [String(product?.id || ""), product]));
         const selectedProducts = selectedTopProductIds
@@ -751,7 +756,7 @@ const Products = () => {
   const [products, setProducts] = React.useState([]);
   useEffect(() => {
     api.post("/seed").catch(() => {});
-    api.get("/products").then(r => setProducts((Array.isArray(r.data) ? r.data : []).filter(isVisibleMethoProduct).slice(0, 4))).catch(() => {});
+    api.get("/products").then((r) => setProducts(normalizeCollection(r.data).filter(isVisibleMethoProduct).slice(0, 4))).catch(() => {});
   }, []);
   return (
     <section id="products" className="relative py-24 overflow-hidden bg-[radial-gradient(circle_at_10%_20%,rgba(16,185,129,0.12),transparent_38%),radial-gradient(circle_at_90%_0%,rgba(245,158,11,0.14),transparent_42%),linear-gradient(180deg,#f8faf9_0%,#eef7f2_100%)]">

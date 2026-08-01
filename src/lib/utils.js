@@ -9,14 +9,27 @@ const normalizeBase = (url) => String(url || "").trim().replace(/\/+$/, "");
 
 export function getBackendBaseUrl() {
   const fromEnv = normalizeBase(process.env.REACT_APP_BACKEND_URL);
-  if (fromEnv) return fromEnv;
-
   if (typeof window !== "undefined") {
     const host = window.location.hostname || "";
+    const isHostedFrontend = host === "methoaayupay.com" || host === "www.methoaayupay.com" || host.endsWith(".pages.dev");
+    if (fromEnv) {
+      // Protect production from accidental env values pointing to the frontend origin.
+      // That configuration makes API calls return HTML instead of JSON.
+      try {
+        const envHost = new URL(fromEnv).hostname;
+        const pointsToFrontend = envHost === host || envHost === "methoaayupay.com" || envHost === "www.methoaayupay.com" || envHost.endsWith(".pages.dev");
+        if (!pointsToFrontend) return fromEnv;
+      } catch {
+        return fromEnv;
+      }
+      if (isHostedFrontend) return "https://metho-backend.onrender.com";
+    }
     if (host === "methoaayupay.com" || host === "www.methoaayupay.com" || host.endsWith(".pages.dev")) {
       return "https://metho-backend.onrender.com";
     }
   }
+
+  if (fromEnv) return fromEnv;
 
   return "";
 }
