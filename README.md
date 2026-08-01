@@ -5,9 +5,10 @@ This repository contains the METHO frontend and the active FastAPI backend used 
 If you are opening this project for the first time, do not start by guessing files. Start here:
 
 1. Read `SYSTEM_GUIDE.md`
-2. Read `AGENTS.md`
-3. Open `src/App.js`
-4. Open `backend/sql_app/main.py`
+2. Read `SYSTEM_GUIDE_BN.md` if you want the same map in Bangla-first form
+3. Read `AGENTS.md`
+4. Open `src/App.js`
+5. Open `backend/sql_app/main.py`
 
 ## What This Project Does
 
@@ -42,6 +43,7 @@ Use the SQL backend in `backend/sql_app/` as the main reference point for curren
 ## Best Starting Files
 
 - `SYSTEM_GUIDE.md`: full human-readable map of the system
+- `SYSTEM_GUIDE_BN.md`: Bangla-first guide for owners/operators/newcomers
 - `src/App.js`: route tree and role guards
 - `src/services/api.js`: shared API client
 - `src/layouts/DashboardLayout.jsx`: dashboard shell and nav

@@ -5,6 +5,7 @@ AI coding agents should use this file as the fast-start guide for this repositor
 ## Read This First
 
 - Primary newcomer guide: [SYSTEM_GUIDE.md](SYSTEM_GUIDE.md)
+- Bangla-first newcomer guide: [SYSTEM_GUIDE_BN.md](SYSTEM_GUIDE_BN.md)
 - Root overview for GitHub readers: [README.md](README.md)
 - Backend boot path: `backend/sql_app/main.py`
 
@@ -66,6 +67,7 @@ AI coding agents should use this file as the fast-start guide for this repositor
 ## Reference Docs (Link, Do Not Duplicate)
 
 - Full system map: [SYSTEM_GUIDE.md](SYSTEM_GUIDE.md)
+- Bangla-first system map: [SYSTEM_GUIDE_BN.md](SYSTEM_GUIDE_BN.md)
 - Flow and architecture overview: [PROJECT_FLOWCHART.md](PROJECT_FLOWCHART.md)
 - QA verification checklist: [QA_RUNBOOK_BN.md](QA_RUNBOOK_BN.md)
 - Handover and setup notes: [README_HANDOVER_BN.md](README_HANDOVER_BN.md)
