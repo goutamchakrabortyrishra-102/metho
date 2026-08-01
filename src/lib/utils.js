@@ -85,6 +85,10 @@ export function resolveAssetUrl(rawUrl) {
     const base = getBackendBaseUrl();
     return base ? `${base}/api/files/${normalizedUrl}` : `/api/files/${normalizedUrl}`;
   }
+  if (normalizedUrl.startsWith("branding_images/") || normalizedUrl.startsWith("metho-aay-upay/branding_images/")) {
+    const base = getBackendBaseUrl();
+    return base ? `${base}/api/files/${normalizedUrl}` : `/api/files/${normalizedUrl}`;
+  }
   if (normalizedUrl.startsWith("media/") || normalizedUrl.startsWith("uploads/") || normalizedUrl.startsWith("static/")) {
     const base = getBackendBaseUrl();
     return base ? `${base}/${normalizedUrl}` : normalizedUrl;
