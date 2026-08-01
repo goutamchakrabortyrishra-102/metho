@@ -291,6 +291,581 @@ def _file_url(path: str, request: Request) -> str:
     return f"{base}{normalized}"
 
 
+def _store_key(name: str) -> str:
+    return f"metho_store:{name}"
+
+
+def _store_read_json(db: Session, key: str, default):
+    row = db.query(AppSetting).filter(AppSetting.key == key).first()
+    if not row or not row.value_json:
+        return default
+    try:
+        return json.loads(row.value_json)
+    except Exception:
+        return default
+
+
+def _store_write_json(db: Session, key: str, value):
+    payload = json.dumps(value)
+    row = db.query(AppSetting).filter(AppSetting.key == key).first()
+    if not row:
+        db.add(AppSetting(key=key, value_json=payload, updated_at=datetime.now(timezone.utc)))
+    else:
+        row.value_json = payload
+        row.updated_at = datetime.now(timezone.utc)
+    db.commit()
+    return value
+
+
+def _store_owner_code(db: Session) -> str:
+    owners = _store_read_json(db, _store_key("owners"), [])
+    used = set()
+    for owner in owners if isinstance(owners, list) else []:
+        if not isinstance(owner, dict):
+            continue
+        code = str(owner.get("owner_code") or owner.get("code") or "").strip().upper()
+        if code:
+            used.add(code)
+    for idx in range(1, 10000):
+        code = f"MTH-STORE-{idx:04d}"
+        if code not in used:
+            return code
+    return f"MTH-STORE-{uuid.uuid4().hex[:8].upper()}"
+
+
+def _store_owner_docs(db: Session) -> list[dict]:
+    rows = _store_read_json(db, _store_key("owners"), [])
+    if not isinstance(rows, list):
+        return []
+    return [row for row in rows if isinstance(row, dict)]
+
+
+def _store_catalog_docs(db: Session) -> list[dict]:
+    rows = _store_read_json(db, _store_key("catalog"), [])
+    if not isinstance(rows, list):
+        return []
+    return [row for row in rows if isinstance(row, dict)]
+
+
+def _store_inventory_docs(db: Session, owner_id: str) -> list[dict]:
+    rows = _store_read_json(db, _store_key(f"inventory:{owner_id}"), [])
+    if not isinstance(rows, list):
+        return []
+    return [row for row in rows if isinstance(row, dict)]
+
+
+def _store_invoice_docs(db: Session, owner_id: str) -> list[dict]:
+    rows = _store_read_json(db, _store_key(f"invoices:{owner_id}"), [])
+    if not isinstance(rows, list):
+        return []
+    return [row for row in rows if isinstance(row, dict)]
+
+
+def _store_save_owner_docs(db: Session, owners: list[dict]):
+    return _store_write_json(db, _store_key("owners"), owners)
+
+
+def _store_save_catalog_docs(db: Session, catalog: list[dict]):
+    return _store_write_json(db, _store_key("catalog"), catalog)
+
+
+def _store_save_inventory_docs(db: Session, owner_id: str, inventory: list[dict]):
+    return _store_write_json(db, _store_key(f"inventory:{owner_id}"), inventory)
+
+
+def _store_save_invoice_docs(db: Session, owner_id: str, invoices: list[dict]):
+    return _store_write_json(db, _store_key(f"invoices:{owner_id}"), invoices)
+
+
+def _store_find_owner(owners: list[dict], owner_id: str) -> dict | None:
+    target = str(owner_id or "").strip()
+    if not target:
+        return None
+    for owner in owners:
+        if str(owner.get("id") or "").strip() == target:
+            return owner
+    return None
+
+
+def _store_find_catalog_item(catalog: list[dict], item_id: str) -> dict | None:
+    target = str(item_id or "").strip()
+    if not target:
+        return None
+    for item in catalog:
+        candidates = [item.get("id"), item.get("catalog_item_id"), item.get("sku"), item.get("source_product_id")]
+        if any(str(candidate or "").strip() == target for candidate in candidates):
+            return item
+    return None
+
+
+def _store_public_owner(owner: dict) -> dict:
+    owner_id = str(owner.get("id") or "").strip()
+    store_name = str(owner.get("store_name") or owner.get("business_name") or owner.get("owner_name") or "").strip()
+    owner_name = str(owner.get("owner_name") or owner.get("name") or store_name or "").strip()
+    code = str(owner.get("owner_code") or owner.get("code") or "").strip()
+    return {
+        "id": owner_id,
+        "owner_id": owner_id,
+        "owner_code": code,
+        "code": code,
+        "owner_name": owner_name,
+        "store_name": store_name or owner_name,
+        "business_name": store_name or owner_name,
+        "phone": str(owner.get("phone") or "").strip(),
+        "email": str(owner.get("email") or "").strip(),
+        "city": str(owner.get("city") or "").strip(),
+        "state": str(owner.get("state") or "").strip(),
+        "logo_url": str(owner.get("logo_url") or "").strip(),
+        "banner_url": str(owner.get("banner_url") or "").strip(),
+        "commission_percent": float(owner.get("commission_percent") or 0),
+        "is_active": bool(owner.get("is_active", owner.get("active", owner.get("approved", True)))),
+        "active": bool(owner.get("active", owner.get("is_active", owner.get("approved", True)))),
+        "approved": bool(owner.get("approved", owner.get("active", owner.get("is_active", True)))),
+        "whatsapp_no": str(owner.get("whatsapp_no") or owner.get("phone") or "").strip(),
+        "address": str(owner.get("address") or "").strip(),
+        "pincode": str(owner.get("pincode") or "").strip(),
+        "created_at": str(owner.get("created_at") or now_iso()),
+    }
+
+
+def _store_private_owner(owner: dict) -> dict:
+    doc = _store_public_owner(owner)
+    doc["user_id"] = str(owner.get("user_id") or owner.get("id") or "").strip()
+    return doc
+
+
+def _store_owner_by_user_id(owners: list[dict], user_id: str) -> dict | None:
+    target = str(user_id or "").strip()
+    if not target:
+        return None
+    for owner in owners:
+        if str(owner.get("user_id") or owner.get("id") or "").strip() == target:
+            return owner
+    return None
+
+
+def _store_sync_owner_user(db: Session, owner: dict, password: str | None = None):
+    owner_id = str(owner.get("id") or "").strip()
+    if not owner_id:
+        return None
+    email = str(owner.get("email") or "").strip()
+    phone = str(owner.get("phone") or "").strip()
+    name = str(owner.get("owner_name") or owner.get("store_name") or owner.get("business_name") or "Metho Store Owner").strip()
+    user = db.query(User).filter(User.id == owner_id).first()
+    if not user:
+        existing = db.query(User).filter(User.email == email).first() if email else None
+        if existing:
+            raise HTTPException(status_code=400, detail="Email already in use")
+        user = User(
+            id=owner_id,
+            name=name,
+            email=email or f"{owner_id}@metho-store.local",
+            phone=phone,
+            password=hash_password(password or "store123"),
+            role="store_owner",
+            is_active=bool(owner.get("is_active", True)),
+        )
+        db.add(user)
+    else:
+        user.name = name
+        if email:
+            user.email = email
+        user.phone = phone
+        user.role = "store_owner"
+        user.is_active = bool(owner.get("is_active", True))
+        if password:
+            user.password = hash_password(password)
+    db.commit()
+    return user
+
+
+def _store_owner_inventory_row(item: dict, quantity: int, note: str = "") -> dict:
+    now = now_iso()
+    return {
+        "id": str(uuid.uuid4()),
+        "inventory_id": str(uuid.uuid4()),
+        "catalog_item_id": str(item.get("id") or item.get("catalog_item_id") or item.get("sku") or "").strip(),
+        "name": str(item.get("name") or item.get("title") or item.get("sku") or "Catalog item").strip(),
+        "sku": str(item.get("sku") or item.get("catalog_item_id") or item.get("id") or "").strip(),
+        "quantity": max(1, int(quantity or 1)),
+        "price": float(item.get("price") or item.get("unit_price") or item.get("mrp") or 0),
+        "mrp": float(item.get("mrp") or 0),
+        "note": str(note or "").strip(),
+        "status": "allocated",
+        "updated_at": now,
+        "created_at": now,
+    }
+
+
+def _store_create_invoice(db: Session, owner: dict, payload: dict) -> dict:
+    member_ref = str(payload.get("member_ref") or payload.get("member_code") or payload.get("member_id") or "").strip()
+    if not member_ref:
+        raise HTTPException(status_code=400, detail="Member ID is required")
+
+    member_user = _resolve_member_user_by_ref(db, member_ref)
+    if not member_user:
+        raise HTTPException(status_code=404, detail="Member not found")
+
+    items_in = payload.get("items") or []
+    if not isinstance(items_in, list) or not items_in:
+        raise HTTPException(status_code=400, detail="At least one item is required")
+
+    owner_id = str(owner.get("id") or "").strip()
+    inventory = _store_inventory_docs(db, owner_id)
+    inventory_by_catalog_id = {}
+    for row in inventory:
+        catalog_item_id = str(row.get("catalog_item_id") or "").strip()
+        if catalog_item_id and catalog_item_id not in inventory_by_catalog_id:
+            inventory_by_catalog_id[catalog_item_id] = row
+
+    normalized_items = []
+    total = 0.0
+    for raw_item in items_in:
+        catalog_item_id = str((raw_item or {}).get("catalog_item_id") or "").strip()
+        if not catalog_item_id:
+            raise HTTPException(status_code=400, detail="Catalog item ID is required")
+        inventory_row = inventory_by_catalog_id.get(catalog_item_id)
+        if not inventory_row:
+            raise HTTPException(status_code=404, detail=f"Inventory item not found: {catalog_item_id}")
+
+        qty = max(1, int((raw_item or {}).get("quantity") or 1))
+        available = max(0, int(inventory_row.get("quantity") or 0))
+        if qty > available:
+            raise HTTPException(status_code=400, detail=f"Insufficient inventory for {inventory_row.get('name') or catalog_item_id}")
+
+        unit_price = float((raw_item or {}).get("unit_price") or inventory_row.get("price") or 0)
+        subtotal = round(unit_price * qty, 2)
+        total = round(total + subtotal, 2)
+        inventory_row["quantity"] = available - qty
+        inventory_row["updated_at"] = now_iso()
+        normalized_items.append(
+            {
+                "catalog_item_id": catalog_item_id,
+                "name": inventory_row.get("name") or catalog_item_id,
+                "sku": inventory_row.get("sku") or catalog_item_id,
+                "quantity": qty,
+                "unit_price": round(unit_price, 2),
+                "subtotal": subtotal,
+            }
+        )
+
+    invoices = _store_invoice_docs(db, owner_id)
+    invoice_no = str(payload.get("invoice_no") or f"MSINV-{uuid.uuid4().hex[:8].upper()}").strip()
+    invoice = {
+        "id": str(uuid.uuid4()),
+        "invoice_no": invoice_no,
+        "member_id": member_user.id,
+        "member_code": member_code_for_user(member_user.id),
+        "owner_id": owner_id,
+        "owner_code": str(owner.get("owner_code") or owner.get("code") or "").strip(),
+        "owner_name": str(owner.get("store_name") or owner.get("business_name") or owner.get("owner_name") or "Metho Store").strip(),
+        "notes": str(payload.get("notes") or "").strip(),
+        "items": normalized_items,
+        "total": round(total, 2),
+        "status": "approved",
+        "created_at": now_iso(),
+    }
+    invoices.insert(0, invoice)
+    _store_save_inventory_docs(db, owner_id, inventory)
+    _store_save_invoice_docs(db, owner_id, invoices)
+    return invoice
+
+
+@router.get("/metho-store/public/owners")
+def metho_store_public_owners(db: Session = Depends(get_db)):
+    owners = [_store_public_owner(owner) for owner in _store_owner_docs(db)]
+    owners.sort(key=lambda item: str(item.get("created_at") or ""), reverse=True)
+    return [owner for owner in owners if bool(owner.get("is_active", True))]
+
+
+@router.get("/metho-store/owners")
+def metho_store_owners(db: Session = Depends(get_db)):
+    owners = [_store_public_owner(owner) for owner in _store_owner_docs(db)]
+    owners.sort(key=lambda item: str(item.get("created_at") or ""), reverse=True)
+    return owners
+
+
+@router.get("/metho-store/admin/owners")
+def metho_store_admin_owners(db: Session = Depends(get_db), current_user=Depends(get_current_user)):
+    _require_admin_user(current_user)
+    owners = [_store_private_owner(owner) for owner in _store_owner_docs(db)]
+    owners.sort(key=lambda item: str(item.get("created_at") or ""), reverse=True)
+    return owners
+
+
+@router.post("/metho-store/admin/owners")
+def metho_store_admin_create_owner(payload: dict, db: Session = Depends(get_db), current_user=Depends(get_current_user)):
+    _require_admin_user(current_user)
+    owner_id = str(uuid.uuid4())
+    owner = {
+        "id": owner_id,
+        "user_id": owner_id,
+        "owner_code": _store_owner_code(db),
+        "owner_name": str(payload.get("owner_name") or payload.get("name") or "").strip(),
+        "store_name": str(payload.get("store_name") or payload.get("business_name") or "").strip(),
+        "phone": str(payload.get("phone") or "").strip(),
+        "email": str(payload.get("email") or "").strip(),
+        "password": str(payload.get("password") or "").strip(),
+        "commission_percent": float(payload.get("commission_percent") or 0),
+        "city": str(payload.get("city") or "").strip(),
+        "state": str(payload.get("state") or "").strip(),
+        "approved": False,
+        "active": False,
+        "is_active": False,
+        "logo_url": "",
+        "banner_url": "",
+        "created_at": now_iso(),
+        "updated_at": now_iso(),
+    }
+    if not owner["owner_name"] or not owner["store_name"]:
+        raise HTTPException(status_code=400, detail="Owner name and store name are required")
+    _store_sync_owner_user(db, owner, owner["password"])
+    owner.pop("password", None)
+    owners = _store_owner_docs(db)
+    owners.insert(0, owner)
+    _store_save_owner_docs(db, owners)
+    return {"message": "Owner created", "owner": _store_private_owner(owner)}
+
+
+@router.put("/metho-store/admin/owners/{owner_id}")
+@router.patch("/metho-store/admin/owners/{owner_id}")
+def metho_store_admin_update_owner(owner_id: str, payload: dict, db: Session = Depends(get_db), current_user=Depends(get_current_user)):
+    _require_admin_user(current_user)
+    owners = _store_owner_docs(db)
+    owner = _store_find_owner(owners, owner_id)
+    if not owner:
+        raise HTTPException(status_code=404, detail="Owner not found")
+    for field in ["owner_name", "store_name", "phone", "email", "city", "state"]:
+        if field in payload and payload[field] is not None:
+            owner[field] = str(payload.get(field) or "").strip()
+    if "commission_percent" in payload and payload.get("commission_percent") is not None:
+        owner["commission_percent"] = float(payload.get("commission_percent") or 0)
+    new_password = str(payload.get("password") or payload.get("login_password") or "").strip()
+    if new_password:
+        owner["password"] = new_password
+    owner["updated_at"] = now_iso()
+    _store_sync_owner_user(db, owner, new_password or None)
+    owner.pop("password", None)
+    _store_save_owner_docs(db, owners)
+    return {"message": "Owner updated", "owner": _store_private_owner(owner)}
+
+
+@router.post("/metho-store/admin/owners/{owner_id}/approve")
+def metho_store_admin_approve_owner(owner_id: str, payload: dict | None = None, db: Session = Depends(get_db), current_user=Depends(get_current_user)):
+    _require_admin_user(current_user)
+    owners = _store_owner_docs(db)
+    owner = _store_find_owner(owners, owner_id)
+    if not owner:
+        raise HTTPException(status_code=404, detail="Owner not found")
+    owner["approved"] = True
+    owner["active"] = True
+    owner["is_active"] = True
+    owner["updated_at"] = now_iso()
+    _store_sync_owner_user(db, owner)
+    _store_save_owner_docs(db, owners)
+    return {"message": "Owner approved", "owner": _store_private_owner(owner)}
+
+
+@router.put("/metho-store/admin/owners/{owner_id}/active")
+@router.patch("/metho-store/admin/owners/{owner_id}/active")
+def metho_store_admin_owner_active(owner_id: str, payload: dict, db: Session = Depends(get_db), current_user=Depends(get_current_user)):
+    _require_admin_user(current_user)
+    owners = _store_owner_docs(db)
+    owner = _store_find_owner(owners, owner_id)
+    if not owner:
+        raise HTTPException(status_code=404, detail="Owner not found")
+    active = bool(payload.get("is_active", payload.get("active", True)))
+    owner["active"] = active
+    owner["is_active"] = active
+    owner["approved"] = active or bool(owner.get("approved", False))
+    owner["updated_at"] = now_iso()
+    _store_sync_owner_user(db, owner)
+    _store_save_owner_docs(db, owners)
+    return {"message": "Owner updated", "owner": _store_private_owner(owner)}
+
+
+@router.delete("/metho-store/admin/owners/{owner_id}")
+def metho_store_admin_delete_owner(owner_id: str, db: Session = Depends(get_db), current_user=Depends(get_current_user)):
+    _require_admin_user(current_user)
+    owners = _store_owner_docs(db)
+    owner = _store_find_owner(owners, owner_id)
+    if not owner:
+        raise HTTPException(status_code=404, detail="Owner not found")
+    owners = [row for row in owners if str(row.get("id") or "").strip() != str(owner_id or "").strip()]
+    _store_save_owner_docs(db, owners)
+    db.query(User).filter(User.id == str(owner_id).strip()).delete(synchronize_session=False)
+    db.commit()
+    return {"message": "Owner deleted"}
+
+
+@router.post("/metho-store/admin/owners/{owner_id}/reset-password")
+@router.post("/metho-store/admin/owners/{owner_id}/password")
+@router.put("/metho-store/admin/owners/{owner_id}/password")
+@router.patch("/metho-store/admin/owners/{owner_id}/password")
+def metho_store_admin_reset_owner_password(owner_id: str, payload: dict | None = None, db: Session = Depends(get_db), current_user=Depends(get_current_user)):
+    _require_admin_user(current_user)
+    owners = _store_owner_docs(db)
+    owner = _store_find_owner(owners, owner_id)
+    if not owner:
+        raise HTTPException(status_code=404, detail="Owner not found")
+    password = str((payload or {}).get("password") or "").strip() or "store123"
+    user = db.query(User).filter(User.id == str(owner_id).strip()).first()
+    if user:
+        user.password = hash_password(password)
+        user.role = "store_owner"
+        db.commit()
+    owner["updated_at"] = now_iso()
+    _store_save_owner_docs(db, owners)
+    return {"message": "Password updated", "new_password": password, "user_email": owner.get("email") or ""}
+
+
+@router.get("/metho-store/admin/catalog/items")
+def metho_store_admin_catalog_items(db: Session = Depends(get_db), current_user=Depends(get_current_user)):
+    _require_admin_user(current_user)
+    catalog = _store_catalog_docs(db)
+    catalog.sort(key=lambda item: str(item.get("created_at") or ""), reverse=True)
+    return catalog
+
+
+@router.post("/metho-store/admin/catalog/items")
+def metho_store_admin_create_catalog_item(payload: dict, db: Session = Depends(get_db), current_user=Depends(get_current_user)):
+    _require_admin_user(current_user)
+    catalog = _store_catalog_docs(db)
+    item = {
+        "id": str(uuid.uuid4()),
+        "catalog_item_id": str(uuid.uuid4()),
+        "name": str(payload.get("name") or "").strip(),
+        "sku": str(payload.get("sku") or "").strip() or f"SKU-{uuid.uuid4().hex[:8].upper()}",
+        "mrp": float(payload.get("mrp") or 0),
+        "price": float(payload.get("price") or 0),
+        "bv": float(payload.get("bv") or 0),
+        "stock": max(0, int(payload.get("stock") or 0)),
+        "source_product_id": str(payload.get("source_product_id") or "").strip(),
+        "created_at": now_iso(),
+        "updated_at": now_iso(),
+    }
+    if not item["name"]:
+        raise HTTPException(status_code=400, detail="Catalog item name is required")
+    if item["source_product_id"]:
+        item["catalog_item_id"] = item["source_product_id"]
+    catalog.insert(0, item)
+    _store_save_catalog_docs(db, catalog)
+    return {"message": "Catalog item created", "item": item}
+
+
+@router.post("/metho-store/admin/owners/{owner_id}/inventory/allocate")
+def metho_store_admin_allocate_inventory(owner_id: str, payload: dict, db: Session = Depends(get_db), current_user=Depends(get_current_user)):
+    _require_admin_user(current_user)
+    owners = _store_owner_docs(db)
+    owner = _store_find_owner(owners, owner_id)
+    if not owner:
+        raise HTTPException(status_code=404, detail="Owner not found")
+    catalog = _store_catalog_docs(db)
+    catalog_item_id = str(payload.get("catalog_item_id") or "").strip()
+    if not catalog_item_id:
+        raise HTTPException(status_code=400, detail="Catalog item ID is required")
+    item = _store_find_catalog_item(catalog, catalog_item_id)
+    if not item:
+        raise HTTPException(status_code=404, detail="Catalog item not found")
+
+    quantity = max(1, int(payload.get("quantity") or 1))
+    available = max(0, int(item.get("stock") or 0))
+    if quantity > available:
+        raise HTTPException(status_code=400, detail=f"Insufficient stock for {item.get('name') or catalog_item_id}")
+
+    item["stock"] = available - quantity
+    item["updated_at"] = now_iso()
+    inventory = _store_inventory_docs(db, owner_id)
+    existing = None
+    for row in inventory:
+        if str(row.get("catalog_item_id") or "").strip() == catalog_item_id:
+            existing = row
+            break
+    note = str(payload.get("note") or "").strip()
+    if existing:
+        existing["quantity"] = max(0, int(existing.get("quantity") or 0)) + quantity
+        existing["price"] = float(item.get("price") or existing.get("price") or 0)
+        existing["mrp"] = float(item.get("mrp") or existing.get("mrp") or 0)
+        existing["name"] = item.get("name") or existing.get("name") or "Catalog item"
+        existing["sku"] = item.get("sku") or existing.get("sku") or catalog_item_id
+        existing["note"] = note or str(existing.get("note") or "")
+        existing["status"] = "allocated"
+        existing["updated_at"] = now_iso()
+        row = existing
+    else:
+        row = _store_owner_inventory_row(item, quantity, note)
+        inventory.insert(0, row)
+    _store_save_catalog_docs(db, catalog)
+    _store_save_inventory_docs(db, owner_id, inventory)
+    return {"message": "Inventory allocated", "inventory": row}
+
+
+@router.get("/metho-store/admin/owners/{owner_id}/inventory")
+def metho_store_admin_owner_inventory(owner_id: str, db: Session = Depends(get_db), current_user=Depends(get_current_user)):
+    _require_admin_user(current_user)
+    owners = _store_owner_docs(db)
+    owner = _store_find_owner(owners, owner_id)
+    if not owner:
+        raise HTTPException(status_code=404, detail="Owner not found")
+    inventory = _store_inventory_docs(db, owner_id)
+    inventory.sort(key=lambda item: str(item.get("updated_at") or item.get("created_at") or ""), reverse=True)
+    return inventory
+
+
+@router.get("/metho-store/admin/owners/{owner_id}/invoices")
+def metho_store_admin_owner_invoices(owner_id: str, db: Session = Depends(get_db), current_user=Depends(get_current_user)):
+    _require_admin_user(current_user)
+    owners = _store_owner_docs(db)
+    owner = _store_find_owner(owners, owner_id)
+    if not owner:
+        raise HTTPException(status_code=404, detail="Owner not found")
+    invoices = _store_invoice_docs(db, owner_id)
+    invoices.sort(key=lambda item: str(item.get("created_at") or ""), reverse=True)
+    return invoices
+
+
+@router.post("/metho-store/admin/owners/{owner_id}/invoices")
+@router.post("/metho-store/admin/owner/{owner_id}/invoices")
+def metho_store_admin_create_owner_invoice(owner_id: str, payload: dict, db: Session = Depends(get_db), current_user=Depends(get_current_user)):
+    _require_admin_user(current_user)
+    owners = _store_owner_docs(db)
+    owner = _store_find_owner(owners, owner_id)
+    if not owner:
+        raise HTTPException(status_code=404, detail="Owner not found")
+    invoice = _store_create_invoice(db, owner, payload)
+    return {"message": "Invoice created", "invoice": invoice, "invoice_no": invoice["invoice_no"]}
+
+
+@router.get("/metho-store/owner/me")
+def metho_store_owner_me(db: Session = Depends(get_db), current_user=Depends(get_current_user)):
+    owners = _store_owner_docs(db)
+    owner = _store_owner_by_user_id(owners, current_user.id)
+    if not owner:
+        raise HTTPException(status_code=404, detail="Owner profile not found")
+    return _store_private_owner(owner)
+
+
+@router.get("/metho-store/owner/me/inventory")
+def metho_store_owner_inventory(db: Session = Depends(get_db), current_user=Depends(get_current_user)):
+    owners = _store_owner_docs(db)
+    owner = _store_owner_by_user_id(owners, current_user.id)
+    if not owner:
+        raise HTTPException(status_code=404, detail="Owner profile not found")
+    inventory = _store_inventory_docs(db, str(owner.get("id") or current_user.id))
+    inventory.sort(key=lambda item: str(item.get("updated_at") or item.get("created_at") or ""), reverse=True)
+    return inventory
+
+
+@router.post("/metho-store/owner/invoices")
+def metho_store_owner_create_invoice(payload: dict, db: Session = Depends(get_db), current_user=Depends(get_current_user)):
+    owners = _store_owner_docs(db)
+    owner = _store_owner_by_user_id(owners, current_user.id)
+    if not owner:
+        raise HTTPException(status_code=404, detail="Owner profile not found")
+    invoice = _store_create_invoice(db, owner, payload)
+    return {"message": "Invoice created", "invoice": invoice, "invoice_no": invoice["invoice_no"]}
+
+
 def _normalize_payout_details(payload: dict | None, request: Request | None = None) -> dict:
     source = payload if isinstance(payload, dict) else {}
     normalized = {key: str(source.get(key) or "").strip() for key in PAYOUT_DETAIL_DEFAULTS.keys()}
