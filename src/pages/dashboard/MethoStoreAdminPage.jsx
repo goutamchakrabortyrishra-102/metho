@@ -57,9 +57,13 @@ export default function MethoStoreAdminPage() {
 
   const ownerOptions = useMemo(() => normalizeCollection(owners), [owners]);
   const catalogRows = useMemo(() => normalizeCollection(catalog), [catalog]);
+  const methoCatalogRows = useMemo(
+    () => catalogRows.filter((item) => String(item.product_type || "metho").toLowerCase() === "metho"),
+    [catalogRows]
+  );
   const selectedCatalogItem = useMemo(
-    () => catalogRows.find((item) => String(item.id || item.catalog_item_id || item.sku || "").trim() === String(invoiceForm.catalog_item_id || "").trim()),
-    [catalogRows, invoiceForm.catalog_item_id]
+    () => methoCatalogRows.find((item) => String(item.id || item.catalog_item_id || item.sku || "").trim() === String(invoiceForm.catalog_item_id || "").trim()),
+    [methoCatalogRows, invoiceForm.catalog_item_id]
   );
 
   const loadAll = useCallback(async () => {
@@ -530,7 +534,7 @@ export default function MethoStoreAdminPage() {
                     className="h-11 w-full rounded-lg border border-input bg-white px-3 text-sm"
                   >
                     <option value="">Choose store product</option>
-                    {catalogRows.map((item, index) => {
+                    {methoCatalogRows.map((item, index) => {
                       const value = String(item.id || item.catalog_item_id || item.sku || index).trim();
                       const label = `${item.name || item.title || item.sku || value}${item.product_type ? ` · ${item.product_type}` : ""}${item.price ? ` · ₹${item.price}` : ""}`;
                       return <option key={value} value={value}>{label}</option>;
