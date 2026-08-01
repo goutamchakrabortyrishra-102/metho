@@ -1,11 +1,11 @@
 import React, { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { Building2, MapPin, MessageCircle, Navigation, Search } from "lucide-react";
-import api from "@/services/api";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Logo } from "@/components/Logo";
 import { useSettings } from "@/contexts/SettingsContext";
+import { methoStoreApi, normalizeCollection } from "@/services/methoStore";
 
 const mapsUrl = (partner) => {
   const q = [partner.business_name, partner.address, partner.city, partner.state].filter(Boolean).join(", ");
@@ -33,11 +33,17 @@ export default function MethoStorePage() {
 
   useEffect(() => {
     setLoading(true);
-    const params = new URLSearchParams();
-    if (q) params.set("q", q);
-    if (city) params.set("city", city);
-    api.get(`/directory/partners?${params.toString()}`)
-      .then((r) => setPartners(r.data || []))
+    methoStoreApi.publicListStoreListings()
+      .then((data) => {
+        const rows = normalizeCollection(data);
+        const next = rows.filter((item) => {
+          const active = (item?.is_active ?? item?.active ?? item?.approved ?? true) !== false;
+          const matchesQ = !q || [item?.store_name, item?.business_name, item?.owner_code, item?.code].filter(Boolean).join(" ").toLowerCase().includes(q.toLowerCase());
+          const matchesCity = !city || String(item?.city || "").toLowerCase() === String(city || "").toLowerCase();
+          return active && matchesQ && matchesCity;
+        });
+        setPartners(next);
+      })
       .catch(() => setPartners([]))
       .finally(() => setLoading(false));
   }, [q, city]);
@@ -105,7 +111,7 @@ export default function MethoStorePage() {
             </div>
           ) : (
             <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-              {partners.map((partner) => <StoreCard key={partner.id || partner.partner_code} partner={partner} />)}
+              {partners.map((partner) => <StoreCard key={partner.id || partner.partner_code || partner.owner_code} partner={partner} />)}
             </div>
           )}
         </section>
@@ -133,8 +139,8 @@ function StoreCard({ partner }) {
       <div className="p-5 space-y-4">
         <div>
           <p className="text-[10px] uppercase tracking-widest text-emerald-800 font-semibold">{partner.city || "Metho Store"}</p>
-          <h2 className="mt-1 font-display font-black text-xl text-emerald-950">{partner.business_name}</h2>
-          {partner.contact_person ? <p className="text-sm text-slate-500 mt-1">{partner.contact_person}</p> : null}
+          <h2 className="mt-1 font-display font-black text-xl text-emerald-950">{partner.store_name || partner.business_name || partner.owner_code || "METHO Store"}</h2>
+          {partner.business_name && partner.store_name ? <p className="text-sm text-slate-500 mt-1">{partner.business_name}</p> : partner.contact_person ? <p className="text-sm text-slate-500 mt-1">{partner.contact_person}</p> : null}
         </div>
 
         <div className="space-y-3 text-sm text-slate-600 font-body">
