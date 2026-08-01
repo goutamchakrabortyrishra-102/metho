@@ -714,7 +714,7 @@ export default function AddProductDialog({
             <Select value={form.product_type} onValueChange={(v) => setForm({ ...form, product_type: v, partner_id: v === "metho" ? "" : form.partner_id })}>
               <SelectTrigger className="mt-1.5" data-testid="new-product-type-select"><SelectValue /></SelectTrigger>
               <SelectContent>
-                <SelectItem value="metho">METHOO STORE Product (Smart Cycle qualified)</SelectItem>
+                <SelectItem value="metho">METHO Product (Smart Cycle qualified)</SelectItem>
                 <SelectItem value="associate_partner">Associate Partner Product</SelectItem>
               </SelectContent>
             </Select>

@@ -11,7 +11,7 @@ import UpiPaymentDialog from "@/components/UpiPaymentDialog";
 import { useAuth } from "@/contexts/AuthContext";
 import { resolveAssetUrl } from "@/lib/utils";
 
-const FALLBACK_IMAGE = "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 600 600'><rect width='600' height='600' fill='%23e2e8f0'/><text x='50%25' y='50%25' dominant-baseline='middle' text-anchor='middle' fill='%23475569' font-size='28' font-family='Arial, sans-serif'>METHOO STORE Product</text></svg>";
+const FALLBACK_IMAGE = "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 600 600'><rect width='600' height='600' fill='%23e2e8f0'/><text x='50%25' y='50%25' dominant-baseline='middle' text-anchor='middle' fill='%23475569' font-size='28' font-family='Arial, sans-serif'>METHO Product</text></svg>";
 
 const normalizeCollection = (value) => {
   if (Array.isArray(value)) return value;
@@ -212,7 +212,7 @@ export default function ShopPage() {
     doc.setTextColor(251, 191, 36);
     doc.setFont("helvetica", "bold");
     doc.setFontSize(15);
-    doc.text("METHOO STORE Product Catalog", 10, 11);
+    doc.text("METHO Product Catalog", 10, 11);
     doc.setTextColor(255, 255, 255);
     doc.setFont("helvetica", "normal");
     doc.setFontSize(8);
@@ -247,7 +247,7 @@ export default function ShopPage() {
       doc.setPage(pg);
       doc.setFontSize(7);
       doc.setTextColor(148, 163, 184);
-      doc.text(`METHOO STORE Catalog · Page ${pg}/${totalPages}`, W / 2, 292, { align: "center" });
+      doc.text(`METHO Catalog · Page ${pg}/${totalPages}`, W / 2, 292, { align: "center" });
     }
 
     doc.save("METHO_Product_Catalog.pdf");

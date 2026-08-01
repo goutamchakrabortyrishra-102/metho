@@ -448,7 +448,7 @@ export default function PartnerGalleryPage() {
     doc.setFont("helvetica", "normal");
     doc.text(`${partner.business_type || ""} · ${partner.phone || ""} · ${partner.partner_code}`, 10, 20);
     doc.setTextColor(255, 255, 255);
-    doc.text("METHOO STORE Product Catalog", W - 10, 10, { align: "right" });
+    doc.text("METHO Product Catalog", W - 10, 10, { align: "right" });
     doc.text(new Date().toLocaleDateString("en-IN"), W - 10, 17, { align: "right" });
     doc.text(`methoaayupay.com/gallery/${partner.partner_code}`, W - 10, 24, { align: "right" });
 
