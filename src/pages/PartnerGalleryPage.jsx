@@ -309,7 +309,7 @@ export default function PartnerGalleryPage() {
     }) : activeListings;
     return source;
   }, [activeListings, gallerySearch]);
-  const canDownloadPdf = user?.role === "partner";
+  const canDownloadPdf = ["partner", "admin", "super_admin", "company_admin"].includes(String(user?.role || "").toLowerCase());
 
   const addToCart = (id) => {
     const product = products.find((x) => String(x.id) === String(id));
@@ -638,7 +638,7 @@ export default function PartnerGalleryPage() {
       {!canDownloadPdf ? (
         <div className="max-w-4xl mx-auto px-4 pb-2">
           <div className="rounded-xl border border-amber-300 bg-amber-50 px-4 py-3 text-xs text-amber-900" data-testid="gallery-pdf-role-note">
-            Catalog PDF export and download are enabled only for Partner accounts. The Member/Customer cart flow remains unchanged.
+            Catalog PDF export and download are enabled only for Admin/Partner accounts. The Member/Customer cart flow remains unchanged.
           </div>
         </div>
       ) : null}

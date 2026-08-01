@@ -474,7 +474,7 @@ export default function PartnerShopPage() {
               <p className="text-[10px] uppercase tracking-widest text-emerald-800 font-semibold">All Product View</p>
             </div>
             <h3 className="font-display font-bold text-emerald-950 text-lg mt-1">View All Products</h3>
-            <p className="text-sm text-slate-600 mt-3">See product details, PDF view, and add-to-cart flow in one place.</p>
+            <p className="text-sm text-slate-600 mt-3">See product details and add-to-cart flow in one place.</p>
             <div className="mt-6">
               <Button onClick={() => openGallery("", "products")} className="w-full bg-emerald-900 hover:bg-emerald-950 text-white rounded-full" data-testid="partner-gallery-btn">
                 <Images className="w-4 h-4 mr-2" /> View All Products
