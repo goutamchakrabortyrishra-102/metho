@@ -67,6 +67,7 @@ export default function ProductsPage() {
   const [editOpen, setEditOpen] = useState(false);
   const [editingProduct, setEditingProduct] = useState(null);
   const [selectedCategory, setSelectedCategory] = useState("all");
+  const [categoryOrder, setCategoryOrder] = useState([]);
   const [landingTopProductIds, setLandingTopProductIds] = useState([]);
   const [savingTopProducts, setSavingTopProducts] = useState(false);
   const [savingCategoryOrder, setSavingCategoryOrder] = useState(false);
@@ -96,6 +97,16 @@ export default function ProductsPage() {
       .slice(0, 6);
     setLandingTopProductIds(next);
   }, [settings?.landing_top_product_ids]);
+
+  useEffect(() => {
+    const productCategories = [...new Set(products.map((p) => p.category).filter(Boolean))];
+    const configuredCategories = normalizeCategories(settings?.product_categories);
+    const nextCategories = [
+      ...configuredCategories.filter((category) => productCategories.includes(category)),
+      ...productCategories.filter((category) => !configuredCategories.includes(category)).sort((a, b) => a.localeCompare(b)),
+    ];
+    setCategoryOrder(nextCategories);
+  }, [products, settings?.product_categories]);
 
   const saveLandingTopProductIds = async (nextIds) => {
     setSavingTopProducts(true);
@@ -145,6 +156,7 @@ export default function ProductsPage() {
     setSavingCategoryOrder(true);
     try {
       await api.put("/settings", { product_categories: nextCategories });
+      setCategoryOrder(nextCategories);
       toast.success("Category order updated");
     } catch (err) {
       toast.error(err?.response?.data?.detail || "Failed to update category order");
@@ -154,12 +166,13 @@ export default function ProductsPage() {
   };
 
   const moveProductCategory = (category, direction) => {
-    const currentIndex = categories.indexOf(category);
+    const currentIndex = categoryOrder.indexOf(category);
     if (currentIndex < 0) return;
     const nextIndex = direction === "up" ? currentIndex - 1 : currentIndex + 1;
-    if (nextIndex < 0 || nextIndex >= categories.length) return;
-    const nextCategories = [...categories];
+    if (nextIndex < 0 || nextIndex >= categoryOrder.length) return;
+    const nextCategories = [...categoryOrder];
     [nextCategories[currentIndex], nextCategories[nextIndex]] = [nextCategories[nextIndex], nextCategories[currentIndex]];
+    setCategoryOrder(nextCategories);
     saveProductCategoryOrder(nextCategories);
   };
 
@@ -226,12 +239,7 @@ export default function ProductsPage() {
   });
   const total = items.reduce((s, i) => s + i.subtotal, 0);
 
-  const productCategories = [...new Set(products.map((p) => p.category).filter(Boolean))];
-  const configuredCategories = normalizeCategories(settings?.product_categories);
-  const categories = [
-    ...configuredCategories.filter((category) => productCategories.includes(category)),
-    ...productCategories.filter((category) => !configuredCategories.includes(category)).sort((a, b) => a.localeCompare(b)),
-  ];
+  const categories = categoryOrder;
   const filteredProducts = selectedCategory === "all"
     ? products
     : products.filter((p) => p.category === selectedCategory);

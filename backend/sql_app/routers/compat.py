@@ -452,16 +452,17 @@ def _store_sync_owner_user(db: Session, owner: dict, password: str | None = None
         return None
     email = str(owner.get("email") or "").strip()
     phone = str(owner.get("phone") or "").strip()
+    login_id = email or phone or f"{owner_id}@metho-store.local"
     name = str(owner.get("owner_name") or owner.get("store_name") or owner.get("business_name") or "Metho Store Owner").strip()
     user = db.query(User).filter(User.id == owner_id).first()
     if not user:
-        existing = db.query(User).filter(User.email == email).first() if email else None
+        existing = db.query(User).filter(User.email == login_id).first() if login_id else None
         if existing:
-            raise HTTPException(status_code=400, detail="Email already in use")
+            raise HTTPException(status_code=400, detail="Login ID already in use")
         user = User(
             id=owner_id,
             name=name,
-            email=email or f"{owner_id}@metho-store.local",
+            email=login_id,
             phone=phone,
             password=hash_password(password or "store123"),
             role="store_owner",
@@ -470,8 +471,7 @@ def _store_sync_owner_user(db: Session, owner: dict, password: str | None = None
         db.add(user)
     else:
         user.name = name
-        if email:
-            user.email = email
+        user.email = login_id
         user.phone = phone
         user.role = "store_owner"
         user.is_active = bool(owner.get("is_active", True))
