@@ -815,6 +815,40 @@ export default function SettingsPage() {
         ) : null}
       </div>
 
+      <div className="grid gap-3 md:grid-cols-3" data-testid="settings-layout-summary-cards">
+        <div className="rounded-xl border border-border bg-white p-4">
+          <p className="text-[11px] uppercase tracking-[0.16em] text-emerald-800 font-semibold">Layout Mode</p>
+          <p className="mt-1 text-sm text-emerald-950 font-semibold">Settings streamlined</p>
+          <p className="mt-1 text-[11px] text-muted-foreground">Landing featured picks এখন Products page থেকে manage হবে।</p>
+        </div>
+        <div className="rounded-xl border border-border bg-white p-4">
+          <p className="text-[11px] uppercase tracking-[0.16em] text-emerald-800 font-semibold">Quick Action</p>
+          <p className="mt-1 text-sm text-emerald-950 font-semibold">Top Product Control</p>
+          <Button
+            type="button"
+            variant="outline"
+            className="mt-2 rounded-full"
+            onClick={() => window.open("/app/products", "_blank")}
+            data-testid="settings-open-products-page"
+          >
+            Open Products Page
+          </Button>
+        </div>
+        <div className="rounded-xl border border-border bg-white p-4">
+          <p className="text-[11px] uppercase tracking-[0.16em] text-emerald-800 font-semibold">Quick Action</p>
+          <p className="mt-1 text-sm text-emerald-950 font-semibold">Image Upload</p>
+          <Button
+            type="button"
+            variant="outline"
+            className="mt-2 rounded-full"
+            onClick={() => window.open("/app/products?upload=1", "_blank")}
+            data-testid="settings-open-product-upload"
+          >
+            Open Product Upload
+          </Button>
+        </div>
+      </div>
+
       <form onSubmit={save} className="space-y-6">
         <fieldset disabled={readOnly} className="space-y-6">
           <Section
@@ -1249,6 +1283,7 @@ export default function SettingsPage() {
           </Section>
 
           <Section
+            title="Brand & Landing Essentials"
             subtitle="Landing page, shop, PWA — সব জায়গায় দেখানো logo/hero images এখান থেকে control করুন।"
             icon={ImageIcon}
             badge="Site-wide"
@@ -1477,15 +1512,20 @@ export default function SettingsPage() {
         </fieldset>
 
         {!readOnly ? (
-          <div className="sticky bottom-4 flex justify-end">
-            <Button
-              type="submit"
-              disabled={saving || !splitValid}
-              className="bg-emerald-900 hover:bg-emerald-950 text-white rounded-full px-8 h-12 shadow-lg disabled:bg-slate-400"
-              data-testid="settings-save-button"
-            >
-              <Save className="w-4 h-4 mr-2" /> {saving ? "Save হচ্ছে..." : "সব Settings Save করুন"}
-            </Button>
+          <div className="sticky bottom-4 z-10">
+            <div className="ml-auto w-full md:w-fit rounded-2xl border border-emerald-200 bg-white/95 backdrop-blur px-3 py-3 shadow-lg">
+              <div className="flex items-center justify-between gap-3 md:justify-end">
+                <p className="text-[11px] text-emerald-900 font-medium md:hidden">সব পরিবর্তন ready হলে Save করুন</p>
+                <Button
+                  type="submit"
+                  disabled={saving || !splitValid}
+                  className="bg-emerald-900 hover:bg-emerald-950 text-white rounded-full px-8 h-12 shadow-sm disabled:bg-slate-400"
+                  data-testid="settings-save-button"
+                >
+                  <Save className="w-4 h-4 mr-2" /> {saving ? "Save হচ্ছে..." : "সব Settings Save করুন"}
+                </Button>
+              </div>
+            </div>
           </div>
         ) : null}
       </form>
