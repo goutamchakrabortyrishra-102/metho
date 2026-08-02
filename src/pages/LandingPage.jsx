@@ -8,7 +8,7 @@ import { Logo } from "@/components/Logo";
 import api from "@/services/api";
 import { methoStoreApi, normalizeCollection } from "@/services/methoStore";
 import { useSettings } from "@/contexts/SettingsContext";
-import { resolveAssetUrl } from "@/lib/utils";
+import { resolveAssetUrl, getAssetImageFallbackCandidates } from "@/lib/utils";
 
 function ReferralEntryStrip() {
   const [params] = useSearchParams();
@@ -55,6 +55,30 @@ const TEAM_IMG = "https://images.pexels.com/photos/7580944/pexels-photo-7580944.
 const WALLET_IMG = "https://images.pexels.com/photos/7580855/pexels-photo-7580855.jpeg?auto=compress&cs=tinysrgb&w=500";
 const FALLBACK_PRODUCT_IMG = "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 600 600'><rect width='600' height='600' fill='%23f1f5f9'/><text x='50%25' y='50%25' dominant-baseline='middle' text-anchor='middle' fill='%23475569' font-size='26' font-family='Arial'>METHO Product</text></svg>";
 const FALLBACK_LEADER_IMG = "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 700 875'><defs><linearGradient id='g' x1='0' y1='0' x2='0' y2='1'><stop offset='0%25' stop-color='%23f8fafc'/><stop offset='100%25' stop-color='%23e2e8f0'/></linearGradient></defs><rect width='700' height='875' fill='url(%23g)'/><circle cx='350' cy='305' r='104' fill='%2394a3b8' opacity='0.42'/><rect x='170' y='430' width='360' height='280' rx='180' fill='%2394a3b8' opacity='0.35'/><rect x='0' y='760' width='700' height='115' fill='%23cbd5e1' opacity='0.4'/></svg>";
+const pickProductImageSrc = (product) => resolveAssetUrl(
+  product?.image_url ||
+  product?.product_image_url ||
+  product?.image ||
+  product?.thumbnail_url ||
+  product?.thumb_url ||
+  product?.photo_url ||
+  ""
+);
+
+const applyLandingImageFallback = (event, extras = [], terminalFallback = FALLBACK_PRODUCT_IMG) => {
+  const target = event.currentTarget;
+  const candidates = getAssetImageFallbackCandidates(target.src, [...extras, terminalFallback]);
+  const tried = Number(target.dataset.fallbackIndex || "0");
+  for (let i = tried; i < candidates.length; i += 1) {
+    const next = String(candidates[i] || "").trim();
+    if (!next || next === target.src) continue;
+    target.dataset.fallbackIndex = String(i + 1);
+    target.src = next;
+    return;
+  }
+  if (target.src !== terminalFallback) target.src = terminalFallback;
+};
+
 const isVisibleMethoProduct = (product) => {
   const typeOk = String(product?.product_type || "metho").toLowerCase() === "metho";
   const hiddenRaw = product?.hidden;
@@ -374,15 +398,11 @@ const Hero = () => {
             >
               <div className="aspect-[4/3] bg-slate-100 overflow-hidden">
                 <img
-                  src={resolveAssetUrl(p?.image_url) || FALLBACK_PRODUCT_IMG}
+                  src={pickProductImageSrc(p) || FALLBACK_PRODUCT_IMG}
                   alt={p?.name || "METHO Product"}
                   className="w-full h-full object-cover group-hover:scale-[1.03] transition-transform duration-300"
                   loading="lazy"
-                  onError={(e) => {
-                    if (e.currentTarget.src !== FALLBACK_PRODUCT_IMG) {
-                      e.currentTarget.src = FALLBACK_PRODUCT_IMG;
-                    }
-                  }}
+                  onError={(e) => { applyLandingImageFallback(e, [pickProductImageSrc(p)]); }}
                 />
               </div>
               <div className="px-3 py-2.5">
@@ -806,10 +826,10 @@ const Products = () => {
             >
               <div className="aspect-square overflow-hidden bg-gradient-to-br from-white to-emerald-50/40">
                 <img
-                  src={resolveAssetUrl(p.image_url) || placeholder}
+                  src={pickProductImageSrc(p) || placeholder}
                   alt={p.name}
                   className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
-                  onError={(e) => { if (e.currentTarget.src !== placeholder) e.currentTarget.src = placeholder; }}
+                  onError={(e) => { applyLandingImageFallback(e, [pickProductImageSrc(p)], placeholder || FALLBACK_PRODUCT_IMG); }}
                 />
               </div>
               <div className="p-4">

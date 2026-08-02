@@ -7,6 +7,23 @@ import { Logo } from "@/components/Logo";
 import { useSettings } from "@/contexts/SettingsContext";
 import { methoStoreApi, normalizeCollection } from "@/services/methoStore";
 import api from "@/services/api";
+import { resolveAssetUrl, getAssetImageFallbackCandidates } from "@/lib/utils";
+
+const FALLBACK_STORE_IMG = "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 600 420'><defs><linearGradient id='gs' x1='0' y1='0' x2='1' y2='1'><stop offset='0%25' stop-color='%23ecfdf5'/><stop offset='100%25' stop-color='%23e2e8f0'/></linearGradient></defs><rect width='600' height='420' fill='url(%23gs)'/><circle cx='300' cy='145' r='62' fill='%23059669' opacity='0.16'/><text x='300' y='154' text-anchor='middle' fill='%230f766e' font-size='40' font-family='Arial' font-weight='700'>M</text><text x='300' y='252' text-anchor='middle' fill='%230f172a' font-size='24' font-family='Arial' font-weight='700'>METHO Store</text></svg>";
+
+const applyStoreImageFallback = (event, extras = []) => {
+  const target = event.currentTarget;
+  const candidates = getAssetImageFallbackCandidates(target.src, [...extras, FALLBACK_STORE_IMG]);
+  const tried = Number(target.dataset.fallbackIndex || "0");
+  for (let i = tried; i < candidates.length; i += 1) {
+    const next = String(candidates[i] || "").trim();
+    if (!next || next === target.src) continue;
+    target.dataset.fallbackIndex = String(i + 1);
+    target.src = next;
+    return;
+  }
+  if (target.src !== FALLBACK_STORE_IMG) target.src = FALLBACK_STORE_IMG;
+};
 
 const mapsUrl = (partner) => {
   const directMap = String(partner.google_map_url || partner.map_url || partner.location_url || "").trim();
@@ -126,14 +143,21 @@ export default function MethoStorePage() {
 function StoreCard({ partner }) {
   const address = [partner.address, partner.city, partner.state, partner.pincode].filter(Boolean).join(", ");
   const whatsapp = waUrl(partner);
-  const bannerSrc = partner.banner_url || partner.logo_url;
+  const bannerSrc = resolveAssetUrl(partner.banner_url || partner.logo_url || "");
+  const logoSrc = resolveAssetUrl(partner.logo_url || "");
   const uniqueStoreId = String(partner.owner_code || partner.partner_code || partner.code || partner.id || "-").trim() || "-";
 
   return (
     <div className="overflow-hidden rounded-2xl border border-border bg-white shadow-sm" data-testid={`metho-store-card-${partner.partner_code || partner.id}`}>
       <div className="h-44 bg-slate-100 overflow-hidden">
         {bannerSrc ? (
-          <img src={bannerSrc} alt={partner.business_name || "Store banner"} className="h-full w-full object-cover" />
+          <img
+            src={bannerSrc}
+            alt={partner.business_name || "Store banner"}
+            className="h-full w-full object-cover"
+            loading="lazy"
+            onError={(e) => { applyStoreImageFallback(e, [logoSrc, bannerSrc]); }}
+          />
         ) : (
           <div className="h-full w-full flex items-center justify-center bg-emerald-50 text-emerald-800">
             <Building2 className="w-10 h-10" />
