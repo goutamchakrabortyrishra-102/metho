@@ -470,6 +470,32 @@ function BrandingImageUpload({ purpose, label, hint, value, onChange, onPersist,
       reader.readAsDataURL(file);
     });
 
+  const canLoadImage = (src, timeoutMs = 6000) =>
+    new Promise((resolve) => {
+      const next = String(src || "").trim();
+      if (!next) {
+        resolve(false);
+        return;
+      }
+      const img = new Image();
+      let done = false;
+      const finish = (ok) => {
+        if (done) return;
+        done = true;
+        resolve(ok);
+      };
+      const timer = window.setTimeout(() => finish(false), timeoutMs);
+      img.onload = () => {
+        window.clearTimeout(timer);
+        finish(true);
+      };
+      img.onerror = () => {
+        window.clearTimeout(timer);
+        finish(false);
+      };
+      img.src = next;
+    });
+
   const upload = async (e) => {
     const f = e.target.files?.[0];
     if (!f) return;
@@ -506,6 +532,12 @@ function BrandingImageUpload({ purpose, label, hint, value, onChange, onPersist,
         }
         nextUrl = String(data?.url || "").trim();
         if (!nextUrl) throw new Error("Upload response missing url");
+        // Prevent dead URL persistence: if uploaded URL is not actually loadable, keep a local embedded copy.
+        const resolved = resolveAssetUrl(nextUrl);
+        const reachable = await canLoadImage(resolved);
+        if (!reachable) {
+          nextUrl = await readAsDataUrl(f);
+        }
       } else {
         // Keep existing data-url flow for non-critical branding fields.
         nextUrl = await readAsDataUrl(f);
