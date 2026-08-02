@@ -43,6 +43,7 @@ export default function UpiPaymentDialog({
   const [address, setAddress] = useState("");
   const [txnId, setTxnId] = useState("");
   const [payerName, setPayerName] = useState("");
+  const [payerPhone, setPayerPhone] = useState("");
   const [screenshot, setScreenshot] = useState(null); // { url, storage_path }
   const [uploading, setUploading] = useState(false);
   const [submitting, setSubmitting] = useState(false);
@@ -114,6 +115,7 @@ export default function UpiPaymentDialog({
         txn_id: txnId.trim(),
         payment_screenshot_url: screenshot.url,
         payer_name: payerName || undefined,
+        customer_phone: String(payerPhone || "").trim(),
       };
       const ref = (memberRef || "").trim();
       if (ref) {
@@ -133,7 +135,7 @@ export default function UpiPaymentDialog({
       );
       onOrderPlaced?.(data);
       // Reset
-      setTxnId(""); setPayerName(""); setScreenshot(null); setAddress("");
+      setTxnId(""); setPayerName(""); setPayerPhone(""); setScreenshot(null); setAddress("");
     } catch (err) {
       toast.error(err?.response?.data?.detail || "Order submit failed");
     } finally {
@@ -161,6 +163,7 @@ export default function UpiPaymentDialog({
         shipping_address: requiresShippingAddress ? address : "",
         payment_method: "razorpay",
         payer_name: payerName || undefined,
+        customer_phone: String(payerPhone || "").trim(),
       };
       const ref = (memberRef || "").trim();
       if (ref) {
@@ -220,6 +223,7 @@ export default function UpiPaymentDialog({
             onOrderPlaced?.(verified);
             setTxnId("");
             setPayerName("");
+            setPayerPhone("");
             setScreenshot(null);
             setAddress("");
           } catch (err) {
@@ -411,6 +415,18 @@ export default function UpiPaymentDialog({
                 </div>
 
                 <div>
+              <Label htmlFor="payer-phone">Mobile Number</Label>
+              <Input
+                id="payer-phone"
+                value={payerPhone}
+                onChange={(e) => setPayerPhone(e.target.value)}
+                placeholder="e.g. 98XXXXXXXX"
+                data-testid="upi-phone-input"
+                className="mt-1.5 h-11"
+              />
+                </div>
+
+                <div>
               <Label htmlFor="payer">Payer Name (optional)</Label>
               <Input
                 id="payer"
@@ -482,6 +498,18 @@ export default function UpiPaymentDialog({
                   </p>
                 </div>
               ) : null}
+
+              <div>
+                <Label htmlFor="payer-phone-razorpay">Mobile Number</Label>
+                <Input
+                  id="payer-phone-razorpay"
+                  value={payerPhone}
+                  onChange={(e) => setPayerPhone(e.target.value)}
+                  placeholder="e.g. 98XXXXXXXX"
+                  data-testid="razorpay-phone-input"
+                  className="mt-1.5 h-11"
+                />
+              </div>
 
               <div>
                 <Label htmlFor="payer-razorpay">Payer Name (optional)</Label>

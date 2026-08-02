@@ -10,9 +10,13 @@ const EMPTY_OWNER_FORM = {
   owner_name: "",
   store_name: "",
   phone: "",
+  whatsapp_no: "",
   email: "",
   password: "",
   commission_percent: 0,
+  address: "",
+  pincode: "",
+  google_map_url: "",
   city: "",
   state: "",
 };
@@ -169,9 +173,13 @@ export default function MethoStoreAdminPage() {
         owner_name: ownerForm.owner_name.trim(),
         store_name: ownerForm.store_name.trim(),
         phone: ownerForm.phone.trim(),
+        whatsapp_no: ownerForm.whatsapp_no.trim(),
         email: ownerForm.email.trim(),
         password: ownerForm.password,
         commission_percent: Number(ownerForm.commission_percent) || 0,
+        address: ownerForm.address.trim(),
+        pincode: ownerForm.pincode.trim(),
+        google_map_url: ownerForm.google_map_url.trim(),
         city: ownerForm.city.trim(),
         state: ownerForm.state.trim(),
       });
@@ -196,7 +204,11 @@ export default function MethoStoreAdminPage() {
         owner_name: ownerEditForm.owner_name?.trim(),
         store_name: ownerEditForm.store_name?.trim(),
         phone: ownerEditForm.phone?.trim(),
+        whatsapp_no: ownerEditForm.whatsapp_no?.trim(),
         email: ownerEditForm.email?.trim(),
+        address: ownerEditForm.address?.trim(),
+        pincode: ownerEditForm.pincode?.trim(),
+        google_map_url: ownerEditForm.google_map_url?.trim(),
         city: ownerEditForm.city?.trim(),
         state: ownerEditForm.state?.trim(),
         commission_percent: Number(ownerEditForm.commission_percent) || 0,
@@ -351,12 +363,26 @@ export default function MethoStoreAdminPage() {
                   <Field label="Phone">
                     <Input value={ownerForm.phone} onChange={(e) => setOwnerForm((prev) => ({ ...prev, phone: e.target.value }))} placeholder="Phone number" />
                   </Field>
+                  <Field label="WhatsApp no">
+                    <Input value={ownerForm.whatsapp_no} onChange={(e) => setOwnerForm((prev) => ({ ...prev, whatsapp_no: e.target.value }))} placeholder="WhatsApp number" />
+                  </Field>
+                </div>
+                <div className="grid gap-3 sm:grid-cols-2">
                   <Field label="Email">
                     <Input value={ownerForm.email} onChange={(e) => setOwnerForm((prev) => ({ ...prev, email: e.target.value }))} placeholder="Email address" />
+                  </Field>
+                  <Field label="Pincode">
+                    <Input value={ownerForm.pincode} onChange={(e) => setOwnerForm((prev) => ({ ...prev, pincode: e.target.value }))} placeholder="Pincode" />
                   </Field>
                 </div>
                 <Field label="Password">
                   <Input type="password" value={ownerForm.password} onChange={(e) => setOwnerForm((prev) => ({ ...prev, password: e.target.value }))} placeholder="Set password" />
+                </Field>
+                <Field label="Address">
+                  <Input value={ownerForm.address} onChange={(e) => setOwnerForm((prev) => ({ ...prev, address: e.target.value }))} placeholder="Full address" />
+                </Field>
+                <Field label="Google Map URL">
+                  <Input value={ownerForm.google_map_url} onChange={(e) => setOwnerForm((prev) => ({ ...prev, google_map_url: e.target.value }))} placeholder="https://maps.google.com/..." />
                 </Field>
                 <div className="grid gap-3 sm:grid-cols-3">
                   <Field label="Commission %">
@@ -387,6 +413,7 @@ export default function MethoStoreAdminPage() {
                             <p className="font-semibold text-emerald-950">{ownerLabel(owner)}</p>
                             <p className="text-xs text-slate-500 mt-1">Code: {fmt(owner.owner_code || owner.code)}</p>
                             <p className="text-xs text-slate-500">Phone: {fmt(owner.phone)}</p>
+                            <p className="text-xs text-slate-500">WhatsApp: {fmt(owner.whatsapp_no || owner.phone)}</p>
                           </div>
                           <span className={`text-[10px] uppercase tracking-wider px-2 py-1 rounded-full font-bold ${approved ? "bg-emerald-100 text-emerald-800" : "bg-amber-100 text-amber-800"}`}>{approved ? "Active" : "Pending"}</span>
                         </div>
@@ -399,8 +426,12 @@ export default function MethoStoreAdminPage() {
                             owner_name: owner.owner_name || owner.name || "",
                             store_name: owner.store_name || owner.business_name || "",
                             phone: owner.phone || "",
+                            whatsapp_no: owner.whatsapp_no || owner.phone || "",
                             email: owner.email || "",
                             password: "",
+                            address: owner.address || "",
+                            pincode: owner.pincode || "",
+                            google_map_url: owner.google_map_url || owner.map_url || "",
                             city: owner.city || "",
                             state: owner.state || "",
                             commission_percent: owner.commission_percent ?? owner.commission ?? 0,
@@ -600,8 +631,12 @@ export default function MethoStoreAdminPage() {
             <Field label="Owner name"><Input value={ownerEditForm.owner_name} onChange={(e) => setOwnerEditForm((prev) => ({ ...prev, owner_name: e.target.value }))} /></Field>
             <Field label="Store name"><Input value={ownerEditForm.store_name} onChange={(e) => setOwnerEditForm((prev) => ({ ...prev, store_name: e.target.value }))} /></Field>
             <Field label="Phone"><Input value={ownerEditForm.phone} onChange={(e) => setOwnerEditForm((prev) => ({ ...prev, phone: e.target.value }))} /></Field>
+            <Field label="WhatsApp"><Input value={ownerEditForm.whatsapp_no || ""} onChange={(e) => setOwnerEditForm((prev) => ({ ...prev, whatsapp_no: e.target.value }))} /></Field>
             <Field label="Email"><Input value={ownerEditForm.email} onChange={(e) => setOwnerEditForm((prev) => ({ ...prev, email: e.target.value }))} /></Field>
             <Field label="Password (optional)" className="sm:col-span-2"><Input type="password" value={ownerEditForm.password || ""} onChange={(e) => setOwnerEditForm((prev) => ({ ...prev, password: e.target.value }))} placeholder="Leave blank to keep current password" /></Field>
+            <Field label="Address"><Input value={ownerEditForm.address || ""} onChange={(e) => setOwnerEditForm((prev) => ({ ...prev, address: e.target.value }))} /></Field>
+            <Field label="Pincode"><Input value={ownerEditForm.pincode || ""} onChange={(e) => setOwnerEditForm((prev) => ({ ...prev, pincode: e.target.value }))} /></Field>
+            <Field label="Google Map URL"><Input value={ownerEditForm.google_map_url || ""} onChange={(e) => setOwnerEditForm((prev) => ({ ...prev, google_map_url: e.target.value }))} /></Field>
             <Field label="City"><Input value={ownerEditForm.city} onChange={(e) => setOwnerEditForm((prev) => ({ ...prev, city: e.target.value }))} /></Field>
             <Field label="State"><Input value={ownerEditForm.state} onChange={(e) => setOwnerEditForm((prev) => ({ ...prev, state: e.target.value }))} /></Field>
             <Field label="Commission %"><Input type="number" value={ownerEditForm.commission_percent} onChange={(e) => setOwnerEditForm((prev) => ({ ...prev, commission_percent: e.target.value }))} /></Field>

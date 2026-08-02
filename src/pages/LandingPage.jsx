@@ -85,6 +85,9 @@ const Nav = () => (
         <Link to="/metho-store" className="md:hidden" data-testid="nav-mobile-metho-store-link">
           <Button variant="ghost" size="sm" className="px-2 text-[11px] sm:text-xs hover:bg-emerald-50 hover:text-emerald-900">Metho Store</Button>
         </Link>
+        <Link to="/login?next=/app/metho-store-owner" className="md:hidden" data-testid="nav-mobile-store-login-link">
+          <Button variant="ghost" size="sm" className="px-2 text-[11px] sm:text-xs hover:bg-emerald-50 hover:text-emerald-900">Store Login</Button>
+        </Link>
         <Link to="/partner-register" className="hidden md:inline-flex" data-testid="nav-partner-register-link">
           <Button variant="ghost" className="hover:bg-emerald-50 hover:text-emerald-900">Partner Register</Button>
         </Link>
@@ -96,6 +99,9 @@ const Nav = () => (
         </Link>
         <Link to="/login" className="hidden md:inline-flex" data-testid="nav-partner-login-link">
           <Button variant="ghost" className="hover:bg-emerald-50 hover:text-emerald-900">Partner Login</Button>
+        </Link>
+        <Link to="/login?next=/app/metho-store-owner" className="hidden md:inline-flex" data-testid="nav-store-login-link">
+          <Button variant="ghost" className="hover:bg-emerald-50 hover:text-emerald-900">Store Login</Button>
         </Link>
         <Link to="/login" data-testid="nav-login-link"><Button variant="ghost" size="sm" className="px-3 md:px-4 hover:bg-emerald-50 hover:text-emerald-900">Login</Button></Link>
         <Link to="/register" data-testid="nav-register-link">

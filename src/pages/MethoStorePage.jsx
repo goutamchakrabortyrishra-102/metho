@@ -9,6 +9,8 @@ import { methoStoreApi, normalizeCollection } from "@/services/methoStore";
 import api from "@/services/api";
 
 const mapsUrl = (partner) => {
+  const directMap = String(partner.google_map_url || partner.map_url || partner.location_url || "").trim();
+  if (directMap) return directMap;
   const q = [partner.business_name, partner.address, partner.city, partner.state].filter(Boolean).join(", ");
   return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(q)}`;
 };
@@ -125,6 +127,7 @@ function StoreCard({ partner }) {
   const address = [partner.address, partner.city, partner.state, partner.pincode].filter(Boolean).join(", ");
   const whatsapp = waUrl(partner);
   const bannerSrc = partner.banner_url || partner.logo_url;
+  const uniqueStoreId = String(partner.owner_code || partner.partner_code || partner.code || partner.id || "-").trim() || "-";
 
   return (
     <div className="overflow-hidden rounded-2xl border border-border bg-white shadow-sm" data-testid={`metho-store-card-${partner.partner_code || partner.id}`}>
@@ -142,6 +145,7 @@ function StoreCard({ partner }) {
           <p className="text-[10px] uppercase tracking-widest text-emerald-800 font-semibold">{partner.city || "Metho Store"}</p>
           <h2 className="mt-1 font-display font-black text-xl text-emerald-950">{partner.store_name || partner.business_name || partner.owner_code || "METHO Store"}</h2>
           {partner.business_name && partner.store_name ? <p className="text-sm text-slate-500 mt-1">{partner.business_name}</p> : partner.contact_person ? <p className="text-sm text-slate-500 mt-1">{partner.contact_person}</p> : null}
+          <p className="text-xs text-slate-500 mt-1">Store ID: <span className="font-mono text-emerald-900">{uniqueStoreId}</span></p>
         </div>
 
         <div className="space-y-3 text-sm text-slate-600 font-body">
@@ -151,6 +155,8 @@ function StoreCard({ partner }) {
               <span>{address}</span>
             </div>
           ) : null}
+          {partner.phone ? <p className="text-xs text-slate-500">Mobile: {partner.phone}</p> : null}
+          {partner.whatsapp_no ? <p className="text-xs text-slate-500">WhatsApp: {partner.whatsapp_no}</p> : null}
         </div>
 
         <div className="grid grid-cols-2 gap-2">

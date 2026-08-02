@@ -424,6 +424,8 @@ def _store_public_owner(owner: dict) -> dict:
         "whatsapp_no": str(owner.get("whatsapp_no") or owner.get("phone") or "").strip(),
         "address": str(owner.get("address") or "").strip(),
         "pincode": str(owner.get("pincode") or "").strip(),
+        "google_map_url": str(owner.get("google_map_url") or owner.get("map_url") or owner.get("location_url") or "").strip(),
+        "map_url": str(owner.get("google_map_url") or owner.get("map_url") or owner.get("location_url") or "").strip(),
         "created_at": str(owner.get("created_at") or now_iso()),
     }
 
@@ -604,9 +606,13 @@ def metho_store_admin_create_owner(payload: dict, db: Session = Depends(get_db),
         "owner_name": str(payload.get("owner_name") or payload.get("name") or "").strip(),
         "store_name": str(payload.get("store_name") or payload.get("business_name") or "").strip(),
         "phone": str(payload.get("phone") or "").strip(),
+        "whatsapp_no": str(payload.get("whatsapp_no") or payload.get("phone") or "").strip(),
         "email": str(payload.get("email") or "").strip(),
         "password": str(payload.get("password") or "").strip(),
         "commission_percent": float(payload.get("commission_percent") or 0),
+        "address": str(payload.get("address") or "").strip(),
+        "pincode": str(payload.get("pincode") or "").strip(),
+        "google_map_url": str(payload.get("google_map_url") or payload.get("map_url") or payload.get("location_url") or "").strip(),
         "city": str(payload.get("city") or "").strip(),
         "state": str(payload.get("state") or "").strip(),
         "approved": False,
@@ -635,9 +641,11 @@ def metho_store_admin_update_owner(owner_id: str, payload: dict, db: Session = D
     owner = _store_find_owner(owners, owner_id)
     if not owner:
         raise HTTPException(status_code=404, detail="Owner not found")
-    for field in ["owner_name", "store_name", "phone", "email", "city", "state"]:
+    for field in ["owner_name", "store_name", "phone", "email", "city", "state", "whatsapp_no", "address", "pincode"]:
         if field in payload and payload[field] is not None:
             owner[field] = str(payload.get(field) or "").strip()
+    if "google_map_url" in payload or "map_url" in payload or "location_url" in payload:
+        owner["google_map_url"] = str(payload.get("google_map_url") or payload.get("map_url") or payload.get("location_url") or "").strip()
     if "commission_percent" in payload and payload.get("commission_percent") is not None:
         owner["commission_percent"] = float(payload.get("commission_percent") or 0)
     new_password = str(payload.get("password") or payload.get("login_password") or "").strip()
