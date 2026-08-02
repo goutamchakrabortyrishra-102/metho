@@ -16,6 +16,7 @@ const mapsUrl = (p) => {
   return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(q)}`;
 };
 const PDF_PREVIEW = "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 400 400'><rect width='400' height='400' fill='%23f1f5f9'/><rect x='80' y='50' width='240' height='300' rx='14' fill='%23ffffff' stroke='%2394a3b8' stroke-width='4'/><text x='200' y='190' text-anchor='middle' fill='%23dc2626' font-size='46' font-family='Arial' font-weight='bold'>PDF</text><text x='200' y='228' text-anchor='middle' fill='%23334155' font-size='16' font-family='Arial'>Tap to Open</text></svg>";
+const PRODUCT_FALLBACK = "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 400 400'><defs><linearGradient id='g' x1='0' y1='0' x2='1' y2='1'><stop offset='0%25' stop-color='%23ecfeff'/><stop offset='100%25' stop-color='%23dcfce7'/></linearGradient></defs><rect width='400' height='400' fill='url(%23g)'/><circle cx='200' cy='150' r='72' fill='%23059669' opacity='0.12'/><text x='200' y='150' text-anchor='middle' dominant-baseline='middle' fill='%230f766e' font-size='46' font-family='Arial' font-weight='700'>M</text><text x='200' y='230' text-anchor='middle' fill='%230f172a' font-size='22' font-family='Arial' font-weight='700'>METHO Product</text></svg>";
 const cleanPhone = (v) => (v || "").replace(/[^\d]/g, "");
 const waUrl = (p) => {
   const n = cleanPhone(p.whatsapp_no || p.phone);
@@ -70,12 +71,12 @@ const getDisplayImage = (product, placeholder) => {
   const image = getProductImageUrl(product);
   if (!image && product?.fallback_image_url) return resolveAssetUrl(product.fallback_image_url);
   if (image) return image;
-  return placeholder || "";
+  return placeholder || PRODUCT_FALLBACK;
 };
 
 const applyImageFallback = (event, fallbackUrl, finalFallback = "") => {
   const target = event.currentTarget;
-  const candidates = getAssetImageFallbackCandidates(target.src, [fallbackUrl, finalFallback]);
+  const candidates = getAssetImageFallbackCandidates(target.src, [fallbackUrl, finalFallback, PRODUCT_FALLBACK]);
   const tried = Number(target.dataset.fallbackIndex || "0");
   for (let i = tried; i < candidates.length; i += 1) {
     const next = String(candidates[i] || "").trim();
@@ -84,7 +85,7 @@ const applyImageFallback = (event, fallbackUrl, finalFallback = "") => {
     target.src = next;
     return;
   }
-  const last = String(finalFallback || "").trim();
+  const last = String(finalFallback || PRODUCT_FALLBACK).trim();
   if (last && target.src !== last) {
     target.src = last;
   }
