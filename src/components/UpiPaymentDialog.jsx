@@ -74,14 +74,14 @@ export default function UpiPaymentDialog({
   }, [open]);
 
   useEffect(() => {
-    if (!open || isGuest) return;
+    if (!open || isGuest || normalizedUserRole !== "member") return;
     if (!String(payerName || "").trim() && String(user?.name || "").trim()) {
       setPayerName(String(user.name).trim());
     }
     if (!String(payerPhone || "").trim() && String(user?.phone || "").trim()) {
       setPayerPhone(String(user.phone).trim());
     }
-  }, [open, isGuest, user?.name, user?.phone, payerName, payerPhone]);
+  }, [open, isGuest, normalizedUserRole, user?.name, user?.phone, payerName, payerPhone]);
 
   const copyUpi = async () => {
     if (!settings?.upi_id) return;
