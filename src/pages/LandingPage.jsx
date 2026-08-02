@@ -931,11 +931,12 @@ const TopLeaders = () => {
                         originalSrc.startsWith("/") ||
                         originalSrc.startsWith("api/");
                       if (isRetriableUrl) {
-                        if (img.dataset.retriedCustom === "1") return;
-                        img.dataset.retriedCustom = "1";
-                        const sep = originalSrc.includes("?") ? "&" : "?";
-                        img.src = `${originalSrc}${sep}img_retry=${Date.now()}`;
-                        return;
+                        if (img.dataset.retriedCustom !== "1") {
+                          img.dataset.retriedCustom = "1";
+                          const sep = originalSrc.includes("?") ? "&" : "?";
+                          img.src = `${originalSrc}${sep}img_retry=${Date.now()}`;
+                          return;
+                        }
                       }
                     }
                     if (img.src !== FALLBACK_LEADER_IMG) img.src = FALLBACK_LEADER_IMG;
