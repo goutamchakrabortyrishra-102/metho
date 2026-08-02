@@ -925,11 +925,18 @@ const TopLeaders = () => {
 
                     // Keep admin-uploaded image sticky: retry once with cache-buster, then stop.
                     if (hasCustom && originalSrc) {
-                      if (img.dataset.retriedCustom === "1") return;
-                      img.dataset.retriedCustom = "1";
-                      const sep = originalSrc.includes("?") ? "&" : "?";
-                      img.src = `${originalSrc}${sep}img_retry=${Date.now()}`;
-                      return;
+                      const isRetriableUrl =
+                        originalSrc.startsWith("http://") ||
+                        originalSrc.startsWith("https://") ||
+                        originalSrc.startsWith("/") ||
+                        originalSrc.startsWith("api/");
+                      if (isRetriableUrl) {
+                        if (img.dataset.retriedCustom === "1") return;
+                        img.dataset.retriedCustom = "1";
+                        const sep = originalSrc.includes("?") ? "&" : "?";
+                        img.src = `${originalSrc}${sep}img_retry=${Date.now()}`;
+                        return;
+                      }
                     }
                     if (img.src !== FALLBACK_LEADER_IMG) img.src = FALLBACK_LEADER_IMG;
                   }}

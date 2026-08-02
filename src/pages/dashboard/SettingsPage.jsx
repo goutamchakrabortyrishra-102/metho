@@ -715,9 +715,8 @@ export default function SettingsPage() {
     landing_hero_image_url: "",
     landing_tagline: source.landing_tagline || "",
     landing_subheading: source.landing_subheading || "",
-    landing_top_product_ids: normalizeIdList(source.landing_top_product_ids, 6),
-    landing_featured_partner_ids: normalizeIdList(source.landing_featured_partner_ids, 4),
-    landing_featured_store_ids: normalizeIdList(source.landing_featured_store_ids, 4),
+    // Landing product/partner/store picks are managed from dedicated pages.
+    // Do not overwrite those lists from Settings save to avoid stale page-state clobber.
     landing_show_metho_store: source.landing_show_metho_store !== false,
     landing_show_partner_shop: source.landing_show_partner_shop !== false,
     product_placeholder_image_url: "",

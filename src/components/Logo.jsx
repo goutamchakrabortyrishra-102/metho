@@ -58,9 +58,16 @@ export const Logo = ({ className = "", showTagline = false, variant = "store", s
           onError={() => {
             if (hasCustomLogo && !retriedCustom) {
               setRetriedCustom(true);
-              const sep = requestedSrc.includes("?") ? "&" : "?";
-              setImgSrc(`${requestedSrc}${sep}img_retry=${Date.now()}`);
-              return;
+              const isRetriableUrl =
+                requestedSrc.startsWith("http://") ||
+                requestedSrc.startsWith("https://") ||
+                requestedSrc.startsWith("/") ||
+                requestedSrc.startsWith("api/");
+              if (isRetriableUrl) {
+                const sep = requestedSrc.includes("?") ? "&" : "?";
+                setImgSrc(`${requestedSrc}${sep}img_retry=${Date.now()}`);
+                return;
+              }
             }
             setImgSrc(fallbackSrc);
           }}
