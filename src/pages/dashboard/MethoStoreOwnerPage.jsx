@@ -203,7 +203,7 @@ export default function MethoStoreOwnerPage() {
                 <Input value={invoiceForm.notes} onChange={(e) => setInvoiceForm((prev) => ({ ...prev, notes: e.target.value }))} placeholder="Add any note" />
               </Field>
               <div>
-                <Label>Inventory item</Label>
+                <label className="text-sm font-semibold text-emerald-950">Inventory item</label>
                 <Input
                   value={productQuery}
                   onChange={(e) => setProductQuery(e.target.value)}
