@@ -56,9 +56,7 @@ export const Logo = ({ className = "", showTagline = false, variant = "store", s
           alt={brandName}
           className={`h-full w-full ${innerRadius} object-contain bg-transparent`}
           onError={() => {
-            // Keep admin-uploaded logo sticky: retry once with cache-buster, then stop.
-            if (hasCustomLogo) {
-              if (retriedCustom) return;
+            if (hasCustomLogo && !retriedCustom) {
               setRetriedCustom(true);
               const sep = requestedSrc.includes("?") ? "&" : "?";
               setImgSrc(`${requestedSrc}${sep}img_retry=${Date.now()}`);
