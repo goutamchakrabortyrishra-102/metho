@@ -53,6 +53,12 @@ export default function UpiPaymentDialog({
   const normalizedUserPhone = String(user?.phone || "").replace(/\D/g, "");
   const resolvedPayerName = String(payerName || "").trim() || String(user?.name || "").trim();
   const resolvedCustomerPhone = normalizedPayerPhone || normalizedUserPhone;
+  const normalizedUserRole = String(user?.role || "").trim().toLowerCase();
+  const shouldAutoAttachMemberId = Boolean(
+    user?.id &&
+    normalizedUserRole &&
+    !["partner", "store_owner", "metho_store_owner", "owner", "admin", "super_admin", "company_admin"].includes(normalizedUserRole)
+  );
   const requiresShippingAddress = Array.isArray(items)
     ? items.some((item) => !(item?.is_service || String(item?.listing_type || item?.item_kind || "").toLowerCase().includes("service")))
     : true;
@@ -136,7 +142,7 @@ export default function UpiPaymentDialog({
         const looksLikeMemberCode = /^MTH-/i.test(ref);
         if (looksLikeMemberCode) payload.member_code = ref.toUpperCase();
         else payload.member_id = ref;
-      } else if (!isGuest && user?.id) {
+      } else if (!isGuest && shouldAutoAttachMemberId) {
         payload.member_id = user.id;
       }
       const endpoint = existingOrderId ? `/orders/${existingOrderId}/submit-payment` : "/orders";
@@ -186,7 +192,7 @@ export default function UpiPaymentDialog({
         const looksLikeMemberCode = /^MTH-/i.test(ref);
         if (looksLikeMemberCode) orderPayload.member_code = ref.toUpperCase();
         else orderPayload.member_id = ref;
-      } else if (!isGuest && user?.id) {
+      } else if (!isGuest && shouldAutoAttachMemberId) {
         orderPayload.member_id = user.id;
       }
 
