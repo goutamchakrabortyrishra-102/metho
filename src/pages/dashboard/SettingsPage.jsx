@@ -637,13 +637,6 @@ export default function SettingsPage() {
     "directory_hero_image_url",
     "product_placeholder_image_url",
     "social_share_image_url",
-    "top_leader_1_image_url",
-    "top_leader_2_image_url",
-    "top_leader_3_image_url",
-    "top_leader_4_image_url",
-    "top_leader_5_image_url",
-    "top_leader_6_image_url",
-    "upi_qr_url",
   ];
 
   useEffect(() => {
@@ -813,8 +806,7 @@ export default function SettingsPage() {
         (key) => key !== field && String(form[key] || "").trim() === normalized
       );
       if (duplicateOn) {
-        toast.error("Same image is already used in another section. Please upload/select a different image.");
-        return;
+        toast.message("Same image is used in another branding section. Saving anyway.");
       }
     }
     // Persist only the changed branding field to avoid stale full-form overwrites.
