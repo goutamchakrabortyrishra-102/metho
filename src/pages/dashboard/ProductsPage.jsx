@@ -255,6 +255,17 @@ export default function ProductsPage() {
   const total = items.reduce((s, i) => s + i.subtotal, 0);
 
   const categories = categoryOrder;
+  const productsById = new Map(products.map((item) => [String(item?.id || ""), item]));
+  const selectedTopProducts = landingTopProductIds
+    .map((id) => {
+      const product = productsById.get(String(id));
+      return {
+        id: String(id),
+        name: product?.name || `Product ${String(id).slice(0, 8)}`,
+        category: product?.category || "Unknown",
+      };
+    })
+    .filter((item) => item.id);
   const filteredProducts = selectedCategory === "all"
     ? products
     : products.filter((p) => p.category === selectedCategory);
@@ -535,6 +546,85 @@ export default function ProductsPage() {
           );
         })}
       </div>
+
+      {isAdmin ? (
+        <div className="rounded-xl border border-emerald-200 bg-emerald-50/50 p-3" data-testid="landing-top-products-panel">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <div>
+              <p className="text-xs uppercase tracking-[0.18em] text-emerald-800 font-semibold">Landing Top Products</p>
+              <p className="text-[11px] text-slate-600 mt-1">
+                Selected: {landingTopProductIds.length}/6. এখানে থেকে remove/up/down করলে সাথে সাথে Landing এ reflect হবে।
+              </p>
+            </div>
+            {landingTopProductIds.length > 0 ? (
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="rounded-full"
+                disabled={savingTopProducts}
+                onClick={() => saveLandingTopProductIds([])}
+                data-testid="clear-top-products"
+              >
+                Clear All
+              </Button>
+            ) : null}
+          </div>
+
+          {selectedTopProducts.length === 0 ? (
+            <p className="mt-3 text-xs text-slate-500">No top products selected yet.</p>
+          ) : (
+            <div className="mt-3 grid gap-2 md:grid-cols-2 xl:grid-cols-3">
+              {selectedTopProducts.map((item, idx) => (
+                <div key={item.id} className="rounded-lg border border-emerald-200 bg-white px-3 py-2">
+                  <div className="flex items-center justify-between gap-2">
+                    <div className="min-w-0">
+                      <p className="text-[10px] uppercase tracking-wider text-emerald-800 font-bold">Top #{idx + 1}</p>
+                      <p className="text-sm font-semibold text-emerald-950 truncate" title={item.name}>{item.name}</p>
+                      <p className="text-[11px] text-slate-500 truncate">{item.category}</p>
+                    </div>
+                    <div className="flex items-center gap-1">
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="outline"
+                        onClick={() => moveLandingTopProduct(item.id, "up")}
+                        disabled={savingTopProducts || idx === 0}
+                        className="rounded-full h-8"
+                        data-testid={`panel-top-product-up-${idx}`}
+                      >
+                        <ArrowUp className="w-3.5 h-3.5" />
+                      </Button>
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="outline"
+                        onClick={() => moveLandingTopProduct(item.id, "down")}
+                        disabled={savingTopProducts || idx === selectedTopProducts.length - 1}
+                        className="rounded-full h-8"
+                        data-testid={`panel-top-product-down-${idx}`}
+                      >
+                        <ArrowDown className="w-3.5 h-3.5" />
+                      </Button>
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="outline"
+                        onClick={() => saveLandingTopProductIds(landingTopProductIds.filter((id) => id !== item.id))}
+                        disabled={savingTopProducts}
+                        className="rounded-full h-8 border-amber-200 text-amber-700 hover:bg-amber-50"
+                        data-testid={`panel-top-product-remove-${idx}`}
+                      >
+                        Remove
+                      </Button>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      ) : null}
 
       {isAdmin && categories.length > 1 ? (
         <div className="rounded-xl border border-border bg-slate-50 p-3" data-testid="admin-category-order-panel">
