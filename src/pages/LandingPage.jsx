@@ -73,8 +73,9 @@ const DEFAULT_POLICY = {
 const Nav = () => (
   <header className="fixed top-0 left-0 right-0 z-50 glass" data-testid="landing-nav">
     <div className="max-w-7xl mx-auto px-4 md:px-6 py-3 flex items-center justify-between gap-3">
-      <Logo showTagline />
-      <nav className="hidden md:flex items-center gap-8 font-body text-sm">
+      <div className="hidden sm:block"><Logo showTagline /></div>
+      <div className="sm:hidden"><Logo /></div>
+      <nav className="hidden xl:flex items-center gap-6 font-body text-sm">
         <a href="#features" className="text-slate-700 hover:text-emerald-900 transition-colors">Features</a>
         <a href="#plan" className="text-slate-700 hover:text-emerald-900 transition-colors">Growth Plan</a>
         <a href="#partner-finder" className="text-slate-700 hover:text-emerald-900 transition-colors">Partner Finder</a>
@@ -82,25 +83,16 @@ const Nav = () => (
         <a href="#return-policy" className="text-slate-700 hover:text-emerald-900 transition-colors">Return Policy</a>
       </nav>
       <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
-        <Link to="/metho-store" className="md:hidden" data-testid="nav-mobile-metho-store-link">
-          <Button variant="ghost" size="sm" className="px-2 text-[11px] sm:text-xs hover:bg-emerald-50 hover:text-emerald-900">Metho Store</Button>
-        </Link>
-        <Link to="/login?next=/app/metho-store-owner" className="md:hidden" data-testid="nav-mobile-store-login-link">
-          <Button variant="ghost" size="sm" className="px-2 text-[11px] sm:text-xs hover:bg-emerald-50 hover:text-emerald-900">Store Login</Button>
-        </Link>
-        <Link to="/partner-register" className="hidden md:inline-flex" data-testid="nav-partner-register-link">
+        <Link to="/partner-register" className="hidden xl:inline-flex" data-testid="nav-partner-register-link">
           <Button variant="ghost" className="hover:bg-emerald-50 hover:text-emerald-900">Partner Register</Button>
         </Link>
         <Link to="/metho-store" className="hidden md:inline-flex" data-testid="nav-metho-store-link">
           <Button variant="ghost" className="hover:bg-emerald-50 hover:text-emerald-900">View Metho Store</Button>
         </Link>
-        <Link to="/install" className="hidden md:inline-flex" data-testid="nav-install-link">
-          <Button variant="ghost" className="hover:bg-emerald-50 hover:text-emerald-900">Install App</Button>
-        </Link>
-        <Link to="/login" className="hidden md:inline-flex" data-testid="nav-partner-login-link">
+        <Link to="/login" className="hidden xl:inline-flex" data-testid="nav-partner-login-link">
           <Button variant="ghost" className="hover:bg-emerald-50 hover:text-emerald-900">Partner Login</Button>
         </Link>
-        <Link to="/login?next=/app/metho-store-owner" className="hidden md:inline-flex" data-testid="nav-store-login-link">
+        <Link to="/login?next=/app/metho-store-owner" className="hidden lg:inline-flex" data-testid="nav-store-login-link">
           <Button variant="ghost" className="hover:bg-emerald-50 hover:text-emerald-900">Store Login</Button>
         </Link>
         <Link to="/login" data-testid="nav-login-link"><Button variant="ghost" size="sm" className="px-3 md:px-4 hover:bg-emerald-50 hover:text-emerald-900">Login</Button></Link>
