@@ -50,6 +50,13 @@ export function resolveAssetUrl(rawUrl) {
 
   const normalizedUrl = normalizeApiFilePath(url);
   if (normalizedUrl.startsWith("data:") || normalizedUrl.startsWith("blob:")) return normalizedUrl;
+  const mirrorProductAsset = (value) => {
+    const match = String(value || "").match(/(?:^|\/)(?:product_images|product-images)\/([^/?#]+)(?:[?#].*)?$/i);
+    if (!match) return "";
+    return `/assets/product-images/${match[1]}`;
+  };
+  const mirroredProductUrl = mirrorProductAsset(normalizedUrl);
+  if (mirroredProductUrl) return mirroredProductUrl;
   if (normalizedUrl.startsWith("http://") || normalizedUrl.startsWith("https://")) {
     if (typeof window !== "undefined" && window.location.protocol === "https:" && url.startsWith("http://")) {
       try {
