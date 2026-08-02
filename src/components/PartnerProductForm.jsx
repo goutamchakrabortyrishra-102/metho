@@ -118,12 +118,7 @@ export default function PartnerProductForm({ product, onSaved, disabled = false,
       if (!imageUrl) {
         throw new Error("Image upload response missing url");
       }
-      let persistedImageUrl = imageUrl;
-      try {
-        await loadImage(imageUrl);
-      } catch {
-        persistedImageUrl = embeddedDataUrl;
-      }
+      const persistedImageUrl = embeddedDataUrl || imageUrl;
 
       const pdfBlob = await imageToPdfBlob(file);
       const pdfFile = new File([pdfBlob], `${Date.now()}-catalog.pdf`, { type: "application/pdf" });
