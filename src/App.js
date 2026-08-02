@@ -1,8 +1,8 @@
-import React from "react";
+import React, { useEffect } from "react";
 import "@/App.css";
 import { BrowserRouter, Routes, Route, Navigate, Link, useLocation } from "react-router-dom";
 import { AuthProvider, useAuth } from "@/contexts/AuthContext";
-import { SettingsProvider } from "@/contexts/SettingsContext";
+import { SettingsProvider, useSettings } from "@/contexts/SettingsContext";
 import { Toaster } from "sonner";
 import LandingPage from "@/pages/LandingPage";
 import LoginPage from "@/pages/LoginPage";
@@ -92,11 +92,53 @@ const GlobalHomeTab = () => {
   );
 };
 
+const RuntimeMetaBindings = () => {
+  const { settings } = useSettings();
+
+  useEffect(() => {
+    if (typeof document === "undefined") return;
+
+    const setMeta = (key, keyValue, content) => {
+      if (!content) return;
+      let node = document.head.querySelector(`meta[${key}="${keyValue}"]`);
+      if (!node) {
+        node = document.createElement("meta");
+        node.setAttribute(key, keyValue);
+        document.head.appendChild(node);
+      }
+      node.setAttribute("content", content);
+    };
+
+    const ogImage = settings?.social_share_image_url_full || settings?.site_logo_url_full || "";
+    const ogTitle = settings?.site_title || settings?.company_name || "METHO AAY-UPAY";
+    const ogDescription = settings?.landing_subheading || settings?.mission_statement || "";
+
+    setMeta("property", "og:image", ogImage);
+    setMeta("name", "twitter:image", ogImage);
+    setMeta("name", "twitter:card", "summary_large_image");
+    setMeta("property", "og:title", ogTitle);
+    if (ogDescription) {
+      setMeta("property", "og:description", ogDescription);
+      setMeta("name", "description", ogDescription);
+    }
+  }, [
+    settings?.social_share_image_url_full,
+    settings?.site_logo_url_full,
+    settings?.site_title,
+    settings?.company_name,
+    settings?.landing_subheading,
+    settings?.mission_statement,
+  ]);
+
+  return null;
+};
+
 function App() {
   return (
     <AuthProvider>
       <SettingsProvider>
         <BrowserRouter>
+          <RuntimeMetaBindings />
           <Toaster position="top-right" richColors />
           <GlobalHomeTab />
           <Routes>

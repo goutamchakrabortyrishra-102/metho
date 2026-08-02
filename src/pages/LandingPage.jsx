@@ -592,6 +592,7 @@ const ASSOCIATE_TYPES = [
 
 const AssociatePartnerFinder = () => {
   const { settings } = useSettings();
+  const directoryHero = settings?.directory_hero_image_url_full || "";
   const showPartnerShop = settings?.landing_show_partner_shop !== false;
   const featuredPartnerIds = useMemo(() => {
     const raw = settings?.landing_featured_partner_ids;
@@ -651,7 +652,15 @@ const AssociatePartnerFinder = () => {
   return (
     <section id="partner-finder" className="py-16 bg-gradient-to-b from-white to-emerald-50/35" data-testid="landing-associate-partner-finder">
       <div className="max-w-7xl mx-auto px-6">
-        <div className="grid lg:grid-cols-12 gap-5">
+        <div className="relative rounded-3xl overflow-hidden">
+          {directoryHero ? (
+            <div
+              className="absolute inset-0 bg-cover bg-center opacity-10"
+              style={{ backgroundImage: `url(${directoryHero})` }}
+              aria-hidden="true"
+            />
+          ) : null}
+          <div className="relative grid lg:grid-cols-12 gap-5">
           <div className="lg:col-span-4 rounded-3xl border border-emerald-900/10 bg-gradient-to-br from-emerald-950 via-emerald-900 to-emerald-800 text-white p-6 md:p-7 shadow-xl shadow-emerald-900/20">
             <p className="text-[10px] uppercase tracking-[0.28em] text-amber-300 font-bold">Associate Partner</p>
             <h3 className="mt-2 font-display font-black text-3xl leading-tight">Find partner shops and services near you</h3>
@@ -752,6 +761,7 @@ const AssociatePartnerFinder = () => {
               )}
             </div>
           </div>
+          </div>
         </div>
       </div>
     </section>
@@ -759,6 +769,8 @@ const AssociatePartnerFinder = () => {
 };
 
 const Products = () => {
+  const { settings } = useSettings();
+  const placeholder = settings?.product_placeholder_image_url_full || FALLBACK_PRODUCT_IMG;
   const [products, setProducts] = React.useState([]);
   useEffect(() => {
     api.post("/seed").catch(() => {});
@@ -802,10 +814,10 @@ const Products = () => {
             >
               <div className="aspect-square overflow-hidden bg-gradient-to-br from-white to-emerald-50/40">
                 <img
-                  src={resolveAssetUrl(p.image_url) || FALLBACK_PRODUCT_IMG}
+                  src={resolveAssetUrl(p.image_url) || placeholder}
                   alt={p.name}
                   className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
-                  onError={(e) => { if (e.currentTarget.src !== FALLBACK_PRODUCT_IMG) e.currentTarget.src = FALLBACK_PRODUCT_IMG; }}
+                  onError={(e) => { if (e.currentTarget.src !== placeholder) e.currentTarget.src = placeholder; }}
                 />
               </div>
               <div className="p-4">

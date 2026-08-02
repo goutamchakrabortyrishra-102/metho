@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import UpiPaymentDialog from "@/components/UpiPaymentDialog";
 import { useAuth } from "@/contexts/AuthContext";
+import { useSettings } from "@/contexts/SettingsContext";
 import { resolveAssetUrl } from "@/lib/utils";
 
 const FALLBACK_IMAGE = "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 600 600'><rect width='600' height='600' fill='%23e2e8f0'/><text x='50%25' y='50%25' dominant-baseline='middle' text-anchor='middle' fill='%23475569' font-size='28' font-family='Arial, sans-serif'>METHO Product</text></svg>";
@@ -35,7 +36,7 @@ const getPdfUrl = (product) => {
   return "";
 };
 
-const getDisplayImage = (product) => {
+const getDisplayImage = (product, placeholderImage = "") => {
   const imageUrl = resolveAssetUrl(
     product?.image_url ||
     product?.product_image_url ||
@@ -45,7 +46,7 @@ const getDisplayImage = (product) => {
     ""
   );
   if (imageUrl) return imageUrl;
-  return FALLBACK_IMAGE;
+  return placeholderImage || FALLBACK_IMAGE;
 };
 
 const normalizePricingTiers = (tiers) => {
@@ -86,6 +87,8 @@ const calcTieredSubtotal = (quantity, unitPrice, tiers) => {
 
 export default function ShopPage() {
   const { user } = useAuth();
+  const { settings } = useSettings();
+  const placeholder = settings?.product_placeholder_image_url_full || "";
   const [searchParams, setSearchParams] = useSearchParams();
   const [products, setProducts] = useState([]);
   const [query, setQuery] = useState(searchParams.get("q") || "");
@@ -376,7 +379,7 @@ export default function ShopPage() {
                 aria-label={`Open preview for ${p?.name || "product"}`}
               >
                 <img
-                  src={getDisplayImage(p)}
+                  src={getDisplayImage(p, placeholder)}
                   alt={p.name}
                   className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
                   onError={(e) => {
@@ -450,7 +453,7 @@ export default function ShopPage() {
           <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm overflow-hidden" onClick={(e) => e.stopPropagation()}>
             <div className="aspect-square overflow-hidden bg-slate-100 relative">
               <img
-                src={getDisplayImage(previewProduct)}
+                src={getDisplayImage(previewProduct, placeholder)}
                 alt={previewProduct?.name || "Product image"}
                 className="w-full h-full object-cover"
                 onError={(e) => {

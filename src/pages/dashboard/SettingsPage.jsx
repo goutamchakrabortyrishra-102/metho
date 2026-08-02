@@ -4,6 +4,7 @@ import { Settings as SettingsIcon, Save, Sparkles, Users, PieChart, Award, QrCod
 import api from "@/services/api";
 import { methoStoreApi, normalizeCollection } from "@/services/methoStore";
 import { useAuth } from "@/contexts/AuthContext";
+import { useSettings } from "@/contexts/SettingsContext";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -579,6 +580,7 @@ function BrandingImageUpload({ purpose, label, hint, value, onChange, onPersist,
 
 export default function SettingsPage() {
   const { user } = useAuth();
+  const { refresh: refreshSettings } = useSettings();
   const [form, setForm] = useState(null);
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -756,6 +758,7 @@ export default function SettingsPage() {
     const payload = buildSettingsPayload(source);
     const { data } = await api.put("/settings", payload);
     setForm((prev) => ({ ...prev, ...(data || {}) }));
+    await refreshSettings();
     if (successMessage) toast.success(successMessage);
   };
 
@@ -783,6 +786,7 @@ export default function SettingsPage() {
       }
       return merged;
     });
+    await refreshSettings();
   };
 
   const save = async (e) => {
