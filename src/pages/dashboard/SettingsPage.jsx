@@ -715,9 +715,9 @@ export default function SettingsPage() {
     landing_hero_image_url: "",
     landing_tagline: source.landing_tagline || "",
     landing_subheading: source.landing_subheading || "",
-    landing_top_product_ids: [],
-    landing_featured_partner_ids: [],
-    landing_featured_store_ids: [],
+    landing_top_product_ids: normalizeIdList(source.landing_top_product_ids, 6),
+    landing_featured_partner_ids: normalizeIdList(source.landing_featured_partner_ids, 4),
+    landing_featured_store_ids: normalizeIdList(source.landing_featured_store_ids, 4),
     landing_show_metho_store: source.landing_show_metho_store !== false,
     landing_show_partner_shop: source.landing_show_partner_shop !== false,
     product_placeholder_image_url: "",
@@ -1280,6 +1280,17 @@ export default function SettingsPage() {
             <div className="md:col-span-2 rounded-xl border border-amber-200 bg-amber-50 p-3 text-xs text-amber-900">
               Landing Hero / Directory Hero / Product Placeholder এবং Landing Featured Picks settings থেকে সরানো হয়েছে।
               Landing এখন product ও partner data থেকে auto-select mode-এ চলবে যাতে broken references না থাকে।
+              <div className="mt-2">
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="rounded-full border-amber-300 bg-white text-amber-900 hover:bg-amber-100"
+                  onClick={() => window.open("/app/products?upload=1", "_blank")}
+                  data-testid="settings-go-products-upload"
+                >
+                  Product Upload / Top Product Control এ যান
+                </Button>
+              </div>
             </div>
             <Field
               label="Landing Tagline"
