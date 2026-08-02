@@ -49,6 +49,7 @@ export default function UpiPaymentDialog({
   const [submitting, setSubmitting] = useState(false);
   const [copied, setCopied] = useState(false);
   const [forceManualUpiFlow, setForceManualUpiFlow] = useState(false);
+  const normalizedPayerPhone = String(payerPhone || "").replace(/\D/g, "");
   const requiresShippingAddress = Array.isArray(items)
     ? items.some((item) => !(item?.is_service || String(item?.listing_type || item?.item_kind || "").toLowerCase().includes("service")))
     : true;
@@ -115,7 +116,7 @@ export default function UpiPaymentDialog({
         txn_id: txnId.trim(),
         payment_screenshot_url: screenshot.url,
         payer_name: payerName || undefined,
-        customer_phone: String(payerPhone || "").trim(),
+        customer_phone: normalizedPayerPhone,
       };
       const ref = (memberRef || "").trim();
       if (ref) {
@@ -149,6 +150,7 @@ export default function UpiPaymentDialog({
       return;
     }
     if (requiresShippingAddress && !address.trim()) return toast.error("Please enter shipping address");
+    if (!normalizedPayerPhone) return toast.error("Please enter mobile number");
 
     setSubmitting(true);
     try {
@@ -163,7 +165,7 @@ export default function UpiPaymentDialog({
         shipping_address: requiresShippingAddress ? address : "",
         payment_method: "razorpay",
         payer_name: payerName || undefined,
-        customer_phone: String(payerPhone || "").trim(),
+        customer_phone: normalizedPayerPhone,
       };
       const ref = (memberRef || "").trim();
       if (ref) {
@@ -213,6 +215,7 @@ export default function UpiPaymentDialog({
               razorpay_payment_id: resp.razorpay_payment_id,
               razorpay_signature: resp.razorpay_signature,
               payer_name: payerName || undefined,
+              customer_phone: normalizedPayerPhone || undefined,
             });
             toast.success(
               verified?.status === "paid"
@@ -237,9 +240,12 @@ export default function UpiPaymentDialog({
         },
         prefill: {
           name: payerName || undefined,
+          contact: normalizedPayerPhone || undefined,
+          email: user?.email || undefined,
         },
         notes: {
           metho_order_id: createdOrderId,
+          customer_phone: normalizedPayerPhone || undefined,
         },
         theme: {
           color: "#065f46",

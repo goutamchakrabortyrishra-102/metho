@@ -1,5 +1,5 @@
 Cloudflare frontend shim deploy trigger
 Date: 2026-08-02
-Reason: force frontend subfolder rebuild after root src changes
-Commit: 2f19d533
-TriggeredAt: 2026-08-02T13:05Z
+Reason: force rebuild after Razorpay mobile prefill + validation fix
+Commit: pending
+TriggeredAt: 2026-08-02T13:20Z
