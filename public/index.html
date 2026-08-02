@@ -56,13 +56,32 @@
     </div>
     <script>
         (function () {
-            // metho_boot_panel_v4: clean fallback script with one-time main bundle reinjection.
+            // metho_boot_panel_v5: slower/safer recovery with network-aware retries.
             var RETRY_SCRIPT_KEY = "metho_main_bundle_retry_done";
+            var AUTO_RELOAD_KEY = "metho_boot_auto_reload_done";
+            var PANEL_SHOWN_KEY = "metho_boot_panel_shown";
+            var pollTimer = 0;
+            var panelTimer = 0;
+            var stopped = false;
 
             function hasMountedApp() {
                 var root = document.getElementById("root");
                 var placeholder = document.getElementById("metho-boot-placeholder");
-                return !!(root && !placeholder);
+                if (!root) return false;
+                if (!placeholder) return true;
+                return root.children.length > 1;
+            }
+
+            function cleanupWatchers() {
+                if (pollTimer) {
+                    window.clearInterval(pollTimer);
+                    pollTimer = 0;
+                }
+                if (panelTimer) {
+                    window.clearTimeout(panelTimer);
+                    panelTimer = 0;
+                }
+                stopped = true;
             }
 
             function retryMainBundleOnce() {
@@ -84,11 +103,12 @@
             function renderRecoveryPanel() {
                 var root = document.getElementById("root");
                 if (!root || hasMountedApp()) return;
+                sessionStorage.setItem(PANEL_SHOWN_KEY, "1");
                 root.innerHTML =
                     '<div style="min-height:100vh;display:flex;align-items:center;justify-content:center;background:linear-gradient(180deg,#f8fafc,#ecfdf5);padding:24px;font-family:Outfit,Arial,sans-serif;">' +
                     '<div style="max-width:560px;width:100%;background:#ffffff;border:1px solid #d1fae5;border-radius:16px;padding:22px;box-shadow:0 10px 30px rgba(2,6,23,0.08);">' +
                     '<h2 style="margin:0 0 8px 0;color:#064e3b;font-size:24px;font-weight:800;">METHO is retrying to load</h2>' +
-                    '<p style="margin:0 0 14px 0;color:#334155;font-size:14px;line-height:1.5;">Your page did not load fully because of browser cache or network timing. Use refresh to continue.</p>' +
+                    '<p style="margin:0 0 14px 0;color:#334155;font-size:14px;line-height:1.5;">Your page did not load fully because of browser cache or network timing. We will auto-retry when network returns.</p>' +
                     '<div style="display:flex;gap:10px;flex-wrap:wrap;">' +
                     '<button id="metho-reload-btn" style="background:#065f46;color:#fff;border:none;border-radius:999px;padding:10px 16px;font-weight:700;cursor:pointer;">Reload Now</button>' +
                     '<a href="/register" style="text-decoration:none;background:#f0fdf4;color:#065f46;border:1px solid #a7f3d0;border-radius:999px;padding:10px 16px;font-weight:700;">Open Register</a>' +
@@ -106,21 +126,64 @@
                 }
             }
 
+            function scheduleRecoveryPanel(delayMs) {
+                if (panelTimer) window.clearTimeout(panelTimer);
+                panelTimer = window.setTimeout(function () {
+                    if (!hasMountedApp()) renderRecoveryPanel();
+                }, Math.max(0, Number(delayMs || 0)));
+            }
+
+            function tryAutoReloadOnce() {
+                try {
+                    if (sessionStorage.getItem(AUTO_RELOAD_KEY) === "1") return;
+                    sessionStorage.setItem(AUTO_RELOAD_KEY, "1");
+                    var url = new URL(window.location.href);
+                    url.searchParams.set("_autoreload", String(Date.now()));
+                    window.location.replace(url.toString());
+                } catch (e) { }
+            }
+
+            function onPossiblyRecovered() {
+                if (!hasMountedApp()) return;
+                sessionStorage.removeItem(RETRY_SCRIPT_KEY);
+                sessionStorage.removeItem(AUTO_RELOAD_KEY);
+                sessionStorage.removeItem(PANEL_SHOWN_KEY);
+                cleanupWatchers();
+            }
+
             window.setTimeout(function () {
                 try {
                     if (hasMountedApp()) return;
                     var retried = retryMainBundleOnce();
-                    window.setTimeout(function () {
-                        if (!hasMountedApp()) renderRecoveryPanel();
-                    }, retried ? 2200 : 0);
+                    // Give slower networks/devices extra time before showing fallback panel.
+                    scheduleRecoveryPanel(retried ? 4800 : 2200);
                 } catch (e) {
                     renderRecoveryPanel();
                 }
-            }, 3500);
+            }, 4200);
+
+            pollTimer = window.setInterval(function () {
+                if (stopped) return;
+                onPossiblyRecovered();
+            }, 500);
+
+            window.addEventListener("online", function () {
+                if (!hasMountedApp() && sessionStorage.getItem(PANEL_SHOWN_KEY) === "1") {
+                    tryAutoReloadOnce();
+                }
+            });
+
+            document.addEventListener("visibilitychange", function () {
+                if (document.visibilityState !== "visible") return;
+                if (!hasMountedApp() && sessionStorage.getItem(PANEL_SHOWN_KEY) === "1") {
+                    retryMainBundleOnce();
+                    scheduleRecoveryPanel(1800);
+                }
+            });
 
             window.addEventListener("load", function () {
                 try {
-                    if (hasMountedApp()) sessionStorage.removeItem(RETRY_SCRIPT_KEY);
+                    onPossiblyRecovered();
                 } catch (e) { }
             });
         })();
