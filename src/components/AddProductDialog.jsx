@@ -15,6 +15,31 @@ const buildImageUrl = (rawUrl) => {
   return resolveAssetUrl(rawUrl);
 };
 
+const canLoadImage = (src, timeoutMs = 5000) =>
+  new Promise((resolve) => {
+    if (!src) {
+      resolve(false);
+      return;
+    }
+    const img = new Image();
+    let done = false;
+    const finish = (ok) => {
+      if (done) return;
+      done = true;
+      resolve(ok);
+    };
+    const timer = window.setTimeout(() => finish(false), timeoutMs);
+    img.onload = () => {
+      window.clearTimeout(timer);
+      finish(true);
+    };
+    img.onerror = () => {
+      window.clearTimeout(timer);
+      finish(false);
+    };
+    img.src = src;
+  });
+
 const CATEGORIES = [
   "Health & Wellness",
   "Beauty & Personal Care",
@@ -381,6 +406,7 @@ export default function AddProductDialog({
       });
     setUploading(true);
     try {
+      const embedded = await readAsDataUrl(f);
       const fd = new FormData();
       fd.append("file", f);
       const { data } = await api.post("/admin/upload/product-image", fd, {
@@ -388,8 +414,15 @@ export default function AddProductDialog({
       });
       const canonical = String(data?.url || data?.image_url || "").trim();
       if (canonical) {
-        setForm(x => ({ ...x, image_url: canonical }));
-        toast.success("Image uploaded ✓");
+        const resolvedCanonical = buildImageUrl(canonical);
+        const isReachable = await canLoadImage(resolvedCanonical);
+        if (isReachable) {
+          setForm(x => ({ ...x, image_url: canonical }));
+          toast.success("Image uploaded ✓");
+        } else {
+          setForm(x => ({ ...x, image_url: embedded }));
+          toast.success("Image uploaded and saved locally for reliable display");
+        }
       } else {
         throw new Error("Upload response missing url");
       }

@@ -103,6 +103,7 @@ export default function PartnerProductForm({ product, onSaved, disabled = false,
     }
     setUploadingImage(true);
     try {
+      const embeddedDataUrl = await toDataUrl(file);
       const preview = URL.createObjectURL(file);
       if (localPreviewUrl) URL.revokeObjectURL(localPreviewUrl);
       setLocalPreviewUrl(preview);
@@ -116,6 +117,12 @@ export default function PartnerProductForm({ product, onSaved, disabled = false,
       const imageUrl = resolveImageUrl(imageData?.url || imageData?.image_url || "");
       if (!imageUrl) {
         throw new Error("Image upload response missing url");
+      }
+      let persistedImageUrl = imageUrl;
+      try {
+        await loadImage(imageUrl);
+      } catch {
+        persistedImageUrl = embeddedDataUrl;
       }
 
       const pdfBlob = await imageToPdfBlob(file);
@@ -141,7 +148,7 @@ export default function PartnerProductForm({ product, onSaved, disabled = false,
       const pdfUrl = resolveImageUrl(data?.pdf_url || data?.url || data?.file_url || data?.link || "");
       setForm((prev) => ({
         ...prev,
-        image_url: imageUrl,
+        image_url: persistedImageUrl,
         pdf_url: pdfUrl || prev.pdf_url || "",
       }));
       if (pdfUrl) toast.success("Image uploaded and auto-converted to PDF");
