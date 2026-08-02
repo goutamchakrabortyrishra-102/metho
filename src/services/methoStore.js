@@ -114,6 +114,10 @@ export const methoStoreApi = {
       () => api.post(`/metho-store/admin/invoices`, { owner_id: ownerId, ...payload }),
     ]);
   },
+  adminCreateOwnerStockPurchase: async (ownerId, payload) => {
+    const { data } = await api.post(`/metho-store/admin/owners/${ownerId}/stock-purchase`, payload);
+    return data;
+  },
   ownerMe: async () => {
     const { data } = await api.get("/metho-store/owner/me");
     return data;

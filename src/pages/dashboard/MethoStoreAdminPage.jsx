@@ -46,6 +46,7 @@ const fmt = (value) => {
 export default function MethoStoreAdminPage() {
   const [owners, setOwners] = useState([]);
   const [catalog, setCatalog] = useState([]);
+  const [settings, setSettings] = useState({});
   const [selectedOwnerId, setSelectedOwnerId] = useState("");
   const [selectedCommission, setSelectedCommission] = useState("");
   const [ownerForm, setOwnerForm] = useState(EMPTY_OWNER_FORM);
@@ -53,8 +54,7 @@ export default function MethoStoreAdminPage() {
   const [allocationForm, setAllocationForm] = useState(EMPTY_ALLOCATION_FORM);
   const [inventoryRows, setInventoryRows] = useState([]);
   const [ownerEditForm, setOwnerEditForm] = useState(null);
-  const [invoiceForm, setInvoiceForm] = useState({ member_code: "", member_id: "", invoice_no: "", notes: "", catalog_item_id: "", quantity: 1, unit_price: 0 });
-  const [invoiceMemberInfo, setInvoiceMemberInfo] = useState(null);
+  const [invoiceForm, setInvoiceForm] = useState({ invoice_no: "", notes: "", catalog_item_id: "", quantity: 1, unit_price: "", payment_method: "cash", payment_reference: "" });
   const [ownerInvoices, setOwnerInvoices] = useState([]);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
@@ -69,6 +69,20 @@ export default function MethoStoreAdminPage() {
     () => methoCatalogRows.find((item) => String(item.id || item.catalog_item_id || item.sku || "").trim() === String(invoiceForm.catalog_item_id || "").trim()),
     [methoCatalogRows, invoiceForm.catalog_item_id]
   );
+  const purchaseQuantity = Math.max(1, Number(invoiceForm.quantity) || 1);
+  const purchaseUnitPrice = Number(invoiceForm.unit_price === "" ? (selectedCatalogItem?.price ?? 0) : invoiceForm.unit_price) || 0;
+  const purchaseGrossAmount = Math.max(0, round2(purchaseQuantity * purchaseUnitPrice));
+  const purchaseCommissionPercent = clampPercent(Number(selectedCommission) || 0);
+  const purchaseCommissionAmount = round2((purchaseGrossAmount * purchaseCommissionPercent) / 100);
+  const purchasePayableAmount = Math.max(0, round2(purchaseGrossAmount - purchaseCommissionAmount));
+  const upiId = String(settings?.upi_id || "").trim();
+  const upiUri = useMemo(() => {
+    if (!upiId || purchasePayableAmount <= 0 || !selectedOwnerId) return "";
+    const ownerCode = String(ownerOptions.find((item) => String(item.id || item.owner_id || "") === String(selectedOwnerId))?.owner_code || "").trim();
+    const note = `Owner stock purchase ${ownerCode || selectedOwnerId}`;
+    return `upi://pay?pa=${encodeURIComponent(upiId)}&pn=${encodeURIComponent("METHO STORE")}&am=${encodeURIComponent(purchasePayableAmount.toFixed(2))}&cu=INR&tn=${encodeURIComponent(note)}`;
+  }, [upiId, purchasePayableAmount, selectedOwnerId, ownerOptions]);
+  const upiQrUrl = upiUri ? `https://api.qrserver.com/v1/create-qr-code/?size=220x220&data=${encodeURIComponent(upiUri)}` : "";
 
   const loadAll = useCallback(async () => {
     setLoading(true);
@@ -94,6 +108,10 @@ export default function MethoStoreAdminPage() {
   useEffect(() => {
     loadAll();
   }, [loadAll]);
+
+  useEffect(() => {
+    api.get("/settings").then((r) => setSettings(r.data || {})).catch(() => setSettings({}));
+  }, []);
 
   useEffect(() => {
     const owner = ownerOptions.find((item) => String(item.id || item.owner_id || "") === String(selectedOwnerId));
@@ -131,41 +149,6 @@ export default function MethoStoreAdminPage() {
       setBusy(false);
     }
   };
-
-  const lookupInvoiceMember = useCallback(async (rawRef, { silent = false } = {}) => {
-    const ref = String(rawRef || "").trim();
-    if (!ref) {
-      setInvoiceMemberInfo(null);
-      return;
-    }
-    try {
-      const { data } = await api.get(`/offline-billing/member/${encodeURIComponent(ref)}`);
-      const resolvedCode = String(data?.member_code || data?.member_id || data?.code || "").trim().toUpperCase();
-      const resolvedId = String(data?.member_id || data?.member_code || data?.id || "").trim().toUpperCase();
-      setInvoiceMemberInfo(data || null);
-      setInvoiceForm((prev) => ({
-        ...prev,
-        member_code: resolvedCode || prev.member_code,
-        member_id: resolvedId || prev.member_id,
-      }));
-      if (!silent) toast.success("Member details auto-filled");
-    } catch (err) {
-      setInvoiceMemberInfo(null);
-      if (!silent) toast.error(err?.response?.data?.detail || "Member not found");
-    }
-  }, []);
-
-  useEffect(() => {
-    const ref = String(invoiceForm.member_id || invoiceForm.member_code || "").trim();
-    if (!ref) {
-      setInvoiceMemberInfo(null);
-      return;
-    }
-    const timer = setTimeout(() => {
-      lookupInvoiceMember(ref, { silent: true });
-    }, 350);
-    return () => clearTimeout(timer);
-  }, [invoiceForm.member_id, invoiceForm.member_code, lookupInvoiceMember]);
 
   const createOwner = async () => {
     await withBusy(async () => {
@@ -272,26 +255,27 @@ export default function MethoStoreAdminPage() {
 
   const createOwnerInvoice = async () => {
     if (!selectedOwnerId) return toast.error("Select an owner first");
+    if (!String(invoiceForm.catalog_item_id || "").trim()) return toast.error("Choose a store product first");
+    if (invoiceForm.payment_method === "razorpay" && !String(invoiceForm.payment_reference || "").trim()) {
+      return toast.error("After payment scan, enter Razorpay payment reference");
+    }
     await withBusy(async () => {
       const payload = {
-        member_code: String(invoiceForm.member_code || "").trim(),
-        member_id: String(invoiceForm.member_id || "").trim(),
         invoice_no: String(invoiceForm.invoice_no || "").trim(),
         notes: String(invoiceForm.notes || "").trim(),
-        items: [
-          {
-            catalog_item_id: String(invoiceForm.catalog_item_id || "").trim(),
-            quantity: Number(invoiceForm.quantity) || 1,
-            unit_price: Number(invoiceForm.unit_price) || 0,
-          },
-        ],
+        catalog_item_id: String(invoiceForm.catalog_item_id || "").trim(),
+        quantity: purchaseQuantity,
+        unit_price: purchaseUnitPrice,
+        payment_method: String(invoiceForm.payment_method || "cash").trim().toLowerCase(),
+        payment_reference: String(invoiceForm.payment_reference || "").trim(),
+        commission_percent: purchaseCommissionPercent,
       };
-      const data = await methoStoreApi.adminCreateOwnerInvoice(selectedOwnerId, payload);
+      const data = await methoStoreApi.adminCreateOwnerStockPurchase(selectedOwnerId, payload);
       toast.success(data?.message || data?.invoice_no ? `Invoice created: ${data.invoice_no || "Success"}` : "Invoice created");
-      setInvoiceForm({ member_code: "", member_id: "", invoice_no: "", notes: "", catalog_item_id: "", quantity: 1, unit_price: 0 });
-      setInvoiceMemberInfo(null);
+      setInvoiceForm({ invoice_no: "", notes: "", catalog_item_id: "", quantity: 1, unit_price: "", payment_method: "cash", payment_reference: "" });
       await loadOwnerInvoices(selectedOwnerId);
       await loadInventory(selectedOwnerId);
+      await loadAll();
     });
   };
 
@@ -543,19 +527,9 @@ export default function MethoStoreAdminPage() {
             </div>
           </Panel>
 
-          <Panel icon={Receipt} title="Owner invoices" subtitle="Admin can create and monitor owner invoices.">
+          <Panel icon={Receipt} title="Owner stock purchase invoice" subtitle="Admin sells product to owner, collects payment, then stock goes to owner inventory.">
             <div className="space-y-4">
-              <div className="grid gap-3 sm:grid-cols-2">
-                <Field label="Member code"><Input value={invoiceForm.member_code} onChange={(e) => setInvoiceForm((prev) => ({ ...prev, member_code: e.target.value, member_id: "" }))} placeholder="Optional" /></Field>
-                <Field label="Member ID"><Input value={invoiceForm.member_id} onChange={(e) => setInvoiceForm((prev) => ({ ...prev, member_id: e.target.value, member_code: "" }))} placeholder="Optional" /></Field>
-              </div>
-              {invoiceMemberInfo ? (
-                <p className="text-xs text-emerald-700">
-                  Member: {invoiceMemberInfo?.name || invoiceMemberInfo?.user_name || "-"}
-                  {invoiceMemberInfo?.phone ? ` · ${invoiceMemberInfo.phone}` : ""}
-                  {invoiceMemberInfo?.member_code ? ` · ${invoiceMemberInfo.member_code}` : ""}
-                </p>
-              ) : null}
+              <p className="text-xs text-slate-600">Owner product order করতে পারবে; admin payment confirm পেলে delivery/stock inventory-তে add হবে.</p>
               <div className="grid gap-3 sm:grid-cols-2">
                 <Field label="Invoice no"><Input value={invoiceForm.invoice_no} onChange={(e) => setInvoiceForm((prev) => ({ ...prev, invoice_no: e.target.value }))} placeholder="Optional" /></Field>
                 <Field label="Catalog item">
@@ -578,15 +552,54 @@ export default function MethoStoreAdminPage() {
                   Selected product: <span className="font-semibold">{selectedCatalogItem.name || selectedCatalogItem.title || selectedCatalogItem.sku || selectedCatalogItem.id}</span>
                   {selectedCatalogItem.sku ? <span> · SKU {selectedCatalogItem.sku}</span> : null}
                   {selectedCatalogItem.price !== undefined ? <span> · ₹{selectedCatalogItem.price}</span> : null}
+                  {selectedCatalogItem.source_product_id ? <span> · Global Link {selectedCatalogItem.source_product_id}</span> : null}
                 </div>
               ) : null}
-              <div className="grid gap-3 sm:grid-cols-2">
+              <div className="grid gap-3 sm:grid-cols-3">
                 <Field label="Quantity"><Input type="number" value={invoiceForm.quantity} onChange={(e) => setInvoiceForm((prev) => ({ ...prev, quantity: e.target.value }))} /></Field>
-                <Field label="Unit price"><Input type="number" value={invoiceForm.unit_price} onChange={(e) => setInvoiceForm((prev) => ({ ...prev, unit_price: e.target.value }))} /></Field>
+                <Field label="Unit price"><Input type="number" value={invoiceForm.unit_price} onChange={(e) => setInvoiceForm((prev) => ({ ...prev, unit_price: e.target.value }))} placeholder={selectedCatalogItem?.price ? String(selectedCatalogItem.price) : "0"} /></Field>
+                <Field label="Payment method">
+                  <select
+                    value={invoiceForm.payment_method}
+                    onChange={(e) => setInvoiceForm((prev) => ({ ...prev, payment_method: e.target.value }))}
+                    className="h-11 w-full rounded-lg border border-input bg-white px-3 text-sm"
+                  >
+                    <option value="cash">Cash</option>
+                    <option value="razorpay">Razorpay</option>
+                  </select>
+                </Field>
               </div>
+              <div className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-xs text-amber-900 space-y-1">
+                <p>Gross amount: <span className="font-semibold">₹{purchaseGrossAmount.toLocaleString("en-IN")}</span></p>
+                <p>Commission ({purchaseCommissionPercent}%): <span className="font-semibold">₹{purchaseCommissionAmount.toLocaleString("en-IN")}</span></p>
+                <p>Payable amount: <span className="font-semibold">₹{purchasePayableAmount.toLocaleString("en-IN")}</span></p>
+              </div>
+              {invoiceForm.payment_method === "razorpay" ? (
+                <div className="rounded-xl border border-blue-200 bg-blue-50 p-3 space-y-3">
+                  <p className="text-xs text-blue-900">Razorpay mode selected. Scan QR, complete payment, then enter payment reference below.</p>
+                  {upiQrUrl ? (
+                    <div className="flex flex-col sm:flex-row gap-3 sm:items-center">
+                      <img src={upiQrUrl} alt="Owner payment QR" className="w-40 h-40 rounded border border-blue-200 bg-white p-1" />
+                      <div className="text-xs text-blue-900 break-all">
+                        <p className="font-semibold">UPI ID: {upiId || "Not configured"}</p>
+                        <p className="mt-1">Amount: ₹{purchasePayableAmount.toLocaleString("en-IN")}</p>
+                      </div>
+                    </div>
+                  ) : (
+                    <p className="text-xs text-blue-900">Set UPI ID in settings and enter valid amount to generate QR.</p>
+                  )}
+                  <Field label="Razorpay payment reference">
+                    <Input
+                      value={invoiceForm.payment_reference}
+                      onChange={(e) => setInvoiceForm((prev) => ({ ...prev, payment_reference: e.target.value }))}
+                      placeholder="Enter Razorpay payment ID / reference"
+                    />
+                  </Field>
+                </div>
+              ) : null}
               <Field label="Notes"><Input value={invoiceForm.notes} onChange={(e) => setInvoiceForm((prev) => ({ ...prev, notes: e.target.value }))} placeholder="Optional note" /></Field>
               <div className="flex gap-2">
-                <Button className="rounded-full bg-emerald-900 hover:bg-emerald-950 text-white" disabled={busy || !selectedOwnerId} onClick={createOwnerInvoice}>Create Invoice</Button>
+                <Button className="rounded-full bg-emerald-900 hover:bg-emerald-950 text-white" disabled={busy || !selectedOwnerId} onClick={createOwnerInvoice}>Confirm Payment & Add Stock</Button>
                 <Button variant="outline" className="rounded-full" disabled={!selectedOwnerId} onClick={() => loadOwnerInvoices(selectedOwnerId)}>Load Invoices</Button>
               </div>
               <div className="space-y-2">
@@ -595,8 +608,9 @@ export default function MethoStoreAdminPage() {
                 ) : ownerInvoices.map((inv, i) => (
                   <div key={String(inv.id || inv.invoice_id || i)} className="rounded-xl border border-border bg-white p-3">
                     <p className="font-semibold text-emerald-950">{fmt(inv.invoice_no || inv.id || `Invoice ${i + 1}`)}</p>
-                    <p className="text-xs text-slate-500 mt-1">Member: {fmt(inv.member_code || inv.member_id)}</p>
-                    <p className="text-xs text-slate-500">Total: {fmt(inv.total || inv.grand_total || inv.amount)}</p>
+                    <p className="text-xs text-slate-500 mt-1">Flow: {fmt(inv.flow || "owner_member_sale")}</p>
+                    <p className="text-xs text-slate-500">Payment: {fmt(inv.payment_method || "-")} {inv.payment_reference ? `· ${inv.payment_reference}` : ""}</p>
+                    <p className="text-xs text-slate-500">Total: {fmt(inv.payable_amount || inv.total || inv.grand_total || inv.amount)}</p>
                   </div>
                 ))}
               </div>
@@ -649,6 +663,17 @@ export default function MethoStoreAdminPage() {
       )}
     </div>
   );
+}
+
+function round2(value) {
+  return Math.round((Number(value) || 0) * 100) / 100;
+}
+
+function clampPercent(value) {
+  const n = Number(value) || 0;
+  if (n < 0) return 0;
+  if (n > 100) return 100;
+  return n;
 }
 
 function Panel({ icon: Icon, title, subtitle, children }) {

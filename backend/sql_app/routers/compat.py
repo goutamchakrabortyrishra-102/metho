@@ -573,6 +573,118 @@ def _store_create_invoice(db: Session, owner: dict, payload: dict) -> dict:
     return invoice
 
 
+def _store_create_owner_stock_purchase(db: Session, owner: dict, payload: dict) -> dict:
+    owner_id = str(owner.get("id") or "").strip()
+    if not owner_id:
+        raise HTTPException(status_code=400, detail="Owner not found")
+
+    catalog_item_id = str(payload.get("catalog_item_id") or "").strip()
+    if not catalog_item_id:
+        raise HTTPException(status_code=400, detail="Catalog item ID is required")
+
+    catalog = _store_catalog_docs(db)
+    item = _store_find_catalog_item(catalog, catalog_item_id)
+    if not item:
+        raise HTTPException(status_code=404, detail="Catalog item not found")
+
+    quantity = max(1, int(payload.get("quantity") or 1))
+    available = max(0, int(item.get("stock") or 0))
+    if quantity > available:
+        raise HTTPException(status_code=400, detail=f"Insufficient stock for {item.get('name') or catalog_item_id}")
+
+    raw_unit_price = payload.get("unit_price")
+    if raw_unit_price is None or str(raw_unit_price).strip() == "":
+        unit_price = float(item.get("price") or item.get("mrp") or 0)
+    else:
+        unit_price = float(raw_unit_price or 0)
+    if unit_price < 0:
+        raise HTTPException(status_code=400, detail="Unit price cannot be negative")
+
+    raw_commission = payload.get("commission_percent")
+    if raw_commission is None or str(raw_commission).strip() == "":
+        commission_percent = float(owner.get("commission_percent") or 0)
+    else:
+        commission_percent = float(raw_commission or 0)
+    if commission_percent < 0 or commission_percent > 100:
+        raise HTTPException(status_code=400, detail="Commission percent must be between 0 and 100")
+
+    payment_method = str(payload.get("payment_method") or "cash").strip().lower()
+    if payment_method not in {"cash", "razorpay"}:
+        raise HTTPException(status_code=400, detail="payment_method must be cash or razorpay")
+    payment_reference = str(payload.get("payment_reference") or "").strip()
+    if payment_method == "razorpay" and not payment_reference:
+        raise HTTPException(status_code=400, detail="Payment reference is required for Razorpay payment")
+
+    gross_amount = round(unit_price * quantity, 2)
+    commission_amount = round((gross_amount * commission_percent) / 100.0, 2)
+    payable_amount = max(0.0, round(gross_amount - commission_amount, 2))
+
+    item["stock"] = available - quantity
+    item["updated_at"] = now_iso()
+
+    inventory = _store_inventory_docs(db, owner_id)
+    existing = None
+    for row in inventory:
+        if str(row.get("catalog_item_id") or "").strip() == str(item.get("catalog_item_id") or item.get("id") or "").strip():
+            existing = row
+            break
+
+    note = str(payload.get("notes") or payload.get("note") or "").strip()
+    if existing:
+        existing["quantity"] = max(0, int(existing.get("quantity") or 0)) + quantity
+        existing["price"] = unit_price
+        existing["mrp"] = float(item.get("mrp") or existing.get("mrp") or 0)
+        existing["name"] = item.get("name") or existing.get("name") or "Catalog item"
+        existing["sku"] = item.get("sku") or existing.get("sku") or catalog_item_id
+        if note:
+            existing["note"] = note
+        existing["status"] = "allocated"
+        existing["updated_at"] = now_iso()
+        inventory_row = existing
+    else:
+        inventory_row = _store_owner_inventory_row(item, quantity, note)
+        inventory_row["price"] = unit_price
+        inventory.insert(0, inventory_row)
+
+    invoices = _store_invoice_docs(db, owner_id)
+    invoice_no = str(payload.get("invoice_no") or f"MSPINV-{uuid.uuid4().hex[:8].upper()}").strip()
+    purchase_invoice = {
+        "id": str(uuid.uuid4()),
+        "invoice_no": invoice_no,
+        "flow": "owner_stock_purchase",
+        "status": "paid",
+        "owner_id": owner_id,
+        "owner_code": str(owner.get("owner_code") or owner.get("code") or "").strip(),
+        "owner_name": str(owner.get("store_name") or owner.get("business_name") or owner.get("owner_name") or "Metho Store").strip(),
+        "payment_method": payment_method,
+        "payment_reference": payment_reference,
+        "commission_percent": round(commission_percent, 2),
+        "commission_amount": commission_amount,
+        "gross_amount": gross_amount,
+        "payable_amount": payable_amount,
+        "notes": note,
+        "items": [
+            {
+                "catalog_item_id": str(item.get("catalog_item_id") or item.get("id") or catalog_item_id).strip(),
+                "source_product_id": str(item.get("source_product_id") or "").strip(),
+                "name": str(item.get("name") or item.get("title") or item.get("sku") or catalog_item_id).strip(),
+                "sku": str(item.get("sku") or item.get("catalog_item_id") or item.get("id") or catalog_item_id).strip(),
+                "quantity": quantity,
+                "unit_price": round(unit_price, 2),
+                "subtotal": gross_amount,
+            }
+        ],
+        "total": payable_amount,
+        "created_at": now_iso(),
+    }
+
+    invoices.insert(0, purchase_invoice)
+    _store_save_catalog_docs(db, catalog)
+    _store_save_inventory_docs(db, owner_id, inventory)
+    _store_save_invoice_docs(db, owner_id, invoices)
+    return purchase_invoice
+
+
 @router.get("/metho-store/public/owners")
 def metho_store_public_owners(db: Session = Depends(get_db)):
     owners = [_store_public_owner(owner) for owner in _store_owner_docs(db)]
@@ -842,6 +954,22 @@ def metho_store_admin_create_owner_invoice(owner_id: str, payload: dict, db: Ses
         raise HTTPException(status_code=404, detail="Owner not found")
     invoice = _store_create_invoice(db, owner, payload)
     return {"message": "Invoice created", "invoice": invoice, "invoice_no": invoice["invoice_no"]}
+
+
+@router.post("/metho-store/admin/owners/{owner_id}/stock-purchase")
+def metho_store_admin_owner_stock_purchase(owner_id: str, payload: dict, db: Session = Depends(get_db), current_user=Depends(get_current_user)):
+    _require_admin_user(current_user)
+    owners = _store_owner_docs(db)
+    owner = _store_find_owner(owners, owner_id)
+    if not owner:
+        raise HTTPException(status_code=404, detail="Owner not found")
+    invoice = _store_create_owner_stock_purchase(db, owner, payload)
+    return {
+        "message": "Owner stock purchase recorded and inventory updated",
+        "invoice": invoice,
+        "invoice_no": invoice.get("invoice_no"),
+        "payable_amount": invoice.get("payable_amount"),
+    }
 
 
 @router.get("/metho-store/owner/me")
