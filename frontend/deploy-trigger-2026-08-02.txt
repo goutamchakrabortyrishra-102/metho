@@ -1,4 +1,5 @@
 Cloudflare frontend shim deploy trigger
 Date: 2026-08-02
 Reason: force frontend subfolder rebuild after root src changes
-Commit: e6077759
+Commit: 2f19d533
+TriggeredAt: 2026-08-02T13:05Z
