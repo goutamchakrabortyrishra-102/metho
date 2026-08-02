@@ -50,6 +50,9 @@ export default function UpiPaymentDialog({
   const [copied, setCopied] = useState(false);
   const [forceManualUpiFlow, setForceManualUpiFlow] = useState(false);
   const normalizedPayerPhone = String(payerPhone || "").replace(/\D/g, "");
+  const normalizedUserPhone = String(user?.phone || "").replace(/\D/g, "");
+  const resolvedPayerName = String(payerName || "").trim() || String(user?.name || "").trim();
+  const resolvedCustomerPhone = normalizedPayerPhone || normalizedUserPhone;
   const requiresShippingAddress = Array.isArray(items)
     ? items.some((item) => !(item?.is_service || String(item?.listing_type || item?.item_kind || "").toLowerCase().includes("service")))
     : true;
@@ -63,6 +66,16 @@ export default function UpiPaymentDialog({
     if (open) return;
     setForceManualUpiFlow(false);
   }, [open]);
+
+  useEffect(() => {
+    if (!open || isGuest) return;
+    if (!String(payerName || "").trim() && String(user?.name || "").trim()) {
+      setPayerName(String(user.name).trim());
+    }
+    if (!String(payerPhone || "").trim() && String(user?.phone || "").trim()) {
+      setPayerPhone(String(user.phone).trim());
+    }
+  }, [open, isGuest, user?.name, user?.phone, payerName, payerPhone]);
 
   const copyUpi = async () => {
     if (!settings?.upi_id) return;
@@ -115,8 +128,8 @@ export default function UpiPaymentDialog({
         payment_method: "upi",
         txn_id: txnId.trim(),
         payment_screenshot_url: screenshot.url,
-        payer_name: payerName || undefined,
-        customer_phone: normalizedPayerPhone,
+        payer_name: resolvedPayerName || undefined,
+        customer_phone: resolvedCustomerPhone,
       };
       const ref = (memberRef || "").trim();
       if (ref) {
@@ -150,7 +163,8 @@ export default function UpiPaymentDialog({
       return;
     }
     if (requiresShippingAddress && !address.trim()) return toast.error("Please enter shipping address");
-    if (!normalizedPayerPhone) return toast.error("Please enter mobile number");
+    if (isGuest && !normalizedPayerPhone) return toast.error("Please enter mobile number");
+    if (!resolvedCustomerPhone) return toast.error("Please enter mobile number");
 
     setSubmitting(true);
     try {
@@ -164,8 +178,8 @@ export default function UpiPaymentDialog({
         })),
         shipping_address: requiresShippingAddress ? address : "",
         payment_method: "razorpay",
-        payer_name: payerName || undefined,
-        customer_phone: normalizedPayerPhone,
+        payer_name: resolvedPayerName || undefined,
+        customer_phone: resolvedCustomerPhone,
       };
       const ref = (memberRef || "").trim();
       if (ref) {
@@ -214,8 +228,8 @@ export default function UpiPaymentDialog({
               razorpay_order_id: resp.razorpay_order_id,
               razorpay_payment_id: resp.razorpay_payment_id,
               razorpay_signature: resp.razorpay_signature,
-              payer_name: payerName || undefined,
-              customer_phone: normalizedPayerPhone || undefined,
+              payer_name: resolvedPayerName || undefined,
+              customer_phone: resolvedCustomerPhone || undefined,
             });
             toast.success(
               verified?.status === "paid"
@@ -239,13 +253,13 @@ export default function UpiPaymentDialog({
           ondismiss: () => setSubmitting(false),
         },
         prefill: {
-          name: payerName || undefined,
-          contact: normalizedPayerPhone || undefined,
+          name: resolvedPayerName || undefined,
+          contact: resolvedCustomerPhone || undefined,
           email: user?.email || undefined,
         },
         notes: {
           metho_order_id: createdOrderId,
-          customer_phone: normalizedPayerPhone || undefined,
+          customer_phone: resolvedCustomerPhone || undefined,
         },
         theme: {
           color: "#065f46",
