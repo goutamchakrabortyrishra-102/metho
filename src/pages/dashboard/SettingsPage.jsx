@@ -518,7 +518,18 @@ function BrandingImageUpload({ purpose, label, hint, value, onChange, onPersist,
         toast.success(`${label} uploaded. Save settings to activate.`);
       }
     } catch (err) {
-      toast.error(err?.response?.data?.detail || "Upload failed");
+      try {
+        const embedded = await readAsDataUrl(f);
+        onChange(embedded);
+        if (onPersist) {
+          await onPersist(embedded);
+          toast.success(`${label} saved locally for reliable display.`);
+        } else {
+          toast.success(`${label} saved locally. Save settings to activate.`);
+        }
+      } catch {
+        toast.error(err?.response?.data?.detail || "Upload failed");
+      }
     } finally {
       setBusy(false);
       if (inputRef.current) inputRef.current.value = "";

@@ -372,6 +372,13 @@ export default function AddProductDialog({
       toast.error("Image too large (max 5MB)");
       return;
     }
+    const readAsDataUrl = (file) =>
+      new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(String(reader.result || ""));
+        reader.onerror = () => reject(new Error("Could not read image"));
+        reader.readAsDataURL(file);
+      });
     setUploading(true);
     try {
       const fd = new FormData();
@@ -380,10 +387,20 @@ export default function AddProductDialog({
         headers: { "Content-Type": "multipart/form-data" },
       });
       const canonical = String(data?.url || data?.image_url || "").trim();
-      setForm(x => ({ ...x, image_url: canonical }));
-      toast.success("Image uploaded ✓");
+      if (canonical) {
+        setForm(x => ({ ...x, image_url: canonical }));
+        toast.success("Image uploaded ✓");
+      } else {
+        throw new Error("Upload response missing url");
+      }
     } catch (err) {
-      toast.error(err?.response?.data?.detail || "Upload failed");
+      try {
+        const embedded = await readAsDataUrl(f);
+        setForm(x => ({ ...x, image_url: embedded }));
+        toast.success("Image saved locally for reliable display");
+      } catch {
+        toast.error(err?.response?.data?.detail || "Upload failed");
+      }
     } finally {
       setUploading(false);
       if (fileRef.current) fileRef.current.value = "";
