@@ -111,3 +111,49 @@ export function resolveAssetUrl(rawUrl) {
   return normalizedUrl;
 }
 
+export function getAssetImageFallbackCandidates(rawUrl, extras = []) {
+  const base = getBackendBaseUrl();
+  const unique = [];
+  const push = (value) => {
+    const next = String(value || "").trim();
+    if (!next) return;
+    if (!unique.includes(next)) unique.push(next);
+  };
+  const toAbsolute = (pathValue) => {
+    const v = String(pathValue || "").trim();
+    if (!v) return "";
+    if (v.startsWith("http://") || v.startsWith("https://") || v.startsWith("data:") || v.startsWith("blob:")) return v;
+    if (v.startsWith("/")) return base ? `${base}${v}` : v;
+    return base ? `${base}/${v}` : `/${v}`;
+  };
+
+  const raw = String(rawUrl || "").trim();
+  if (!raw) return unique;
+
+  push(resolveAssetUrl(raw));
+
+  const publicVariant = raw
+    .replace("/api/files/", "/api/public-files/")
+    .replace("api/files/", "api/public-files/");
+  if (publicVariant !== raw) {
+    push(toAbsolute(publicVariant));
+  }
+
+  const fileMatch = raw.match(/(?:^|\/)(?:product_images|product-images)\/([^/?#]+)(?:[?#].*)?$/i);
+  if (fileMatch?.[1]) {
+    push(`/assets/product-images/${fileMatch[1]}`);
+  }
+
+  for (const item of Array.isArray(extras) ? extras : [extras]) {
+    const candidate = String(item || "").trim();
+    if (!candidate) continue;
+    if (candidate.startsWith("data:") || candidate.startsWith("blob:") || candidate.startsWith("http://") || candidate.startsWith("https://") || candidate.startsWith("/")) {
+      push(toAbsolute(candidate));
+    } else {
+      push(resolveAssetUrl(candidate));
+    }
+  }
+
+  return unique;
+}
+

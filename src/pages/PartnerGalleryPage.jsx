@@ -11,7 +11,7 @@ import { Button } from "@/components/ui/button";
 import { Logo } from "@/components/Logo";
 import UpiPaymentDialog from "@/components/UpiPaymentDialog";
 import { useAuth } from "@/contexts/AuthContext";
-import { resolveAssetUrl } from "@/lib/utils";
+import { resolveAssetUrl, getAssetImageFallbackCandidates } from "@/lib/utils";
 import { Input } from "@/components/ui/input";
 
 const FALLBACK = "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 400 400'><rect width='400' height='400' fill='%23e2e8f0'/><text x='50%25' y='50%25' dominant-baseline='middle' text-anchor='middle' fill='%23475569' font-size='20' font-family='Arial'>No Image</text></svg>";
@@ -53,10 +53,12 @@ const getDisplayImage = (product) => {
 
 const applyImageFallback = (event, fallbackUrl) => {
   const target = event.currentTarget;
-  const next = String(fallbackUrl || "").trim();
-  const retried = target.dataset.retryFallback === "1";
-  if (!retried && next && target.src !== next) {
-    target.dataset.retryFallback = "1";
+  const candidates = getAssetImageFallbackCandidates(target.src, [fallbackUrl, FALLBACK]);
+  const tried = Number(target.dataset.fallbackIndex || "0");
+  for (let i = tried; i < candidates.length; i += 1) {
+    const next = String(candidates[i] || "").trim();
+    if (!next || next === target.src) continue;
+    target.dataset.fallbackIndex = String(i + 1);
     target.src = next;
     return;
   }

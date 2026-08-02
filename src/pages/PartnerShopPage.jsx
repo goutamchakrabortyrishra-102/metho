@@ -9,7 +9,7 @@ import { Logo } from "@/components/Logo";
 import { useAuth } from "@/contexts/AuthContext";
 import { useSettings } from "@/contexts/SettingsContext";
 import UpiPaymentDialog from "@/components/UpiPaymentDialog";
-import { resolveAssetUrl } from "@/lib/utils";
+import { resolveAssetUrl, getAssetImageFallbackCandidates } from "@/lib/utils";
 
 const mapsUrl = (p) => {
   const q = [p.business_name, p.address, p.city, p.state].filter(Boolean).join(", ");
@@ -75,15 +75,16 @@ const getDisplayImage = (product, placeholder) => {
 
 const applyImageFallback = (event, fallbackUrl, finalFallback = "") => {
   const target = event.currentTarget;
-  const next = String(fallbackUrl || "").trim();
-  const last = String(finalFallback || "").trim();
-  const alreadyRetried = target.dataset.retryFallback === "1";
-
-  if (!alreadyRetried && next && target.src !== next) {
-    target.dataset.retryFallback = "1";
+  const candidates = getAssetImageFallbackCandidates(target.src, [fallbackUrl, finalFallback]);
+  const tried = Number(target.dataset.fallbackIndex || "0");
+  for (let i = tried; i < candidates.length; i += 1) {
+    const next = String(candidates[i] || "").trim();
+    if (!next || next === target.src) continue;
+    target.dataset.fallbackIndex = String(i + 1);
     target.src = next;
     return;
   }
+  const last = String(finalFallback || "").trim();
   if (last && target.src !== last) {
     target.src = last;
   }

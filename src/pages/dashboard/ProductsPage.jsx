@@ -8,7 +8,21 @@ import { useSettings } from "@/contexts/SettingsContext";
 import AddProductDialog from "@/components/AddProductDialog";
 import UpiPaymentDialog from "@/components/UpiPaymentDialog";
 import { Button } from "@/components/ui/button";
-import { resolveAssetUrl } from "@/lib/utils";
+import { resolveAssetUrl, getAssetImageFallbackCandidates } from "@/lib/utils";
+
+const applyOrderedImageFallback = (event, candidates, terminalFallback) => {
+  const target = event.currentTarget;
+  const tried = Number(target.dataset.fallbackIndex || "0");
+  const list = Array.isArray(candidates) ? candidates : [];
+  for (let i = tried; i < list.length; i += 1) {
+    const next = String(list[i] || "").trim();
+    if (!next || next === target.src) continue;
+    target.dataset.fallbackIndex = String(i + 1);
+    target.src = next;
+    return;
+  }
+  if (terminalFallback && target.src !== terminalFallback) target.src = terminalFallback;
+};
 
 const normalizeCategories = (value) => {
   if (Array.isArray(value)) return value;
@@ -250,6 +264,11 @@ export default function ProductsPage() {
   })).filter((g) => g.items.length > 0);
 
   const productCard = (p, i) => (
+    (() => {
+      const rawImageRef = p?.image_url || p?.product_image_url || p?.image || p?.thumbnail_url || p?.thumb_url || "";
+      const terminal = placeholder || "";
+      const candidates = getAssetImageFallbackCandidates(rawImageRef, [terminal]);
+      return (
     <div key={p.id} className="bg-white rounded-xl border border-border overflow-hidden group hover:shadow-md transition-shadow relative" data-testid={`product-${i}`}>
       {isAdmin ? (
         <div className="absolute top-2 right-2 z-10 flex items-center gap-1">
@@ -277,9 +296,7 @@ export default function ProductsPage() {
           alt={p.name}
           className="w-full h-full object-cover group-hover:scale-105 transition-transform"
           onError={(e) => {
-            if (placeholder && e.currentTarget.src !== placeholder) {
-              e.currentTarget.src = placeholder;
-            }
+            applyOrderedImageFallback(e, candidates, terminal);
           }}
         />
         <span className={
@@ -416,6 +433,8 @@ export default function ProductsPage() {
         </div>
       </div>
     </div>
+      );
+    })()
   );
 
   return (

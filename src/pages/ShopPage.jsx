@@ -10,7 +10,7 @@ import { Input } from "@/components/ui/input";
 import UpiPaymentDialog from "@/components/UpiPaymentDialog";
 import { useAuth } from "@/contexts/AuthContext";
 import { useSettings } from "@/contexts/SettingsContext";
-import { resolveAssetUrl } from "@/lib/utils";
+import { resolveAssetUrl, getAssetImageFallbackCandidates } from "@/lib/utils";
 
 const FALLBACK_IMAGE = "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 600 600'><rect width='600' height='600' fill='%23e2e8f0'/><text x='50%25' y='50%25' dominant-baseline='middle' text-anchor='middle' fill='%23475569' font-size='28' font-family='Arial, sans-serif'>METHO Product</text></svg>";
 
@@ -47,6 +47,20 @@ const getDisplayImage = (product, placeholderImage = "") => {
   );
   if (imageUrl) return imageUrl;
   return placeholderImage || FALLBACK_IMAGE;
+};
+
+const applyOrderedImageFallback = (event, candidates, terminalFallback) => {
+  const target = event.currentTarget;
+  const tried = Number(target.dataset.fallbackIndex || "0");
+  const list = Array.isArray(candidates) ? candidates : [];
+  for (let i = tried; i < list.length; i += 1) {
+    const next = String(list[i] || "").trim();
+    if (!next || next === target.src) continue;
+    target.dataset.fallbackIndex = String(i + 1);
+    target.src = next;
+    return;
+  }
+  if (target.src !== terminalFallback) target.src = terminalFallback;
 };
 
 const normalizePricingTiers = (tiers) => {
@@ -362,6 +376,14 @@ export default function ShopPage() {
           {visibleProducts.map((p, i) => {
             const stock = getStock(p);
             const isOutOfStock = stock <= 0;
+            const rawImageRef =
+              p?.image_url ||
+              p?.product_image_url ||
+              p?.image ||
+              p?.thumbnail_url ||
+              p?.thumb_url ||
+              "";
+            const fallbackCandidates = getAssetImageFallbackCandidates(rawImageRef, [placeholder, FALLBACK_IMAGE]);
             return (
             <div key={p.id} className="bg-white rounded-xl overflow-hidden border border-border group hover:shadow-lg transition-all" data-testid={`shop-product-${i}`}>
               <div
@@ -383,7 +405,7 @@ export default function ShopPage() {
                   alt={p.name}
                   className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
                   onError={(e) => {
-                    if (e.currentTarget.src !== FALLBACK_IMAGE) e.currentTarget.src = FALLBACK_IMAGE;
+                    applyOrderedImageFallback(e, fallbackCandidates, FALLBACK_IMAGE);
                   }}
                 />
                 <span className={
@@ -457,7 +479,15 @@ export default function ShopPage() {
                 alt={previewProduct?.name || "Product image"}
                 className="w-full h-full object-cover"
                 onError={(e) => {
-                  if (e.currentTarget.src !== FALLBACK_IMAGE) e.currentTarget.src = FALLBACK_IMAGE;
+                  const rawRef =
+                    previewProduct?.image_url ||
+                    previewProduct?.product_image_url ||
+                    previewProduct?.image ||
+                    previewProduct?.thumbnail_url ||
+                    previewProduct?.thumb_url ||
+                    "";
+                  const candidates = getAssetImageFallbackCandidates(rawRef, [placeholder, FALLBACK_IMAGE]);
+                  applyOrderedImageFallback(e, candidates, FALLBACK_IMAGE);
                 }}
               />
               <button onClick={() => setPreviewProduct(null)} className="absolute top-3 right-3 w-8 h-8 rounded-full bg-black/40 text-white flex items-center justify-center hover:bg-black/60">
