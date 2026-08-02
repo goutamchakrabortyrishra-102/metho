@@ -6,6 +6,13 @@ export function cn(...inputs) {
 }
 
 const normalizeBase = (url) => String(url || "").trim().replace(/\/+$/, "");
+const LEGACY_MIRRORED_PRODUCT_FILES = new Set([
+  "0d0bf112-efe5-4885-9453-33c0257a45b9.png",
+  "54ec197a-28bd-4763-ac39-0fcaf38c70bc.png",
+  "6d8df056-9b13-475e-b7b3-02d9bffce2ba.png",
+  "b9e6f196-4bad-4c35-90d4-3f425bcc0373.png",
+  "f384b59f-5f38-4617-9687-6f993c392723.png",
+]);
 
 export function getBackendBaseUrl() {
   const fromEnv = normalizeBase(process.env.REACT_APP_BACKEND_URL);
@@ -53,6 +60,7 @@ export function resolveAssetUrl(rawUrl) {
   const mirrorProductAsset = (value) => {
     const match = String(value || "").match(/(?:^|\/)(?:product_images|product-images)\/([^/?#]+)(?:[?#].*)?$/i);
     if (!match) return "";
+    if (!LEGACY_MIRRORED_PRODUCT_FILES.has(match[1])) return "";
     return `/assets/product-images/${match[1]}`;
   };
   const mirroredProductUrl = mirrorProductAsset(normalizedUrl);
