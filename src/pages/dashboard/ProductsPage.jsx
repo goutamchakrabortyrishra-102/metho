@@ -70,7 +70,7 @@ const calcTieredSubtotal = (quantity, unitPrice, tiers) => {
 
 export default function ProductsPage() {
   const { user } = useAuth();
-  const { settings } = useSettings();
+  const { settings, refresh: refreshSettings } = useSettings();
   const placeholder = settings?.product_placeholder_image_url_full;
   const isAdmin = user && (user.role === "super_admin" || user.role === "company_admin");
   const [searchParams, setSearchParams] = useSearchParams();
@@ -126,6 +126,7 @@ export default function ProductsPage() {
     setSavingTopProducts(true);
     try {
       await api.put("/settings", { landing_top_product_ids: nextIds });
+      await refreshSettings();
       setLandingTopProductIds(nextIds);
       toast.success("Landing top products updated");
     } catch (err) {
