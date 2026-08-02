@@ -16,12 +16,23 @@ def _resolve_upload_root() -> Path:
         or ""
     ).strip()
     if render_disk_path:
-        return Path(render_disk_path) / "uploaded_objects"
+        mount_root = Path(render_disk_path)
+        # Some deployments store files directly under mount root (e.g. /var/data/product_images),
+        # others under /uploaded_objects.
+        for candidate in (mount_root / "uploaded_objects", mount_root):
+            try:
+                if candidate.exists() and candidate.is_dir():
+                    return candidate
+            except Exception:
+                continue
+        return mount_root / "uploaded_objects"
 
     # Auto-detect common persistent mount paths used on Render/Docker setups.
     # Prefer an already-populated directory to avoid reading/writing to ephemeral paths.
     for root in [
+        Path("/var/data"),
         Path("/var/data/uploaded_objects"),
+        Path("/data"),
         Path("/data/uploaded_objects"),
     ]:
         try:

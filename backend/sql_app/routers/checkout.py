@@ -48,10 +48,13 @@ def _candidate_upload_roots() -> list[Path]:
 
     render_disk_path = (os.getenv("RENDER_DISK_PATH") or os.getenv("RENDER_DISK_MOUNT_PATH") or "").strip()
     if render_disk_path:
+        _add(Path(render_disk_path))
         _add(Path(render_disk_path) / "uploaded_objects")
 
     # Fallback for hosts where persistent disk is mounted but env vars are not set.
+    _add(Path("/var/data"))
     _add(Path("/var/data/uploaded_objects"))
+    _add(Path("/data"))
     _add(Path("/data/uploaded_objects"))
 
     # Legacy roots used by previous backend builds.
