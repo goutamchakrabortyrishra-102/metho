@@ -350,57 +350,15 @@ export default function MethoStoreAdminPage() {
       <div className="grid gap-6 xl:grid-cols-[1.1fr_0.9fr]">
         <section className="space-y-6">
           <Panel icon={Store} title="Owners" subtitle="Create, approve, and tune store owners without touching partner applications.">
-            <div className="grid gap-4 lg:grid-cols-[1.15fr_0.85fr]">
-              <div className="space-y-3 rounded-2xl border border-border bg-slate-50 p-4">
-                <p className="font-display font-bold text-emerald-950">Create owner</p>
-                <Field label="Owner name">
-                  <Input value={ownerForm.owner_name} onChange={(e) => setOwnerForm((prev) => ({ ...prev, owner_name: e.target.value }))} placeholder="Enter owner name" />
-                </Field>
-                <Field label="Store name">
-                  <Input value={ownerForm.store_name} onChange={(e) => setOwnerForm((prev) => ({ ...prev, store_name: e.target.value }))} placeholder="Enter store name" />
-                </Field>
-                <div className="grid gap-3 sm:grid-cols-2">
-                  <Field label="Phone">
-                    <Input value={ownerForm.phone} onChange={(e) => setOwnerForm((prev) => ({ ...prev, phone: e.target.value }))} placeholder="Phone number" />
-                  </Field>
-                  <Field label="WhatsApp no">
-                    <Input value={ownerForm.whatsapp_no} onChange={(e) => setOwnerForm((prev) => ({ ...prev, whatsapp_no: e.target.value }))} placeholder="WhatsApp number" />
-                  </Field>
-                </div>
-                <div className="grid gap-3 sm:grid-cols-2">
-                  <Field label="Email">
-                    <Input value={ownerForm.email} onChange={(e) => setOwnerForm((prev) => ({ ...prev, email: e.target.value }))} placeholder="Email address" />
-                  </Field>
-                  <Field label="Pincode">
-                    <Input value={ownerForm.pincode} onChange={(e) => setOwnerForm((prev) => ({ ...prev, pincode: e.target.value }))} placeholder="Pincode" />
-                  </Field>
-                </div>
-                <Field label="Password">
-                  <Input type="password" value={ownerForm.password} onChange={(e) => setOwnerForm((prev) => ({ ...prev, password: e.target.value }))} placeholder="Set password" />
-                </Field>
-                <Field label="Address">
-                  <Input value={ownerForm.address} onChange={(e) => setOwnerForm((prev) => ({ ...prev, address: e.target.value }))} placeholder="Full address" />
-                </Field>
-                <Field label="Google Map URL">
-                  <Input value={ownerForm.google_map_url} onChange={(e) => setOwnerForm((prev) => ({ ...prev, google_map_url: e.target.value }))} placeholder="https://maps.google.com/..." />
-                </Field>
-                <div className="grid gap-3 sm:grid-cols-3">
-                  <Field label="Commission %">
-                    <Input type="number" value={ownerForm.commission_percent} onChange={(e) => setOwnerForm((prev) => ({ ...prev, commission_percent: e.target.value }))} />
-                  </Field>
-                  <Field label="City">
-                    <Input value={ownerForm.city} onChange={(e) => setOwnerForm((prev) => ({ ...prev, city: e.target.value }))} placeholder="City" />
-                  </Field>
-                  <Field label="State">
-                    <Input value={ownerForm.state} onChange={(e) => setOwnerForm((prev) => ({ ...prev, state: e.target.value }))} placeholder="State" />
-                  </Field>
-                </div>
-              </div>
+            <div className="space-y-4">
               <div className="rounded-2xl border border-border bg-slate-50 p-4 space-y-3">
                 <div className="flex items-center justify-between">
                   <p className="font-display font-bold text-emerald-950">Current owners</p>
                   <Button variant="outline" size="sm" className="rounded-full" onClick={loadAll}>Refresh</Button>
                 </div>
+                {selectedOwnerId ? (
+                  <p className="text-xs text-emerald-800">Selected owner ID: <span className="font-mono">{selectedOwnerId}</span></p>
+                ) : null}
                 <div className="space-y-3 max-h-[24rem] overflow-y-auto">
                   {ownerOptions.length === 0 && <p className="text-sm text-slate-500">No owners yet.</p>}
                   {ownerOptions.map((owner) => {
@@ -443,6 +401,48 @@ export default function MethoStoreAdminPage() {
                       </div>
                     );
                   })}
+                </div>
+              </div>
+
+              <div className="space-y-3 rounded-2xl border border-border bg-slate-50 p-4">
+                <p className="font-display font-bold text-emerald-950">Create owner</p>
+                <div className="grid gap-3 md:grid-cols-2">
+                  <Field label="Owner name">
+                    <Input value={ownerForm.owner_name} onChange={(e) => setOwnerForm((prev) => ({ ...prev, owner_name: e.target.value }))} placeholder="Enter owner name" />
+                  </Field>
+                  <Field label="Store name">
+                    <Input value={ownerForm.store_name} onChange={(e) => setOwnerForm((prev) => ({ ...prev, store_name: e.target.value }))} placeholder="Enter store name" />
+                  </Field>
+                  <Field label="Phone">
+                    <Input value={ownerForm.phone} onChange={(e) => setOwnerForm((prev) => ({ ...prev, phone: e.target.value }))} placeholder="Phone number" />
+                  </Field>
+                  <Field label="WhatsApp no">
+                    <Input value={ownerForm.whatsapp_no} onChange={(e) => setOwnerForm((prev) => ({ ...prev, whatsapp_no: e.target.value }))} placeholder="WhatsApp number" />
+                  </Field>
+                  <Field label="Email">
+                    <Input value={ownerForm.email} onChange={(e) => setOwnerForm((prev) => ({ ...prev, email: e.target.value }))} placeholder="Email address" />
+                  </Field>
+                  <Field label="Password">
+                    <Input type="password" value={ownerForm.password} onChange={(e) => setOwnerForm((prev) => ({ ...prev, password: e.target.value }))} placeholder="Set password" />
+                  </Field>
+                  <Field label="Pincode">
+                    <Input value={ownerForm.pincode} onChange={(e) => setOwnerForm((prev) => ({ ...prev, pincode: e.target.value }))} placeholder="Pincode" />
+                  </Field>
+                  <Field label="Commission %">
+                    <Input type="number" value={ownerForm.commission_percent} onChange={(e) => setOwnerForm((prev) => ({ ...prev, commission_percent: e.target.value }))} />
+                  </Field>
+                  <Field label="City">
+                    <Input value={ownerForm.city} onChange={(e) => setOwnerForm((prev) => ({ ...prev, city: e.target.value }))} placeholder="City" />
+                  </Field>
+                  <Field label="State">
+                    <Input value={ownerForm.state} onChange={(e) => setOwnerForm((prev) => ({ ...prev, state: e.target.value }))} placeholder="State" />
+                  </Field>
+                  <Field label="Address" className="md:col-span-2">
+                    <Input value={ownerForm.address} onChange={(e) => setOwnerForm((prev) => ({ ...prev, address: e.target.value }))} placeholder="Full address" />
+                  </Field>
+                  <Field label="Google Map URL" className="md:col-span-2">
+                    <Input value={ownerForm.google_map_url} onChange={(e) => setOwnerForm((prev) => ({ ...prev, google_map_url: e.target.value }))} placeholder="https://maps.google.com/..." />
+                  </Field>
                 </div>
                 <Button className="w-full rounded-full bg-emerald-900 hover:bg-emerald-950 text-white" disabled={busy} onClick={createOwner}>Create Owner</Button>
               </div>
@@ -666,9 +666,9 @@ function Panel({ icon: Icon, title, subtitle, children }) {
   );
 }
 
-function Field({ label, children }) {
+function Field({ label, children, className = "" }) {
   return (
-    <div>
+    <div className={className}>
       <label className="text-sm font-semibold text-emerald-950">{label}</label>
       <div className="mt-1.5">{children}</div>
     </div>

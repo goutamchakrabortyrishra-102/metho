@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from "react";
 import { toast } from "sonner";
-import { ShoppingCart, Plus, Minus, Trash2, Upload, Pencil, FileDown } from "lucide-react";
+import { ShoppingCart, Plus, Minus, Trash2, Upload, Pencil, FileDown, ArrowUp, ArrowDown } from "lucide-react";
 import { useSearchParams } from "react-router-dom";
 import api from "@/services/api";
 import { useAuth } from "@/contexts/AuthContext";
@@ -69,6 +69,7 @@ export default function ProductsPage() {
   const [selectedCategory, setSelectedCategory] = useState("all");
   const [landingTopProductIds, setLandingTopProductIds] = useState([]);
   const [savingTopProducts, setSavingTopProducts] = useState(false);
+  const [savingCategoryOrder, setSavingCategoryOrder] = useState(false);
   const getStock = (product) => Math.max(0, Number(product?.stock ?? 0));
 
   const loadProducts = () => api.get("/products").then(r => setProducts(r.data));
@@ -138,6 +139,28 @@ export default function ProductsPage() {
     nextIds[currentIndex] = nextIds[nextIndex];
     nextIds[nextIndex] = temp;
     saveLandingTopProductIds(nextIds);
+  };
+
+  const saveProductCategoryOrder = async (nextCategories) => {
+    setSavingCategoryOrder(true);
+    try {
+      await api.put("/settings", { product_categories: nextCategories });
+      toast.success("Category order updated");
+    } catch (err) {
+      toast.error(err?.response?.data?.detail || "Failed to update category order");
+    } finally {
+      setSavingCategoryOrder(false);
+    }
+  };
+
+  const moveProductCategory = (category, direction) => {
+    const currentIndex = categories.indexOf(category);
+    if (currentIndex < 0) return;
+    const nextIndex = direction === "up" ? currentIndex - 1 : currentIndex + 1;
+    if (nextIndex < 0 || nextIndex >= categories.length) return;
+    const nextCategories = [...categories];
+    [nextCategories[currentIndex], nextCategories[nextIndex]] = [nextCategories[nextIndex], nextCategories[currentIndex]];
+    saveProductCategoryOrder(nextCategories);
   };
 
   const deleteProduct = async (product) => {
@@ -484,6 +507,44 @@ export default function ProductsPage() {
           );
         })}
       </div>
+
+      {isAdmin && categories.length > 1 ? (
+        <div className="rounded-xl border border-border bg-slate-50 p-3" data-testid="admin-category-order-panel">
+          <p className="text-xs uppercase tracking-[0.18em] text-slate-600 font-semibold">Admin Category Order</p>
+          <p className="text-[11px] text-slate-500 mt-1">Move categories up/down to control product section order.</p>
+          <div className="mt-2 space-y-2">
+            {categories.map((cat, idx) => (
+              <div key={cat} className="flex items-center justify-between gap-2 rounded-lg border border-border bg-white px-3 py-2">
+                <span className="text-sm text-emerald-950 font-medium">{cat}</span>
+                <div className="flex items-center gap-1">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    className="rounded-full h-8"
+                    disabled={savingCategoryOrder || idx === 0}
+                    onClick={() => moveProductCategory(cat, "up")}
+                    data-testid={`products-category-up-${cat.replace(/\s+/g, "-").toLowerCase()}`}
+                  >
+                    <ArrowUp className="w-3.5 h-3.5" />
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    className="rounded-full h-8"
+                    disabled={savingCategoryOrder || idx === categories.length - 1}
+                    onClick={() => moveProductCategory(cat, "down")}
+                    data-testid={`products-category-down-${cat.replace(/\s+/g, "-").toLowerCase()}`}
+                  >
+                    <ArrowDown className="w-3.5 h-3.5" />
+                  </Button>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      ) : null}
 
       {selectedCategory === "all" ? (
         <div className="space-y-7" data-testid="products-grouped-by-category">
