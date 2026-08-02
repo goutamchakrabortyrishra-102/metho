@@ -2,7 +2,6 @@ import React, { useEffect, useState, useRef } from "react";
 import { toast } from "sonner";
 import { Settings as SettingsIcon, Save, Sparkles, Users, PieChart, Award, QrCode, Upload, Loader2, MessageCircle, Gift, Image as ImageIcon, FileCheck2, Share2, Copy } from "lucide-react";
 import api from "@/services/api";
-import { methoStoreApi, normalizeCollection } from "@/services/methoStore";
 import { useAuth } from "@/contexts/AuthContext";
 import { useSettings } from "@/contexts/SettingsContext";
 import { Button } from "@/components/ui/button";
@@ -627,9 +626,6 @@ export default function SettingsPage() {
   const [form, setForm] = useState(null);
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
-  const [landingProducts, setLandingProducts] = useState([]);
-  const [landingPartners, setLandingPartners] = useState([]);
-  const [landingStores, setLandingStores] = useState([]);
 
   const dedupeImageFields = [
     "site_logo_url",
@@ -643,49 +639,6 @@ export default function SettingsPage() {
     setLoading(true);
     api.get("/settings").then((r) => setForm(r.data)).finally(() => setLoading(false));
   }, []);
-
-  useEffect(() => {
-    if (!isAdmin(user)) return;
-    let active = true;
-
-    Promise.all([
-      api.get("/products").catch(() => ({ data: [] })),
-      api.get("/directory/partners").catch(() => ({ data: [] })),
-      methoStoreApi.publicListStoreListings().catch(() => []),
-    ]).then(([productsRes, partnersRes, storesData]) => {
-      if (!active) return;
-      const products = (Array.isArray(productsRes?.data) ? productsRes.data : [])
-        .filter((item) => String(item?.product_type || "metho").toLowerCase() === "metho" && !item?.hidden)
-        .map((item) => ({
-          id: String(item?.id || "").trim(),
-          label: `${item?.name || "Product"}${item?.category ? ` (${item.category})` : ""}`,
-        }))
-        .filter((item) => item.id);
-
-      const partners = (Array.isArray(partnersRes?.data) ? partnersRes.data : [])
-        .map((item) => ({
-          id: String(item?.id || item?.partner_code || "").trim(),
-          label: `${item?.business_name || item?.partner_code || "Partner"}${item?.city ? ` (${item.city})` : ""}`,
-        }))
-        .filter((item) => item.id);
-
-      const stores = normalizeCollection(storesData)
-        .filter((item) => (item?.is_active ?? item?.active ?? item?.approved ?? true) !== false)
-        .map((item) => ({
-          id: String(item?.id || item?.owner_id || item?.owner_code || item?.code || "").trim(),
-          label: `${item?.store_name || item?.business_name || item?.owner_code || "METHO Store"}${item?.city ? ` (${item.city})` : ""}`,
-        }))
-        .filter((item) => item.id);
-
-      setLandingProducts(products);
-      setLandingPartners(partners);
-      setLandingStores(stores);
-    });
-
-    return () => {
-      active = false;
-    };
-  }, [user]);
 
   const setF = (k) => (v) => setForm((prev) => ({ ...prev, [k]: v }));
 
@@ -759,16 +712,16 @@ export default function SettingsPage() {
     einvoice_username: source.einvoice_username || "",
     einvoice_password: source.einvoice_password || "",
     site_logo_url: source.site_logo_url || "",
-    landing_hero_image_url: source.landing_hero_image_url || "",
+    landing_hero_image_url: "",
     landing_tagline: source.landing_tagline || "",
     landing_subheading: source.landing_subheading || "",
-    landing_top_product_ids: normalizeIdList(source.landing_top_product_ids, 6),
-    landing_featured_partner_ids: normalizeIdList(source.landing_featured_partner_ids, 4),
-    landing_featured_store_ids: normalizeIdList(source.landing_featured_store_ids, 4),
+    landing_top_product_ids: [],
+    landing_featured_partner_ids: [],
+    landing_featured_store_ids: [],
     landing_show_metho_store: source.landing_show_metho_store !== false,
     landing_show_partner_shop: source.landing_show_partner_shop !== false,
-    product_placeholder_image_url: source.product_placeholder_image_url || "",
-    directory_hero_image_url: source.directory_hero_image_url || "",
+    product_placeholder_image_url: "",
+    directory_hero_image_url: "",
     social_share_image_url: source.social_share_image_url || "",
     top_leader_1_name: source.top_leader_1_name || "",
     top_leader_1_title: source.top_leader_1_title || "",
@@ -847,17 +800,6 @@ export default function SettingsPage() {
   if (loading || !form) return <div className="text-muted-foreground">Loading settings...</div>;
 
   const readOnly = !isAdmin(user);
-  const topProductIds = normalizeIdList(form.landing_top_product_ids, 6);
-  const featuredPartnerIds = normalizeIdList(form.landing_featured_partner_ids, 4);
-  const featuredStoreIds = normalizeIdList(form.landing_featured_store_ids, 4);
-
-  const setLandingSlot = (field, slotIndex, value, maxItems) => {
-    setForm((prev) => ({
-      ...prev,
-      [field]: updateSlotList(prev?.[field], slotIndex, value, maxItems),
-    }));
-  };
-
   return (
     <div className="space-y-6" data-testid="settings-page">
       <div className="flex items-start justify-between gap-4">
@@ -1324,39 +1266,6 @@ export default function SettingsPage() {
                 uploadEndpoint="/admin/upload/site-logo"
               />
               <BrandingImageUpload
-                purpose="landing_hero"
-                label="Landing Hero Image"
-                hint="Homepage hero-এর ডানপাশের image (recommended 1200×900)।"
-                value={form.landing_hero_image_url}
-                onChange={setF("landing_hero_image_url")}
-                onPersist={(value) => persistBrandingField("landing_hero_image_url", value)}
-                readOnly={readOnly}
-                testId="branding-hero"
-                uploadEndpoint="/admin/upload/branding-image?purpose=landing_hero"
-              />
-              <BrandingImageUpload
-                purpose="directory_hero"
-                label="Directory Hero Image"
-                hint="Explore Partners page-এর background/overlay image।"
-                value={form.directory_hero_image_url}
-                onChange={setF("directory_hero_image_url")}
-                onPersist={(value) => persistBrandingField("directory_hero_image_url", value)}
-                readOnly={readOnly}
-                testId="branding-dir-hero"
-                uploadEndpoint="/admin/upload/branding-image?purpose=directory_hero"
-              />
-              <BrandingImageUpload
-                purpose="product_placeholder"
-                label="Product Placeholder"
-                hint="Product-এ image না দিলে এই fallback image দেখাবে।"
-                value={form.product_placeholder_image_url}
-                onChange={setF("product_placeholder_image_url")}
-                onPersist={(value) => persistBrandingField("product_placeholder_image_url", value)}
-                readOnly={readOnly}
-                testId="branding-placeholder"
-                uploadEndpoint="/admin/upload/branding-image?purpose=product_placeholder"
-              />
-              <BrandingImageUpload
                 purpose="social_share"
                 label="Social Share Image (OG)"
                 hint="WhatsApp/Facebook-এ link share করলে এই image preview হবে (1200×630)।"
@@ -1367,6 +1276,10 @@ export default function SettingsPage() {
                 testId="branding-og"
                 uploadEndpoint="/admin/upload/branding-image?purpose=social_share"
               />
+            </div>
+            <div className="md:col-span-2 rounded-xl border border-amber-200 bg-amber-50 p-3 text-xs text-amber-900">
+              Landing Hero / Directory Hero / Product Placeholder এবং Landing Featured Picks settings থেকে সরানো হয়েছে।
+              Landing এখন product ও partner data থেকে auto-select mode-এ চলবে যাতে broken references না থাকে।
             </div>
             <Field
               label="Landing Tagline"
@@ -1412,72 +1325,6 @@ export default function SettingsPage() {
                   />
                   Show Partner Shop section
                 </Label>
-              </div>
-            </div>
-            <div className="md:col-span-2 rounded-xl border border-emerald-200 bg-white p-4" data-testid="settings-landing-featured-picks">
-              <p className="text-sm font-semibold text-emerald-950">Landing Featured Picks (Admin Choice)</p>
-              <p className="text-[11px] text-muted-foreground mt-1">এখানে যা select করবেন, landing page-এ সেই product/partner/store আগে show হবে।</p>
-
-              <div className="mt-4 grid lg:grid-cols-3 gap-4">
-                <div className="rounded-lg border border-emerald-100 p-3">
-                  <p className="text-xs font-semibold text-emerald-900 uppercase tracking-wider">Top Products (max 6)</p>
-                  <div className="mt-2 space-y-2">
-                    {Array.from({ length: 6 }).map((_, index) => (
-                      <select
-                        key={`landing-top-product-slot-${index + 1}`}
-                        value={topProductIds[index] || ""}
-                        onChange={(e) => setLandingSlot("landing_top_product_ids", index, e.target.value, 6)}
-                        className="h-10 w-full rounded-md border border-input bg-white px-3 text-sm"
-                        data-testid={`settings-landing-top-product-slot-${index + 1}`}
-                      >
-                        <option value="">Slot {index + 1}: Auto</option>
-                        {landingProducts.map((item) => (
-                          <option key={`landing-top-product-option-${item.id}`} value={item.id}>{item.label}</option>
-                        ))}
-                      </select>
-                    ))}
-                  </div>
-                </div>
-
-                <div className="rounded-lg border border-emerald-100 p-3">
-                  <p className="text-xs font-semibold text-emerald-900 uppercase tracking-wider">Partner Shops (max 4)</p>
-                  <div className="mt-2 space-y-2">
-                    {Array.from({ length: 4 }).map((_, index) => (
-                      <select
-                        key={`landing-partner-slot-${index + 1}`}
-                        value={featuredPartnerIds[index] || ""}
-                        onChange={(e) => setLandingSlot("landing_featured_partner_ids", index, e.target.value, 4)}
-                        className="h-10 w-full rounded-md border border-input bg-white px-3 text-sm"
-                        data-testid={`settings-landing-partner-slot-${index + 1}`}
-                      >
-                        <option value="">Slot {index + 1}: Auto</option>
-                        {landingPartners.map((item) => (
-                          <option key={`landing-partner-option-${item.id}`} value={item.id}>{item.label}</option>
-                        ))}
-                      </select>
-                    ))}
-                  </div>
-                </div>
-
-                <div className="rounded-lg border border-emerald-100 p-3">
-                  <p className="text-xs font-semibold text-emerald-900 uppercase tracking-wider">METHO Stores (max 4)</p>
-                  <div className="mt-2 space-y-2">
-                    {Array.from({ length: 4 }).map((_, index) => (
-                      <select
-                        key={`landing-store-slot-${index + 1}`}
-                        value={featuredStoreIds[index] || ""}
-                        onChange={(e) => setLandingSlot("landing_featured_store_ids", index, e.target.value, 4)}
-                        className="h-10 w-full rounded-md border border-input bg-white px-3 text-sm"
-                        data-testid={`settings-landing-store-slot-${index + 1}`}
-                      >
-                        <option value="">Slot {index + 1}: Auto</option>
-                        {landingStores.map((item) => (
-                          <option key={`landing-store-option-${item.id}`} value={item.id}>{item.label}</option>
-                        ))}
-                      </select>
-                    ))}
-                  </div>
-                </div>
               </div>
             </div>
           </Section>
