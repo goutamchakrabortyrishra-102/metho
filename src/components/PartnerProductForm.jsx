@@ -772,6 +772,24 @@ export default function PartnerProductForm({ product, onSaved, disabled = false,
                 <h3 className="font-display font-bold text-emerald-950 text-base mt-1">Booking-ready service listing তৈরি করুন</h3>
                 <p className="text-xs text-emerald-900/80 mt-1">টেমপ্লেট বেছে নিন, এরপর প্রয়োজন মতো name, price, slots আর description ঠিক করুন।</p>
               </div>
+              <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+                <div className="rounded-lg bg-white/80 border border-emerald-200 px-3 py-2">
+                  <p className="text-[10px] uppercase tracking-widest text-emerald-700 font-semibold">Category</p>
+                  <p className="text-xs text-slate-700 mt-1">Service category</p>
+                </div>
+                <div className="rounded-lg bg-white/80 border border-emerald-200 px-3 py-2">
+                  <p className="text-[10px] uppercase tracking-widest text-emerald-700 font-semibold">Price</p>
+                  <p className="text-xs text-slate-700 mt-1">Booking amount</p>
+                </div>
+                <div className="rounded-lg bg-white/80 border border-emerald-200 px-3 py-2">
+                  <p className="text-[10px] uppercase tracking-widest text-emerald-700 font-semibold">Capacity</p>
+                  <p className="text-xs text-slate-700 mt-1">Slot or daily limit</p>
+                </div>
+                <div className="rounded-lg bg-white/80 border border-emerald-200 px-3 py-2">
+                  <p className="text-[10px] uppercase tracking-widest text-emerald-700 font-semibold">Invoice</p>
+                  <p className="text-xs text-slate-700 mt-1">Detailed or summary</p>
+                </div>
+              </div>
             </div>
           ) : null}
 
@@ -818,8 +836,8 @@ export default function PartnerProductForm({ product, onSaved, disabled = false,
               </div>
             </div>
           ) : null}
-          <div>
-              <Label>{form.listing_type === "service" ? "Image Upload (Optional for Service)" : "Image Upload (Saved as PDF)"}</Label>
+            <div>
+              <Label>{form.listing_type === "service" ? "Service Image / Cover (Optional)" : "Image Upload (Saved as PDF)"}</Label>
             <div className="mt-1.5 flex flex-wrap items-center gap-3">
               <input
                 ref={fileRef}
@@ -840,7 +858,7 @@ export default function PartnerProductForm({ product, onSaved, disabled = false,
                 {uploadingImage ? (
                   <><Loader2 className="w-4 h-4 mr-2 animate-spin" /> Uploading...</>
                 ) : (
-                  <><Upload className="w-4 h-4 mr-2" /> {product?.id ? "Change Image (saved as PDF)" : "Image Upload (saved as PDF)"}</>
+                  <><Upload className="w-4 h-4 mr-2" /> {form.listing_type === "service" ? (product?.id ? "Change Service Image" : "Upload Service Image") : (product?.id ? "Change Image (saved as PDF)" : "Image Upload (saved as PDF)")}</>
                 )}
               </Button>
               {localPreviewUrl || form.image_url || form.pdf_url ? (
@@ -917,32 +935,40 @@ export default function PartnerProductForm({ product, onSaved, disabled = false,
               <p className="text-[11px] text-muted-foreground mt-1">Unorganized service হলে Summary mode নিলে invoice-এ Grand Total ফোকাস থাকে।</p>
             </div>
           ) : null}
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            <div>
-              <Label>Discount (%)</Label>
-              <Input
-                type="number"
-                min="0"
-                max="100"
-                value={form.discount_percent}
-                onChange={(e) => setForm({ ...form, discount_percent: e.target.value })}
-                className="mt-1"
-                data-testid="my-prod-discount"
-              />
+          {form.listing_type === "service" && String(form.service_template_key || "").toLowerCase().includes("cab") || String(form.service_template_key || "").toLowerCase().includes("rental") || String(form.category || "").toLowerCase().includes("transport") ? (
+            <div className="rounded-xl border border-emerald-200 bg-emerald-50/70 p-4">
+              <p className="text-[10px] uppercase tracking-widest text-emerald-800 font-semibold">Transport Booking Flow</p>
+              <p className="text-xs text-slate-700 mt-2">Customer book-now করলে pickup, destination, travel date আর preset fare flow ব্যবহার হবে। Final fare partner dashboard-এর transport section থেকে confirm করবে।</p>
             </div>
-            <div>
-              <Label>GST (%)</Label>
-              <Input
-                type="number"
-                min="0"
-                max="100"
-                value={form.gst_percent}
-                onChange={(e) => setForm({ ...form, gst_percent: e.target.value })}
-                className="mt-1"
-                data-testid="my-prod-gst"
-              />
+          ) : null}
+          {form.listing_type !== "service" ? (
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div>
+                <Label>Discount (%)</Label>
+                <Input
+                  type="number"
+                  min="0"
+                  max="100"
+                  value={form.discount_percent}
+                  onChange={(e) => setForm({ ...form, discount_percent: e.target.value })}
+                  className="mt-1"
+                  data-testid="my-prod-discount"
+                />
+              </div>
+              <div>
+                <Label>GST (%)</Label>
+                <Input
+                  type="number"
+                  min="0"
+                  max="100"
+                  value={form.gst_percent}
+                  onChange={(e) => setForm({ ...form, gst_percent: e.target.value })}
+                  className="mt-1"
+                  data-testid="my-prod-gst"
+                />
+              </div>
             </div>
-          </div>
+          ) : null}
           <div>
             <Label>{form.listing_type === "service" ? "Service Description" : "Description"}</Label>
             <Textarea value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} className="mt-1" data-testid="my-prod-desc" />
