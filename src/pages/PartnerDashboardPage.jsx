@@ -11,6 +11,7 @@ import OfflineBillingPanel from "@/components/OfflineBillingPanel";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { resolveAssetUrl } from "@/lib/utils";
+import { inferPartnerPrimarySector, getPartnerVisibleSectors, PARTNER_SECTOR_KEYS } from "@/lib/partnerSector";
 
 const inr = (v) => `₹${(Number(v) || 0).toLocaleString("en-IN", { maximumFractionDigits: 2 })}`;
 const withUnit = (price, unitType) => {
@@ -151,6 +152,14 @@ const Tab = ({ id, active, onClick, children }) => (
   <button onClick={() => onClick(id)} className={`px-4 py-2 rounded-full text-sm font-semibold ${active === id ? "bg-emerald-900 text-white" : "bg-white text-emerald-900 border border-emerald-200 hover:bg-emerald-50"}`} data-testid={`tab-${id}`}>{children}</button>
 );
 
+const DASHBOARD_SECTOR_LABEL = {
+  [PARTNER_SECTOR_KEYS.PRODUCT_SECTOR]: "Products",
+  [PARTNER_SECTOR_KEYS.TRANSPORT_SECTOR]: "Transport",
+  [PARTNER_SECTOR_KEYS.HOSPITALITY_SECTOR]: "Stay & Dining",
+  [PARTNER_SECTOR_KEYS.DOORSTEP_SECTOR]: "Doorstep",
+  [PARTNER_SECTOR_KEYS.OTHER_SERVICE_SECTOR]: "Other Services",
+};
+
 export default function PartnerDashboardPage() {
   const { user, logout } = useAuth();
   const [summary, setSummary] = useState(null);
@@ -185,6 +194,30 @@ export default function PartnerDashboardPage() {
   const hospitalityItems = products.filter((p) => (String(p?.listing_type || p?.item_kind || "").toLowerCase().includes("service") || p?.is_service) && !isTransportServiceListing(p) && isHospitalityServiceListing(p));
   const doorstepItems = products.filter((p) => (String(p?.listing_type || p?.item_kind || "").toLowerCase().includes("service") || p?.is_service) && !isTransportServiceListing(p) && !isHospitalityServiceListing(p) && isDoorstepServiceListing(p));
   const serviceItems = products.filter((p) => (String(p?.listing_type || p?.item_kind || "").toLowerCase().includes("service") || p?.is_service) && !isTransportServiceListing(p) && !isHospitalityServiceListing(p) && !isDoorstepServiceListing(p));
+  const primarySector = inferPartnerPrimarySector({
+    businessType: summary?.business_type,
+    counts: {
+      products: productItems.length,
+      transport: transportItems.length,
+      hospitality: hospitalityItems.length,
+      doorstep: doorstepItems.length,
+      otherServices: serviceItems.length,
+    },
+  });
+  const visibleSectors = getPartnerVisibleSectors(primarySector);
+  const canViewProductsSector = visibleSectors.includes(PARTNER_SECTOR_KEYS.PRODUCT_SECTOR);
+  const canViewTransportSector = visibleSectors.includes(PARTNER_SECTOR_KEYS.TRANSPORT_SECTOR);
+  const canViewHospitalitySector = visibleSectors.includes(PARTNER_SECTOR_KEYS.HOSPITALITY_SECTOR);
+  const canViewDoorstepSector = visibleSectors.includes(PARTNER_SECTOR_KEYS.DOORSTEP_SECTOR);
+  const canViewOtherServiceSector = visibleSectors.includes(PARTNER_SECTOR_KEYS.OTHER_SERVICE_SECTOR);
+  const sectorTabs = [
+    canViewProductsSector ? "products" : null,
+    canViewTransportSector ? "transport" : null,
+    canViewHospitalitySector ? "stay-dining" : null,
+    canViewDoorstepSector ? "doorstep" : null,
+    canViewOtherServiceSector ? "services" : null,
+  ].filter(Boolean);
+  const listingDefaultTab = sectorTabs[0] || "products";
 
   const loadAll = () => {
     api.get("/partner/summary").then(r => setSummary(r.data)).catch(() => {});
@@ -318,14 +351,19 @@ export default function PartnerDashboardPage() {
   }, [user]);
 
   useEffect(() => {
+    const allowedTabs = new Set(["overview", "offline", "orders", "ledger", ...sectorTabs]);
+    if (!allowedTabs.has(tab)) {
+      setTab(tab === "overview" ? listingDefaultTab : "overview");
+    }
+  }, [tab, listingDefaultTab, sectorTabs]);
+
+  useEffect(() => {
     setPartnerUpiId(paymentProfile?.partner_upi_id || "");
   }, [paymentProfile?.partner_upi_id]);
 
   const publicShopUrl = summary?.partner_code
     ? `${window.location.origin}/partner-shop/${encodeURIComponent(summary.partner_code)}`
     : "";
-  const isServicePartner = String(summary?.business_type || summary?.business_name || "").toLowerCase().includes("service");
-
   const copyPublicShopUrl = async () => {
     if (!publicShopUrl) return;
     try {
@@ -629,11 +667,11 @@ export default function PartnerDashboardPage() {
 
         <div className="flex flex-wrap gap-2">
           <Tab id="overview" active={tab} onClick={setTab}>Overview</Tab>
-          <Tab id="products" active={tab} onClick={setTab}>Products ({productItems.length})</Tab>
-          <Tab id="transport" active={tab} onClick={setTab}>Transport ({transportItems.length})</Tab>
-          <Tab id="stay-dining" active={tab} onClick={setTab}>Stay & Dining ({hospitalityItems.length})</Tab>
-          <Tab id="doorstep" active={tab} onClick={setTab}>Doorstep ({doorstepItems.length})</Tab>
-          <Tab id="services" active={tab} onClick={setTab}>Other Services ({serviceItems.length})</Tab>
+          {canViewProductsSector ? <Tab id="products" active={tab} onClick={setTab}>Products ({productItems.length})</Tab> : null}
+          {canViewTransportSector ? <Tab id="transport" active={tab} onClick={setTab}>Transport ({transportItems.length})</Tab> : null}
+          {canViewHospitalitySector ? <Tab id="stay-dining" active={tab} onClick={setTab}>Stay & Dining ({hospitalityItems.length})</Tab> : null}
+          {canViewDoorstepSector ? <Tab id="doorstep" active={tab} onClick={setTab}>Doorstep ({doorstepItems.length})</Tab> : null}
+          {canViewOtherServiceSector ? <Tab id="services" active={tab} onClick={setTab}>Other Services ({serviceItems.length})</Tab> : null}
           <Tab id="offline" active={tab} onClick={setTab}>Offline Billing</Tab>
           <Tab id="orders" active={tab} onClick={setTab}>Orders ({orders.length})</Tab>
           <Tab id="ledger" active={tab} onClick={setTab}>Ledger ({ledger.length})</Tab>
@@ -644,15 +682,15 @@ export default function PartnerDashboardPage() {
             <div className="rounded-xl border border-amber-300 bg-amber-50 p-4 mb-5">
               <p className="text-[10px] uppercase tracking-widest text-amber-800 font-bold">Listing Manager</p>
               <h3 className="font-display font-bold text-emerald-950 text-base mt-1">Shop listing manage এখান থেকেই করুন</h3>
-              <p className="text-xs text-slate-700 mt-1">Product, transport, stay-dining, doorstep, আর other service এখন আলাদা tab-এ থাকবে, তাই mix হবে না।</p>
+              <p className="text-xs text-slate-700 mt-1">Registration sector অনুযায়ী আপনার dashboard-এ শুধু {DASHBOARD_SECTOR_LABEL[primarySector]} tab দেখানো হচ্ছে। অন্য sector mix করা হবে না।</p>
               <div className="mt-3">
                 <Button
                   type="button"
-                  onClick={() => setTab("products")}
+                  onClick={() => setTab(listingDefaultTab)}
                   className="bg-emerald-900 hover:bg-emerald-950 text-white rounded-full"
                   data-testid="go-to-gallery-products-tab"
                 >
-                  Open Listing Manager
+                  Open {DASHBOARD_SECTOR_LABEL[primarySector] || "Listing"} Manager
                 </Button>
               </div>
             </div>
@@ -927,7 +965,7 @@ export default function PartnerDashboardPage() {
           </div>
         )}
 
-        {tab === "products" && (
+        {tab === "products" && canViewProductsSector && (
           <div className="bg-white rounded-xl border border-border p-6">
             <div className="flex items-center justify-between mb-4">
               <h3 className="font-display font-bold text-emerald-950 text-lg">Product Listings</h3>
@@ -1005,7 +1043,7 @@ export default function PartnerDashboardPage() {
           </div>
         )}
 
-        {tab === "stay-dining" && (
+        {tab === "stay-dining" && canViewHospitalitySector && (
           <div className="bg-white rounded-xl border border-border p-6">
             <div className="flex items-center justify-between mb-4">
               <h3 className="font-display font-bold text-emerald-950 text-lg">Stay & Dining Listings</h3>
@@ -1072,7 +1110,7 @@ export default function PartnerDashboardPage() {
           </div>
         )}
 
-        {tab === "doorstep" && (
+        {tab === "doorstep" && canViewDoorstepSector && (
           <div className="bg-white rounded-xl border border-border p-6">
             <div className="flex items-center justify-between mb-4">
               <h3 className="font-display font-bold text-emerald-950 text-lg">Doorstep Service Listings</h3>
@@ -1139,7 +1177,7 @@ export default function PartnerDashboardPage() {
           </div>
         )}
 
-        {tab === "services" && (
+        {tab === "services" && canViewOtherServiceSector && (
           <div className="bg-white rounded-xl border border-border p-6">
             <div className="flex items-center justify-between mb-4">
               <h3 className="font-display font-bold text-emerald-950 text-lg">Other Service Listings</h3>
@@ -1204,7 +1242,7 @@ export default function PartnerDashboardPage() {
           </div>
         )}
 
-        {tab === "transport" && (
+        {tab === "transport" && canViewTransportSector && (
           <div className="bg-white rounded-xl border border-border p-6" data-testid="partner-transport-tab">
             <div className="flex flex-wrap items-center justify-between gap-3">
               <div>

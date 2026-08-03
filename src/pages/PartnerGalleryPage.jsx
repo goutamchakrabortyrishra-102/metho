@@ -13,6 +13,7 @@ import UpiPaymentDialog from "@/components/UpiPaymentDialog";
 import { useAuth } from "@/contexts/AuthContext";
 import { resolveAssetUrl, getAssetImageFallbackCandidates } from "@/lib/utils";
 import { Input } from "@/components/ui/input";
+import { inferPartnerPrimarySector, getPartnerVisibleSectors, PARTNER_SECTOR_KEYS } from "@/lib/partnerSector";
 
 const FALLBACK = "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 400 400'><rect width='400' height='400' fill='%23e2e8f0'/><text x='50%25' y='50%25' dominant-baseline='middle' text-anchor='middle' fill='%23475569' font-size='20' font-family='Arial'>No Image</text></svg>";
 
@@ -357,7 +358,35 @@ export default function PartnerGalleryPage() {
   const hospitalityListings = useMemo(() => serviceListings.filter((item) => !isTransportServiceListing(item) && isHospitalityServiceListing(item)), [serviceListings]);
   const doorstepListings = useMemo(() => serviceListings.filter((item) => !isTransportServiceListing(item) && !isHospitalityServiceListing(item) && isDoorstepServiceListing(item)), [serviceListings]);
   const regularServiceListings = useMemo(() => serviceListings.filter((item) => !isTransportServiceListing(item) && !isHospitalityServiceListing(item) && !isDoorstepServiceListing(item)), [serviceListings]);
-  const activeTab = ["products", "transport", "stay-dining", "doorstep", "other-services"].includes(requestedTab) ? requestedTab : "products";
+  const primarySector = useMemo(() => inferPartnerPrimarySector({
+    businessType: partner?.business_type,
+    counts: {
+      products: productListings.length,
+      transport: transportListings.length,
+      hospitality: hospitalityListings.length,
+      doorstep: doorstepListings.length,
+      otherServices: regularServiceListings.length,
+    },
+  }), [
+    partner?.business_type,
+    productListings.length,
+    transportListings.length,
+    hospitalityListings.length,
+    doorstepListings.length,
+    regularServiceListings.length,
+  ]);
+  const visibleSectors = useMemo(() => getPartnerVisibleSectors(primarySector), [primarySector]);
+  const allowedTabs = useMemo(() => {
+    const tabs = [];
+    if (visibleSectors.includes(PARTNER_SECTOR_KEYS.PRODUCT_SECTOR)) tabs.push("products");
+    if (visibleSectors.includes(PARTNER_SECTOR_KEYS.TRANSPORT_SECTOR)) tabs.push("transport");
+    if (visibleSectors.includes(PARTNER_SECTOR_KEYS.HOSPITALITY_SECTOR)) tabs.push("stay-dining");
+    if (visibleSectors.includes(PARTNER_SECTOR_KEYS.DOORSTEP_SECTOR)) tabs.push("doorstep");
+    if (visibleSectors.includes(PARTNER_SECTOR_KEYS.OTHER_SERVICE_SECTOR)) tabs.push("other-services");
+    return tabs.length ? tabs : ["products"];
+  }, [visibleSectors]);
+  const defaultTab = allowedTabs[0] || "products";
+  const activeTab = allowedTabs.includes(requestedTab) ? requestedTab : defaultTab;
   const activeListings = activeTab === "transport"
     ? transportListings
     : (activeTab === "stay-dining"
@@ -711,31 +740,41 @@ export default function PartnerGalleryPage() {
             : ((activeTab === "stay-dining" || activeTab === "doorstep" || activeTab === "other-services") ? "Tap the image to view details and book the service" : "Tap the image to view details and add to cart")}
         </p>
         <div className="flex flex-wrap gap-2 w-full sm:w-auto">
+          {allowedTabs.includes("products") ? (
           <Link to={`/gallery/${partnerCode}?tab=products${gallerySearch ? `&q=${encodeURIComponent(gallerySearch)}` : ""}`}>
             <Button variant={activeTab === "products" ? "default" : "outline"} size="sm" className={`rounded-full text-xs ${activeTab === "products" ? "bg-emerald-900 hover:bg-emerald-950 text-white" : "border-emerald-300 text-emerald-900 hover:bg-emerald-50"}`}>
               Products
             </Button>
           </Link>
+          ) : null}
+          {allowedTabs.includes("transport") ? (
           <Link to={`/gallery/${partnerCode}?tab=transport${gallerySearch ? `&q=${encodeURIComponent(gallerySearch)}` : ""}`}>
             <Button variant={activeTab === "transport" ? "default" : "outline"} size="sm" className={`rounded-full text-xs ${activeTab === "transport" ? "bg-sky-700 hover:bg-sky-800 text-white" : "border-sky-300 text-sky-900 hover:bg-sky-50"}`}>
               Transport
             </Button>
           </Link>
+          ) : null}
+          {allowedTabs.includes("stay-dining") ? (
           <Link to={`/gallery/${partnerCode}?tab=stay-dining${gallerySearch ? `&q=${encodeURIComponent(gallerySearch)}` : ""}`}>
             <Button variant={activeTab === "stay-dining" ? "default" : "outline"} size="sm" className={`rounded-full text-xs ${activeTab === "stay-dining" ? "bg-amber-600 hover:bg-amber-700 text-white" : "border-amber-300 text-amber-900 hover:bg-amber-50"}`}>
               Stay & Dining
             </Button>
           </Link>
+          ) : null}
+          {allowedTabs.includes("doorstep") ? (
           <Link to={`/gallery/${partnerCode}?tab=doorstep${gallerySearch ? `&q=${encodeURIComponent(gallerySearch)}` : ""}`}>
             <Button variant={activeTab === "doorstep" ? "default" : "outline"} size="sm" className={`rounded-full text-xs ${activeTab === "doorstep" ? "bg-violet-700 hover:bg-violet-800 text-white" : "border-violet-300 text-violet-900 hover:bg-violet-50"}`}>
               Doorstep
             </Button>
           </Link>
+          ) : null}
+          {allowedTabs.includes("other-services") ? (
           <Link to={`/gallery/${partnerCode}?tab=other-services${gallerySearch ? `&q=${encodeURIComponent(gallerySearch)}` : ""}`}>
             <Button variant={activeTab === "other-services" ? "default" : "outline"} size="sm" className={`rounded-full text-xs ${activeTab === "other-services" ? "bg-emerald-900 hover:bg-emerald-950 text-white" : "border-emerald-300 text-emerald-900 hover:bg-emerald-50"}`}>
               Other Services
             </Button>
           </Link>
+          ) : null}
           {canDownloadPdf ? (
             <Button variant="outline" size="sm" onClick={downloadPDF} className="rounded-full border-emerald-800 text-emerald-900 text-xs">
               Partner PDF Catalog

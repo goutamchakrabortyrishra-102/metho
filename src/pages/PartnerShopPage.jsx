@@ -10,6 +10,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useSettings } from "@/contexts/SettingsContext";
 import UpiPaymentDialog from "@/components/UpiPaymentDialog";
 import { resolveAssetUrl, getAssetImageFallbackCandidates } from "@/lib/utils";
+import { inferPartnerPrimarySector, getPartnerVisibleSectors, PARTNER_SECTOR_KEYS } from "@/lib/partnerSector";
 
 const mapsUrl = (p) => {
   const q = [p.business_name, p.address, p.city, p.state].filter(Boolean).join(", ");
@@ -311,6 +312,34 @@ export default function PartnerShopPage() {
   const hospitalityListings = useMemo(() => serviceListings.filter((item) => !isTransportServiceListing(item) && isHospitalityServiceListing(item)), [serviceListings]);
   const doorstepListings = useMemo(() => serviceListings.filter((item) => !isTransportServiceListing(item) && !isHospitalityServiceListing(item) && isDoorstepServiceListing(item)), [serviceListings]);
   const regularServiceListings = useMemo(() => serviceListings.filter((item) => !isTransportServiceListing(item) && !isHospitalityServiceListing(item) && !isDoorstepServiceListing(item)), [serviceListings]);
+  const primarySector = useMemo(() => inferPartnerPrimarySector({
+    businessType: data?.partner?.business_type,
+    counts: {
+      products: productListings.length,
+      transport: transportListings.length,
+      hospitality: hospitalityListings.length,
+      doorstep: doorstepListings.length,
+      otherServices: regularServiceListings.length,
+    },
+  }), [
+    data?.partner?.business_type,
+    productListings.length,
+    transportListings.length,
+    hospitalityListings.length,
+    doorstepListings.length,
+    regularServiceListings.length,
+  ]);
+  const visibleSectors = useMemo(() => getPartnerVisibleSectors(primarySector), [primarySector]);
+  const canShowProducts = visibleSectors.includes(PARTNER_SECTOR_KEYS.PRODUCT_SECTOR);
+  const canShowTransport = visibleSectors.includes(PARTNER_SECTOR_KEYS.TRANSPORT_SECTOR);
+  const canShowHospitality = visibleSectors.includes(PARTNER_SECTOR_KEYS.HOSPITALITY_SECTOR);
+  const canShowDoorstep = visibleSectors.includes(PARTNER_SECTOR_KEYS.DOORSTEP_SECTOR);
+  const canShowOtherServices = visibleSectors.includes(PARTNER_SECTOR_KEYS.OTHER_SERVICE_SECTOR);
+  const defaultGalleryTab = canShowTransport
+    ? "transport"
+    : (canShowHospitality
+      ? "stay-dining"
+      : (canShowDoorstep ? "doorstep" : (canShowOtherServices ? "other-services" : "products")));
   const featuredImages = useMemo(() => normalizeFeaturedImages(data?.featured_images), [data?.featured_images]);
   const hasAnyFeaturedImage = useMemo(() => featuredImages.some(Boolean), [featuredImages]);
   const getStock = (product) => Math.max(0, Number(product?.stock ?? 0));
@@ -427,11 +456,12 @@ export default function PartnerShopPage() {
     } catch { /* user cancelled */ }
   };
 
-  const openGallery = (searchValue = "", tab = "products") => {
+  const openGallery = (searchValue = "", tab = defaultGalleryTab) => {
     const next = searchValue.trim();
     const params = new URLSearchParams();
     if (next) params.set("q", next);
-    params.set("tab", tab);
+    const resolvedTab = ["products", "transport", "stay-dining", "doorstep", "other-services"].includes(String(tab || "")) ? tab : defaultGalleryTab;
+    params.set("tab", resolvedTab);
     nav(`/gallery/${partnerCode}${params.toString() ? `?${params.toString()}` : ""}`);
   };
 
@@ -683,6 +713,7 @@ export default function PartnerShopPage() {
           </div>
         )}
 
+        {canShowProducts ? (
         <div className="grid gap-6 lg:grid-cols-[1.25fr_1fr] mb-8">
           <div className="bg-white rounded-xl border border-border p-6" data-testid="partner-shop-left-gallery-panel">
             <div className="flex items-start gap-2 mb-1">
@@ -721,7 +752,9 @@ export default function PartnerShopPage() {
             </div>
           </div>
         </div>
+        ) : null}
 
+        {canShowProducts ? (
         <section className="bg-white rounded-xl border border-border p-6" data-testid="partner-shop-all-products-box">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div>
@@ -839,6 +872,7 @@ export default function PartnerShopPage() {
             </div>
           )}
         </section>
+        ) : null}
 
         {/* Cashback banner */}
         {cashback?.percent > 0 && (user?.role !== "member" || cashback.eligible) && (
@@ -884,7 +918,7 @@ export default function PartnerShopPage() {
         </div>
       )}
 
-      {hasTransportListings ? (
+      {canShowTransport && hasTransportListings ? (
         <>
           <div className="mb-8">
             <div className="bg-white rounded-xl border border-sky-200 p-6" data-testid="partner-shop-transport-panel">
@@ -1006,7 +1040,7 @@ export default function PartnerShopPage() {
         </>
       ) : null}
 
-      {hasHospitalityListings ? (
+      {canShowHospitality && hasHospitalityListings ? (
         <>
           <div className="mb-8">
             <div className="bg-white rounded-xl border border-amber-200 p-6" data-testid="partner-shop-hospitality-panel">
@@ -1114,7 +1148,7 @@ export default function PartnerShopPage() {
         </>
       ) : null}
 
-      {hasDoorstepListings ? (
+      {canShowDoorstep && hasDoorstepListings ? (
         <>
           <div className="mb-8">
             <div className="bg-white rounded-xl border border-violet-200 p-6" data-testid="partner-shop-doorstep-panel">
@@ -1222,7 +1256,7 @@ export default function PartnerShopPage() {
         </>
       ) : null}
 
-      {hasServiceListings ? (
+      {canShowOtherServices && hasServiceListings ? (
         <>
           <div className="mb-8">
             <div className="bg-white rounded-xl border border-border p-6" data-testid="partner-shop-left-services-panel">
