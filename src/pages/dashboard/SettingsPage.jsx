@@ -505,13 +505,20 @@ function BrandingImageUpload({ purpose, label, hint, value, onChange, onPersist,
     }
     setBusy(true);
     try {
+      const normalizedPurpose = String(purpose || "").trim().toLowerCase();
+      const shouldEmbedForDurability =
+        normalizedPurpose.startsWith("top_leader_") ||
+        normalizedPurpose === "site_logo";
       let nextUrl = "";
       const makeFormData = () => {
         const fd = new FormData();
         fd.append("file", f);
         return fd;
       };
-      if (uploadEndpoint) {
+      if (shouldEmbedForDurability) {
+        // Leader images must survive redeploys even if file storage is rotated.
+        nextUrl = await readAsDataUrl(f);
+      } else if (uploadEndpoint) {
         let data;
         try {
           const res = await api.post(uploadEndpoint, makeFormData(), {
