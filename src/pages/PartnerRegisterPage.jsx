@@ -12,6 +12,38 @@ import { INDIAN_STATES, isCompletePincode, normalizePincode } from "@/lib/indiaL
 
 const BUSINESS_TYPES = ["Shop", "Service"];
 
+const SERVICE_CATEGORY_OPTIONS = [
+  "Hotel",
+  "Homestay",
+  "Doctor Clinic",
+  "Dental",
+  "Diagnostic Center",
+  "Restaurant",
+  "Cafe",
+  "Salon",
+  "Spa",
+  "Fitness",
+  "Education",
+  "Home Service",
+  "Laundry",
+  "Tailoring",
+  "Beauty at Home",
+  "Photography",
+  "Transport",
+  "Travel Agency",
+  "Courier",
+  "Logistics",
+  "Cleaning",
+  "Security",
+  "Real Estate",
+  "Legal",
+  "Accounting",
+  "Repair Center",
+  "Internet Service",
+  "Printing",
+  "Other Service",
+];
+
 const DEFAULT_TERMS = [
   "1. The Partner shall be solely responsible for the quality, warranty, delivery, service standards, after-sales support, customer promises, and all business outcomes related to its products and services.",
   "2. The Partner must ensure that every product, service, price, description, image, certificate, license, registration number, and supporting business document uploaded on this platform is genuine, accurate, complete, and legally valid.",
@@ -31,7 +63,7 @@ export default function PartnerRegisterPage() {
     contact_person: "", phone: "", dob: "", email: "", password: "", whatsapp_no: "",
     address: "", city: "", state: "", pincode: "",
     gst_no: "", upi_id: "", website: "", social_link: "",
-    business_description: "", commission_percent_ask: "",
+    business_description: "", commission_percent_ask: "", service_category: "",
   });
   const [busy, setBusy] = useState(false);
   const [pincodeBusy, setPincodeBusy] = useState(false);
@@ -164,15 +196,53 @@ export default function PartnerRegisterPage() {
               </div>
               <div>
                 <Label>Sector *</Label>
-                <select required value={form.business_type} onChange={upd("business_type")} className="mt-1.5 h-11 w-full rounded-md border border-input bg-white px-3 text-sm" data-testid="reg-business-type">
+                <select
+                  required
+                  value={form.business_type}
+                  onChange={(e) => {
+                    const nextType = e.target.value;
+                    setForm((prev) => ({
+                      ...prev,
+                      business_type: nextType,
+                      service_category: nextType === "Service" ? (prev.service_category || "") : "",
+                    }));
+                  }}
+                  className="mt-1.5 h-11 w-full rounded-md border border-input bg-white px-3 text-sm"
+                  data-testid="reg-business-type"
+                >
                   {BUSINESS_TYPES.map(t => <option key={t} value={t}>{t}</option>)}
                 </select>
               </div>
+              {isService ? (
+                <div>
+                  <Label>Service Category (optional)</Label>
+                  <select
+                    value={form.service_category || ""}
+                    onChange={upd("service_category")}
+                    className="mt-1.5 h-11 w-full rounded-md border border-input bg-white px-3 text-sm"
+                    data-testid="reg-service-category"
+                  >
+                    <option value="">Select common category</option>
+                    {SERVICE_CATEGORY_OPTIONS.map((category) => (
+                      <option key={category} value={category}>{category}</option>
+                    ))}
+                  </select>
+                  <p className="text-[11px] text-muted-foreground mt-1">This helps admin quickly map your service type during approval.</p>
+                </div>
+              ) : (
               <div>
                 <Label>PAN / GST / Business ID (optional)</Label>
                 <Input value={form.gst_no} onChange={upd("gst_no")} placeholder="PAN, GST or other business ID" maxLength={30} className="mt-1.5 h-11 font-mono uppercase" data-testid="reg-gst" />
                 <p className="text-[11px] text-muted-foreground mt-1">If provided, this ID can be used for only one Shop or Service registration.</p>
               </div>
+              )}
+              {isService ? (
+                <div>
+                  <Label>PAN / GST / Business ID (optional)</Label>
+                  <Input value={form.gst_no} onChange={upd("gst_no")} placeholder="PAN, GST or other business ID" maxLength={30} className="mt-1.5 h-11 font-mono uppercase" data-testid="reg-gst" />
+                  <p className="text-[11px] text-muted-foreground mt-1">If provided, this ID can be used for only one Shop or Service registration.</p>
+                </div>
+              ) : null}
               <div className="md:col-span-2">
                 <Label>{isService ? "Service Description (optional)" : "Shop Description (optional)"}</Label>
                 <Textarea rows={3} value={form.business_description} onChange={upd("business_description")} placeholder={isService ? "Briefly describe your service, slots or specialties..." : "Briefly describe your shop and available items..."} className="mt-1.5" data-testid="reg-description" />
