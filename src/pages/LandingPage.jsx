@@ -275,6 +275,44 @@ const Hero = () => {
               </Button>
             </div>
           </div>
+          <div className="mt-4 rounded-2xl border border-emerald-700/40 bg-gradient-to-r from-emerald-900 via-emerald-800 to-emerald-900 p-3.5 text-white shadow-lg shadow-emerald-900/25" data-testid="hero-sector-quick-access">
+            <div className="flex items-center justify-between gap-2 flex-wrap">
+              <p className="text-[10px] uppercase tracking-[0.2em] text-emerald-100 font-semibold">Member / Customer Direct Sector Access</p>
+              <span className="text-[10px] text-emerald-100/80">One tap to browse</span>
+            </div>
+            <div className="mt-3 grid grid-cols-2 lg:grid-cols-5 gap-2">
+              <Link to="/directory?quick=products" className="group" data-testid="hero-sector-products">
+                <div className="rounded-xl border border-emerald-200/35 bg-white/95 text-emerald-950 px-3 py-2.5 hover:bg-emerald-50 transition-colors">
+                  <p className="text-[10px] uppercase tracking-widest text-emerald-700 font-semibold">Sector</p>
+                  <p className="text-sm font-bold mt-0.5">Products</p>
+                </div>
+              </Link>
+              <Link to="/directory?quick=transport" className="group" data-testid="hero-sector-transport">
+                <div className="rounded-xl border border-emerald-200/35 bg-white/95 text-emerald-950 px-3 py-2.5 hover:bg-emerald-50 transition-colors">
+                  <p className="text-[10px] uppercase tracking-widest text-emerald-700 font-semibold">Sector</p>
+                  <p className="text-sm font-bold mt-0.5">Transport</p>
+                </div>
+              </Link>
+              <Link to="/directory?quick=stay-dining" className="group" data-testid="hero-sector-stay-dining">
+                <div className="rounded-xl border border-emerald-200/35 bg-white/95 text-emerald-950 px-3 py-2.5 hover:bg-emerald-50 transition-colors">
+                  <p className="text-[10px] uppercase tracking-widest text-emerald-700 font-semibold">Sector</p>
+                  <p className="text-sm font-bold mt-0.5">Stay & Dining</p>
+                </div>
+              </Link>
+              <Link to="/directory?quick=doorstep" className="group" data-testid="hero-sector-doorstep">
+                <div className="rounded-xl border border-emerald-200/35 bg-white/95 text-emerald-950 px-3 py-2.5 hover:bg-emerald-50 transition-colors">
+                  <p className="text-[10px] uppercase tracking-widest text-emerald-700 font-semibold">Sector</p>
+                  <p className="text-sm font-bold mt-0.5">Doorstep</p>
+                </div>
+              </Link>
+              <Link to="/directory?quick=other-services" className="group" data-testid="hero-sector-other-services">
+                <div className="rounded-xl border border-emerald-200/35 bg-white/95 text-emerald-950 px-3 py-2.5 hover:bg-emerald-50 transition-colors">
+                  <p className="text-[10px] uppercase tracking-widest text-emerald-700 font-semibold">Sector</p>
+                  <p className="text-sm font-bold mt-0.5">Other Services</p>
+                </div>
+              </Link>
+            </div>
+          </div>
           <div className="mt-10 flex items-center gap-1 text-amber-500" data-testid="hero-rating-stars">
             {[1, 2, 3, 4, 5].map((i) => <Star key={i} className="w-4 h-4 fill-current" />)}
             <p className="ml-2 text-xs text-slate-500 font-body">Trusted by growing partner offices across India</p>

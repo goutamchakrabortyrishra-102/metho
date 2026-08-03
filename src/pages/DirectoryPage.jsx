@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useSearchParams } from "react-router-dom";
 import { Search, MapPin, Store, Building2, ShoppingBag, Phone, Navigation, ChevronRight, Star, MessageCircle } from "lucide-react";
 import api from "@/services/api";
 import { Input } from "@/components/ui/input";
@@ -23,6 +23,7 @@ const waUrl = (p) => {
 };
 
 export default function DirectoryPage() {
+  const [searchParams] = useSearchParams();
   const { user } = useAuth();
   const { settings } = useSettings();
   const [cities, setCities] = useState([]);
@@ -35,6 +36,40 @@ export default function DirectoryPage() {
   const [q, setQ] = useState("");
   const [loading, setLoading] = useState(true);
   const [featured, setFeatured] = useState([]);
+
+  useEffect(() => {
+    const quick = String(searchParams.get("quick") || "").trim().toLowerCase();
+    const queryQ = String(searchParams.get("q") || "").trim();
+    const queryType = String(searchParams.get("business_type") || "").trim();
+    const queryCategory = String(searchParams.get("category") || "").trim();
+    const queryCity = String(searchParams.get("city") || "").trim();
+    const queryPincode = normalizePincode(searchParams.get("pincode") || "");
+
+    if (queryQ || queryType || queryCategory || queryCity || queryPincode) {
+      setQ(queryQ);
+      setType(queryType || "All");
+      setCategory(queryCategory);
+      setCity(queryCity);
+      setPincode(queryPincode);
+      return;
+    }
+
+    if (!quick) return;
+    const quickMap = {
+      products: { q: "", type: "All" },
+      transport: { q: "transport cab taxi rental bike logistics", type: "Service Provider" },
+      "stay-dining": { q: "hotel homestay restaurant cafe", type: "Service Provider" },
+      doorstep: { q: "home service cleaning repair laundry courier", type: "Service Provider" },
+      "other-services": { q: "clinic education legal accounting fitness photography travel", type: "Service Provider" },
+    };
+    const preset = quickMap[quick];
+    if (!preset) return;
+    setQ(preset.q);
+    setType(preset.type);
+    setCategory("");
+    setCity("");
+    setPincode("");
+  }, [searchParams]);
 
   useEffect(() => {
     api.get("/directory/cities").then(r => setCities(r.data)).catch(() => {});
