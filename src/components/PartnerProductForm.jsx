@@ -673,13 +673,13 @@ export default function PartnerProductForm({ product, onSaved, disabled = false,
 
   const save = async (e) => {
     e.preventDefault();
-    if (!String(form.image_url || "").trim()) {
+    const isService = form.listing_type === "service";
+    if (!isService && !String(form.image_url || "").trim()) {
       toast.error("Listing image required. Please upload image first.");
       return;
     }
     setBusy(true);
     try {
-      const isService = form.listing_type === "service";
       const payload = {
         ...form,
         price: Number(form.price),
@@ -700,7 +700,7 @@ export default function PartnerProductForm({ product, onSaved, disabled = false,
       if (product?.id) saved = await api.put(`/partner/products/${product.id}`, payload);
       else saved = await api.post("/partner/products", payload);
 
-      toast.success(product?.id ? "Listing updated and live" : "Image uploaded and live in gallery");
+      toast.success(product?.id ? "Listing updated and live" : "Listing created and live");
       setOpen(false);
       onSaved?.();
     } catch (err) {
@@ -718,14 +718,14 @@ export default function PartnerProductForm({ product, onSaved, disabled = false,
           disabled={!product?.id && disabled}
           title={!product?.id && disabled && disabledReason ? disabledReason : undefined}
         >
-          {product?.id ? <Pencil className="w-4 h-4 mr-1" /> : <Plus className="w-4 h-4 mr-1" />} {product?.id ? "Edit Listing" : "Image Upload"}
+          {product?.id ? <Pencil className="w-4 h-4 mr-1" /> : <Plus className="w-4 h-4 mr-1" />} {product?.id ? "Edit Listing" : "Add Listing"}
         </Button>
       </DialogTrigger>
       <DialogContent className="w-[calc(100vw-1rem)] max-w-lg sm:max-w-2xl max-h-[88vh] overflow-y-auto p-4 sm:p-6">
         <DialogHeader>
           <DialogTitle>{product?.id ? "Edit Listing" : "New Listing"}</DialogTitle>
           <DialogDescription>
-            {product?.id ? "Update partner listing details and optionally replace the image, which is saved as a PDF link." : "Create a new partner shop/service listing. The uploaded image is saved as a PDF link."}
+            {product?.id ? "Update partner listing details and optionally replace the image, which is saved as a PDF link." : "Create a new partner shop/service listing. Service listings can be saved without image upload."}
           </DialogDescription>
         </DialogHeader>
         {product?.id ? (
@@ -797,7 +797,7 @@ export default function PartnerProductForm({ product, onSaved, disabled = false,
             </div>
           ) : null}
           <div>
-              <Label>Image Upload (Saved as PDF)</Label>
+              <Label>{form.listing_type === "service" ? "Image Upload (Optional for Service)" : "Image Upload (Saved as PDF)"}</Label>
             <div className="mt-1.5 flex flex-wrap items-center gap-3">
               <input
                 ref={fileRef}
@@ -851,7 +851,7 @@ export default function PartnerProductForm({ product, onSaved, disabled = false,
                 </div>
               )}
             </div>
-            <p className="text-[11px] text-muted-foreground mt-1">JPG/PNG/WebP/GIF/SVG, max 5MB. Image stays visible in gallery/cart and is also auto-converted to PDF when supported.</p>
+            <p className="text-[11px] text-muted-foreground mt-1">JPG/PNG/WebP/GIF/SVG, max 5MB. Product listing-এ image recommended; service listing-এ image optional.</p>
             {form.pdf_url ? (
               <p className="text-[11px] text-emerald-700 mt-1 break-all">PDF: {form.pdf_url}</p>
             ) : null}

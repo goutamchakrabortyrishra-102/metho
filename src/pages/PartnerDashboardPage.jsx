@@ -540,7 +540,7 @@ export default function PartnerDashboardPage() {
 
         <div className="flex flex-wrap gap-2">
           <Tab id="overview" active={tab} onClick={setTab}>Overview</Tab>
-          <Tab id="products" active={tab} onClick={setTab}>Gallery Products ({products.length})</Tab>
+          <Tab id="products" active={tab} onClick={setTab}>Listings ({products.length})</Tab>
           <Tab id="transport" active={tab} onClick={setTab}>Transport Trips ({transportData?.items?.length || 0})</Tab>
           <Tab id="offline" active={tab} onClick={setTab}>Offline Billing</Tab>
           <Tab id="orders" active={tab} onClick={setTab}>Orders ({orders.length})</Tab>
@@ -550,9 +550,9 @@ export default function PartnerDashboardPage() {
         {tab === "overview" && summary && (
           <div className="bg-white rounded-xl border border-border p-6">
             <div className="rounded-xl border border-amber-300 bg-amber-50 p-4 mb-5">
-              <p className="text-[10px] uppercase tracking-widest text-amber-800 font-bold">Gallery Upload Location</p>
-              <h3 className="font-display font-bold text-emerald-950 text-base mt-1">Product gallery upload আগের মতোই আছে</h3>
-              <p className="text-xs text-slate-700 mt-1">5টা Featured Image শুধু highlight section-এর জন্য। আসল product gallery upload করতে উপরের Gallery Products tab-এ যান।</p>
+              <p className="text-[10px] uppercase tracking-widest text-amber-800 font-bold">Listing Manager</p>
+              <h3 className="font-display font-bold text-emerald-950 text-base mt-1">Shop/Service listing manage এখান থেকেই করুন</h3>
+              <p className="text-xs text-slate-700 mt-1">Service template, price, slot/capacity, description সব update করতে উপরের Listings tab-এ যান। Service listing-এর জন্য image upload optional.</p>
               <div className="mt-3">
                 <Button
                   type="button"
@@ -560,7 +560,7 @@ export default function PartnerDashboardPage() {
                   className="bg-emerald-900 hover:bg-emerald-950 text-white rounded-full"
                   data-testid="go-to-gallery-products-tab"
                 >
-                  Open Gallery Image Upload
+                  Open Listing Manager
                 </Button>
               </div>
             </div>
@@ -570,7 +570,7 @@ export default function PartnerDashboardPage() {
                 <div>
                   <p className="text-[10px] uppercase tracking-widest text-emerald-800 font-bold">Shop Banner</p>
                   <h3 className="font-display font-bold text-emerald-950 text-lg">Upload one shop banner</h3>
-                  <p className="text-xs text-emerald-900/80 mt-1">এখানে banner upload করলে shop page-এ দেখাবে। Product section-এ 5টির বেশি product add হবে না।</p>
+                  <p className="text-xs text-emerald-900/80 mt-1">এখানে banner upload করলে public shop/service page-এ দেখাবে।</p>
                 </div>
                 <label className="inline-flex items-center gap-2 rounded-full border border-emerald-300 bg-white px-4 py-2 text-sm font-semibold text-emerald-900 cursor-pointer hover:bg-emerald-50">
                   <input type="file" accept="image/*" onChange={uploadShopBanner} className="hidden" />
@@ -588,7 +588,7 @@ export default function PartnerDashboardPage() {
                   )}
                 </div>
                 <div className="rounded-xl border border-dashed border-emerald-300 bg-white p-3 text-xs text-slate-600 space-y-3">
-                  <p>Banner size can be any image under 200KB. Featured products still remain the first 5 products in the gallery.</p>
+                  <p>Banner size can be any image under 200KB. Featured images are only for highlight/branding.</p>
                   <div className="rounded-lg border border-emerald-200 bg-emerald-50 p-3">
                     <p className="text-[10px] uppercase tracking-widest text-emerald-800 font-bold">Your Public Shop Link</p>
                     <a
@@ -838,7 +838,7 @@ export default function PartnerDashboardPage() {
         {tab === "products" && (
           <div className="bg-white rounded-xl border border-border p-6">
             <div className="flex items-center justify-between mb-4">
-              <h3 className="font-display font-bold text-emerald-950 text-lg">Gallery Image Upload</h3>
+              <h3 className="font-display font-bold text-emerald-950 text-lg">Listing Manager</h3>
               <div className="flex items-center gap-2">
                 {summary?.partner_code && (
                   <Link to={`/gallery/${summary.partner_code}`} target="_blank">
@@ -866,10 +866,10 @@ export default function PartnerDashboardPage() {
               </div>
             </div>
             <p className="mb-4 text-xs text-slate-600">
-              Partner এক এক করে shop/service listing-এর image, name, rate, stock/capacity upload করবে। View Gallery এ listing দেখবেন; Share PDF on WhatsApp এ PDF link পাঠাতে পারবেন।
+              এখান থেকে shop/service listing add/edit করুন। Service listing-এ template apply করে image ছাড়া save করা যাবে; product listing-এ image upload recommended.
             </p>
             {products.length === 0 ? (
-              <p className="text-sm text-muted-foreground">No listing yet. Click "Image Upload" to upload your first shop or service image.</p>
+              <p className="text-sm text-muted-foreground">No listing yet. Click "Add Listing" to create your first shop or service listing.</p>
             ) : (
               <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                 {products.map(p => (
