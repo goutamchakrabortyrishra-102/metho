@@ -3149,11 +3149,46 @@ def partner_transport_mark_paid(trip_id: str, payload: dict | None = None, db: S
         row.payment_method = "upi"
         db.commit()
 
+    auto_approved = False
+    auto_message = "Admin approval will run existing commission debit/split and invoice flow unchanged."
+    if row:
+        try:
+            auto_result = admin_approve_order(
+                order_id=order_id,
+                payload={"note": "Auto-approved transport booking after payment confirmation"},
+                db=db,
+                current_user=SimpleNamespace(role="super_admin"),
+            )
+            auto_approved = True
+            auto_message = "Auto-approved because partner reserve wallet had enough balance."
+            row = db.query(PublicOrder).filter(PublicOrder.id == order_id).first()
+            saved["order_status"] = "paid"
+            return {
+                "ok": True,
+                "booking": saved,
+                "order": {
+                    "id": order_id,
+                    "status": "paid",
+                    "auto_approved": True,
+                },
+                "rewards_earned": auto_result.get("rewards_earned", {}),
+                "commission_split": auto_result.get("commission_split", {}),
+                "message": auto_message,
+            }
+        except HTTPException:
+            auto_approved = False
+        except Exception:
+            auto_approved = False
+
     return {
         "ok": True,
         "booking": saved,
-        "order": {"id": order_id, "status": (row.status if row else "pending_approval")},
-        "next_step": "Admin approval will run existing commission debit/split and invoice flow unchanged.",
+        "order": {
+            "id": order_id,
+            "status": (row.status if row else "pending_approval"),
+            "auto_approved": auto_approved,
+        },
+        "next_step": auto_message,
     }
 
 
