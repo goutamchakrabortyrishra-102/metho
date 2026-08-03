@@ -765,16 +765,32 @@ export default function PartnerProductForm({ product, onSaved, disabled = false,
               <Input required value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} className="mt-1" data-testid="my-prod-name" />
             </div>
           </div>
+          {form.listing_type === "service" ? (
+            <div className="rounded-xl border border-emerald-200 bg-emerald-50/70 p-4 space-y-3" data-testid="service-layout-intro">
+              <div>
+                <p className="text-[10px] uppercase tracking-widest text-emerald-800 font-semibold">Service Setup</p>
+                <h3 className="font-display font-bold text-emerald-950 text-base mt-1">Booking-ready service listing তৈরি করুন</h3>
+                <p className="text-xs text-emerald-900/80 mt-1">টেমপ্লেট বেছে নিন, এরপর প্রয়োজন মতো name, price, slots আর description ঠিক করুন।</p>
+              </div>
+            </div>
+          ) : null}
+
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            <div><Label>Category *</Label><Input required value={form.category} onChange={(e) => setForm({ ...form, category: e.target.value })} className="mt-1" data-testid="my-prod-cat" /></div>
-            <div><Label>PDF Link</Label><Input value={form.pdf_url || ""} onChange={(e) => setForm({ ...form, pdf_url: e.target.value })} className="mt-1" placeholder="https://...pdf" data-testid="my-prod-pdf" /></div>
+            <div>
+              <Label>{form.listing_type === "service" ? "Service Category *" : "Category *"}</Label>
+              <Input required value={form.category} onChange={(e) => setForm({ ...form, category: e.target.value })} className="mt-1" data-testid="my-prod-cat" />
+            </div>
+            <div>
+              <Label>{form.listing_type === "service" ? "Service Brochure / PDF Link" : "PDF Link"}</Label>
+              <Input value={form.pdf_url || ""} onChange={(e) => setForm({ ...form, pdf_url: e.target.value })} className="mt-1" placeholder={form.listing_type === "service" ? "https://...pdf" : "https://...pdf"} data-testid="my-prod-pdf" />
+            </div>
           </div>
           {form.listing_type === "service" ? (
             <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-3 space-y-3" data-testid="service-template-block">
               <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
                 <div>
                   <p className="text-sm font-semibold text-emerald-950">Ready Service Templates</p>
-                  <p className="text-[11px] text-emerald-900">Hotel room, homestay, clinic, restaurant table, salon সহ pre-built setup।</p>
+                  <p className="text-[11px] text-emerald-900">Hotel, Homestay, Transport, Clinic, Restaurant, Salon সহ service-focused presets.</p>
                 </div>
                 <select
                   value={serviceSectorFilter}
@@ -927,10 +943,13 @@ export default function PartnerProductForm({ product, onSaved, disabled = false,
               />
             </div>
           </div>
-          <div><Label>{form.listing_type === "service" ? "Service Description" : "Description"}</Label><Textarea value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} className="mt-1" data-testid="my-prod-desc" /></div>
+          <div>
+            <Label>{form.listing_type === "service" ? "Service Description" : "Description"}</Label>
+            <Textarea value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} className="mt-1" data-testid="my-prod-desc" />
+          </div>
           <DialogFooter>
             <Button type="submit" disabled={busy} className="bg-emerald-900 hover:bg-emerald-950 text-white" data-testid="my-prod-save">
-              {busy ? <Loader2 className="w-4 h-4 animate-spin" /> : (product?.id ? "Update Product" : "Save")}
+              {busy ? <Loader2 className="w-4 h-4 animate-spin" /> : (product?.id ? (form.listing_type === "service" ? "Update Service" : "Update Product") : (form.listing_type === "service" ? "Save Service" : "Save Product"))}
             </Button>
           </DialogFooter>
         </form>
