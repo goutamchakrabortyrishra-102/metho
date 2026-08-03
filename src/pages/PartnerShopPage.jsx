@@ -289,6 +289,12 @@ export default function PartnerShopPage() {
   const serviceListings = useMemo(() => products.filter((item) => isServiceListing(item)), [products]);
   const featuredImages = useMemo(() => normalizeFeaturedImages(data?.featured_images), [data?.featured_images]);
   const bestFiveProducts = useMemo(() => productListings.slice(0, 5), [productListings]);
+  const hasProductListings = productListings.length > 0;
+  const hasServiceListings = serviceListings.length > 0;
+  const hasBestFiveImages = useMemo(
+    () => featuredImages.some(Boolean) || bestFiveProducts.some((product) => Boolean(getProductImageUrl(product) || product?.fallback_image_url)),
+    [bestFiveProducts, featuredImages]
+  );
   const getStock = (product) => Math.max(0, Number(product?.stock ?? 0));
   const isBookNowRole = !user || ["member", "customer"].includes(String(user?.role || "").toLowerCase());
   const canAccessProductPdf = ["partner", "admin", "super_admin", "company_admin"].includes(String(user?.role || "").toLowerCase());
@@ -589,7 +595,7 @@ export default function PartnerShopPage() {
       )}
 
       <main className={`max-w-6xl mx-auto px-4 py-8 ${items.length > 0 ? "pt-28 md:pt-8" : ""}`}>
-        {(featuredImages.length > 0 || bestFiveProducts.length > 0) && (
+        {hasProductListings && hasBestFiveImages && (
           <div className="mb-8 bg-white rounded-xl border border-border p-6">
             <div className="flex items-center gap-2 mb-4">
               <Images className="w-5 h-5 text-emerald-700" />
@@ -627,6 +633,7 @@ export default function PartnerShopPage() {
           </div>
         )}
 
+        {hasProductListings ? (
         <div className="grid gap-6 lg:grid-cols-[1.25fr_1fr] mb-8">
           <div className="bg-white rounded-xl border border-border p-6" data-testid="partner-shop-left-gallery-panel">
             <div className="flex items-start gap-2 mb-1">
@@ -665,7 +672,9 @@ export default function PartnerShopPage() {
             </div>
           </div>
         </div>
+        ) : null}
 
+        {hasProductListings ? (
         <section className="bg-white rounded-xl border border-border p-6" data-testid="partner-shop-all-products-box">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div>
@@ -783,6 +792,7 @@ export default function PartnerShopPage() {
             </div>
           )}
         </section>
+        ) : null}
 
         {/* Cashback banner */}
         {cashback?.percent > 0 && (user?.role !== "member" || cashback.eligible) && (
@@ -828,6 +838,7 @@ export default function PartnerShopPage() {
         </div>
       )}
 
+      {hasServiceListings ? (
       <div className="mb-8">
         <div className="bg-white rounded-xl border border-border p-6" data-testid="partner-shop-left-services-panel">
           <div className="flex items-start gap-2 mb-1">
@@ -859,7 +870,9 @@ export default function PartnerShopPage() {
           </div>
         </div>
       </div>
+      ) : null}
 
+      {hasServiceListings ? (
       <section className="bg-white rounded-xl border border-border p-6 mb-8" data-testid="partner-shop-all-services-box">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
@@ -950,6 +963,7 @@ export default function PartnerShopPage() {
           </div>
         )}
       </section>
+      ) : null}
 
       {previewItem ? (
         <div className="fixed inset-0 z-50 flex items-end md:items-center justify-center bg-black/60 backdrop-blur-sm p-4" onClick={closePreview}>
