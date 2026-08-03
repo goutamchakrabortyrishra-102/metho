@@ -9,6 +9,30 @@ import { Label } from "@/components/ui/label";
 
 const inr = (v) => `₹${(Number(v) || 0).toLocaleString("en-IN", { maximumFractionDigits: 2 })}`;
 
+const normalizeUnitType = (value) => {
+  const unit = String(value || "piece").trim().toLowerCase();
+  if (["kg", "gram", "litre", "ml", "piece"].includes(unit)) return unit;
+  return "piece";
+};
+
+const qtyStepForUnit = (unitType) => {
+  const unit = normalizeUnitType(unitType);
+  if (unit === "kg" || unit === "litre") return 0.25;
+  if (unit === "gram" || unit === "ml") return 50;
+  return 1;
+};
+
+const normalizeQtyForProduct = (rawValue, product) => {
+  const unitType = normalizeUnitType(product?.unit_type);
+  const step = Number(product?.quantity_step || qtyStepForUnit(unitType)) || 1;
+  const n = Number(rawValue || 0);
+  if (!Number.isFinite(n) || n <= 0) return step;
+  if (unitType === "piece" || step === 1) return Math.max(1, Math.round(n));
+  const units = Math.round(n / step);
+  const next = units * step;
+  return Number(Math.max(step, next).toFixed(4));
+};
+
 function emptyLine() {
   return { product_id: "", quantity: 1, price: 0, query: "" };
 }
@@ -59,10 +83,12 @@ export default function OfflineBillingPanel({ title = "Offline Billing", compact
     const picked = productMap[productId];
     setLines((prev) => prev.map((line, i) => {
       if (i !== index) return line;
+      const step = Number(picked?.quantity_step || qtyStepForUnit(picked?.unit_type || "piece")) || 1;
       return {
         ...line,
         product_id: productId,
         price: Number(picked?.price || 0),
+        quantity: step,
         query: picked ? `${picked.name} ${picked.product_code ? `(${picked.product_code})` : ""}` : "",
       };
     }));
@@ -73,8 +99,14 @@ export default function OfflineBillingPanel({ title = "Offline Billing", compact
   };
 
   const onChangeQty = (index, qty) => {
-    const parsed = Math.max(1, Number(qty || 1));
-    setLines((prev) => prev.map((line, i) => (i === index ? { ...line, quantity: parsed } : line)));
+    setLines((prev) => prev.map((line, i) => {
+      if (i !== index) return line;
+      const product = productMap[line.product_id];
+      return {
+        ...line,
+        quantity: normalizeQtyForProduct(qty, product),
+      };
+    }));
   };
 
   const addLine = () => setLines((prev) => [...prev, emptyLine()]);
@@ -133,7 +165,7 @@ export default function OfflineBillingPanel({ title = "Offline Billing", compact
       .filter((line) => line.product_id)
       .map((line) => ({
         product_id: line.product_id,
-        quantity: Math.max(1, Number(line.quantity || 1)),
+        quantity: normalizeQtyForProduct(line.quantity, productMap[line.product_id]),
       }));
 
     if (validLines.length === 0) return toast.error("Add at least one product");
@@ -265,8 +297,15 @@ export default function OfflineBillingPanel({ title = "Offline Billing", compact
               </div>
 
               <div className="md:col-span-2">
-                <Label>Qty</Label>
-                <Input type="number" min="1" value={line.quantity} onChange={(e) => onChangeQty(idx, e.target.value)} className="mt-1.5 h-10" />
+                <Label>Qty{p?.unit_type && normalizeUnitType(p.unit_type) !== "piece" ? ` (${normalizeUnitType(p.unit_type)})` : ""}</Label>
+                <Input
+                  type="number"
+                  min={String(Number(p?.quantity_step || qtyStepForUnit(p?.unit_type || "piece")) || 1)}
+                  step={String(Number(p?.quantity_step || qtyStepForUnit(p?.unit_type || "piece")) || 1)}
+                  value={line.quantity}
+                  onChange={(e) => onChangeQty(idx, e.target.value)}
+                  className="mt-1.5 h-10"
+                />
               </div>
 
               <div className="md:col-span-2 flex items-end gap-2">
@@ -279,7 +318,7 @@ export default function OfflineBillingPanel({ title = "Offline Billing", compact
               </div>
 
               {p?.stock >= 0 ? (
-                <div className="md:col-span-12 text-[11px] text-slate-500">Stock: {p.stock}{p?.product_code ? ` · Code: ${p.product_code}` : ""}</div>
+                <div className="md:col-span-12 text-[11px] text-slate-500">Stock: {p.stock}{p?.unit_type && normalizeUnitType(p.unit_type) !== "piece" ? ` ${normalizeUnitType(p.unit_type)}` : ""}{p?.product_code ? ` · Code: ${p.product_code}` : ""}</div>
               ) : null}
             </div>
           );

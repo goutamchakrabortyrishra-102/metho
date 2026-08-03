@@ -38,6 +38,55 @@ PARTNER_IMAGE_MAX_UPLOAD_BYTES = 200 * 1024
 GLOBAL_IMAGE_MAX_UPLOAD_BYTES = 200 * 1024
 PARTNER_PRODUCT_GALLERY_MAX_UPLOAD_BYTES = 5 * 1024 * 1024
 PRODUCT_IMAGE_MAX_UPLOAD_BYTES = 5 * 1024 * 1024
+PARTNER_PRODUCT_UNITS_KEY = "partner_product_units"
+PARTNER_UNIT_OPTIONS = {"piece", "kg", "gram", "litre", "ml"}
+
+
+def _normalize_partner_unit_type(value: str | None) -> str:
+    text = str(value or "piece").strip().lower()
+    if text in {"pcs", "pc", "unit", "units"}:
+        text = "piece"
+    if text not in PARTNER_UNIT_OPTIONS:
+        return "piece"
+    return text
+
+
+def _partner_unit_step(unit_type: str) -> float:
+    unit = _normalize_partner_unit_type(unit_type)
+    if unit in {"kg", "litre"}:
+        return 0.25
+    if unit in {"gram", "ml"}:
+        return 50.0
+    return 1.0
+
+
+def _load_partner_product_units(db: Session) -> dict[str, dict]:
+    row = db.query(AppSetting).filter(AppSetting.key == PARTNER_PRODUCT_UNITS_KEY).first()
+    if not row:
+        return {}
+    try:
+        payload = json.loads(row.value_json or "{}")
+    except Exception:
+        return {}
+    return payload if isinstance(payload, dict) else {}
+
+
+def _partner_unit_info(unit_map: dict[str, dict], product_id: str) -> dict:
+    meta = unit_map.get(str(product_id)) if isinstance(unit_map, dict) else None
+    unit_type = _normalize_partner_unit_type((meta or {}).get("unit_type"))
+    step = float((meta or {}).get("quantity_step") or _partner_unit_step(unit_type))
+    return {
+        "unit_type": unit_type,
+        "unit_label": unit_type,
+        "quantity_step": step,
+    }
+
+
+def _round_quantity_to_step(value: float, step: float) -> float:
+    safe_step = max(0.01, float(step or 1.0))
+    units = round(float(value or 0) / safe_step)
+    rounded = units * safe_step
+    return round(max(safe_step, rounded), 4)
 
 
 def _save_image_upload(file: UploadFile, target_dir: Path, prefix: str, max_bytes: int = GLOBAL_IMAGE_MAX_UPLOAD_BYTES) -> str:
@@ -1148,26 +1197,32 @@ def _get_offline_billing_product(db: Session, product_id: str) -> dict | None:
             "product_code": _ensure_product_code(db, p.id, product_type),
             "name": p.name,
             "price": round(float(p.price or 0), 2),
-            "stock": int(p.stock or 0),
+            "stock": float(p.stock or 0),
             "product_type": product_type,
             "partner_id": None,
+            "unit_type": "piece",
+            "unit_label": "piece",
+            "quantity_step": 1.0,
         }
 
     pp = db.query(PartnerProduct).filter(PartnerProduct.id == pid).first()
     if not pp:
         return None
+    unit_info = _partner_unit_info(_load_partner_product_units(db), pp.id)
     return {
         "id": pp.id,
         "product_code": _ensure_product_code(db, pp.id, "associate_partner"),
         "name": pp.name,
         "price": round(float(pp.price or 0), 2),
-        "stock": int(pp.stock or 0),
+        "stock": float(pp.stock or 0),
         "product_type": "associate_partner",
         "partner_id": pp.partner_id,
+        **unit_info,
     }
 
 
 def _offline_catalog_for_partner(db: Session, partner_id: str) -> list[dict]:
+    unit_map = _load_partner_product_units(db)
     rows = (
         db.query(PartnerProduct)
         .filter(
@@ -1185,9 +1240,10 @@ def _offline_catalog_for_partner(db: Session, partner_id: str) -> list[dict]:
             "name": p.name,
             "category": p.category,
             "price": round(float(p.price or 0), 2),
-            "stock": int(p.stock or 0),
+            "stock": float(p.stock or 0),
             "product_type": "associate_partner",
             "partner_id": p.partner_id,
+            **_partner_unit_info(unit_map, p.id),
         }
         for p in rows
     ]
@@ -1195,6 +1251,7 @@ def _offline_catalog_for_partner(db: Session, partner_id: str) -> list[dict]:
 
 def _offline_catalog_for_admin(db: Session) -> list[dict]:
     out: list[dict] = []
+    unit_map = _load_partner_product_units(db)
     for p in db.query(Product).order_by(Product.created_at.desc()).all():
         meta = db.query(ProductMeta).filter(ProductMeta.product_id == p.id).first()
         out.append(
@@ -1204,9 +1261,12 @@ def _offline_catalog_for_admin(db: Session) -> list[dict]:
                 "name": p.name,
                 "category": p.category,
                 "price": round(float(p.price or 0), 2),
-                "stock": int(p.stock or 0),
+                "stock": float(p.stock or 0),
                 "product_type": (meta.product_type if meta else "metho") or "metho",
                 "partner_id": None,
+                "unit_type": "piece",
+                "unit_label": "piece",
+                "quantity_step": 1.0,
             }
         )
 
@@ -1223,9 +1283,10 @@ def _offline_catalog_for_admin(db: Session) -> list[dict]:
                 "name": pp.name,
                 "category": pp.category,
                 "price": round(float(pp.price or 0), 2),
-                "stock": int(pp.stock or 0),
+                "stock": float(pp.stock or 0),
                 "product_type": "associate_partner",
                 "partner_id": pp.partner_id,
+                **_partner_unit_info(unit_map, pp.id),
             }
         )
     return out
@@ -1970,7 +2031,10 @@ def offline_billing_create_order(payload: dict, db: Session = Depends(get_db), c
     total = 0.0
     for row in items_in:
         product_id = str((row or {}).get("product_id") or "").strip()
-        qty = max(1, int((row or {}).get("quantity") or 1))
+        try:
+            qty_value = float((row or {}).get("quantity") or 1)
+        except Exception:
+            qty_value = 1.0
         item = _get_offline_billing_product(db, product_id)
         if not item:
             raise HTTPException(status_code=400, detail=f"Product not found: {product_id}")
@@ -1978,8 +2042,22 @@ def offline_billing_create_order(payload: dict, db: Session = Depends(get_db), c
         if partner_scope_id and item.get("product_type") == "associate_partner" and item.get("partner_id") != partner_scope_id:
             raise HTTPException(status_code=403, detail="Partner can only bill own approved products")
 
+        unit_type = _normalize_partner_unit_type(item.get("unit_type"))
+        step = float(item.get("quantity_step") or _partner_unit_step(unit_type))
+        if unit_type == "piece":
+            qty = max(1, int(round(qty_value or 1)))
+        else:
+            qty = _round_quantity_to_step(qty_value or step, step)
+
+        available_stock = max(0.0, float(item.get("stock") or 0))
+        if qty > available_stock:
+            raise HTTPException(
+                status_code=400,
+                detail=f"{item.get('name') or 'Product'}: requested quantity {qty} exceeds available stock {available_stock}",
+            )
+
         unit_price = round(float(item.get("price") or 0), 2)
-        subtotal = round(unit_price * qty, 2)
+        subtotal = round(unit_price * float(qty), 2)
         total = round(total + subtotal, 2)
         normalized_items.append(
             {
@@ -1990,6 +2068,9 @@ def offline_billing_create_order(payload: dict, db: Session = Depends(get_db), c
                 "quantity": qty,
                 "subtotal": subtotal,
                 "product_type": item.get("product_type") or "metho",
+                "unit_type": unit_type,
+                "unit_label": unit_type,
+                "quantity_step": step,
                 "gst_percent": 0,
                 "gst_amount": 0,
                 "pre_tax": subtotal,
@@ -2107,7 +2188,7 @@ def _invoice_payload(db: Session, order_id: str, current_user: User):
                 "product_name": item.get("name") or "Product",
                 "product_type": product_type,
                 "hsn_sac": "3004" if product_type == "metho" else "9983",
-                "quantity": int(item.get("quantity") or 1),
+                "quantity": float(item.get("quantity") or 1),
                 "price": float(item.get("price") or 0),
                 "pre_tax": pre_tax,
                 "cgst": cgst,
@@ -2355,14 +2436,19 @@ def admin_approve_order(order_id: str, payload: dict | None = None, db: Session 
 
     # Inventory check + adjustment on approval (admin is the final controller).
     stock_errors = []
+    partner_unit_map = _load_partner_product_units(db)
     for item in items:
-        qty = max(1, int(item.get("quantity") or 1))
+        try:
+            qty_value = float(item.get("quantity") or 1)
+        except Exception:
+            qty_value = 1.0
         pid = str(item.get("product_id") or "")
         if not pid:
             continue
 
         p = db.query(Product).filter(Product.id == pid).first()
         if p:
+            qty = max(1, int(round(qty_value or 1)))
             available = max(0, int(p.stock or 0))
             if qty > available:
                 stock_errors.append(f"{p.name}: requested {qty}, available {available}")
@@ -2370,7 +2456,12 @@ def admin_approve_order(order_id: str, payload: dict | None = None, db: Session 
 
         pp = db.query(PartnerProduct).filter(PartnerProduct.id == pid).first()
         if pp:
-            available = max(0, int(pp.stock or 0))
+            unit_info = _partner_unit_info(partner_unit_map, pp.id)
+            if unit_info["unit_type"] == "piece":
+                qty = max(1, int(round(qty_value or 1)))
+            else:
+                qty = _round_quantity_to_step(qty_value or unit_info["quantity_step"], unit_info["quantity_step"])
+            available = max(0.0, float(pp.stock or 0))
             if qty > available:
                 stock_errors.append(f"{pp.name}: requested {qty}, available {available}")
 
@@ -2381,17 +2472,26 @@ def admin_approve_order(order_id: str, payload: dict | None = None, db: Session 
         )
 
     for item in items:
-        qty = max(1, int(item.get("quantity") or 1))
+        try:
+            qty_value = float(item.get("quantity") or 1)
+        except Exception:
+            qty_value = 1.0
         pid = str(item.get("product_id") or "")
         if not pid:
             continue
         p = db.query(Product).filter(Product.id == pid).first()
         if p:
+            qty = max(1, int(round(qty_value or 1)))
             p.stock = int(p.stock or 0) - qty
             continue
         pp = db.query(PartnerProduct).filter(PartnerProduct.id == pid).first()
         if pp:
-            pp.stock = int(pp.stock or 0) - qty
+            unit_info = _partner_unit_info(partner_unit_map, pp.id)
+            if unit_info["unit_type"] == "piece":
+                qty = max(1, int(round(qty_value or 1)))
+            else:
+                qty = _round_quantity_to_step(qty_value or unit_info["quantity_step"], unit_info["quantity_step"])
+            pp.stock = float(pp.stock or 0) - float(qty)
 
     company_wallet = _load_company_commission_wallet(db)
 
