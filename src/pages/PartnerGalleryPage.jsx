@@ -159,6 +159,15 @@ const isServiceListing = (item) => {
   return false;
 };
 
+const isTransportServiceListing = (item) => {
+  const key = String(item?.service_template_key || "").trim().toLowerCase();
+  if (["cab_airport_drop", "car_rental_daily", "bike_rental_daily"].includes(key)) return true;
+  const haystack = [item?.category, item?.name, item?.description]
+    .map((v) => String(v || "").toLowerCase())
+    .join(" ");
+  return ["transport", "cab", "taxi", "bike rental", "car rental", "ride", "cargo"].some((k) => haystack.includes(k));
+};
+
 const getUnitType = (item) => {
   const unit = String(item?.unit_type || "piece").trim().toLowerCase();
   if (["kg", "gram", "litre", "ml", "piece"].includes(unit)) return unit;
@@ -328,8 +337,12 @@ export default function PartnerGalleryPage() {
   const products = useMemo(() => data?.products || [], [data?.products]);
   const productListings = useMemo(() => products.filter((item) => !isServiceListing(item)), [products]);
   const serviceListings = useMemo(() => products.filter((item) => isServiceListing(item)), [products]);
-  const activeTab = requestedTab === "services" ? "services" : "products";
-  const activeListings = activeTab === "services" ? serviceListings : productListings;
+  const transportListings = useMemo(() => serviceListings.filter((item) => isTransportServiceListing(item)), [serviceListings]);
+  const regularServiceListings = useMemo(() => serviceListings.filter((item) => !isTransportServiceListing(item)), [serviceListings]);
+  const activeTab = ["products", "services", "transport"].includes(requestedTab) ? requestedTab : "products";
+  const activeListings = activeTab === "transport"
+    ? transportListings
+    : (activeTab === "services" ? regularServiceListings : productListings);
   const isBookNowRole = !user || ["member", "customer"].includes(String(user?.role || "").toLowerCase());
   const canAccessProductPdf = ["partner", "admin", "super_admin", "company_admin"].includes(String(user?.role || "").toLowerCase());
   const getStock = (product) => Math.max(0, Number(product?.stock ?? 0));
@@ -445,7 +458,7 @@ export default function PartnerGalleryPage() {
     const productLines = visibleProducts.slice(0, 8).map(p =>
       `• ${p.name} — ₹${p.price}${(p.image_url || getPdfUrl(p)) ? `\n  ${p.image_url || getPdfUrl(p)}` : ""}`
     ).join("\n");
-    const sectionLabel = activeTab === "services" ? "Service Gallery" : "Product Gallery";
+    const sectionLabel = activeTab === "transport" ? "Transport Gallery" : (activeTab === "services" ? "Service Gallery" : "Product Gallery");
     const msg = `🛍️ *${partner.business_name}* এর ${sectionLabel}\n\n${productLines}\n\n👉 সব দেখুন ও Order করুন:\n${galleryUrl}?tab=${activeTab}`;
     window.open(`https://wa.me/?text=${encodeURIComponent(msg)}`, "_blank");
   };
@@ -658,7 +671,7 @@ export default function PartnerGalleryPage() {
             </p>
           </div>
           <div className="text-right">
-            <p className="text-[10px] text-amber-400 uppercase font-bold">{activeTab === "services" ? "Services" : "Products"}</p>
+            <p className="text-[10px] text-amber-400 uppercase font-bold">{activeTab === "transport" ? "Transport" : (activeTab === "services" ? "Services" : "Products")}</p>
             <p className="font-display font-black text-3xl">{activeListings.length}</p>
           </div>
         </div>
@@ -667,12 +680,19 @@ export default function PartnerGalleryPage() {
       {/* Toolbar */}
       <div className="max-w-4xl mx-auto px-4 py-4 flex flex-wrap items-center justify-between gap-3">
         <p className="text-sm text-slate-600 font-body">
-          {activeTab === "services" ? "Tap the image to view details and book the service" : "Tap the image to view details and add to cart"}
+          {activeTab === "transport"
+            ? "Tap the image to view details and start ride booking"
+            : (activeTab === "services" ? "Tap the image to view details and book the service" : "Tap the image to view details and add to cart")}
         </p>
         <div className="flex flex-wrap gap-2 w-full sm:w-auto">
           <Link to={`/gallery/${partnerCode}?tab=products${gallerySearch ? `&q=${encodeURIComponent(gallerySearch)}` : ""}`}>
             <Button variant={activeTab === "products" ? "default" : "outline"} size="sm" className={`rounded-full text-xs ${activeTab === "products" ? "bg-emerald-900 hover:bg-emerald-950 text-white" : "border-emerald-300 text-emerald-900 hover:bg-emerald-50"}`}>
               Products
+            </Button>
+          </Link>
+          <Link to={`/gallery/${partnerCode}?tab=transport${gallerySearch ? `&q=${encodeURIComponent(gallerySearch)}` : ""}`}>
+            <Button variant={activeTab === "transport" ? "default" : "outline"} size="sm" className={`rounded-full text-xs ${activeTab === "transport" ? "bg-sky-700 hover:bg-sky-800 text-white" : "border-sky-300 text-sky-900 hover:bg-sky-50"}`}>
+              Transport
             </Button>
           </Link>
           <Link to={`/gallery/${partnerCode}?tab=services${gallerySearch ? `&q=${encodeURIComponent(gallerySearch)}` : ""}`}>
@@ -702,12 +722,12 @@ export default function PartnerGalleryPage() {
       <div className="max-w-4xl mx-auto px-4 pb-4">
         <div className="bg-white rounded-xl border border-border p-4 flex flex-col md:flex-row gap-2 md:items-center">
           <div className="flex items-center gap-2 text-emerald-900 font-semibold text-sm shrink-0">
-            <Search className="w-4 h-4" /> {activeTab === "services" ? "Search Service" : "Search Product"}
+            <Search className="w-4 h-4" /> {activeTab === "transport" ? "Search Transport" : (activeTab === "services" ? "Search Service" : "Search Product")}
           </div>
           <Input
             value={gallerySearch}
             onChange={(e) => setGallerySearch(e.target.value)}
-            placeholder={activeTab === "services" ? "Search by service name or category" : "Search by product name or category"}
+            placeholder={activeTab === "transport" ? "Search by cab, rental, bike, cargo" : (activeTab === "services" ? "Search by service name or category" : "Search by product name or category")}
             className="rounded-full"
           />
           {gallerySearch ? (
@@ -730,8 +750,8 @@ export default function PartnerGalleryPage() {
             <Store className="w-10 h-10 text-slate-400 mx-auto" />
             <p className="mt-3 font-semibold text-emerald-950">
               {gallerySearch
-                ? (activeTab === "services" ? "No matching services found" : "No matching products found")
-                : (activeTab === "services" ? "No services yet" : "No products yet")}
+                ? (activeTab === "transport" ? "No matching transport service found" : (activeTab === "services" ? "No matching services found" : "No matching products found"))
+                : (activeTab === "transport" ? "No transport service yet" : (activeTab === "services" ? "No services yet" : "No products yet"))}
             </p>
           </div>
         ) : (
@@ -739,6 +759,7 @@ export default function PartnerGalleryPage() {
             {visibleProducts.map(p => {
               const qty = cart[p.id] || 0;
               const isService = isServiceListing(p);
+              const isTransport = isTransportServiceListing(p);
               const outOfStock = !isService && (p.stock ?? 0) <= 0;
               return (
                 <div
@@ -768,7 +789,7 @@ export default function PartnerGalleryPage() {
                   </div>
                   {/* Info */}
                   <div className="p-2.5">
-                    <p className="text-[10px] uppercase tracking-widest text-emerald-800 font-semibold truncate">{p.category}</p>
+                    <p className={`text-[10px] uppercase tracking-widest font-semibold truncate ${isTransport ? "text-sky-700" : "text-emerald-800"}`}>{p.category}</p>
                     <p className="font-display font-bold text-emerald-950 text-sm line-clamp-1 mt-0.5">{p.name}</p>
                     <div className="mt-1.5 flex items-center justify-between">
                       <span className="font-display font-black text-base text-emerald-950">₹{p.price}</span>
@@ -784,8 +805,9 @@ export default function PartnerGalleryPage() {
                             addToCart(p.id);
                             toast.success(`${p.name} ${isService ? "booked" : "added"}`);
                           }}
-                          className="w-7 h-7 rounded-full bg-emerald-900 text-white flex items-center justify-center hover:bg-emerald-950 shrink-0"
+                          className={`w-7 h-7 rounded-full text-white flex items-center justify-center shrink-0 ${isTransport ? "bg-sky-700 hover:bg-sky-800" : "bg-emerald-900 hover:bg-emerald-950"}`}
                           data-testid={`quick-add-${p.id}`}
+                          title={isTransport ? "Book Ride" : undefined}
                         >
                           {isService ? <CalendarCheck2 className="w-3.5 h-3.5" /> : <Plus className="w-3.5 h-3.5" />}
                         </button>
