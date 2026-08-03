@@ -2889,6 +2889,18 @@ def create_transport_booking(payload: dict, request: Request, db: Session = Depe
         raise HTTPException(status_code=400, detail="Selected service is not configured as transport")
 
     fare_quote = round(max(1.0, float(service.price or 0)), 2)
+    required_reserve = round(fare_quote * (max(0.0, float(partner.commission_percent or 0)) / 100.0), 2)
+    wallet = _load_partner_wallet(db, partner.id)
+    available_balance = round(float(wallet.get("balance") or 0), 2)
+    if available_balance + 1e-9 < required_reserve:
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                f"Commission reserve wallet insufficient to confirm this booking. Required ₹{required_reserve}, "
+                f"available ₹{available_balance}. Top up partner wallet first."
+            ),
+        )
+
     inferred_vehicle = "cab"
     meta = meta_map.get(str(service.id), {}) if isinstance(meta_map, dict) else {}
     template_key = str(meta.get("service_template_key") or "").strip().lower()
@@ -2938,13 +2950,11 @@ def create_transport_booking(payload: dict, request: Request, db: Session = Depe
             ]
         ),
         total_amount=fare_quote,
-        status="pending_payment",
+        status="pending_approval",
     )
     db.add(order_row)
     db.commit()
     db.refresh(order_row)
-
-    required_reserve = round(fare_quote * (max(0.0, float(partner.commission_percent or 0)) / 100.0), 2)
     trip = {
         "id": trip_id,
         "trip_code": f"TRP-{trip_id[:8].upper()}",
@@ -2966,17 +2976,27 @@ def create_transport_booking(payload: dict, request: Request, db: Session = Depe
         "fare_quote": fare_quote,
         "fare_final": fare_quote,
         "required_commission_reserve": required_reserve,
-        "status": "booked",
+        "status": "confirmed",
         "payment_status": "unpaid",
         "order_id": order_row.id,
         "created_at": now_iso(),
     }
     saved = _save_transport_trip(db, trip)
+
+    auto_result = admin_approve_order(
+        order_id=order_row.id,
+        payload={"note": "Auto-approved transport booking at confirmation"},
+        db=db,
+        current_user=SimpleNamespace(role="super_admin"),
+    )
+    saved["order_status"] = "paid"
     return {
         "ok": True,
         "booking": saved,
-        "order": {"id": order_row.id, "order_no": f"ORD-{order_row.id[:8].upper()}", "status": order_row.status},
-        "next_step": "Partner starts trip after reserve balance check. Customer pays at destination via driver QR.",
+        "order": {"id": order_row.id, "order_no": f"ORD-{order_row.id[:8].upper()}", "status": "paid", "auto_approved": True},
+        "rewards_earned": auto_result.get("rewards_earned", {}),
+        "commission_split": auto_result.get("commission_split", {}),
+        "next_step": "Booking confirmed, commission credited to METHO, and trip can start anytime.",
     }
 
 
@@ -3023,7 +3043,7 @@ def partner_transport_update_fare(trip_id: str, payload: dict, db: Session = Dep
         raise HTTPException(status_code=404, detail="Booking not found")
     if str(trip.get("partner_id") or "") != str(partner.id):
         raise HTTPException(status_code=403, detail="Not your booking")
-    if str(trip.get("status") or "") not in {"booked"}:
+    if str(trip.get("status") or "") not in {"confirmed"}:
         raise HTTPException(status_code=400, detail="Fare can be updated only before trip start")
 
     try:
@@ -3069,21 +3089,13 @@ def partner_transport_start_trip(trip_id: str, db: Session = Depends(get_db), cu
         raise HTTPException(status_code=404, detail="Booking not found")
     if str(trip.get("partner_id") or "") != str(partner.id):
         raise HTTPException(status_code=403, detail="Not your booking")
-    if str(trip.get("status") or "") not in {"booked"}:
+    if str(trip.get("status") or "") not in {"confirmed"}:
         raise HTTPException(status_code=400, detail="Trip cannot be started in current status")
-
-    required = round(float(trip.get("required_commission_reserve") or 0), 2)
-    wallet = _load_partner_wallet(db, partner.id)
-    available = round(float(wallet.get("balance") or 0), 2)
-    if available + 1e-9 < required:
-        raise HTTPException(
-            status_code=400,
-            detail=f"Commission reserve wallet insufficient. Required ₹{required}, available ₹{available}. Top-up first.",
-        )
 
     trip["status"] = "on_trip"
     trip["started_at"] = now_iso()
     saved = _save_transport_trip(db, trip)
+    wallet = _load_partner_wallet(db, partner.id)
     return {"ok": True, "booking": saved, "wallet": wallet}
 
 
@@ -3145,50 +3157,18 @@ def partner_transport_mark_paid(trip_id: str, payload: dict | None = None, db: S
     if row:
         row.txn_id = str(trip.get("txn_id") or row.txn_id or "")
         row.payer_name = payer_name or row.payer_name
-        row.status = "pending_approval"
         row.payment_method = "upi"
         db.commit()
-
-    auto_approved = False
-    auto_message = "Admin approval will run existing commission debit/split and invoice flow unchanged."
-    if row:
-        try:
-            auto_result = admin_approve_order(
-                order_id=order_id,
-                payload={"note": "Auto-approved transport booking after payment confirmation"},
-                db=db,
-                current_user=SimpleNamespace(role="super_admin"),
-            )
-            auto_approved = True
-            auto_message = "Auto-approved because partner reserve wallet had enough balance."
-            row = db.query(PublicOrder).filter(PublicOrder.id == order_id).first()
-            saved["order_status"] = "paid"
-            return {
-                "ok": True,
-                "booking": saved,
-                "order": {
-                    "id": order_id,
-                    "status": "paid",
-                    "auto_approved": True,
-                },
-                "rewards_earned": auto_result.get("rewards_earned", {}),
-                "commission_split": auto_result.get("commission_split", {}),
-                "message": auto_message,
-            }
-        except HTTPException:
-            auto_approved = False
-        except Exception:
-            auto_approved = False
 
     return {
         "ok": True,
         "booking": saved,
         "order": {
             "id": order_id,
-            "status": (row.status if row else "pending_approval"),
-            "auto_approved": auto_approved,
+            "status": (row.status if row else "paid"),
+            "auto_approved": False,
         },
-        "next_step": auto_message,
+        "next_step": "Payment recorded. Booking was already commission-credited at confirmation; no extra admin approval is needed.",
     }
 
 
