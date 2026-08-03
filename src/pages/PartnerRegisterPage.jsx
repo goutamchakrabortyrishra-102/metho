@@ -37,6 +37,8 @@ export default function PartnerRegisterPage() {
   const [pincodeBusy, setPincodeBusy] = useState(false);
   const lastLookupPinRef = useRef("");
   const [done, setDone] = useState(null);
+  const [termsOpen, setTermsOpen] = useState(false);
+  const [agreedToTerms, setAgreedToTerms] = useState(false);
   const isService = form.business_type === "Service";
 
   const upd = (k) => (e) => setForm({ ...form, [k]: e.target.value });
@@ -78,6 +80,9 @@ export default function PartnerRegisterPage() {
 
   const submit = async (e) => {
     e.preventDefault();
+    if (!agreedToTerms) {
+      return toast.error("Please read and accept Terms & Conditions before submitting");
+    }
     if (!form.business_name || !form.contact_person || !form.phone || !form.email || !form.password || !form.address || !form.city || !form.state) {
       return toast.error("Please fill all required fields");
     }
@@ -263,19 +268,43 @@ export default function PartnerRegisterPage() {
           </section>
 
           <section className="rounded-xl border border-emerald-200 bg-emerald-50/50 p-4 md:p-5" data-testid="partner-policy-section">
-            <h2 className="font-display font-black text-lg text-emerald-950">Terms & Conditions</h2>
-            <p className="text-xs text-emerald-900/80 mt-1">Please read this section carefully before submitting your partner application. It explains your responsibilities for products, services, documents, and legal compliance.</p>
+            <button
+              type="button"
+              className="w-full flex items-center justify-between gap-3 text-left"
+              onClick={() => setTermsOpen((prev) => !prev)}
+              data-testid="read-terms-toggle"
+            >
+              <div>
+                <h2 className="font-display font-black text-lg text-emerald-950">Read Terms & Conditions</h2>
+                <p className="text-xs text-emerald-900/80 mt-1">Click to view full legal terms before submitting your partner application.</p>
+              </div>
+              <span className="text-xs font-semibold px-3 py-1 rounded-full border border-emerald-300 bg-white text-emerald-900">
+                {termsOpen ? "Hide" : "Open"}
+              </span>
+            </button>
 
-            <div className="mt-4 rounded-xl border border-emerald-200 bg-white p-4">
-              <p className="text-sm text-slate-700 whitespace-pre-line leading-6">{DEFAULT_TERMS}</p>
-            </div>
+            {termsOpen ? (
+              <div className="mt-4 rounded-xl border border-emerald-200 bg-white p-4" data-testid="full-terms-content">
+                <p className="text-sm text-slate-700 whitespace-pre-line leading-6">{DEFAULT_TERMS}</p>
+              </div>
+            ) : null}
+
+            <label className="mt-4 flex items-start gap-2 text-sm text-slate-700" data-testid="agree-terms-box">
+              <input
+                type="checkbox"
+                checked={agreedToTerms}
+                onChange={(e) => setAgreedToTerms(e.target.checked)}
+                className="mt-0.5"
+              />
+              <span>I have read and agree to the Terms & Conditions.</span>
+            </label>
           </section>
 
           <div className="border-t border-border pt-4 flex flex-wrap items-center justify-between gap-3">
             <p className="text-xs text-muted-foreground font-body max-w-md">
-              By submitting, you confirm that you have read and accepted the Terms & Conditions above. Your Shop or Service appears in the directory only after admin approval.
+              Submission is enabled only after you tick the agreement checkbox. Your Shop or Service appears in the directory only after admin approval.
             </p>
-            <Button type="submit" disabled={busy} className="bg-emerald-900 hover:bg-emerald-950 text-white rounded-full px-8 h-12" data-testid="reg-submit">
+            <Button type="submit" disabled={busy || !agreedToTerms} className="bg-emerald-900 hover:bg-emerald-950 text-white rounded-full px-8 h-12" data-testid="reg-submit">
               {busy ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" /> Submitting...</> : <><Send className="w-4 h-4 mr-2" /> Submit Application</>}
             </Button>
           </div>
