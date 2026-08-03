@@ -9,6 +9,7 @@ import api from "@/services/api";
 import { methoStoreApi, normalizeCollection } from "@/services/methoStore";
 import { useSettings } from "@/contexts/SettingsContext";
 import { resolveAssetUrl, getAssetImageFallbackCandidates } from "@/lib/utils";
+import { isCompletePincode, normalizePincode } from "@/lib/indiaLocation";
 
 function ReferralEntryStrip() {
   const [params] = useSearchParams();
@@ -624,6 +625,7 @@ const AssociatePartnerFinder = () => {
 
   const [nameQuery, setNameQuery] = React.useState("");
   const [city, setCity] = React.useState("");
+  const [pincode, setPincode] = React.useState("");
   const [businessType, setBusinessType] = React.useState("All");
   const [serviceQuery, setServiceQuery] = React.useState("");
   const [category, setCategory] = React.useState("");
@@ -638,6 +640,7 @@ const AssociatePartnerFinder = () => {
     const q = [nameQuery, serviceQuery].map((v) => String(v || "").trim()).filter(Boolean).join(" ").trim();
     if (q) params.set("q", q);
     if (city) params.set("city", city);
+    if (pincode) params.set("pincode", pincode);
     if (businessType && businessType !== "All") params.set("business_type", businessType);
     if (category) params.set("category", category);
 
@@ -645,7 +648,7 @@ const AssociatePartnerFinder = () => {
     api.get(`/directory/partners?${params.toString()}`)
       .then((r) => {
         const rows = Array.isArray(r.data) ? r.data : [];
-        const hasSearchFilters = Boolean(q || city || (businessType && businessType !== "All") || category);
+        const hasSearchFilters = Boolean(q || city || pincode || (businessType && businessType !== "All") || category);
         if (hasSearchFilters) {
           setResults(rows.slice(0, 6));
           return;
@@ -657,7 +660,18 @@ const AssociatePartnerFinder = () => {
       })
       .catch(() => setResults([]))
       .finally(() => setLoading(false));
-  }, [nameQuery, city, businessType, serviceQuery, category, featuredPartnerIds]);
+  }, [nameQuery, city, pincode, businessType, serviceQuery, category, featuredPartnerIds]);
+
+  useEffect(() => {
+    const pin = normalizePincode(pincode);
+    if (!isCompletePincode(pin)) return;
+    api.get(`/directory/pincode-lookup?pincode=${encodeURIComponent(pin)}`)
+      .then((r) => {
+        const nextCity = String(r?.data?.city || "").trim();
+        if (nextCity) setCity(nextCity);
+      })
+      .catch(() => {});
+  }, [pincode]);
 
   if (!showPartnerShop) return null;
 
@@ -699,7 +713,7 @@ const AssociatePartnerFinder = () => {
           </div>
 
           <div className="lg:col-span-8 rounded-3xl border border-emerald-300/70 bg-gradient-to-br from-emerald-100 via-emerald-50 to-amber-50/50 p-4 md:p-5 shadow-md">
-            <div className="grid md:grid-cols-2 xl:grid-cols-5 gap-2.5 rounded-2xl border border-emerald-300/70 bg-gradient-to-r from-emerald-100/90 via-emerald-50/95 to-amber-50/85 p-3 shadow-inner">
+            <div className="grid md:grid-cols-2 xl:grid-cols-6 gap-2.5 rounded-2xl border border-emerald-300/70 bg-gradient-to-r from-emerald-100/90 via-emerald-50/95 to-amber-50/85 p-3 shadow-inner">
               <div className="xl:col-span-2 relative">
                 <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
                 <input
@@ -720,6 +734,15 @@ const AssociatePartnerFinder = () => {
                 <option value="">All city</option>
                 {cities.map((c) => <option key={c} value={c}>{c}</option>)}
               </select>
+
+              <input
+                value={pincode}
+                onChange={(e) => setPincode(normalizePincode(e.target.value))}
+                placeholder="Pincode"
+                maxLength={6}
+                className="h-11 rounded-xl border border-emerald-200 bg-white/95 backdrop-blur-sm shadow-sm px-3 text-sm outline-none focus:ring-2 focus:ring-emerald-300 font-mono"
+                data-testid="landing-partner-search-pincode"
+              />
 
               <select
                 value={businessType}

@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 import { Store, Plus, Pencil, Trash2, TrendingUp, Percent, Building, FileSpreadsheet, FileDown, ScrollText, Star, MessageCircle, Images, Upload, CheckCircle2, XCircle, ChevronDown, Search, Eye, Network, Package } from "lucide-react";
 import { Navigate, Link, useNavigate } from "react-router-dom";
@@ -14,6 +14,7 @@ import api from "@/services/api";
 import { useAuth } from "@/contexts/AuthContext";
 import OfflineBillingPanel from "@/components/OfflineBillingPanel";
 import { resolveAssetUrl } from "@/lib/utils";
+import { INDIAN_STATES, isCompletePincode, normalizePincode } from "@/lib/indiaLocation";
 
 const inr = (v) => `₹${(Number(v) || 0).toLocaleString("en-IN", { maximumFractionDigits: 2 })}`;
 const mapsUrl = (p) => {
@@ -46,6 +47,7 @@ export default function PartnersPage() {
   const [editing, setEditing] = useState(null); // partner object or {new: true}
   const [form, setForm] = useState(EMPTY);
   const [busy, setBusy] = useState(false);
+  const [partnerPincodeBusy, setPartnerPincodeBusy] = useState(false);
   const [ledger, setLedger] = useState(null); // {partner, entries}
   const [deleteTarget, setDeleteTarget] = useState(null);
   const [deleteBusy, setDeleteBusy] = useState(false);
@@ -70,6 +72,8 @@ export default function PartnersPage() {
   const [loadError, setLoadError] = useState("");
   const [showOfflineBilling, setShowOfflineBilling] = useState(false);
   const [selectedPartnerId, setSelectedPartnerId] = useState("");
+  const lastFormPinRef = useRef("");
+  const lastEditPinRef = useRef("");
 
   const getApiErrorMessage = (err, fallback) => {
     const status = err?.response?.status;
@@ -98,6 +102,29 @@ export default function PartnersPage() {
     }
     if (lastErr) throw lastErr;
     throw new Error("No request provided");
+  };
+
+  const lookupPincodeAndApply = async (pin, applyFn, pinRef) => {
+    const normalized = normalizePincode(pin);
+    if (!isCompletePincode(normalized)) return;
+    if (pinRef.current === normalized) return;
+    setPartnerPincodeBusy(true);
+    try {
+      const { data } = await api.get(`/directory/pincode-lookup?pincode=${encodeURIComponent(normalized)}`);
+      const city = String(data?.city || "").trim();
+      const state = String(data?.state || "").trim();
+      applyFn((prev) => ({
+        ...prev,
+        pincode: normalized,
+        city: city || prev.city,
+        state: state || prev.state,
+      }));
+      pinRef.current = normalized;
+    } catch {
+      toast.error("Pincode থেকে city খুঁজে পাওয়া যায়নি");
+    } finally {
+      setPartnerPincodeBusy(false);
+    }
   };
 
   const hasValue = (arr, val) => arr.some((x) => String(x || "").trim().toLowerCase() === String(val || "").trim().toLowerCase());
@@ -1127,11 +1154,23 @@ export default function PartnersPage() {
             </div>
             <div>
               <Label htmlFor="state">State</Label>
-              <Input id="state" value={form.state || ""} onChange={(e) => setForm({ ...form, state: e.target.value })} placeholder="State" data-testid="partner-state-input" className="mt-1.5 h-11" />
+              <Input id="state" list="partner-state-list" value={form.state || ""} onChange={(e) => setForm({ ...form, state: e.target.value })} placeholder="Select or type state" data-testid="partner-state-input" className="mt-1.5 h-11" />
+              <datalist id="partner-state-list">
+                {INDIAN_STATES.map((state) => <option key={state} value={state} />)}
+              </datalist>
             </div>
             <div>
               <Label htmlFor="pincode">Pincode</Label>
-              <Input id="pincode" value={form.pincode || ""} onChange={(e) => setForm({ ...form, pincode: e.target.value })} placeholder="Pincode" data-testid="partner-pincode-input" className="mt-1.5 h-11" />
+              <Input
+                id="pincode"
+                value={form.pincode || ""}
+                onChange={(e) => setForm({ ...form, pincode: normalizePincode(e.target.value) })}
+                onBlur={() => lookupPincodeAndApply(form.pincode, setForm, lastFormPinRef)}
+                placeholder="Pincode"
+                data-testid="partner-pincode-input"
+                className="mt-1.5 h-11"
+              />
+              {partnerPincodeBusy ? <p className="text-[11px] text-muted-foreground mt-1">Pincode থেকে city আনা হচ্ছে...</p> : null}
             </div>
             <div>
               <Label htmlFor="upi">Partner UPI (for reference)</Label>

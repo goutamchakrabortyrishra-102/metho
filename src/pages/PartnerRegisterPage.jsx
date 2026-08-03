@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { Store, Send, CheckCircle2, Loader2, ArrowLeft } from "lucide-react";
 import { toast } from "sonner";
@@ -8,6 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Logo } from "@/components/Logo";
+import { INDIAN_STATES, isCompletePincode, normalizePincode } from "@/lib/indiaLocation";
 
 const BUSINESS_TYPES = ["Shop", "Service"];
 
@@ -36,6 +37,8 @@ export default function PartnerRegisterPage() {
     business_description: "", commission_percent_ask: "",
   });
   const [busy, setBusy] = useState(false);
+  const [pincodeBusy, setPincodeBusy] = useState(false);
+  const lastLookupPinRef = useRef("");
   const [done, setDone] = useState(null);
   const [policy, setPolicy] = useState(DEFAULT_POLICY);
   const isService = form.business_type === "Service";
@@ -54,6 +57,41 @@ export default function PartnerRegisterPage() {
   }, []);
 
   const upd = (k) => (e) => setForm({ ...form, [k]: e.target.value });
+
+  useEffect(() => {
+    const pin = normalizePincode(form.pincode);
+    if (!isCompletePincode(pin)) return;
+    if (lastLookupPinRef.current === pin) return;
+
+    let cancelled = false;
+    setPincodeBusy(true);
+    api
+      .get(`/directory/pincode-lookup?pincode=${encodeURIComponent(pin)}`)
+      .then((r) => {
+        if (cancelled) return;
+        const city = String(r?.data?.city || "").trim();
+        const state = String(r?.data?.state || "").trim();
+        setForm((prev) => ({
+          ...prev,
+          pincode: pin,
+          city: city || prev.city,
+          state: state || prev.state,
+        }));
+        lastLookupPinRef.current = pin;
+      })
+      .catch(() => {
+        if (!cancelled) {
+          toast.error("Pincode থেকে city খুঁজে পাওয়া যায়নি");
+        }
+      })
+      .finally(() => {
+        if (!cancelled) setPincodeBusy(false);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [form.pincode]);
 
   const submit = async (e) => {
     e.preventDefault();
@@ -198,11 +236,22 @@ export default function PartnerRegisterPage() {
               </div>
               <div>
                 <Label>State *</Label>
-                <Input required value={form.state} onChange={upd("state")} placeholder="West Bengal" className="mt-1.5 h-11" data-testid="reg-state" />
+                <Input required list="state-options-register" value={form.state} onChange={upd("state")} placeholder="Select or type state" className="mt-1.5 h-11" data-testid="reg-state" />
+                <datalist id="state-options-register">
+                  {INDIAN_STATES.map((state) => <option key={state} value={state} />)}
+                </datalist>
               </div>
               <div>
                 <Label>Pincode</Label>
-                <Input value={form.pincode} onChange={upd("pincode")} placeholder="700001" maxLength={6} className="mt-1.5 h-11 font-mono" data-testid="reg-pincode" />
+                <Input
+                  value={form.pincode}
+                  onChange={(e) => setForm((prev) => ({ ...prev, pincode: normalizePincode(e.target.value) }))}
+                  placeholder="700001"
+                  maxLength={6}
+                  className="mt-1.5 h-11 font-mono"
+                  data-testid="reg-pincode"
+                />
+                {pincodeBusy ? <p className="text-[11px] text-muted-foreground mt-1">Pincode থেকে city আনা হচ্ছে...</p> : null}
               </div>
             </div>
           </section>

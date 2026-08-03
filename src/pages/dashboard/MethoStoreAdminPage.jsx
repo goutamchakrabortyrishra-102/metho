@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { methoStoreApi, normalizeCollection, getErrorText, ownerLabel } from "@/services/methoStore";
 import api from "@/services/api";
+import { INDIAN_STATES, isCompletePincode, normalizePincode } from "@/lib/indiaLocation";
 
 const EMPTY_OWNER_FORM = {
   owner_name: "",
@@ -56,8 +57,11 @@ export default function MethoStoreAdminPage() {
   const [ownerEditForm, setOwnerEditForm] = useState(null);
   const [invoiceForm, setInvoiceForm] = useState({ invoice_no: "", notes: "", catalog_item_id: "", quantity: 1, unit_price: "", payment_method: "cash", payment_reference: "" });
   const [ownerInvoices, setOwnerInvoices] = useState([]);
+  const [ownerPincodeBusy, setOwnerPincodeBusy] = useState(false);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
+  const lastCreatePinRef = React.useRef("");
+  const lastEditPinRef = React.useRef("");
 
   const ownerOptions = useMemo(() => normalizeCollection(owners), [owners]);
   const catalogRows = useMemo(() => normalizeCollection(catalog), [catalog]);
@@ -147,6 +151,29 @@ export default function MethoStoreAdminPage() {
       await action();
     } finally {
       setBusy(false);
+    }
+  };
+
+  const lookupPincodeAndApply = async (pin, applyFn, pinRef) => {
+    const normalized = normalizePincode(pin);
+    if (!isCompletePincode(normalized)) return;
+    if (pinRef.current === normalized) return;
+    setOwnerPincodeBusy(true);
+    try {
+      const { data } = await api.get(`/directory/pincode-lookup?pincode=${encodeURIComponent(normalized)}`);
+      const city = String(data?.city || "").trim();
+      const state = String(data?.state || "").trim();
+      applyFn((prev) => ({
+        ...prev,
+        pincode: normalized,
+        city: city || prev.city,
+        state: state || prev.state,
+      }));
+      pinRef.current = normalized;
+    } catch {
+      toast.error("Pincode থেকে city খুঁজে পাওয়া যায়নি");
+    } finally {
+      setOwnerPincodeBusy(false);
     }
   };
 
@@ -410,7 +437,12 @@ export default function MethoStoreAdminPage() {
                     <Input type="password" value={ownerForm.password} onChange={(e) => setOwnerForm((prev) => ({ ...prev, password: e.target.value }))} placeholder="Set password" />
                   </Field>
                   <Field label="Pincode">
-                    <Input value={ownerForm.pincode} onChange={(e) => setOwnerForm((prev) => ({ ...prev, pincode: e.target.value }))} placeholder="Pincode" />
+                    <Input
+                      value={ownerForm.pincode}
+                      onChange={(e) => setOwnerForm((prev) => ({ ...prev, pincode: normalizePincode(e.target.value) }))}
+                      onBlur={() => lookupPincodeAndApply(ownerForm.pincode, setOwnerForm, lastCreatePinRef)}
+                      placeholder="Pincode"
+                    />
                   </Field>
                   <Field label="Commission %">
                     <Input type="number" value={ownerForm.commission_percent} onChange={(e) => setOwnerForm((prev) => ({ ...prev, commission_percent: e.target.value }))} />
@@ -419,7 +451,10 @@ export default function MethoStoreAdminPage() {
                     <Input value={ownerForm.city} onChange={(e) => setOwnerForm((prev) => ({ ...prev, city: e.target.value }))} placeholder="City" />
                   </Field>
                   <Field label="State">
-                    <Input value={ownerForm.state} onChange={(e) => setOwnerForm((prev) => ({ ...prev, state: e.target.value }))} placeholder="State" />
+                    <Input list="metho-owner-state-list" value={ownerForm.state} onChange={(e) => setOwnerForm((prev) => ({ ...prev, state: e.target.value }))} placeholder="Select or type state" />
+                    <datalist id="metho-owner-state-list">
+                      {INDIAN_STATES.map((state) => <option key={state} value={state} />)}
+                    </datalist>
                   </Field>
                   <Field label="Address" className="md:col-span-2">
                     <Input value={ownerForm.address} onChange={(e) => setOwnerForm((prev) => ({ ...prev, address: e.target.value }))} placeholder="Full address" />
@@ -649,12 +684,13 @@ export default function MethoStoreAdminPage() {
             <Field label="Email"><Input value={ownerEditForm.email} onChange={(e) => setOwnerEditForm((prev) => ({ ...prev, email: e.target.value }))} /></Field>
             <Field label="Password (optional)" className="sm:col-span-2"><Input type="password" value={ownerEditForm.password || ""} onChange={(e) => setOwnerEditForm((prev) => ({ ...prev, password: e.target.value }))} placeholder="Leave blank to keep current password" /></Field>
             <Field label="Address"><Input value={ownerEditForm.address || ""} onChange={(e) => setOwnerEditForm((prev) => ({ ...prev, address: e.target.value }))} /></Field>
-            <Field label="Pincode"><Input value={ownerEditForm.pincode || ""} onChange={(e) => setOwnerEditForm((prev) => ({ ...prev, pincode: e.target.value }))} /></Field>
+            <Field label="Pincode"><Input value={ownerEditForm.pincode || ""} onChange={(e) => setOwnerEditForm((prev) => ({ ...prev, pincode: normalizePincode(e.target.value) }))} onBlur={() => lookupPincodeAndApply(ownerEditForm.pincode, setOwnerEditForm, lastEditPinRef)} /></Field>
             <Field label="Google Map URL"><Input value={ownerEditForm.google_map_url || ""} onChange={(e) => setOwnerEditForm((prev) => ({ ...prev, google_map_url: e.target.value }))} /></Field>
             <Field label="City"><Input value={ownerEditForm.city} onChange={(e) => setOwnerEditForm((prev) => ({ ...prev, city: e.target.value }))} /></Field>
-            <Field label="State"><Input value={ownerEditForm.state} onChange={(e) => setOwnerEditForm((prev) => ({ ...prev, state: e.target.value }))} /></Field>
+            <Field label="State"><Input list="metho-owner-state-list" value={ownerEditForm.state} onChange={(e) => setOwnerEditForm((prev) => ({ ...prev, state: e.target.value }))} /></Field>
             <Field label="Commission %"><Input type="number" value={ownerEditForm.commission_percent} onChange={(e) => setOwnerEditForm((prev) => ({ ...prev, commission_percent: e.target.value }))} /></Field>
           </div>
+          {ownerPincodeBusy ? <p className="text-[11px] text-muted-foreground">Pincode থেকে city আনা হচ্ছে...</p> : null}
           <div className="flex gap-2">
             <Button className="rounded-full bg-emerald-900 hover:bg-emerald-950 text-white" disabled={busy} onClick={saveOwnerEdit}>Save Changes</Button>
             <Button variant="outline" className="rounded-full" onClick={() => setOwnerEditForm(null)}>Cancel</Button>

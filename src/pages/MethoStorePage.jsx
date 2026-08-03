@@ -8,6 +8,7 @@ import { useSettings } from "@/contexts/SettingsContext";
 import { methoStoreApi, normalizeCollection } from "@/services/methoStore";
 import api from "@/services/api";
 import { resolveAssetUrl, getAssetImageFallbackCandidates } from "@/lib/utils";
+import { isCompletePincode, normalizePincode } from "@/lib/indiaLocation";
 
 const FALLBACK_STORE_IMG = "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 600 420'><defs><linearGradient id='gs' x1='0' y1='0' x2='1' y2='1'><stop offset='0%25' stop-color='%23ecfdf5'/><stop offset='100%25' stop-color='%23e2e8f0'/></linearGradient></defs><rect width='600' height='420' fill='url(%23gs)'/><circle cx='300' cy='145' r='62' fill='%23059669' opacity='0.16'/><text x='300' y='154' text-anchor='middle' fill='%230f766e' font-size='40' font-family='Arial' font-weight='700'>M</text><text x='300' y='252' text-anchor='middle' fill='%230f172a' font-size='24' font-family='Arial' font-weight='700'>METHO Store</text></svg>";
 
@@ -45,6 +46,7 @@ export default function MethoStorePage() {
   const [cities, setCities] = useState([]);
   const [q, setQ] = useState("");
   const [city, setCity] = useState("");
+  const [pincode, setPincode] = useState("");
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -60,17 +62,30 @@ export default function MethoStorePage() {
           const active = (item?.is_active ?? item?.active ?? item?.approved ?? true) !== false;
           const matchesQ = !q || [item?.store_name, item?.business_name, item?.owner_code, item?.code].filter(Boolean).join(" ").toLowerCase().includes(q.toLowerCase());
           const matchesCity = !city || String(item?.city || "").toLowerCase() === String(city || "").toLowerCase();
-          return active && matchesQ && matchesCity;
+          const matchesPincode = !pincode || String(item?.pincode || "").trim() === String(pincode).trim();
+          return active && matchesQ && matchesCity && matchesPincode;
         });
         setPartners(next);
       })
       .catch(() => setPartners([]))
       .finally(() => setLoading(false));
-  }, [q, city]);
+  }, [q, city, pincode]);
+
+  useEffect(() => {
+    const pin = normalizePincode(pincode);
+    if (!isCompletePincode(pin)) return;
+    api.get(`/directory/pincode-lookup?pincode=${encodeURIComponent(pin)}`)
+      .then((r) => {
+        const nextCity = String(r?.data?.city || "").trim();
+        if (nextCity) setCity(nextCity);
+      })
+      .catch(() => {});
+  }, [pincode]);
 
   const resetFilters = () => {
     setQ("");
     setCity("");
+    setPincode("");
   };
 
   return (
@@ -94,14 +109,22 @@ export default function MethoStorePage() {
                 <div>
                   <h1 className="font-display font-black text-3xl md:text-5xl tracking-tight">View Metho Store</h1>
                   <p className="mt-3 max-w-2xl text-sm md:text-base text-emerald-100/85 font-body">
-                    Search by shop name or city. Open WhatsApp, view the address, and jump straight to Google Maps from one place.
+                    Search by shop name, city or pincode. Open WhatsApp, view the address, and jump straight to Google Maps from one place.
                   </p>
                 </div>
-                <div className="grid gap-2 sm:grid-cols-[1fr_180px_auto] lg:min-w-[34rem]">
+                <div className="grid gap-2 sm:grid-cols-[1fr_120px_180px_auto] lg:min-w-[42rem]">
                   <div className="relative">
                     <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
                     <Input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search by name" className="h-11 pl-9 bg-white text-slate-900" data-testid="metho-store-search" />
                   </div>
+                  <Input
+                    value={pincode}
+                    onChange={(e) => setPincode(normalizePincode(e.target.value))}
+                    placeholder="Pincode"
+                    maxLength={6}
+                    className="h-11 bg-white text-slate-900 font-mono"
+                    data-testid="metho-store-pincode"
+                  />
                   <select value={city} onChange={(e) => setCity(e.target.value)} className="h-11 rounded-md border border-input px-3 bg-white text-slate-900" data-testid="metho-store-city">
                     <option value="">All cities</option>
                     {cities.map((item) => <option key={item} value={item}>{item}</option>)}

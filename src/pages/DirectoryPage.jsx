@@ -8,6 +8,7 @@ import { Logo } from "@/components/Logo";
 import { useAuth } from "@/contexts/AuthContext";
 import { useSettings } from "@/contexts/SettingsContext";
 import { resolveAssetUrl } from "@/lib/utils";
+import { isCompletePincode, normalizePincode } from "@/lib/indiaLocation";
 
 const TYPES = ["All", "Retail Shop", "Super Market", "Pharmacy", "Restaurant", "Service Provider", "Distributor", "Wholesaler", "Online Seller"];
 
@@ -28,6 +29,7 @@ export default function DirectoryPage() {
   const [categories, setCategories] = useState([]);
   const [partners, setPartners] = useState([]);
   const [city, setCity] = useState("");
+  const [pincode, setPincode] = useState("");
   const [type, setType] = useState("All");
   const [category, setCategory] = useState("");
   const [q, setQ] = useState("");
@@ -44,6 +46,7 @@ export default function DirectoryPage() {
     setLoading(true);
     const params = new URLSearchParams();
     if (city) params.set("city", city);
+    if (pincode) params.set("pincode", pincode);
     if (type && type !== "All") params.set("business_type", type);
     if (category) params.set("category", category);
     if (q) params.set("q", q);
@@ -51,7 +54,18 @@ export default function DirectoryPage() {
       .then(r => setPartners(r.data))
       .catch(() => setPartners([]))
       .finally(() => setLoading(false));
-  }, [city, type, category, q]);
+  }, [city, pincode, type, category, q]);
+
+  useEffect(() => {
+    const pin = normalizePincode(pincode);
+    if (!isCompletePincode(pin)) return;
+    api.get(`/directory/pincode-lookup?pincode=${encodeURIComponent(pin)}`)
+      .then((r) => {
+        const nextCity = String(r?.data?.city || "").trim();
+        if (nextCity) setCity(nextCity);
+      })
+      .catch(() => {});
+  }, [pincode]);
 
   const grouped = useMemo(() => {
     const map = {};
@@ -62,7 +76,7 @@ export default function DirectoryPage() {
     return Object.entries(map).sort((a, b) => b[1].length - a[1].length);
   }, [partners]);
 
-  const showGrouped = !city && !type.replace("All", "") && !category && !q;
+  const showGrouped = !city && !pincode && !type.replace("All", "") && !category && !q;
 
   return (
     <div className="min-h-screen bg-slate-50" data-testid="directory-page">
@@ -105,11 +119,19 @@ export default function DirectoryPage() {
             Buy online <span className="text-amber-300">or</span> visit them physically — every purchase counts towards your Smart Cycle.
           </p>
 
-          <div className="mt-6 grid gap-2 md:grid-cols-[1fr_auto_auto_auto]">
+          <div className="mt-6 grid gap-2 md:grid-cols-[1fr_auto_auto_auto_auto]">
             <div className="relative">
               <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
               <Input placeholder="Search partner, shop or owner..." value={q} onChange={(e) => setQ(e.target.value)} className="h-11 pl-9 bg-white text-slate-900" data-testid="dir-search" />
             </div>
+            <Input
+              value={pincode}
+              onChange={(e) => setPincode(normalizePincode(e.target.value))}
+              placeholder="Pincode"
+              maxLength={6}
+              className="h-11 bg-white text-slate-900 min-w-[120px] w-full md:w-auto font-mono"
+              data-testid="dir-pincode"
+            />
             <select value={city} onChange={(e) => setCity(e.target.value)} className="h-11 rounded-md border border-input px-3 bg-white text-slate-900 min-w-[140px] w-full md:w-auto" data-testid="dir-city">
               <option value="">All cities</option>
               {cities.map(c => <option key={c} value={c}>{c}</option>)}
@@ -137,9 +159,9 @@ export default function DirectoryPage() {
                   {c}
                 </button>
               ))}
-              {(city || type !== "All" || category || q) && (
+              {(city || pincode || type !== "All" || category || q) && (
                 <button
-                  onClick={() => { setCity(""); setType("All"); setCategory(""); setQ(""); }}
+                  onClick={() => { setCity(""); setPincode(""); setType("All"); setCategory(""); setQ(""); }}
                   className="text-xs px-3 py-1.5 rounded-full font-semibold bg-red-500/20 text-red-100 border border-red-300/30 hover:bg-red-500/30"
                   data-testid="chip-clear"
                 >Clear filters</button>
@@ -151,7 +173,7 @@ export default function DirectoryPage() {
 
       <main className="max-w-6xl mx-auto px-4 py-8">
         {/* Featured Partner of the Week */}
-        {featured.length > 0 && !city && !q && (
+        {featured.length > 0 && !city && !pincode && !q && (
           <section className="mb-8" data-testid="featured-partners-section">
             <div className="flex items-center gap-2 mb-3">
               <Star className="w-5 h-5 text-amber-500 fill-amber-400" />

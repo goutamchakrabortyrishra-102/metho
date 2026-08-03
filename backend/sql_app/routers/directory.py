@@ -1,4 +1,6 @@
 import json
+from urllib import parse as urlparse
+from urllib import request as urlrequest
 
 from sqlalchemy import func
 from sqlalchemy.orm import Session
@@ -60,6 +62,7 @@ def _partner_to_dict(p: AssociatePartner):
 @router.get("/directory/partners")
 def partner_directory(
     city: str | None = None,
+    pincode: str | None = None,
     business_type: str | None = None,
     category: str | None = None,
     q: str | None = None,
@@ -69,6 +72,8 @@ def partner_directory(
 
     if city:
         query = query.filter(func.lower(AssociatePartner.city) == city.lower())
+    if pincode:
+        query = query.filter(AssociatePartner.pincode == str(pincode).strip())
     if business_type:
         query = query.filter(AssociatePartner.business_type == business_type)
     if q:
@@ -76,6 +81,8 @@ def partner_directory(
         query = query.filter(
             AssociatePartner.business_name.ilike(like_q)
             | AssociatePartner.contact_person.ilike(like_q)
+            | AssociatePartner.city.ilike(like_q)
+            | AssociatePartner.pincode.ilike(like_q)
         )
     if category:
         partner_ids = [
@@ -126,6 +133,50 @@ def list_cities(db: Session = Depends(get_db)):
         .all()
     )
     return sorted([r[0] for r in rows if r and r[0]])
+
+
+@router.get("/directory/pincode-lookup")
+def pincode_lookup(pincode: str):
+    pin = "".join(ch for ch in str(pincode or "") if ch.isdigit())
+    if len(pin) != 6:
+        raise HTTPException(status_code=400, detail="pincode must be 6 digits")
+
+    endpoint = f"https://api.postalpincode.in/pincode/{urlparse.quote(pin)}"
+    try:
+        with urlrequest.urlopen(endpoint, timeout=8) as response:
+            payload = json.loads(response.read().decode("utf-8"))
+    except Exception:
+        raise HTTPException(status_code=502, detail="Could not reach pincode service")
+
+    if not isinstance(payload, list) or not payload:
+        raise HTTPException(status_code=404, detail="Pincode not found")
+
+    first = payload[0] if isinstance(payload[0], dict) else {}
+    status = str(first.get("Status") or "").strip().lower()
+    offices = first.get("PostOffice") if isinstance(first.get("PostOffice"), list) else []
+    if status != "success" or not offices:
+        raise HTTPException(status_code=404, detail="Pincode not found")
+
+    city_options = []
+    state = ""
+    for office in offices:
+        if not isinstance(office, dict):
+            continue
+        district = str(office.get("District") or office.get("Division") or "").strip()
+        if district and district not in city_options:
+            city_options.append(district)
+        if not state:
+            state = str(office.get("State") or "").strip()
+
+    if not city_options:
+        raise HTTPException(status_code=404, detail="City not found for this pincode")
+
+    return {
+        "pincode": pin,
+        "city": city_options[0],
+        "city_options": city_options,
+        "state": state,
+    }
 
 
 @router.get("/directory/partner/{partner_code}")
