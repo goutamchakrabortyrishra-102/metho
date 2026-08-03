@@ -155,7 +155,13 @@ const pickImageUrl = (value) => {
 
 const normalizeFeaturedImages = (raw) => {
   const source = raw?.items ?? raw?.featured_images ?? raw;
-  if (Array.isArray(source)) return source.map((u) => pickImageUrl(u)).filter(Boolean).slice(0, 5);
+  if (Array.isArray(source)) {
+    const items = ["", "", "", "", ""];
+    for (let idx = 0; idx < Math.min(5, source.length); idx += 1) {
+      items[idx] = pickImageUrl(source[idx]);
+    }
+    return items;
+  }
   if (source && typeof source === "object") {
     const ordered = [1, 2, 3, 4, 5].map((slot) => (
       source[String(slot)] ||
@@ -167,14 +173,9 @@ const normalizeFeaturedImages = (raw) => {
       source[`slot_${slot}_url`] ||
       ""
     ));
-    const direct = ordered.map((u) => pickImageUrl(u)).filter(Boolean);
-    if (direct.length) return direct.slice(0, 5);
-    return Object.values(source)
-      .map((u) => pickImageUrl(u))
-      .filter(Boolean)
-      .slice(0, 5);
+    return ordered.map((u) => pickImageUrl(u));
   }
-  return [];
+  return ["", "", "", "", ""];
 };
 
 const isServiceListing = (item) => {
@@ -288,7 +289,7 @@ export default function PartnerShopPage() {
   const productListings = useMemo(() => products.filter((item) => !isServiceListing(item)), [products]);
   const serviceListings = useMemo(() => products.filter((item) => isServiceListing(item)), [products]);
   const featuredImages = useMemo(() => normalizeFeaturedImages(data?.featured_images), [data?.featured_images]);
-  const bestFiveProducts = useMemo(() => productListings.slice(0, 5), [productListings]);
+  const hasAnyFeaturedImage = useMemo(() => featuredImages.some(Boolean), [featuredImages]);
   const getStock = (product) => Math.max(0, Number(product?.stock ?? 0));
   const isBookNowRole = !user || ["member", "customer"].includes(String(user?.role || "").toLowerCase());
   const canAccessProductPdf = ["partner", "admin", "super_admin", "company_admin"].includes(String(user?.role || "").toLowerCase());
@@ -302,7 +303,7 @@ export default function PartnerShopPage() {
       return haystack.includes(q);
     });
   }, [productListings, productSearch]);
-  const displayedProducts = useMemo(() => filteredProducts.slice(0, 5), [filteredProducts]);
+  const displayedProducts = useMemo(() => filteredProducts, [filteredProducts]);
   const filteredServices = useMemo(() => {
     const q = serviceSearch.trim().toLowerCase();
     if (!q) return serviceListings;
@@ -467,7 +468,7 @@ export default function PartnerShopPage() {
   if (!data) return <div className="min-h-screen flex items-center justify-center text-slate-500">Loading shop...</div>;
 
   const addr = [p.address, p.city, p.state, p.pincode].filter(Boolean).join(", ");
-  const heroBannerSrc = p?.banner_url || featuredImages[0] || getProductImageUrl(bestFiveProducts[0]) || p?.logo_url || "";
+  const heroBannerSrc = p?.banner_url || "";
 
   return (
     <div className="min-h-screen bg-slate-50 pb-24 md:pb-8" data-testid="partner-shop-page">
@@ -489,7 +490,7 @@ export default function PartnerShopPage() {
               alt="Shop banner"
               className="w-full h-full object-cover"
               onError={(e) => {
-                applyImageFallback(e, featuredImages[0] || getProductImageUrl(bestFiveProducts[0]) || p.logo_url || "", placeholder || "");
+                applyImageFallback(e, p.logo_url || "", placeholder || "");
               }}
             />
             <div className="absolute inset-0 bg-emerald-950/55" />
@@ -589,17 +590,15 @@ export default function PartnerShopPage() {
       )}
 
       <main className={`max-w-6xl mx-auto px-4 py-8 ${items.length > 0 ? "pt-28 md:pt-8" : ""}`}>
-        {(featuredImages.length > 0 || bestFiveProducts.length > 0) && (
+        {hasAnyFeaturedImage && (
           <div className="mb-8 bg-white rounded-xl border border-border p-6">
             <div className="flex items-center gap-2 mb-4">
               <Images className="w-5 h-5 text-emerald-700" />
-              <h2 className="font-display font-bold text-2xl text-emerald-950">Best 5 Products</h2>
+              <h2 className="font-display font-bold text-2xl text-emerald-950">Best 5 Partner Images</h2>
             </div>
             <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
               {[0, 1, 2, 3, 4].map((slot) => {
-                const fallbackProduct = bestFiveProducts[slot];
-                const productImage = getDisplayImage(fallbackProduct, placeholder);
-                const imageSrc = featuredImages[slot] || productImage || fallbackProduct?.fallback_image_url || "";
+                const imageSrc = featuredImages[slot] || "";
                 return (
                 <div key={`best-product-${slot}`} className="aspect-square rounded-lg overflow-hidden border border-border bg-slate-100 relative">
                   {imageSrc ? (
@@ -610,7 +609,7 @@ export default function PartnerShopPage() {
                       onError={(e) => {
                         applyImageFallback(
                           e,
-                                  productImage || fallbackProduct?.fallback_image_url || "",
+                          "",
                           placeholder || PRODUCT_FALLBACK
                         );
                       }}
