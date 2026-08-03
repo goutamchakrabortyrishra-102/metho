@@ -241,6 +241,7 @@ export default function PartnerShopPage() {
   const [guestMemberRef, setGuestMemberRef] = useState("");
   const [cashback, setCashback] = useState(null); // {percent, max, eligible}
   const [productSearch, setProductSearch] = useState("");
+  const [transportSearch, setTransportSearch] = useState("");
   const [serviceSearch, setServiceSearch] = useState("");
   const [transportModalOpen, setTransportModalOpen] = useState(false);
   const [transportService, setTransportService] = useState(null);
@@ -288,6 +289,8 @@ export default function PartnerShopPage() {
   const products = useMemo(() => data?.products || [], [data?.products]);
   const productListings = useMemo(() => products.filter((item) => !isServiceListing(item)), [products]);
   const serviceListings = useMemo(() => products.filter((item) => isServiceListing(item)), [products]);
+  const transportListings = useMemo(() => serviceListings.filter((item) => isTransportServiceListing(item)), [serviceListings]);
+  const regularServiceListings = useMemo(() => serviceListings.filter((item) => !isTransportServiceListing(item)), [serviceListings]);
   const featuredImages = useMemo(() => normalizeFeaturedImages(data?.featured_images), [data?.featured_images]);
   const hasAnyFeaturedImage = useMemo(() => featuredImages.some(Boolean), [featuredImages]);
   const getStock = (product) => Math.max(0, Number(product?.stock ?? 0));
@@ -306,15 +309,26 @@ export default function PartnerShopPage() {
   const displayedProducts = useMemo(() => filteredProducts, [filteredProducts]);
   const filteredServices = useMemo(() => {
     const q = serviceSearch.trim().toLowerCase();
-    if (!q) return serviceListings;
-    return serviceListings.filter((p) => {
+    if (!q) return regularServiceListings;
+    return regularServiceListings.filter((p) => {
       const haystack = [data?.partner?.business_name, p?.name, p?.category, p?.description]
         .map((v) => String(v || "").toLowerCase())
         .join(" ");
       return haystack.includes(q);
     });
-  }, [data?.partner?.business_name, serviceListings, serviceSearch]);
-  const hasServiceListings = serviceListings.length > 0;
+  }, [data?.partner?.business_name, regularServiceListings, serviceSearch]);
+  const filteredTransport = useMemo(() => {
+    const q = transportSearch.trim().toLowerCase();
+    if (!q) return transportListings;
+    return transportListings.filter((p) => {
+      const haystack = [data?.partner?.business_name, p?.name, p?.category, p?.description, p?.service_template_key]
+        .map((v) => String(v || "").toLowerCase())
+        .join(" ");
+      return haystack.includes(q);
+    });
+  }, [data?.partner?.business_name, transportListings, transportSearch]);
+  const hasServiceListings = regularServiceListings.length > 0;
+  const hasTransportListings = transportListings.length > 0;
 
   const inc = (product) => {
     const id = product?.id;
@@ -827,6 +841,128 @@ export default function PartnerShopPage() {
           </div>
         </div>
       )}
+
+      {hasTransportListings ? (
+        <>
+          <div className="mb-8">
+            <div className="bg-white rounded-xl border border-sky-200 p-6" data-testid="partner-shop-transport-panel">
+              <div className="flex items-start gap-2 mb-1">
+                <p className="text-[10px] uppercase tracking-widest text-sky-700 font-semibold">Transport Services</p>
+              </div>
+              <h3 className="font-display font-bold text-emerald-950 text-lg mt-1">Book cab, car rental, bike rental easily</h3>
+              <p className="text-sm text-slate-600 mt-3">Pickup আর destination দিয়ে ride request দিন। Partner final fare lock করার পর trip approved হবে.</p>
+              <div className="mt-6 flex flex-col lg:flex-row gap-3 lg:items-center">
+                <div className="flex flex-1 gap-2" data-testid="partner-shop-transport-search-panel">
+                  <Input
+                    value={transportSearch}
+                    onChange={(e) => setTransportSearch(e.target.value)}
+                    onKeyDown={(e) => { if (e.key === "Enter") e.preventDefault(); }}
+                    placeholder="Search cab, rental, bike, cargo"
+                    className="h-11 rounded-full text-sm"
+                    data-testid="partner-shop-transport-search"
+                  />
+                  <Button
+                    onClick={() => setTransportSearch(String(transportSearch || "").trim())}
+                    className="bg-emerald-900 hover:bg-emerald-950 text-white rounded-full shrink-0"
+                    data-testid="partner-shop-transport-search-btn"
+                  >
+                    Search
+                  </Button>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <section className="bg-white rounded-xl border border-sky-200 p-6 mb-8" data-testid="partner-shop-all-transport-box">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div>
+                <p className="text-[10px] uppercase tracking-widest text-sky-700 font-semibold">Transport Services</p>
+                <h3 className="font-display font-bold text-emerald-950 text-lg mt-1">Transport ({filteredTransport.length})</h3>
+              </div>
+              <div className="flex items-center gap-2 w-full md:w-auto">
+                <div className="flex items-center gap-2 border border-sky-200 rounded-full px-3 h-11 bg-sky-50 w-full md:w-72">
+                  <Search className="w-4 h-4 text-slate-500" />
+                  <input
+                    value={transportSearch}
+                    onChange={(e) => setTransportSearch(e.target.value)}
+                    placeholder="Search transport service"
+                    className="bg-transparent outline-none text-sm w-full"
+                    data-testid="partner-shop-inline-transport-search"
+                  />
+                </div>
+              </div>
+            </div>
+
+            {filteredTransport.length === 0 ? (
+              <div className="mt-6 rounded-xl border border-dashed border-sky-200 p-10 text-center text-slate-500">
+                No transport service found for this search.
+              </div>
+            ) : (
+              <div className="mt-6 grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
+                {filteredTransport.map((service) => {
+                  const pdfUrl = getPdfUrl(service);
+                  return (
+                    <div key={service.id} className="border border-sky-200 rounded-xl overflow-hidden bg-white" data-testid={`shop-transport-${service.id}`}>
+                      <div className="aspect-square bg-slate-100 relative">
+                        <button
+                          type="button"
+                          onClick={() => setPreviewItem(service)}
+                          className="block w-full h-full"
+                          data-testid={`shop-open-transport-image-${service.id}`}
+                        >
+                          <img
+                            src={getDisplayImage(service, placeholder)}
+                            alt={service.name}
+                            className="w-full h-full object-cover"
+                            onError={(e) => {
+                              applyImageFallback(
+                                e,
+                                getProductImageUrl(service) || service?.fallback_image_url || featuredImages[0] || heroBannerSrc || "",
+                                placeholder || ""
+                              );
+                            }}
+                          />
+                        </button>
+                        <span className="absolute top-2 right-2 rounded-full bg-sky-600 text-white text-[10px] font-bold px-2.5 py-1">Transport</span>
+                        {canAccessProductPdf && pdfUrl ? (
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              window.open(pdfUrl, "_blank");
+                            }}
+                            className="absolute top-2 left-2 rounded-full bg-white/90 text-emerald-900 text-[10px] font-bold px-2.5 py-1"
+                            data-testid={`shop-open-transport-pdf-${service.id}`}
+                          >
+                            <FileText className="w-3 h-3 inline mr-1" /> PDF
+                          </button>
+                        ) : null}
+                      </div>
+                      <div className="p-3">
+                        <p className="text-[10px] uppercase tracking-widest text-sky-700 font-semibold truncate">{service.category}</p>
+                        <p className="font-display font-bold text-emerald-950 mt-0.5 line-clamp-1">{service.name}</p>
+                        <div className="mt-2 flex items-center justify-between">
+                          <span className="font-display font-black text-emerald-950">₹{service.price}</span>
+                          <span className="text-[11px] text-slate-500">Ride / Rental</span>
+                        </div>
+
+                        <Button
+                          type="button"
+                          onClick={() => bookServiceNow(service)}
+                          className="w-full mt-3 rounded-full bg-sky-700 hover:bg-sky-800 text-white"
+                          data-testid={`shop-book-transport-${service.id}`}
+                        >
+                          <CalendarCheck2 className="w-4 h-4 mr-2" /> Book Ride
+                        </Button>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </section>
+        </>
+      ) : null}
 
       {hasServiceListings ? (
         <>
