@@ -617,8 +617,8 @@ export default function PartnerDashboardPage() {
           <div className="bg-white rounded-xl border border-border p-6">
             <div className="rounded-xl border border-amber-300 bg-amber-50 p-4 mb-5">
               <p className="text-[10px] uppercase tracking-widest text-amber-800 font-bold">Listing Manager</p>
-              <h3 className="font-display font-bold text-emerald-950 text-base mt-1">Shop/Service listing manage এখান থেকেই করুন</h3>
-              <p className="text-xs text-slate-700 mt-1">Service template, price, slot/capacity, description সব update করতে উপরের Listings tab-এ যান। Service listing-এর জন্য image upload optional.</p>
+              <h3 className="font-display font-bold text-emerald-950 text-base mt-1">Shop listing manage এখান থেকেই করুন</h3>
+              <p className="text-xs text-slate-700 mt-1">Product, price, slot/capacity, description সব update করতে উপরের Listings tab-এ যান।</p>
               <div className="mt-3">
                 <Button
                   type="button"
@@ -932,10 +932,10 @@ export default function PartnerDashboardPage() {
               </div>
             </div>
             <p className="mb-4 text-xs text-slate-600">
-              এখান থেকে shop/service listing add/edit করুন। Service listing-এ template apply করে image ছাড়া save করা যাবে; product listing-এ image upload recommended.
+              এখান থেকে listing add/edit করুন।
             </p>
             {products.length === 0 ? (
-              <p className="text-sm text-muted-foreground">No listing yet. Click "Add Listing" to create your first shop or service listing.</p>
+              <p className="text-sm text-muted-foreground">No listing yet. Click "Add Listing" to create your first listing.</p>
             ) : (
               <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                 {products.map(p => (
