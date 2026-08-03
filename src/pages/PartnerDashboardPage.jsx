@@ -162,6 +162,8 @@ export default function PartnerDashboardPage() {
   const [transportPresets, setTransportPresets] = useState([]);
   const [presetBusy, setPresetBusy] = useState(false);
   const [presetForm, setPresetForm] = useState({ service_product_id: "", destination: "", fare: "", pickup_hint: "", notes: "" });
+  const productItems = products.filter((p) => !(String(p?.listing_type || p?.item_kind || "").toLowerCase().includes("service") || p?.is_service));
+  const serviceItems = products.filter((p) => String(p?.listing_type || p?.item_kind || "").toLowerCase().includes("service") || p?.is_service);
 
   const loadAll = () => {
     api.get("/partner/summary").then(r => setSummary(r.data)).catch(() => {});
@@ -301,7 +303,6 @@ export default function PartnerDashboardPage() {
   const publicShopUrl = summary?.partner_code
     ? `${window.location.origin}/partner-shop/${encodeURIComponent(summary.partner_code)}`
     : "";
-  const isServicePartner = String(summary?.business_type || summary?.business_name || "").toLowerCase().includes("service");
 
   const copyPublicShopUrl = async () => {
     if (!publicShopUrl) return;
@@ -606,7 +607,8 @@ export default function PartnerDashboardPage() {
 
         <div className="flex flex-wrap gap-2">
           <Tab id="overview" active={tab} onClick={setTab}>Overview</Tab>
-          <Tab id="products" active={tab} onClick={setTab}>Listings ({products.length})</Tab>
+          <Tab id="products" active={tab} onClick={setTab}>Products ({productItems.length})</Tab>
+          <Tab id="services" active={tab} onClick={setTab}>Services ({serviceItems.length})</Tab>
           <Tab id="transport" active={tab} onClick={setTab}>Transport Trips ({transportData?.items?.length || 0})</Tab>
           <Tab id="offline" active={tab} onClick={setTab}>Offline Billing</Tab>
           <Tab id="orders" active={tab} onClick={setTab}>Orders ({orders.length})</Tab>
@@ -618,7 +620,7 @@ export default function PartnerDashboardPage() {
             <div className="rounded-xl border border-amber-300 bg-amber-50 p-4 mb-5">
               <p className="text-[10px] uppercase tracking-widest text-amber-800 font-bold">Listing Manager</p>
               <h3 className="font-display font-bold text-emerald-950 text-base mt-1">Shop listing manage এখান থেকেই করুন</h3>
-              <p className="text-xs text-slate-700 mt-1">Product, price, slot/capacity, description সব update করতে উপরের Listings tab-এ যান।</p>
+              <p className="text-xs text-slate-700 mt-1">Product আর Service আলাদা tab-এ আছে, তাই mix হবে না।</p>
               <div className="mt-3">
                 <Button
                   type="button"
@@ -702,6 +704,17 @@ export default function PartnerDashboardPage() {
               </div>
             </div>
 
+            <h3 className="font-display font-bold text-emerald-950 text-lg">Partnership Agreement</h3>
+            <div className="mt-4 grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
+              <div><p className="text-[10px] uppercase text-slate-500 font-bold">Partner Code</p><p className="font-mono font-bold text-emerald-950">{summary.partner_code}</p></div>
+              <div><p className="text-[10px] uppercase text-slate-500 font-bold">Business Name</p><p className="font-semibold text-emerald-950">{summary.business_name}</p></div>
+              <div><p className="text-[10px] uppercase text-slate-500 font-bold">Commission Rate</p><p className="font-display font-black text-2xl text-amber-700">{summary.commission_percent}%</p></div>
+              <div><p className="text-[10px] uppercase text-slate-500 font-bold">Current Period</p><p className="font-mono font-bold text-emerald-950">{summary.current_period}</p></div>
+            </div>
+            <div className="mt-6 rounded-lg bg-emerald-50 border border-emerald-200 p-4 text-sm text-emerald-900">
+              প্রতি sale-এ agreed <b>{summary.commission_percent}%</b> commission প্রথমে আপনার reserve wallet থেকে debit হয়। এরপর সেই amount settings অনুযায়ী pool গুলোতে split হয় (Member/Leader/MPS/Company/Technology)।
+            </div>
+
             <div className="rounded-xl border border-slate-200 bg-white p-4 mb-5">
               <div className="flex items-center justify-between gap-3 flex-wrap">
                 <div>
@@ -744,17 +757,6 @@ export default function PartnerDashboardPage() {
                   );
                 })}
               </div>
-            </div>
-
-            <h3 className="font-display font-bold text-emerald-950 text-lg">Partnership Agreement</h3>
-            <div className="mt-4 grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
-              <div><p className="text-[10px] uppercase text-slate-500 font-bold">Partner Code</p><p className="font-mono font-bold text-emerald-950">{summary.partner_code}</p></div>
-              <div><p className="text-[10px] uppercase text-slate-500 font-bold">Business Name</p><p className="font-semibold text-emerald-950">{summary.business_name}</p></div>
-              <div><p className="text-[10px] uppercase text-slate-500 font-bold">Commission Rate</p><p className="font-display font-black text-2xl text-amber-700">{summary.commission_percent}%</p></div>
-              <div><p className="text-[10px] uppercase text-slate-500 font-bold">Current Period</p><p className="font-mono font-bold text-emerald-950">{summary.current_period}</p></div>
-            </div>
-            <div className="mt-6 rounded-lg bg-emerald-50 border border-emerald-200 p-4 text-sm text-emerald-900">
-              প্রতি sale-এ agreed <b>{summary.commission_percent}%</b> commission প্রথমে আপনার reserve wallet থেকে debit হয়। এরপর সেই amount settings অনুযায়ী pool গুলোতে split হয় (Member/Leader/MPS/Company/Technology)।
             </div>
 
             <div className="mt-6 rounded-xl border border-amber-300 bg-amber-50 p-4">
@@ -904,7 +906,7 @@ export default function PartnerDashboardPage() {
         {tab === "products" && (
           <div className="bg-white rounded-xl border border-border p-6">
             <div className="flex items-center justify-between mb-4">
-              <h3 className="font-display font-bold text-emerald-950 text-lg">Listing Manager</h3>
+              <h3 className="font-display font-bold text-emerald-950 text-lg">Product Listings</h3>
               <div className="flex items-center gap-2">
                 {summary?.partner_code && (
                   <Link to={`/gallery/${summary.partner_code}`} target="_blank">
@@ -928,17 +930,17 @@ export default function PartnerDashboardPage() {
                     <Images className="w-4 h-4 mr-1" /> Share PDF on WhatsApp
                   </Button>
                 )}
-                <PartnerProductForm onSaved={loadAll} defaultListingType={isServicePartner ? "service" : "product"} />
+                <PartnerProductForm onSaved={loadAll} defaultListingType="product" />
               </div>
             </div>
             <p className="mb-4 text-xs text-slate-600">
-              এখান থেকে listing add/edit করুন।
+              এখান থেকে product add/edit করুন।
             </p>
-            {products.length === 0 ? (
-              <p className="text-sm text-muted-foreground">No listing yet. Click "Add Listing" to create your first listing.</p>
+            {productItems.length === 0 ? (
+              <p className="text-sm text-muted-foreground">No product yet. Click "Add Listing" to create your first product.</p>
             ) : (
               <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                {products.map(p => (
+                {productItems.map(p => (
                   <div key={p.id} className="rounded-lg border border-border overflow-hidden">
                     <div className="aspect-square bg-secondary relative">
                       <img src={resolveAssetUrl(p.image_url) || (getPdfUrl(p) ? PDF_PREVIEW : undefined)} alt={p.name} className="w-full h-full object-cover" />
@@ -952,7 +954,52 @@ export default function PartnerDashboardPage() {
                         </button>
                       ) : null}
                     </div>
-                    <div className="p-3"><p className="font-semibold text-sm text-emerald-950">{p.name}</p><p className="text-xs text-muted-foreground">{p.category}</p><p className="font-display font-black text-emerald-800 mt-1">{withUnit(p.price, p.unit_type)}</p><p className="text-[10px] text-slate-500">{(String(p?.listing_type || p?.item_kind || "").toLowerCase().includes("service") || p?.is_service) ? "Service" : `Stock: ${p.stock}`}</p>
+                    <div className="p-3"><p className="font-semibold text-sm text-emerald-950">{p.name}</p><p className="text-xs text-muted-foreground">{p.category}</p><p className="font-display font-black text-emerald-800 mt-1">{withUnit(p.price, p.unit_type)}</p><p className="text-[10px] text-slate-500">Stock: {p.stock}</p>
+                    <div className="flex gap-1 mt-2">
+                      <PartnerProductForm product={p} onSaved={loadAll} />
+                      <Button size="sm" variant="outline" className="rounded-full border-red-300 text-red-700 hover:bg-red-50 h-7 px-2 text-[11px]" onClick={() => deleteProduct(p.id)} data-testid={`del-my-product-${p.id}`}>Delete</Button>
+                    </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+
+        {tab === "services" && (
+          <div className="bg-white rounded-xl border border-border p-6">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="font-display font-bold text-emerald-950 text-lg">Service Listings</h3>
+              <div className="flex items-center gap-2">
+                {summary?.partner_code && (
+                  <Button size="sm" variant="outline" className="rounded-full border-emerald-300 text-emerald-900 hover:bg-emerald-50" onClick={() => setTab("products")}>Go to Products</Button>
+                )}
+                <PartnerProductForm onSaved={loadAll} defaultListingType="service" />
+              </div>
+            </div>
+            <p className="mb-4 text-xs text-slate-600">
+              এখান থেকে service add/edit করুন।
+            </p>
+            {serviceItems.length === 0 ? (
+              <p className="text-sm text-muted-foreground">No service yet. Click "Add Listing" to create your first service.</p>
+            ) : (
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                {serviceItems.map(p => (
+                  <div key={p.id} className="rounded-lg border border-border overflow-hidden">
+                    <div className="aspect-square bg-secondary relative">
+                      <img src={resolveAssetUrl(p.image_url) || (getPdfUrl(p) ? PDF_PREVIEW : undefined)} alt={p.name} className="w-full h-full object-cover" />
+                      {getPdfUrl(p) ? (
+                        <button
+                          type="button"
+                          onClick={() => window.open(getPdfUrl(p), "_blank")}
+                          className="absolute left-2 top-2 rounded-full bg-white/90 text-emerald-900 px-2.5 py-1 text-[10px] font-bold"
+                        >
+                          Open PDF
+                        </button>
+                      ) : null}
+                    </div>
+                    <div className="p-3"><p className="font-semibold text-sm text-emerald-950">{p.name}</p><p className="text-xs text-muted-foreground">{p.category}</p><p className="font-display font-black text-emerald-800 mt-1">{withUnit(p.price, p.unit_type)}</p><p className="text-[10px] text-slate-500">{String(p?.service_invoice_mode || "detailed").replace(/_/g, " ")}</p>
                     <div className="flex gap-1 mt-2">
                       <PartnerProductForm product={p} onSaved={loadAll} />
                       <Button size="sm" variant="outline" className="rounded-full border-red-300 text-red-700 hover:bg-red-50 h-7 px-2 text-[11px]" onClick={() => deleteProduct(p.id)} data-testid={`del-my-product-${p.id}`}>Delete</Button>
