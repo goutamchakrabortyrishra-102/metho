@@ -56,9 +56,9 @@ def _normalize_partner_unit_type(value: str | None) -> str:
 def _partner_unit_step(unit_type: str) -> float:
     unit = _normalize_partner_unit_type(unit_type)
     if unit in {"kg", "litre"}:
-        return 0.25
+        return 0.1
     if unit in {"gram", "ml"}:
-        return 50.0
+        return 100.0
     return 1.0
 
 
@@ -76,7 +76,7 @@ def _load_partner_product_units(db: Session) -> dict[str, dict]:
 def _partner_unit_info(unit_map: dict[str, dict], product_id: str) -> dict:
     meta = unit_map.get(str(product_id)) if isinstance(unit_map, dict) else None
     unit_type = _normalize_partner_unit_type((meta or {}).get("unit_type"))
-    step = float((meta or {}).get("quantity_step") or _partner_unit_step(unit_type))
+    step = float(_partner_unit_step(unit_type))
     return {
         "unit_type": unit_type,
         "unit_label": unit_type,

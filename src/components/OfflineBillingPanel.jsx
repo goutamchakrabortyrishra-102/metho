@@ -17,8 +17,8 @@ const normalizeUnitType = (value) => {
 
 const qtyStepForUnit = (unitType) => {
   const unit = normalizeUnitType(unitType);
-  if (unit === "kg" || unit === "litre") return 0.25;
-  if (unit === "gram" || unit === "ml") return 50;
+  if (unit === "kg" || unit === "litre") return 0.1;
+  if (unit === "gram" || unit === "ml") return 100;
   return 1;
 };
 

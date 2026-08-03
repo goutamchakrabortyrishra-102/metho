@@ -159,11 +159,47 @@ const isServiceListing = (item) => {
   return false;
 };
 
+const getUnitType = (item) => {
+  const unit = String(item?.unit_type || "piece").trim().toLowerCase();
+  if (["kg", "gram", "litre", "ml", "piece"].includes(unit)) return unit;
+  return "piece";
+};
+
+const getQtyStep = (item) => {
+  const unit = getUnitType(item);
+  if (unit === "kg" || unit === "litre") return 0.1;
+  if (unit === "gram" || unit === "ml") return 100;
+  return 1;
+};
+
+const normalizeQtyByUnit = (value, item) => {
+  const step = getQtyStep(item);
+  const unit = getUnitType(item);
+  const raw = Number(value || 0);
+  if (!Number.isFinite(raw) || raw <= 0) return 0;
+  if (unit === "piece" || step === 1) return Math.max(0, Math.round(raw));
+  const units = Math.round(raw / step);
+  const next = units * step;
+  return Number(next.toFixed(3));
+};
+
+const formatQty = (qty) => {
+  const n = Number(qty || 0);
+  if (!Number.isFinite(n)) return "0";
+  return Number.isInteger(n) ? String(n) : String(Number(n.toFixed(3)));
+};
+
+const formatPriceWithUnit = (price, unitType) => {
+  const unit = getUnitType({ unit_type: unitType });
+  return unit === "piece" ? `₹${price}` : `₹${price} / ${unit}`;
+};
+
 function ProductModal({ product, onClose, onAdd, onDec, qty, galleryUrl, isBookNowRole, onBookNow, canAccessProductPdf }) {
   if (!product) return null;
   const productUrl = `${galleryUrl}?p=${product.id}`;
   const pdfUrl = getPdfUrl(product);
   const isService = isServiceListing(product);
+  const unitType = getUnitType(product);
   // WhatsApp message: include image URL so WA shows image preview
   const mediaLine = product.image_url || pdfUrl;
   const waMsg = mediaLine
@@ -208,8 +244,8 @@ function ProductModal({ product, onClose, onAdd, onDec, qty, galleryUrl, isBookN
           <h3 className="font-display font-black text-emerald-950 text-xl mt-1">{product.name}</h3>
           {product.description && <p className="text-sm text-slate-600 mt-2 font-body">{product.description}</p>}
           <div className="mt-3 flex items-center justify-between">
-            <span className="font-display font-black text-3xl text-emerald-950">₹{product.price}</span>
-            <span className="text-sm text-slate-500">{isService ? "Service" : `Stock: ${product.stock ?? 0}`}</span>
+            <span className="font-display font-black text-3xl text-emerald-950">{formatPriceWithUnit(product.price, unitType)}</span>
+            <span className="text-sm text-slate-500">{isService ? "Service" : `Stock: ${product.stock ?? 0}${unitType === "piece" ? "" : ` ${unitType}`}`}</span>
           </div>
           <div className="mt-4 space-y-2">
             {product.stock <= 0 && !isService ? (
@@ -220,16 +256,16 @@ function ProductModal({ product, onClose, onAdd, onDec, qty, galleryUrl, isBookN
               </Button>
             ) : qty > 0 ? (
               <div className="flex items-center justify-between bg-emerald-50 rounded-full px-3 py-2">
-                <button onClick={() => onDec(product.id)} className="w-9 h-9 rounded-full bg-white flex items-center justify-center hover:bg-emerald-100">
+                <button onClick={() => onDec(product)} className="w-9 h-9 rounded-full bg-white flex items-center justify-center hover:bg-emerald-100">
                   <Minus className="w-4 h-4" />
                 </button>
-                <span className="font-black text-emerald-950 text-lg">{qty}</span>
-                <button onClick={() => onAdd(product.id)} className="w-9 h-9 rounded-full bg-white flex items-center justify-center hover:bg-emerald-100">
+                <span className="font-black text-emerald-950 text-lg">{formatQty(qty)}</span>
+                <button onClick={() => onAdd(product)} className="w-9 h-9 rounded-full bg-white flex items-center justify-center hover:bg-emerald-100">
                   <Plus className="w-4 h-4" />
                 </button>
               </div>
             ) : (
-              <Button onClick={() => onAdd(product.id)} className="w-full bg-emerald-900 hover:bg-emerald-950 text-white rounded-full text-base h-12">
+              <Button onClick={() => onAdd(product)} className="w-full bg-emerald-900 hover:bg-emerald-950 text-white rounded-full text-base h-12">
                 {isService ? <CalendarCheck2 className="w-4 h-4 mr-2" /> : <ShoppingCart className="w-4 h-4 mr-2" />} {isService ? "Book Now" : "Add to Cart"}
               </Button>
             )}
@@ -298,6 +334,8 @@ export default function PartnerGalleryPage() {
   const products = useMemo(() => data?.products || [], [data?.products]);
   const productListings = useMemo(() => products.filter((item) => !isServiceListing(item)), [products]);
   const serviceListings = useMemo(() => products.filter((item) => isServiceListing(item)), [products]);
+  const featuredImages = useMemo(() => normalizeFeaturedImages(data?.featured_images), [data?.featured_images]);
+  const bestFiveProducts = useMemo(() => productListings.slice(0, 5), [productListings]);
   const activeTab = requestedTab === "services" ? "services" : "products";
   const activeListings = activeTab === "services" ? serviceListings : productListings;
   const isBookNowRole = !user || ["member", "customer"].includes(String(user?.role || "").toLowerCase());
@@ -315,8 +353,11 @@ export default function PartnerGalleryPage() {
   }, [activeListings, gallerySearch]);
   const canDownloadPdf = ["partner", "admin", "super_admin", "company_admin"].includes(String(user?.role || "").toLowerCase());
 
-  const addToCart = (id) => {
-    const product = products.find((x) => String(x.id) === String(id));
+  const addToCart = (productOrId) => {
+    const incomingId = typeof productOrId === "object" ? productOrId?.id : productOrId;
+    const product = typeof productOrId === "object" ? productOrId : products.find((x) => String(x.id) === String(incomingId));
+    const id = product?.id;
+    if (!id) return;
     const isService = isServiceListing(product);
     if (isService) {
       setCart((c) => ({ ...c, [id]: (c[id] || 0) + 1 }));
@@ -324,6 +365,7 @@ export default function PartnerGalleryPage() {
     }
 
     const stock = getStock(product);
+    const step = getQtyStep(product);
     if (stock <= 0) {
       toast.error(`${product?.name || "Product"}: out of stock`);
       return;
@@ -331,14 +373,29 @@ export default function PartnerGalleryPage() {
 
     setCart((c) => {
       const current = Number(c[id] || 0);
-      if (current >= stock) {
+      const nextQty = normalizeQtyByUnit(current + step, product);
+      if (nextQty > stock) {
         toast.error(`${product?.name || "Product"}: max available stock is ${stock}`);
         return c;
       }
-      return { ...c, [id]: current + 1 };
+      return { ...c, [id]: nextQty };
     });
   };
-  const decCart = (id) => setCart(c => ({ ...c, [id]: Math.max(0, (c[id] || 0) - 1) }));
+  const decCart = (productOrId) => {
+    const incomingId = typeof productOrId === "object" ? productOrId?.id : productOrId;
+    const product = typeof productOrId === "object" ? productOrId : products.find((x) => String(x.id) === String(incomingId));
+    const id = product?.id;
+    if (!id) return;
+    if (isServiceListing(product)) {
+      setCart((c) => ({ ...c, [id]: Math.max(0, (c[id] || 0) - 1) }));
+      return;
+    }
+    setCart((c) => {
+      const current = Number(c[id] || 0);
+      const nextQty = normalizeQtyByUnit(current - getQtyStep(product), product);
+      return { ...c, [id]: Math.max(0, nextQty) };
+    });
+  };
 
   useEffect(() => {
     if (!products.length) return;
@@ -353,7 +410,7 @@ export default function PartnerGalleryPage() {
           return;
         }
         const stock = getStock(product);
-        const normalized = Math.min(Math.max(0, Number(qty) || 0), stock);
+        const normalized = Math.min(normalizeQtyByUnit(qty, product), stock);
         if (normalized > 0) next[id] = normalized;
       });
       return next;
@@ -366,7 +423,7 @@ export default function PartnerGalleryPage() {
       return {
         ...p,
         quantity: q,
-        subtotal: (p?.price || 0) * q,
+        subtotal: Number(((p?.price || 0) * q).toFixed(2)),
         image_url: p?.image_url || "",
         pdf_url: getPdfUrl(p),
         listing_type: isServiceListing(p) ? "service" : "product",
@@ -612,6 +669,38 @@ export default function PartnerGalleryPage() {
         </div>
       </div>
 
+      {activeTab === "products" && (featuredImages.length > 0 || bestFiveProducts.length > 0) ? (
+        <div className="max-w-4xl mx-auto px-4 pt-4">
+          <div className="bg-white rounded-xl border border-border p-4 sm:p-5">
+            <div className="flex items-center gap-2 mb-3">
+              <Star className="w-4 h-4 text-emerald-700" />
+              <h2 className="font-display font-bold text-lg text-emerald-950">Best 5 Product Images</h2>
+            </div>
+            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-3">
+              {[0, 1, 2, 3, 4].map((slot) => {
+                const fallbackProduct = bestFiveProducts[slot];
+                const productImage = fallbackProduct ? getDisplayImage(fallbackProduct) : "";
+                const imageSrc = featuredImages[slot] || productImage || fallbackProduct?.fallback_image_url || "";
+                return (
+                  <div key={`gallery-best-${slot}`} className="aspect-square rounded-lg overflow-hidden border border-border bg-slate-100">
+                    {imageSrc ? (
+                      <img
+                        src={imageSrc}
+                        alt={`Best product ${slot + 1}`}
+                        className="w-full h-full object-cover"
+                        onError={(e) => applyImageFallback(e, productImage || fallbackProduct?.fallback_image_url || "")}
+                      />
+                    ) : (
+                      <div className="w-full h-full flex items-center justify-center text-slate-400 text-xs font-semibold">No Image</div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        </div>
+      ) : null}
+
       {/* Toolbar */}
       <div className="max-w-4xl mx-auto px-4 py-4 flex flex-wrap items-center justify-between gap-3">
         <p className="text-sm text-slate-600 font-body">
@@ -719,7 +808,7 @@ export default function PartnerGalleryPage() {
                     <p className="text-[10px] uppercase tracking-widest text-emerald-800 font-semibold truncate">{p.category}</p>
                     <p className="font-display font-bold text-emerald-950 text-sm line-clamp-1 mt-0.5">{p.name}</p>
                     <div className="mt-1.5 flex items-center justify-between">
-                      <span className="font-display font-black text-base text-emerald-950">₹{p.price}</span>
+                      <span className="font-display font-black text-base text-emerald-950">{formatPriceWithUnit(p.price, p.unit_type)}</span>
                       {/* Quick add button */}
                       {!outOfStock && (
                         <button
@@ -729,7 +818,7 @@ export default function PartnerGalleryPage() {
                               handleBookNow(p);
                               return;
                             }
-                            addToCart(p.id);
+                            addToCart(p);
                             toast.success(`${p.name} ${isService ? "booked" : "added"}`);
                           }}
                           className="w-7 h-7 rounded-full bg-emerald-900 text-white flex items-center justify-center hover:bg-emerald-950 shrink-0"
@@ -757,8 +846,8 @@ export default function PartnerGalleryPage() {
           onBookNow={handleBookNow}
           canAccessProductPdf={canAccessProductPdf}
           onClose={() => setSelected(null)}
-          onAdd={id => { addToCart(id); }}
-          onDec={id => { decCart(id); if ((cart[id] || 0) <= 1) setSelected(null); }}
+          onAdd={(product) => { addToCart(product); }}
+          onDec={(product) => { decCart(product); }}
         />
       )}
 

@@ -69,8 +69,8 @@ const getUnitType = (item) => {
 
 const getQtyStep = (item) => {
   const unit = getUnitType(item);
-  if (unit === "kg" || unit === "litre") return 0.25;
-  if (unit === "gram" || unit === "ml") return 50;
+  if (unit === "kg" || unit === "litre") return 0.1;
+  if (unit === "gram" || unit === "ml") return 100;
   return 1;
 };
 
@@ -976,8 +976,52 @@ export default function PartnerShopPage() {
               <h3 className="font-display font-black text-emerald-950 text-xl mt-1">{previewItem?.name || "Product"}</h3>
               {previewItem?.description ? <p className="text-sm text-slate-600 mt-2">{previewItem.description}</p> : <p className="text-sm text-slate-500 mt-2">No description provided.</p>}
               <div className="mt-3 flex items-center justify-between">
-                <span className="font-display font-black text-3xl text-emerald-950">₹{previewItem?.price || 0}</span>
-                <span className="text-sm text-slate-500">{isServiceListing(previewItem) ? "Service" : `Stock: ${getStock(previewItem)}`}</span>
+                <span className="font-display font-black text-3xl text-emerald-950">{formatPriceWithUnit(previewItem?.price || 0, previewItem?.unit_type)}</span>
+                <span className="text-sm text-slate-500">{isServiceListing(previewItem) ? "Service" : `Stock: ${getStock(previewItem)}${getUnitType(previewItem) === "piece" ? "" : ` ${getUnitType(previewItem)}`}`}</span>
+              </div>
+              <div className="mt-4">
+                {isServiceListing(previewItem) ? (
+                  <Button
+                    type="button"
+                    onClick={() => {
+                      closePreview();
+                      bookServiceNow(previewItem);
+                    }}
+                    className="w-full rounded-full bg-emerald-900 hover:bg-emerald-950 text-white"
+                    data-testid={`shop-preview-book-${previewItem?.id || "item"}`}
+                  >
+                    <CalendarCheck2 className="w-4 h-4 mr-2" /> {isTransportServiceListing(previewItem) ? "Book Ride" : "Book Now"}
+                  </Button>
+                ) : getStock(previewItem) <= 0 ? (
+                  <Button disabled className="w-full rounded-full">Out of Stock</Button>
+                ) : Number(cart[previewItem?.id] || 0) > 0 ? (
+                  <div className="flex items-center justify-between bg-emerald-50 rounded-full px-3 py-2">
+                    <button
+                      type="button"
+                      onClick={() => dec(previewItem)}
+                      className="w-9 h-9 rounded-full bg-white flex items-center justify-center"
+                    >
+                      <Minus className="w-4 h-4" />
+                    </button>
+                    <span className="font-black text-emerald-950 text-lg">{formatQty(cart[previewItem?.id] || 0)}</span>
+                    <button
+                      type="button"
+                      onClick={() => inc(previewItem)}
+                      className="w-9 h-9 rounded-full bg-white flex items-center justify-center"
+                    >
+                      <Plus className="w-4 h-4" />
+                    </button>
+                  </div>
+                ) : (
+                  <Button
+                    type="button"
+                    onClick={() => inc(previewItem)}
+                    className="w-full rounded-full bg-emerald-900 hover:bg-emerald-950 text-white"
+                    data-testid={`shop-preview-add-${previewItem?.id || "item"}`}
+                  >
+                    <ShoppingCart className="w-4 h-4 mr-2" /> Add to Cart
+                  </Button>
+                )}
               </div>
             </div>
           </div>
