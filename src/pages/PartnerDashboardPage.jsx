@@ -910,9 +910,9 @@ export default function PartnerDashboardPage() {
               <h3 className="font-display font-bold text-emerald-950 text-lg">Product Listings</h3>
               <div className="flex items-center gap-2">
                 {summary?.partner_code && (
-                  <Link to={`/gallery/${summary.partner_code}`} target="_blank">
+                  <Link to={`/gallery/${summary.partner_code}?tab=products`} target="_blank">
                     <Button size="sm" variant="outline" className="rounded-full border-emerald-300 text-emerald-900 hover:bg-emerald-50" data-testid="open-gallery-auto-pdf">
-                      <Images className="w-4 h-4 mr-1" /> View Gallery
+                      <Images className="w-4 h-4 mr-1" /> View Product Gallery
                     </Button>
                   </Link>
                 )}
@@ -928,7 +928,7 @@ export default function PartnerDashboardPage() {
                     }}
                     data-testid="share-gallery-pdf-whatsapp"
                   >
-                    <Images className="w-4 h-4 mr-1" /> Share PDF on WhatsApp
+                    <Images className="w-4 h-4 mr-1" /> Share Product PDF on WhatsApp
                   </Button>
                 )}
                 <PartnerProductForm onSaved={loadAll} defaultListingType="product" />
@@ -974,7 +974,11 @@ export default function PartnerDashboardPage() {
               <h3 className="font-display font-bold text-emerald-950 text-lg">Service Listings</h3>
               <div className="flex items-center gap-2">
                 {summary?.partner_code && (
-                  <Button size="sm" variant="outline" className="rounded-full border-emerald-300 text-emerald-900 hover:bg-emerald-50" onClick={() => setTab("products")}>Go to Products</Button>
+                  <Link to={`/gallery/${summary.partner_code}?tab=services`} target="_blank">
+                    <Button size="sm" variant="outline" className="rounded-full border-emerald-300 text-emerald-900 hover:bg-emerald-50">
+                      <Images className="w-4 h-4 mr-1" /> View Service Gallery
+                    </Button>
+                  </Link>
                 )}
                 <PartnerProductForm onSaved={loadAll} defaultListingType="service" />
               </div>
