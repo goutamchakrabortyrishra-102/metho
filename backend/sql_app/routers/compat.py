@@ -248,6 +248,10 @@ def _transport_trip_key(trip_id: str) -> str:
     return f"transport_trip:{trip_id}"
 
 
+def _transport_fare_presets_key(partner_id: str) -> str:
+    return f"transport_fare_presets:{partner_id}"
+
+
 def _company_commission_wallet_key() -> str:
     return "company_commission_wallet"
 
@@ -360,6 +364,166 @@ def _list_transport_trips(db: Session, partner_id: str | None = None, limit: int
         if len(out) >= max(1, int(limit)):
             break
     return out
+
+
+def _load_transport_fare_presets(db: Session, partner_id: str) -> list[dict]:
+    row = db.query(AppSetting).filter(AppSetting.key == _transport_fare_presets_key(partner_id)).first()
+    if not row:
+        return []
+    try:
+        payload = json.loads(row.value_json or "[]")
+    except Exception:
+        return []
+    return payload if isinstance(payload, list) else []
+
+
+def _normalize_transport_fare_preset(entry: dict | None) -> dict | None:
+    src = entry if isinstance(entry, dict) else {}
+    preset_id = str(src.get("id") or "").strip() or str(uuid.uuid4())
+    destination = str(src.get("destination") or "").strip()
+    if not destination:
+        return None
+    try:
+        fare = round(max(1.0, float(src.get("fare") or 0)), 2)
+    except Exception:
+        return None
+    return {
+        "id": preset_id,
+        "service_product_id": str(src.get("service_product_id") or "").strip(),
+        "destination": destination,
+        "fare": fare,
+        "pickup_hint": str(src.get("pickup_hint") or "").strip(),
+        "notes": str(src.get("notes") or "").strip(),
+        "active": bool(src.get("active") if src.get("active") is not None else True),
+        "updated_at": now_iso(),
+    }
+
+
+def _save_transport_fare_presets(db: Session, partner_id: str, presets: list[dict]) -> list[dict]:
+    normalized: list[dict] = []
+    for raw in presets or []:
+        item = _normalize_transport_fare_preset(raw)
+        if item:
+            normalized.append(item)
+    row = db.query(AppSetting).filter(AppSetting.key == _transport_fare_presets_key(partner_id)).first()
+    payload = json.dumps(normalized)
+    if not row:
+        db.add(AppSetting(key=_transport_fare_presets_key(partner_id), value_json=payload, updated_at=datetime.now(timezone.utc)))
+    else:
+        row.value_json = payload
+        row.updated_at = datetime.now(timezone.utc)
+    db.commit()
+    return normalized
+
+
+def _find_transport_fare_preset(presets: list[dict], preset_id: str, service_product_id: str | None = None) -> dict | None:
+    pid = str(preset_id or "").strip()
+    sid = str(service_product_id or "").strip()
+    if not pid:
+        return None
+    for item in presets or []:
+        if str(item.get("id") or "") != pid:
+            continue
+        if sid and str(item.get("service_product_id") or "") and str(item.get("service_product_id") or "") != sid:
+            continue
+        if item.get("active") is False:
+            return None
+        return item
+    return None
+
+
+@router.get("/partner/transport/fare-presets")
+def partner_transport_fare_presets(service_product_id: str | None = None, db: Session = Depends(get_db), current_user=Depends(get_current_user)):
+    if getattr(current_user, "role", "") != "partner":
+        raise HTTPException(status_code=403, detail="Partner access only")
+    partner = _resolve_partner_for_user(db, current_user)
+    if not partner:
+        raise HTTPException(status_code=404, detail="Partner profile not found")
+    presets = _load_transport_fare_presets(db, partner.id)
+    sid = str(service_product_id or "").strip()
+    items = [p for p in presets if (not sid or not str(p.get("service_product_id") or "") or str(p.get("service_product_id") or "") == sid)]
+    return {"partner_id": partner.id, "items": items}
+
+
+@router.post("/partner/transport/fare-presets")
+def partner_transport_save_fare_preset(payload: dict, db: Session = Depends(get_db), current_user=Depends(get_current_user)):
+    if getattr(current_user, "role", "") != "partner":
+        raise HTTPException(status_code=403, detail="Partner access only")
+    partner = _resolve_partner_for_user(db, current_user)
+    if not partner:
+        raise HTTPException(status_code=404, detail="Partner profile not found")
+
+    normalized = _normalize_transport_fare_preset(payload)
+    if not normalized:
+        raise HTTPException(status_code=400, detail="destination and valid fare are required")
+
+    service_product_id = str(normalized.get("service_product_id") or "").strip()
+    if service_product_id:
+        service = (
+            db.query(PartnerProduct)
+            .filter(
+                PartnerProduct.id == service_product_id,
+                PartnerProduct.partner_id == partner.id,
+                PartnerProduct.active.is_(True),
+                PartnerProduct.approval_status == "approved",
+            )
+            .first()
+        )
+        if not service:
+            raise HTTPException(status_code=404, detail="Transport service not found")
+
+    current = _load_transport_fare_presets(db, partner.id)
+    next_items: list[dict] = []
+    matched = False
+    for item in current:
+        if str(item.get("id") or "") == str(normalized.get("id") or ""):
+            next_items.append(normalized)
+            matched = True
+        else:
+            next_items.append(item)
+    if not matched:
+        next_items.append(normalized)
+
+    saved = _save_transport_fare_presets(db, partner.id, next_items)
+    return {"ok": True, "item": normalized, "items": saved}
+
+
+@router.delete("/partner/transport/fare-presets/{preset_id}")
+def partner_transport_delete_fare_preset(preset_id: str, db: Session = Depends(get_db), current_user=Depends(get_current_user)):
+    if getattr(current_user, "role", "") != "partner":
+        raise HTTPException(status_code=403, detail="Partner access only")
+    partner = _resolve_partner_for_user(db, current_user)
+    if not partner:
+        raise HTTPException(status_code=404, detail="Partner profile not found")
+
+    target = str(preset_id or "").strip()
+    current = _load_transport_fare_presets(db, partner.id)
+    next_items = [item for item in current if str(item.get("id") or "") != target]
+    if len(next_items) == len(current):
+        raise HTTPException(status_code=404, detail="Preset not found")
+    saved = _save_transport_fare_presets(db, partner.id, next_items)
+    return {"ok": True, "items": saved}
+
+
+@router.get("/transport/fare-presets")
+def public_transport_fare_presets(partner_code: str, service_product_id: str | None = None, db: Session = Depends(get_db)):
+    code = str(partner_code or "").strip()
+    if not code:
+        raise HTTPException(status_code=400, detail="partner_code is required")
+    partner = db.query(AssociatePartner).filter(AssociatePartner.partner_code == code, AssociatePartner.active.is_(True)).first()
+    if not partner:
+        raise HTTPException(status_code=404, detail="Partner not found")
+    presets = _load_transport_fare_presets(db, partner.id)
+    sid = str(service_product_id or "").strip()
+    items = []
+    for item in presets:
+        if item.get("active") is False:
+            continue
+        item_sid = str(item.get("service_product_id") or "")
+        if sid and item_sid and item_sid != sid:
+            continue
+        items.append(item)
+    return {"partner_code": partner.partner_code, "items": items}
 
 
 def _generate_product_code(db: Session, product_type: str) -> str:
@@ -2859,13 +3023,14 @@ def create_transport_booking(payload: dict, request: Request, db: Session = Depe
     notes = str((payload or {}).get("notes") or "").strip()
     vehicle_type = str((payload or {}).get("vehicle_type") or "").strip().lower()
     travel_date = str((payload or {}).get("travel_date") or "").strip()
+    fare_preset_id = str((payload or {}).get("fare_preset_id") or "").strip()
 
     if not partner_code:
         raise HTTPException(status_code=400, detail="partner_code is required")
     if not service_product_id:
         raise HTTPException(status_code=400, detail="service_product_id is required")
-    if not pickup or not destination:
-        raise HTTPException(status_code=400, detail="pickup and destination are required")
+    if not pickup:
+        raise HTTPException(status_code=400, detail="pickup is required")
 
     partner = db.query(AssociatePartner).filter(AssociatePartner.partner_code == partner_code, AssociatePartner.active.is_(True)).first()
     if not partner:
@@ -2889,17 +3054,20 @@ def create_transport_booking(payload: dict, request: Request, db: Session = Depe
         raise HTTPException(status_code=400, detail="Selected service is not configured as transport")
 
     fare_quote = round(max(1.0, float(service.price or 0)), 2)
-    required_reserve = round(fare_quote * (max(0.0, float(partner.commission_percent or 0)) / 100.0), 2)
-    wallet = _load_partner_wallet(db, partner.id)
-    available_balance = round(float(wallet.get("balance") or 0), 2)
-    if available_balance + 1e-9 < required_reserve:
-        raise HTTPException(
-            status_code=400,
-            detail=(
-                f"Commission reserve wallet insufficient to confirm this booking. Required ₹{required_reserve}, "
-                f"available ₹{available_balance}. Top up partner wallet first."
-            ),
-        )
+    selected_preset = None
+    if fare_preset_id:
+        presets = _load_transport_fare_presets(db, partner.id)
+        selected_preset = _find_transport_fare_preset(presets, fare_preset_id, service_product_id=service_product_id)
+        if not selected_preset:
+            raise HTTPException(status_code=400, detail="Selected fare preset is invalid")
+        preset_fare = round(float(selected_preset.get("fare") or 0), 2)
+        if preset_fare > 0:
+            fare_quote = preset_fare
+        if not destination:
+            destination = str(selected_preset.get("destination") or "").strip()
+
+    if not destination:
+        raise HTTPException(status_code=400, detail="destination is required")
 
     inferred_vehicle = "cab"
     meta = meta_map.get(str(service.id), {}) if isinstance(meta_map, dict) else {}
@@ -2967,6 +3135,9 @@ def create_transport_booking(payload: dict, request: Request, db: Session = Depe
         "vehicle_type": vehicle_type or inferred_vehicle,
         "pickup": pickup,
         "destination": destination,
+        "fare_preset_id": str(selected_preset.get("id") or "") if selected_preset else "",
+        "fare_preset_destination": str(selected_preset.get("destination") or "") if selected_preset else "",
+        "fare_preset_amount": float(selected_preset.get("fare") or 0) if selected_preset else 0,
         "travel_date": travel_date,
         "notes": notes,
         "customer_name": customer_name,
@@ -2974,8 +3145,8 @@ def create_transport_booking(payload: dict, request: Request, db: Session = Depe
         "member_ref": member_ref,
         "customer_user_id": str(getattr(current_user, "id", "") or ""),
         "fare_quote": fare_quote,
-        "fare_final": fare_quote,
-        "required_commission_reserve": required_reserve,
+        "fare_final": 0,
+        "required_commission_reserve": 0,
         "status": "booked",
         "payment_status": "unpaid",
         "order_id": order_row.id,
@@ -2986,7 +3157,7 @@ def create_transport_booking(payload: dict, request: Request, db: Session = Depe
         "ok": True,
         "booking": saved,
         "order": {"id": order_row.id, "order_no": f"ORD-{order_row.id[:8].upper()}", "status": order_row.status, "auto_approved": False},
-        "next_step": "Booking created. Final fare must be confirmed first; then commission will be credited and the trip will be auto-approved.",
+        "next_step": "Booking created with route details. Partner will set final fare first; then commission will be credited and trip auto-approved on confirm.",
     }
 
 
@@ -3087,7 +3258,15 @@ def partner_transport_confirm_booking(trip_id: str, db: Session = Depends(get_db
     if not row:
         raise HTTPException(status_code=404, detail="Order not found")
 
+    fare_final = round(float(trip.get("fare_final") or 0), 2)
+    if fare_final <= 0:
+        raise HTTPException(status_code=400, detail="Set final fare first before confirming booking")
+
     required = round(float(trip.get("required_commission_reserve") or 0), 2)
+    if required <= 0:
+        required = round(fare_final * (max(0.0, float(partner.commission_percent or 0)) / 100.0), 2)
+        trip["required_commission_reserve"] = required
+
     wallet = _load_partner_wallet(db, partner.id)
     available = round(float(wallet.get("balance") or 0), 2)
     if available + 1e-9 < required:
@@ -3096,7 +3275,7 @@ def partner_transport_confirm_booking(trip_id: str, db: Session = Depends(get_db
             detail=f"Commission reserve wallet insufficient. Required ₹{required}, available ₹{available}. Top up first.",
         )
 
-    fare_final = round(float(trip.get("fare_final") or trip.get("fare_quote") or row.total_amount or 0), 2)
+    fare_final = round(float(trip.get("fare_final") or row.total_amount or 0), 2)
     order_items = []
     try:
         order_items = json.loads(row.items_json or "[]")

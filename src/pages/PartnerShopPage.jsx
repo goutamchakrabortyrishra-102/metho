@@ -15,6 +15,13 @@ const mapsUrl = (p) => {
   const q = [p.business_name, p.address, p.city, p.state].filter(Boolean).join(", ");
   return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(q)}`;
 };
+const routeMapsUrl = (pickup, destination) => {
+  const origin = String(pickup || "").trim();
+  const dest = String(destination || "").trim();
+  if (!origin && !dest) return "";
+  if (!dest) return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(origin)}`;
+  return `https://www.google.com/maps/dir/?api=1&origin=${encodeURIComponent(origin)}&destination=${encodeURIComponent(dest)}&travelmode=driving`;
+};
 const PDF_PREVIEW = "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 400 400'><rect width='400' height='400' fill='%23f1f5f9'/><rect x='80' y='50' width='240' height='300' rx='14' fill='%23ffffff' stroke='%2394a3b8' stroke-width='4'/><text x='200' y='190' text-anchor='middle' fill='%23dc2626' font-size='46' font-family='Arial' font-weight='bold'>PDF</text><text x='200' y='228' text-anchor='middle' fill='%23334155' font-size='16' font-family='Arial'>Tap to Open</text></svg>";
 const PRODUCT_FALLBACK = "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 400 400'><defs><linearGradient id='g' x1='0' y1='0' x2='1' y2='1'><stop offset='0%25' stop-color='%23ecfeff'/><stop offset='100%25' stop-color='%23dcfce7'/></linearGradient></defs><rect width='400' height='400' fill='url(%23g)'/><circle cx='200' cy='150' r='72' fill='%23059669' opacity='0.12'/><text x='200' y='150' text-anchor='middle' dominant-baseline='middle' fill='%230f766e' font-size='46' font-family='Arial' font-weight='700'>M</text><text x='200' y='230' text-anchor='middle' fill='%230f172a' font-size='22' font-family='Arial' font-weight='700'>METHO Product</text></svg>";
 const cleanPhone = (v) => (v || "").replace(/[^\d]/g, "");
@@ -238,6 +245,8 @@ export default function PartnerShopPage() {
   const [transportService, setTransportService] = useState(null);
   const [transportBusy, setTransportBusy] = useState(false);
   const [transportBooking, setTransportBooking] = useState(null);
+  const [transportFarePresets, setTransportFarePresets] = useState([]);
+  const [selectedFarePresetId, setSelectedFarePresetId] = useState("");
   const [transportForm, setTransportForm] = useState({
     customer_name: "",
     customer_phone: "",
@@ -385,8 +394,13 @@ export default function PartnerShopPage() {
         travel_date: "",
         notes: "",
       });
+      setSelectedFarePresetId("");
+      setTransportFarePresets([]);
       setTransportBooking(null);
       setTransportModalOpen(true);
+      api.get(`/transport/fare-presets?partner_code=${encodeURIComponent(partnerCode)}&service_product_id=${encodeURIComponent(service.id)}`)
+        .then((r) => setTransportFarePresets(Array.isArray(r.data?.items) ? r.data.items : []))
+        .catch(() => setTransportFarePresets([]));
       return;
     }
     setCart((prev) => ({ ...prev, [service.id]: 1 }));
@@ -396,8 +410,12 @@ export default function PartnerShopPage() {
 
   const submitTransportBooking = async () => {
     if (!transportService?.id) return;
-    if (!transportForm.pickup.trim() || !transportForm.destination.trim()) {
-      toast.error("Pickup আর destination দিন");
+    if (!transportForm.pickup.trim()) {
+      toast.error("Pickup দিন");
+      return;
+    }
+    if (!transportForm.destination.trim() && !selectedFarePresetId) {
+      toast.error("Destination দিন অথবা preset select করুন");
       return;
     }
     setTransportBusy(true);
@@ -410,6 +428,7 @@ export default function PartnerShopPage() {
         customer_phone: transportForm.customer_phone,
         pickup: transportForm.pickup,
         destination: transportForm.destination,
+        fare_preset_id: selectedFarePresetId,
         travel_date: transportForm.travel_date,
         notes: transportForm.notes,
         member_ref: guestMemberRef,
@@ -972,7 +991,7 @@ export default function PartnerShopPage() {
               <div>
                 <p className="text-[10px] uppercase tracking-widest text-emerald-800 font-semibold">Transport Booking</p>
                 <h3 className="font-display font-bold text-emerald-950 text-lg mt-1">{transportService?.name || "Book Ride"}</h3>
-                <p className="text-xs text-slate-600 mt-1">Fare set by partner: ₹{transportService?.price || 0}</p>
+                <p className="text-xs text-slate-600 mt-1">Pickup + destination দিয়ে booking দিন। Partner পরে final fare set করবে।</p>
               </div>
               <button onClick={() => setTransportModalOpen(false)} className="w-8 h-8 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-700 flex items-center justify-center">
                 <X className="w-4 h-4" />
@@ -981,12 +1000,70 @@ export default function PartnerShopPage() {
 
             {!transportBooking ? (
               <div className="p-5 space-y-3">
+                {(transportFarePresets || []).length ? (
+                  <div className="rounded-lg border border-emerald-200 bg-emerald-50 p-3">
+                    <p className="text-xs font-semibold text-emerald-900">Common destination fare</p>
+                    <p className="text-[11px] text-slate-600 mt-0.5">Preset select করলে destination + fare route ready হয়ে যাবে।</p>
+                    <div className="mt-2 space-y-1.5">
+                      {(transportFarePresets || []).map((preset) => (
+                        <label key={preset.id} className="flex items-center gap-2 text-xs text-slate-700">
+                          <input
+                            type="radio"
+                            name="transport-fare-preset"
+                            checked={selectedFarePresetId === String(preset.id)}
+                            onChange={() => {
+                              setSelectedFarePresetId(String(preset.id));
+                              setTransportForm((prev) => ({
+                                ...prev,
+                                destination: String(preset.destination || ""),
+                                notes: prev.notes || String(preset.notes || ""),
+                              }));
+                            }}
+                          />
+                          <span>{preset.destination} · ₹{Number(preset.fare || 0).toLocaleString("en-IN")}</span>
+                        </label>
+                      ))}
+                      <button
+                        type="button"
+                        className="text-[11px] text-emerald-800 underline"
+                        onClick={() => setSelectedFarePresetId("")}
+                      >
+                        Use custom destination
+                      </button>
+                    </div>
+                  </div>
+                ) : null}
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                   <Input value={transportForm.customer_name} onChange={(e) => setTransportForm((prev) => ({ ...prev, customer_name: e.target.value }))} placeholder="Customer name" className="h-10" />
                   <Input value={transportForm.customer_phone} onChange={(e) => setTransportForm((prev) => ({ ...prev, customer_phone: e.target.value }))} placeholder="Mobile number" className="h-10" />
                 </div>
                 <Input value={transportForm.pickup} onChange={(e) => setTransportForm((prev) => ({ ...prev, pickup: e.target.value }))} placeholder="Pickup location" className="h-10" />
-                <Input value={transportForm.destination} onChange={(e) => setTransportForm((prev) => ({ ...prev, destination: e.target.value }))} placeholder="Destination" className="h-10" />
+                <Input
+                  value={transportForm.destination}
+                  onChange={(e) => {
+                    setSelectedFarePresetId("");
+                    setTransportForm((prev) => ({ ...prev, destination: e.target.value }));
+                  }}
+                  placeholder="Destination"
+                  className="h-10"
+                />
+                <div className="flex gap-2">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    className="rounded-full"
+                    onClick={() => {
+                      const url = routeMapsUrl(transportForm.pickup, transportForm.destination);
+                      if (!url) {
+                        toast.error("Pickup বা destination দিন");
+                        return;
+                      }
+                      window.open(url, "_blank", "noopener,noreferrer");
+                    }}
+                  >
+                    Open Route in Google Maps
+                  </Button>
+                </div>
                 <Input type="datetime-local" value={transportForm.travel_date} onChange={(e) => setTransportForm((prev) => ({ ...prev, travel_date: e.target.value }))} className="h-10" />
                 <Input value={transportForm.notes} onChange={(e) => setTransportForm((prev) => ({ ...prev, notes: e.target.value }))} placeholder="Notes (optional)" className="h-10" />
                 <div className="flex gap-2 pt-1">
@@ -1001,10 +1078,20 @@ export default function PartnerShopPage() {
                 <div className="rounded-lg border border-emerald-200 bg-emerald-50 p-3">
                   <p className="text-xs text-emerald-900 font-semibold">Booking ID: {transportBooking.trip_code || transportBooking.id}</p>
                   <p className="text-xs text-slate-700 mt-1">Status: <span className="font-semibold uppercase">{transportBooking.status}</span></p>
-                  <p className="text-xs text-slate-700">Final Fare: ₹{transportBooking.fare_final || transportBooking.fare_quote || 0}</p>
+                  <p className="text-xs text-slate-700">Final Fare: {Number(transportBooking.fare_final || 0) > 0 ? `₹${transportBooking.fare_final}` : "Partner will set after review"}</p>
                   <p className="text-xs text-slate-700">Route: {transportBooking.pickup} -> {transportBooking.destination}</p>
+                  <button
+                    type="button"
+                    className="text-xs text-emerald-800 underline mt-1"
+                    onClick={() => {
+                      const url = routeMapsUrl(transportBooking.pickup, transportBooking.destination);
+                      if (url) window.open(url, "_blank", "noopener,noreferrer");
+                    }}
+                  >
+                    View route on Google Maps
+                  </button>
                 </div>
-                <p className="text-xs text-slate-600">Partner driver trip complete করলে destination-এ QR payment নেবেন। তারপর admin approval এ invoice + commission flow হবে।</p>
+                <p className="text-xs text-slate-600">Booking এর পরে partner fare final করবে। Confirm হওয়ার পর trip start হবে, শেষে destination-এ QR payment flow চলবে।</p>
                 <div className="flex gap-2">
                   <Button variant="outline" className="rounded-full" onClick={refreshTransportBooking}>Refresh Status</Button>
                   <Button className="rounded-full bg-emerald-900 hover:bg-emerald-950 text-white" onClick={() => setTransportModalOpen(false)}>Done</Button>
