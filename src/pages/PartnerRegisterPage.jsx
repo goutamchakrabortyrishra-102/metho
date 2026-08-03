@@ -13,15 +13,15 @@ import { INDIAN_STATES, isCompletePincode, normalizePincode } from "@/lib/indiaL
 const BUSINESS_TYPES = ["Shop", "Service"];
 
 const DEFAULT_TERMS = [
-  "1. The Partner acknowledges that all products, services, claims, guarantees, delivery commitments, quality assurances, and warranty obligations are the sole responsibility of the Partner.",
-  "2. The Partner must ensure that every product, service, price, description, image, certificate, license, registration number, and business document submitted on this platform is genuine, accurate, and legally valid.",
-  "3. The Partner must comply with all applicable Indian laws, rules, licensing requirements, tax regulations, consumer protection obligations, safety standards, and local authority rules relevant to the Partner's business.",
-  "4. If any incorrect, incomplete, misleading, expired, forged, or unauthorized document is uploaded or any false information is provided, the Partner alone will be fully responsible for all consequences, losses, penalties, claims, disputes, and legal actions.",
-  "5. METHO acts only as an intermediary technology platform and does not manufacture, own, verify, guarantee, certify, endorse, or assume liability for the Partner's business, products, services, staff, or documents.",
-  "6. METHO does not independently verify every original document, license, certificate, or business claim submitted by the Partner. The Partner remains fully responsible for the authenticity and legality of all submitted information and supporting documents.",
+  "1. The Partner shall be solely responsible for the quality, warranty, delivery, service standards, after-sales support, customer promises, and all business outcomes related to its products and services.",
+  "2. The Partner must ensure that every product, service, price, description, image, certificate, license, registration number, and supporting business document uploaded on this platform is genuine, accurate, complete, and legally valid.",
+  "3. The Partner must comply with all applicable Indian laws, rules, regulations, tax requirements, consumer protection obligations, licensing conditions, safety standards, and local authority requirements relevant to the Partner's business.",
+  "4. If any information or document is incorrect, incomplete, misleading, expired, forged, unauthorized, or otherwise invalid, the Partner alone shall be fully responsible for all losses, penalties, claims, disputes, liabilities, and legal consequences.",
+  "5. METHO acts only as an intermediary technology platform and administrative facilitator. METHO does not manufacture, own, inspect, certify, guarantee, endorse, or assume liability for the Partner's business, staff, products, services, or documents.",
+  "6. METHO does not independently verify every original document, license, certificate, or business claim submitted by the Partner. The Partner remains fully responsible for the authenticity, legality, and continuing validity of all submitted information and supporting documents.",
   "7. By registering, the Partner confirms that all uploaded documents are original, lawful, and submitted with proper authority, and agrees to keep them updated whenever required.",
-  "8. Any violation of these Terms & Conditions may result in account suspension, listing removal, payment hold, settlement delay, or permanent termination, as determined by METHO or the applicable authority.",
-  "9. METHO's role is limited to providing the platform and related administrative services. Any dispute arising from the Partner's business operations shall be handled directly by the Partner, subject to applicable law.",
+  "8. Any breach of these Terms & Conditions may result in account suspension, listing removal, payment hold, settlement delay, or permanent termination, as determined by METHO or the competent authority.",
+  "9. Any dispute arising from the Partner's business operations shall be handled directly by the Partner, subject to applicable Indian law. METHO shall not be liable for such disputes except to the extent required by law.",
 ].join("\n");
 
 export default function PartnerRegisterPage() {
@@ -272,7 +272,7 @@ export default function PartnerRegisterPage() {
 
           <section className="rounded-xl border border-emerald-200 bg-emerald-50/50 p-4 md:p-5" data-testid="partner-policy-section">
             <h2 className="font-display font-black text-lg text-emerald-950">Terms & Conditions</h2>
-            <p className="text-xs text-emerald-900/80 mt-1">Please read carefully before submitting your partner application.</p>
+            <p className="text-xs text-emerald-900/80 mt-1">Please read this section carefully before submitting your partner application. It explains your responsibilities for products, services, documents, and legal compliance.</p>
 
             <div className="mt-4 rounded-xl border border-emerald-200 bg-white p-4">
               <p className="text-sm text-slate-700 whitespace-pre-line leading-6">{terms}</p>
