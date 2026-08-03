@@ -572,24 +572,63 @@ const imageToPdfBlob = async (file) => {
   return pdf.output("blob");
 };
 
-export default function PartnerProductForm({ product, onSaved, disabled = false, disabledReason = "", defaultListingType = "product" }) {
+export default function PartnerProductForm({
+  product,
+  onSaved,
+  disabled = false,
+  disabledReason = "",
+  defaultListingType = "product",
+  fixedListingType = "",
+  allowedServiceSectors = null,
+  excludedServiceSectors = null,
+  initialServiceSectorFilter = "All",
+  triggerLabel = "",
+  dialogTitle = "",
+  dialogDescription = "",
+}) {
   const [open, setOpen] = useState(false);
-  const [form, setForm] = useState({ ...EMPTY, listing_type: normalizeListingType(defaultListingType) });
+  const forcedListingType = normalizeListingType(fixedListingType || "");
+  const hasFixedListingType = fixedListingType === "product" || fixedListingType === "service";
+  const [form, setForm] = useState({
+    ...EMPTY,
+    listing_type: hasFixedListingType ? forcedListingType : normalizeListingType(defaultListingType),
+  });
   const [busy, setBusy] = useState(false);
   const [uploadingImage, setUploadingImage] = useState(false);
   const [localPreviewUrl, setLocalPreviewUrl] = useState("");
-  const [serviceSectorFilter, setServiceSectorFilter] = useState("All");
+  const [serviceSectorFilter, setServiceSectorFilter] = useState(initialServiceSectorFilter);
   const fileRef = useRef(null);
+  const normalizedAllowedServiceSectors = Array.isArray(allowedServiceSectors) && allowedServiceSectors.length
+    ? allowedServiceSectors.filter(Boolean)
+    : null;
+  const normalizedExcludedServiceSectors = Array.isArray(excludedServiceSectors) && excludedServiceSectors.length
+    ? excludedServiceSectors.filter(Boolean)
+    : null;
+  const serviceTemplatePool = normalizedAllowedServiceSectors
+    ? SERVICE_TEMPLATES.filter((tpl) => normalizedAllowedServiceSectors.includes(tpl.sector))
+    : SERVICE_TEMPLATES.filter((tpl) => !normalizedExcludedServiceSectors?.includes(tpl.sector));
+  const serviceSectorOptions = Array.from(new Set([
+    ...(normalizedAllowedServiceSectors && normalizedAllowedServiceSectors.length > 1 ? ["All"] : []),
+    ...serviceTemplatePool.map((tpl) => tpl.sector),
+  ]));
 
   useEffect(() => {
     const fallbackType = normalizeListingType(defaultListingType);
     const source = product || { ...EMPTY, listing_type: fallbackType };
-    const resolved = product ? resolveListingType(source) : fallbackType;
+    const resolved = hasFixedListingType ? forcedListingType : (product ? resolveListingType(source) : fallbackType);
     setForm({ ...EMPTY, ...source, listing_type: resolved });
     setLocalPreviewUrl("");
-  }, [product, defaultListingType]);
+  }, [product, defaultListingType, hasFixedListingType, forcedListingType]);
 
-  const visibleServiceTemplates = SERVICE_TEMPLATES.filter((tpl) => serviceSectorFilter === "All" || tpl.sector === serviceSectorFilter);
+  useEffect(() => {
+    const fallbackFilter = serviceSectorOptions[0] || "All";
+    const preferred = serviceSectorOptions.includes(initialServiceSectorFilter)
+      ? initialServiceSectorFilter
+      : fallbackFilter;
+    setServiceSectorFilter(preferred);
+  }, [initialServiceSectorFilter, fixedListingType, allowedServiceSectors, excludedServiceSectors, serviceSectorOptions]);
+
+  const visibleServiceTemplates = serviceTemplatePool.filter((tpl) => serviceSectorFilter === "All" || tpl.sector === serviceSectorFilter);
 
   const applyServiceTemplate = (tpl) => {
     if (!tpl) return;
@@ -679,7 +718,8 @@ export default function PartnerProductForm({ product, onSaved, disabled = false,
 
   const save = async (e) => {
     e.preventDefault();
-    const isService = form.listing_type === "service";
+    const listingType = hasFixedListingType ? forcedListingType : form.listing_type;
+    const isService = listingType === "service";
     if (!isService && !String(form.image_url || "").trim()) {
       toast.error("Listing image required. Please upload image first.");
       return;
@@ -724,14 +764,14 @@ export default function PartnerProductForm({ product, onSaved, disabled = false,
           disabled={!product?.id && disabled}
           title={!product?.id && disabled && disabledReason ? disabledReason : undefined}
         >
-          {product?.id ? <Pencil className="w-4 h-4 mr-1" /> : <Plus className="w-4 h-4 mr-1" />} {product?.id ? "Edit Listing" : "Add Listing"}
+          {product?.id ? <Pencil className="w-4 h-4 mr-1" /> : <Plus className="w-4 h-4 mr-1" />} {product?.id ? (triggerLabel || "Edit Listing") : (triggerLabel || "Add Listing")}
         </Button>
       </DialogTrigger>
       <DialogContent className="w-[calc(100vw-1rem)] max-w-lg sm:max-w-2xl max-h-[88vh] overflow-y-auto p-4 sm:p-6">
         <DialogHeader>
-          <DialogTitle>{product?.id ? "Edit Listing" : "New Listing"}</DialogTitle>
+          <DialogTitle>{product?.id ? (dialogTitle || "Edit Listing") : (dialogTitle || "New Listing")}</DialogTitle>
           <DialogDescription>
-            {product?.id ? "Update partner listing details and optionally replace the image, which is saved as a PDF link." : "Create a new partner shop/service listing. Service listings can be saved without image upload."}
+            {product?.id ? (dialogDescription || "Update partner listing details and optionally replace the image, which is saved as a PDF link.") : (dialogDescription || "Create a new partner shop/service listing. Service listings can be saved without image upload.")}
           </DialogDescription>
         </DialogHeader>
         {product?.id ? (
@@ -743,25 +783,31 @@ export default function PartnerProductForm({ product, onSaved, disabled = false,
           <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
             <div>
               <Label>Listing Type *</Label>
-              <div className="mt-1.5 grid grid-cols-2 gap-2" data-testid="my-listing-type">
-                <button
-                  type="button"
-                  onClick={() => setForm((prev) => ({ ...prev, listing_type: "product" }))}
-                  className={`h-10 rounded-md border text-sm font-semibold ${form.listing_type === "product" ? "border-emerald-700 bg-emerald-50 text-emerald-900" : "border-border bg-white text-slate-700"}`}
-                >
-                  Product
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setForm((prev) => ({ ...prev, listing_type: "service", stock: prev.stock || "1" }))}
-                  className={`h-10 rounded-md border text-sm font-semibold ${form.listing_type === "service" ? "border-emerald-700 bg-emerald-50 text-emerald-900" : "border-border bg-white text-slate-700"}`}
-                >
-                  Service
-                </button>
-              </div>
+              {hasFixedListingType ? (
+                <div className="mt-1.5 h-10 rounded-md border border-emerald-700 bg-emerald-50 px-3 text-sm font-semibold text-emerald-900 flex items-center" data-testid="my-listing-type-fixed">
+                  {forcedListingType === "service" ? "Service" : "Product"}
+                </div>
+              ) : (
+                <div className="mt-1.5 grid grid-cols-2 gap-2" data-testid="my-listing-type">
+                  <button
+                    type="button"
+                    onClick={() => setForm((prev) => ({ ...prev, listing_type: "product" }))}
+                    className={`h-10 rounded-md border text-sm font-semibold ${form.listing_type === "product" ? "border-emerald-700 bg-emerald-50 text-emerald-900" : "border-border bg-white text-slate-700"}`}
+                  >
+                    Product
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setForm((prev) => ({ ...prev, listing_type: "service", stock: prev.stock || "1" }))}
+                    className={`h-10 rounded-md border text-sm font-semibold ${form.listing_type === "service" ? "border-emerald-700 bg-emerald-50 text-emerald-900" : "border-border bg-white text-slate-700"}`}
+                  >
+                    Service
+                  </button>
+                </div>
+              )}
             </div>
             <div>
-              <Label>{form.listing_type === "service" ? "Service Name *" : "Product Name *"}</Label>
+              <Label>{(hasFixedListingType ? forcedListingType : form.listing_type) === "service" ? "Service Name *" : "Product Name *"}</Label>
               <Input required value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} className="mt-1" data-testid="my-prod-name" />
             </div>
           </div>
@@ -769,19 +815,19 @@ export default function PartnerProductForm({ product, onSaved, disabled = false,
             <div><Label>Category *</Label><Input required value={form.category} onChange={(e) => setForm({ ...form, category: e.target.value })} className="mt-1" data-testid="my-prod-cat" /></div>
             <div><Label>PDF Link</Label><Input value={form.pdf_url || ""} onChange={(e) => setForm({ ...form, pdf_url: e.target.value })} className="mt-1" placeholder="https://...pdf" data-testid="my-prod-pdf" /></div>
           </div>
-          {form.listing_type === "service" ? (
+          {(hasFixedListingType ? forcedListingType : form.listing_type) === "service" ? (
             <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-3 space-y-3" data-testid="service-template-block">
               <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
                 <div>
                   <p className="text-sm font-semibold text-emerald-950">Ready Service Templates</p>
-                  <p className="text-[11px] text-emerald-900">Hotel room, homestay, clinic, restaurant table, salon সহ pre-built setup।</p>
+                  <p className="text-[11px] text-emerald-900">{normalizedAllowedServiceSectors?.length === 1 && normalizedAllowedServiceSectors[0] === "Transport" ? "শুধু transport ride/rental templates এখানেই থাকবে।" : "Hotel room, homestay, clinic, restaurant table, salon সহ pre-built setup।"}</p>
                 </div>
                 <select
                   value={serviceSectorFilter}
                   onChange={(e) => setServiceSectorFilter(e.target.value)}
                   className="h-9 rounded-md border border-emerald-300 bg-white px-3 text-xs"
                 >
-                  {Array.from(new Set(["All", ...SERVICE_TEMPLATES.map((s) => s.sector)])).map((sector) => (
+                  {serviceSectorOptions.map((sector) => (
                     <option key={sector} value={sector}>{sector}</option>
                   ))}
                 </select>

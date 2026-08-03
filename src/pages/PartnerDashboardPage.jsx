@@ -163,7 +163,8 @@ export default function PartnerDashboardPage() {
   const [presetBusy, setPresetBusy] = useState(false);
   const [presetForm, setPresetForm] = useState({ service_product_id: "", destination: "", fare: "", pickup_hint: "", notes: "" });
   const productItems = products.filter((p) => !(String(p?.listing_type || p?.item_kind || "").toLowerCase().includes("service") || p?.is_service));
-  const serviceItems = products.filter((p) => String(p?.listing_type || p?.item_kind || "").toLowerCase().includes("service") || p?.is_service);
+  const transportItems = products.filter((p) => (String(p?.listing_type || p?.item_kind || "").toLowerCase().includes("service") || p?.is_service) && isTransportServiceListing(p));
+  const serviceItems = products.filter((p) => (String(p?.listing_type || p?.item_kind || "").toLowerCase().includes("service") || p?.is_service) && !isTransportServiceListing(p));
 
   const loadAll = () => {
     api.get("/partner/summary").then(r => setSummary(r.data)).catch(() => {});
@@ -202,7 +203,7 @@ export default function PartnerDashboardPage() {
   const confirmTripBooking = async (tripId) => {
     try {
       await api.post(`/partner/transport/bookings/${tripId}/confirm`, {});
-      toast.success("Booking confirmed and commission credited");
+      toast.success("Final fare locked, reserve debited, and trip auto-approved");
       loadAll();
     } catch (err) {
       toast.error(err?.response?.data?.detail || "Booking confirmation failed");
@@ -609,8 +610,8 @@ export default function PartnerDashboardPage() {
         <div className="flex flex-wrap gap-2">
           <Tab id="overview" active={tab} onClick={setTab}>Overview</Tab>
           <Tab id="products" active={tab} onClick={setTab}>Products ({productItems.length})</Tab>
+          <Tab id="transport" active={tab} onClick={setTab}>Transport ({transportItems.length})</Tab>
           <Tab id="services" active={tab} onClick={setTab}>Services ({serviceItems.length})</Tab>
-          <Tab id="transport" active={tab} onClick={setTab}>Transport Trips ({transportData?.items?.length || 0})</Tab>
           <Tab id="offline" active={tab} onClick={setTab}>Offline Billing</Tab>
           <Tab id="orders" active={tab} onClick={setTab}>Orders ({orders.length})</Tab>
           <Tab id="ledger" active={tab} onClick={setTab}>Ledger ({ledger.length})</Tab>
@@ -621,7 +622,7 @@ export default function PartnerDashboardPage() {
             <div className="rounded-xl border border-amber-300 bg-amber-50 p-4 mb-5">
               <p className="text-[10px] uppercase tracking-widest text-amber-800 font-bold">Listing Manager</p>
               <h3 className="font-display font-bold text-emerald-950 text-base mt-1">Shop listing manage এখান থেকেই করুন</h3>
-              <p className="text-xs text-slate-700 mt-1">Product আর Service আলাদা tab-এ আছে, তাই mix হবে না।</p>
+              <p className="text-xs text-slate-700 mt-1">Product, regular service, আর transport এখন আলাদা tab-এ থাকবে, তাই mix হবে না।</p>
               <div className="mt-3">
                 <Button
                   type="button"
@@ -931,7 +932,14 @@ export default function PartnerDashboardPage() {
                     <Images className="w-4 h-4 mr-1" /> Share Product PDF on WhatsApp
                   </Button>
                 )}
-                <PartnerProductForm onSaved={loadAll} defaultListingType="product" />
+                <PartnerProductForm
+                  onSaved={loadAll}
+                  defaultListingType="product"
+                  fixedListingType="product"
+                  triggerLabel="Add Product"
+                  dialogTitle="New Product"
+                  dialogDescription="Create a product listing only. Service or transport options are not shown in this form."
+                />
               </div>
             </div>
             <p className="mb-4 text-xs text-slate-600">
@@ -957,7 +965,14 @@ export default function PartnerDashboardPage() {
                     </div>
                     <div className="p-3"><p className="font-semibold text-sm text-emerald-950">{p.name}</p><p className="text-xs text-muted-foreground">{p.category}</p><p className="font-display font-black text-emerald-800 mt-1">{withUnit(p.price, p.unit_type)}</p><p className="text-[10px] text-slate-500">Stock: {p.stock}</p>
                     <div className="flex gap-1 mt-2">
-                      <PartnerProductForm product={p} onSaved={loadAll} />
+                      <PartnerProductForm
+                        product={p}
+                        onSaved={loadAll}
+                        fixedListingType="product"
+                        triggerLabel="Edit Product"
+                        dialogTitle="Edit Product"
+                        dialogDescription="Update only this product listing. Service or transport options are hidden here."
+                      />
                       <Button size="sm" variant="outline" className="rounded-full border-red-300 text-red-700 hover:bg-red-50 h-7 px-2 text-[11px]" onClick={() => deleteProduct(p.id)} data-testid={`del-my-product-${p.id}`}>Delete</Button>
                     </div>
                     </div>
@@ -980,7 +995,15 @@ export default function PartnerDashboardPage() {
                     </Button>
                   </Link>
                 )}
-                <PartnerProductForm onSaved={loadAll} defaultListingType="service" />
+                <PartnerProductForm
+                  onSaved={loadAll}
+                  defaultListingType="service"
+                  fixedListingType="service"
+                  excludedServiceSectors={["Transport", "Logistics"]}
+                  triggerLabel="Add Service"
+                  dialogTitle="New Service"
+                  dialogDescription="Create only hotel, homestay, clinic, repair, salon and other non-transport service listings here."
+                />
               </div>
             </div>
             <p className="mb-4 text-xs text-slate-600">
@@ -1006,7 +1029,15 @@ export default function PartnerDashboardPage() {
                     </div>
                     <div className="p-3"><p className="font-semibold text-sm text-emerald-950">{p.name}</p><p className="text-xs text-muted-foreground">{p.category}</p><p className="font-display font-black text-emerald-800 mt-1">{withUnit(p.price, p.unit_type)}</p><p className="text-[10px] text-slate-500">{String(p?.service_invoice_mode || "detailed").replace(/_/g, " ")}</p>
                     <div className="flex gap-1 mt-2">
-                      <PartnerProductForm product={p} onSaved={loadAll} />
+                      <PartnerProductForm
+                        product={p}
+                        onSaved={loadAll}
+                        fixedListingType="service"
+                        excludedServiceSectors={["Transport", "Logistics"]}
+                        triggerLabel="Edit Service"
+                        dialogTitle="Edit Service"
+                        dialogDescription="Update only this non-transport service listing. Transport templates are hidden here."
+                      />
                       <Button size="sm" variant="outline" className="rounded-full border-red-300 text-red-700 hover:bg-red-50 h-7 px-2 text-[11px]" onClick={() => deleteProduct(p.id)} data-testid={`del-my-product-${p.id}`}>Delete</Button>
                     </div>
                     </div>
@@ -1021,12 +1052,112 @@ export default function PartnerDashboardPage() {
           <div className="bg-white rounded-xl border border-border p-6" data-testid="partner-transport-tab">
             <div className="flex flex-wrap items-center justify-between gap-3">
               <div>
-                <p className="text-[10px] uppercase tracking-widest text-emerald-800 font-semibold">Transport Bookings</p>
-                <h3 className="font-display font-bold text-emerald-950 text-lg mt-1 inline-flex items-center gap-2"><CarTaxiFront className="w-4 h-4" /> Cab / Car Rental / Bike Rental Trip Queue</h3>
-                <p className="text-xs text-slate-600 mt-1">Trip start করার আগে reserve wallet check হবে। balance কম হলে start block হবে।</p>
+                <p className="text-[10px] uppercase tracking-widest text-emerald-800 font-semibold">Transport Hub</p>
+                <h3 className="font-display font-bold text-emerald-950 text-lg mt-1 inline-flex items-center gap-2"><CarTaxiFront className="w-4 h-4" /> Cab / Car Rental / Bike Rental Control Room</h3>
+                <p className="text-xs text-slate-600 mt-1">Transport service listing, fare lock, reserve debit, auto approval, and trip queue সবকিছু এই tab-এই থাকবে.</p>
               </div>
               <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900 inline-flex items-center gap-2">
                 <Wallet className="w-4 h-4" /> Wallet Balance: {inr(transportData?.wallet?.balance || 0)}
+              </div>
+            </div>
+
+            <div className="mt-4 grid grid-cols-1 xl:grid-cols-[1.15fr_0.85fr] gap-4">
+              <div className="rounded-xl border border-sky-200 bg-sky-50/70 p-4">
+                <div className="flex items-center justify-between gap-3 flex-wrap">
+                  <div>
+                    <p className="text-[10px] uppercase tracking-widest text-sky-700 font-semibold">Transport Listings</p>
+                    <h4 className="font-display font-bold text-emerald-950 text-base mt-1">Add and manage ride/rental services only</h4>
+                    <p className="text-xs text-slate-600 mt-1">এখান থেকে শুধু cab, car rental, bike rental, mini cargo ধরনের transport listing manage করুন। এগুলো service tab-এ যাবে না।</p>
+                  </div>
+                  <PartnerProductForm
+                    onSaved={loadAll}
+                    defaultListingType="service"
+                    fixedListingType="service"
+                    allowedServiceSectors={["Transport", "Logistics"]}
+                    initialServiceSectorFilter="Transport"
+                    triggerLabel="Add Transport"
+                    dialogTitle="New Transport Listing"
+                    dialogDescription="Create only transport listings here. Final fare and trip flow will be managed from the same transport tab."
+                  />
+                </div>
+                <div className="mt-4 grid grid-cols-1 md:grid-cols-2 gap-3">
+                  <div className="rounded-lg border border-sky-200 bg-white p-3">
+                    <p className="text-[10px] uppercase tracking-widest text-sky-700 font-semibold">Live Transport Listings</p>
+                    <p className="font-display font-black text-2xl text-emerald-950 mt-1">{transportItems.length}</p>
+                    <p className="text-xs text-slate-600 mt-1">Customer ride/service chooser-এ দেখানোর জন্য live transport cards.</p>
+                  </div>
+                  <div className="rounded-lg border border-sky-200 bg-white p-3">
+                    <p className="text-[10px] uppercase tracking-widest text-sky-700 font-semibold">Trip Queue</p>
+                    <p className="font-display font-black text-2xl text-emerald-950 mt-1">{transportData?.items?.length || 0}</p>
+                    <p className="text-xs text-slate-600 mt-1">Booked, confirmed, on-trip, completed, paid সব booking state এখানে track হবে.</p>
+                  </div>
+                </div>
+                {transportItems.length === 0 ? (
+                  <div className="mt-4 rounded-lg border border-dashed border-sky-300 bg-white px-4 py-8 text-center text-sm text-slate-500">
+                    No transport listing yet. Use Add Transport to create cab, rental, or cargo service.
+                  </div>
+                ) : (
+                  <div className="mt-4 grid grid-cols-2 md:grid-cols-4 gap-4">
+                    {transportItems.map((p) => (
+                      <div key={p.id} className="rounded-lg border border-border overflow-hidden bg-white">
+                        <div className="aspect-square bg-secondary relative">
+                          <img src={resolveAssetUrl(p.image_url) || (getPdfUrl(p) ? PDF_PREVIEW : undefined)} alt={p.name} className="w-full h-full object-cover" />
+                          {getPdfUrl(p) ? (
+                            <button
+                              type="button"
+                              onClick={() => window.open(getPdfUrl(p), "_blank")}
+                              className="absolute left-2 top-2 rounded-full bg-white/90 text-emerald-900 px-2.5 py-1 text-[10px] font-bold"
+                            >
+                              Open PDF
+                            </button>
+                          ) : null}
+                        </div>
+                        <div className="p-3">
+                          <p className="text-[10px] uppercase tracking-widest text-sky-700 font-semibold">Transport</p>
+                          <p className="font-semibold text-sm text-emerald-950 mt-0.5">{p.name}</p>
+                          <p className="text-xs text-muted-foreground">{p.category}</p>
+                          <p className="font-display font-black text-emerald-800 mt-1">{withUnit(p.price, p.unit_type)}</p>
+                          <p className="text-[10px] text-slate-500">{String(p?.service_template_key || "transport").replace(/_/g, " ")}</p>
+                          <div className="flex gap-1 mt-2">
+                            <PartnerProductForm
+                              product={p}
+                              onSaved={loadAll}
+                              fixedListingType="service"
+                              allowedServiceSectors={["Transport", "Logistics"]}
+                              initialServiceSectorFilter="Transport"
+                              triggerLabel="Edit Transport"
+                              dialogTitle="Edit Transport Listing"
+                              dialogDescription="Update only this transport listing. Fare confirmation and trip execution stay in the transport tab."
+                            />
+                            <Button size="sm" variant="outline" className="rounded-full border-red-300 text-red-700 hover:bg-red-50 h-7 px-2 text-[11px]" onClick={() => deleteProduct(p.id)} data-testid={`del-my-transport-${p.id}`}>Delete</Button>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              <div className="rounded-xl border border-amber-200 bg-amber-50 p-4">
+                <p className="text-[10px] uppercase tracking-widest text-amber-800 font-semibold">How Transport Approval Works</p>
+                <div className="mt-3 space-y-3 text-xs text-amber-900">
+                  <div className="rounded-lg border border-amber-200 bg-white px-3 py-2">
+                    <p className="font-semibold">1. While status = booked, final fare set করুন</p>
+                    <p className="mt-1">এই stage-এ fare change করা যাবে। trip start/confirm হওয়ার পর আর fare edit হবে না।</p>
+                  </div>
+                  <div className="rounded-lg border border-amber-200 bg-white px-3 py-2">
+                    <p className="font-semibold">2. Confirm Booking দিলে fare lock হবে</p>
+                    <p className="mt-1">Backend অনুযায়ী reserve wallet থেকে required commission debit হয়, METHO-তে credit হয়, order auto-approved হয়, তারপর trip status confirmed হয়।</p>
+                  </div>
+                  <div className="rounded-lg border border-amber-200 bg-white px-3 py-2">
+                    <p className="font-semibold">3. Confirm হওয়ার পর Start Trip button আসবে</p>
+                    <p className="mt-1">মানে auto-approval হয়, কিন্তু trip auto-start হয় না। Partner manually Start Trip চাপবে।</p>
+                  </div>
+                  <div className="rounded-lg border border-amber-200 bg-white px-3 py-2">
+                    <p className="font-semibold">4. Complete Trip -> Show QR -> Mark Paid</p>
+                    <p className="mt-1">Destination-এ customer payment নিলে transaction ID দিয়ে paid mark করবেন।</p>
+                  </div>
+                </div>
               </div>
             </div>
 
@@ -1146,10 +1277,10 @@ export default function PartnerDashboardPage() {
                             data-testid={`partner-trip-fare-${trip.id}`}
                           />
                           <Button variant="outline" className="rounded-full" onClick={() => updateTripFare(trip.id)}>
-                            Set Final Fare
+                            Save Final Fare
                           </Button>
                           <Button className="rounded-full bg-emerald-900 hover:bg-emerald-950 text-white" onClick={() => confirmTripBooking(trip.id)}>
-                            <CheckCircle2 className="w-4 h-4 mr-1" /> Confirm Booking & Lock Fare
+                            <CheckCircle2 className="w-4 h-4 mr-1" /> Confirm + Lock Fare + Auto Approve
                           </Button>
                         </div>
                       ) : null}
