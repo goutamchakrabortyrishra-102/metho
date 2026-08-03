@@ -530,6 +530,10 @@ const resolveListingType = (item) => {
   return "product";
 };
 
+const normalizeListingType = (value) => {
+  return String(value || "").toLowerCase() === "service" ? "service" : "product";
+};
+
 const toDataUrl = (file) => new Promise((resolve, reject) => {
   const reader = new FileReader();
   reader.onload = () => resolve(String(reader.result || ""));
@@ -568,9 +572,9 @@ const imageToPdfBlob = async (file) => {
   return pdf.output("blob");
 };
 
-export default function PartnerProductForm({ product, onSaved, disabled = false, disabledReason = "" }) {
+export default function PartnerProductForm({ product, onSaved, disabled = false, disabledReason = "", defaultListingType = "product" }) {
   const [open, setOpen] = useState(false);
-  const [form, setForm] = useState(product || EMPTY);
+  const [form, setForm] = useState({ ...EMPTY, listing_type: normalizeListingType(defaultListingType) });
   const [busy, setBusy] = useState(false);
   const [uploadingImage, setUploadingImage] = useState(false);
   const [localPreviewUrl, setLocalPreviewUrl] = useState("");
@@ -578,10 +582,12 @@ export default function PartnerProductForm({ product, onSaved, disabled = false,
   const fileRef = useRef(null);
 
   useEffect(() => {
-    const source = product || EMPTY;
-    setForm({ ...EMPTY, ...source, listing_type: resolveListingType(source) });
+    const fallbackType = normalizeListingType(defaultListingType);
+    const source = product || { ...EMPTY, listing_type: fallbackType };
+    const resolved = product ? resolveListingType(source) : fallbackType;
+    setForm({ ...EMPTY, ...source, listing_type: resolved });
     setLocalPreviewUrl("");
-  }, [product]);
+  }, [product, defaultListingType]);
 
   const visibleServiceTemplates = SERVICE_TEMPLATES.filter((tpl) => serviceSectorFilter === "All" || tpl.sector === serviceSectorFilter);
 

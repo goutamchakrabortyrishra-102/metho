@@ -236,6 +236,7 @@ export default function PartnerDashboardPage() {
   const publicShopUrl = summary?.partner_code
     ? `${window.location.origin}/partner-shop/${encodeURIComponent(summary.partner_code)}`
     : "";
+  const isServicePartner = String(summary?.business_type || summary?.business_name || "").toLowerCase().includes("service");
 
   const copyPublicShopUrl = async () => {
     if (!publicShopUrl) return;
@@ -862,7 +863,7 @@ export default function PartnerDashboardPage() {
                     <Images className="w-4 h-4 mr-1" /> Share PDF on WhatsApp
                   </Button>
                 )}
-                <PartnerProductForm onSaved={loadAll} />
+                <PartnerProductForm onSaved={loadAll} defaultListingType={isServicePartner ? "service" : "product"} />
               </div>
             </div>
             <p className="mb-4 text-xs text-slate-600">

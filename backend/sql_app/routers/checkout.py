@@ -739,6 +739,7 @@ def partner_summary(db: Session = Depends(get_db), current_user=Depends(get_curr
         return {
             "partner_code": "-",
             "business_name": current_user.name,
+            "business_type": "",
             "commission_percent": 0,
             "total_sales": 0,
             "total_commission_paid": 0,
@@ -752,6 +753,7 @@ def partner_summary(db: Session = Depends(get_db), current_user=Depends(get_curr
         return {
             "partner_code": "MTH-PARTNER",
             "business_name": current_user.name,
+            "business_type": "",
             "commission_percent": 10,
             "total_sales": 0,
             "total_commission_paid": 0,
@@ -769,6 +771,7 @@ def partner_summary(db: Session = Depends(get_db), current_user=Depends(get_curr
     return {
         "partner_code": partner.partner_code,
         "business_name": partner.business_name,
+        "business_type": str(partner.business_type or ""),
         "commission_percent": float(partner.commission_percent or 0),
         "total_sales": float(partner.total_sales or 0),
         "total_commission_paid": 0,
