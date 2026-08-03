@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from "react";
 import { Link, Navigate } from "react-router-dom";
-import { Store, TrendingUp, Percent, Package, ShoppingCart, FileText, LogOut, ScrollText, FileSpreadsheet, FileDown, Images, ReceiptText, Copy, MessageCircle, ExternalLink } from "lucide-react";
+import { Store, TrendingUp, Percent, Package, ShoppingCart, FileText, LogOut, ScrollText, FileSpreadsheet, FileDown, Images, ReceiptText, Copy, MessageCircle, ExternalLink, CarTaxiFront, PlayCircle, CheckCircle2, Wallet } from "lucide-react";
 import * as XLSX from "xlsx";
 import { toast } from "sonner";
 import api from "@/services/api";
@@ -140,6 +140,10 @@ export default function PartnerDashboardPage() {
   const [shopBannerUrl, setShopBannerUrl] = useState("");
   const [partnerUpiId, setPartnerUpiId] = useState("");
   const [savingPartnerUpi, setSavingPartnerUpi] = useState(false);
+  const [transportData, setTransportData] = useState({ items: [], wallet: { balance: 0 } });
+  const [loadingTransport, setLoadingTransport] = useState(false);
+  const [fareDrafts, setFareDrafts] = useState({});
+  const [txnDrafts, setTxnDrafts] = useState({});
 
   const loadAll = () => {
     api.get("/partner/summary").then(r => setSummary(r.data)).catch(() => {});
@@ -155,6 +159,59 @@ export default function PartnerDashboardPage() {
     }).catch(() => {
       // Keep current UI state if reload fails; avoid wiping freshly uploaded previews.
     });
+    setLoadingTransport(true);
+    api.get("/partner/transport/bookings").then((r) => setTransportData(r.data || { items: [], wallet: { balance: 0 } })).catch(() => setTransportData({ items: [], wallet: { balance: 0 } })).finally(() => setLoadingTransport(false));
+  };
+
+  const updateTripFare = async (tripId) => {
+    const nextFare = Number(fareDrafts?.[tripId] || 0);
+    if (!nextFare || nextFare <= 0) {
+      toast.error("Valid fare দিন");
+      return;
+    }
+    try {
+      await api.post(`/partner/transport/bookings/${tripId}/fare`, { fare_final: nextFare });
+      toast.success("Fare updated");
+      loadAll();
+    } catch (err) {
+      toast.error(err?.response?.data?.detail || "Fare update failed");
+    }
+  };
+
+  const startTrip = async (tripId) => {
+    try {
+      await api.post(`/partner/transport/bookings/${tripId}/start`, {});
+      toast.success("Trip started");
+      loadAll();
+    } catch (err) {
+      toast.error(err?.response?.data?.detail || "Trip start failed");
+    }
+  };
+
+  const completeTrip = async (tripId) => {
+    try {
+      await api.post(`/partner/transport/bookings/${tripId}/complete`, {});
+      toast.success("Trip completed. Show QR for payment.");
+      loadAll();
+    } catch (err) {
+      toast.error(err?.response?.data?.detail || "Trip complete failed");
+    }
+  };
+
+  const markTripPaid = async (tripId) => {
+    const txn = String(txnDrafts?.[tripId] || "").trim();
+    if (!txn) {
+      toast.error("Transaction ID দিন");
+      return;
+    }
+    try {
+      await api.post(`/partner/transport/bookings/${tripId}/mark-paid`, { txn_id: txn });
+      toast.success("Payment marked. Admin approval pending.");
+      setTxnDrafts((prev) => ({ ...prev, [tripId]: "" }));
+      loadAll();
+    } catch (err) {
+      toast.error(err?.response?.data?.detail || "Payment mark failed");
+    }
   };
 
   useEffect(() => {
@@ -474,6 +531,7 @@ export default function PartnerDashboardPage() {
         <div className="flex flex-wrap gap-2">
           <Tab id="overview" active={tab} onClick={setTab}>Overview</Tab>
           <Tab id="products" active={tab} onClick={setTab}>Gallery Products ({products.length})</Tab>
+          <Tab id="transport" active={tab} onClick={setTab}>Transport Trips ({transportData?.items?.length || 0})</Tab>
           <Tab id="offline" active={tab} onClick={setTab}>Offline Billing</Tab>
           <Tab id="orders" active={tab} onClick={setTab}>Orders ({orders.length})</Tab>
           <Tab id="ledger" active={tab} onClick={setTab}>Ledger ({ledger.length})</Tab>
@@ -826,6 +884,108 @@ export default function PartnerDashboardPage() {
                     </div>
                   </div>
                 ))}
+              </div>
+            )}
+          </div>
+        )}
+
+        {tab === "transport" && (
+          <div className="bg-white rounded-xl border border-border p-6" data-testid="partner-transport-tab">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div>
+                <p className="text-[10px] uppercase tracking-widest text-emerald-800 font-semibold">Transport Bookings</p>
+                <h3 className="font-display font-bold text-emerald-950 text-lg mt-1 inline-flex items-center gap-2"><CarTaxiFront className="w-4 h-4" /> Cab / Car Rental / Bike Rental Trip Queue</h3>
+                <p className="text-xs text-slate-600 mt-1">Trip start করার আগে reserve wallet check হবে। balance কম হলে start block হবে।</p>
+              </div>
+              <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900 inline-flex items-center gap-2">
+                <Wallet className="w-4 h-4" /> Wallet Balance: {inr(transportData?.wallet?.balance || 0)}
+              </div>
+            </div>
+
+            {loadingTransport ? (
+              <p className="text-sm text-slate-500 mt-4">Loading transport bookings...</p>
+            ) : (transportData?.items || []).length === 0 ? (
+              <p className="text-sm text-muted-foreground mt-4">No transport bookings yet.</p>
+            ) : (
+              <div className="mt-4 space-y-3">
+                {(transportData?.items || []).map((trip) => {
+                  const required = Number(trip?.required_commission_reserve || 0);
+                  const fare = Number(trip?.fare_final || trip?.fare_quote || 0);
+                  const status = String(trip?.status || "booked");
+                  return (
+                    <div key={trip.id} className="rounded-xl border border-border p-4" data-testid={`partner-trip-${trip.id}`}>
+                      <div className="flex flex-wrap items-start justify-between gap-3">
+                        <div>
+                          <p className="font-mono text-xs text-emerald-800">{trip.trip_code || trip.id}</p>
+                          <p className="font-semibold text-emerald-950 mt-1">{trip.service_name || "Transport Service"} · {trip.vehicle_type || "cab"}</p>
+                          <p className="text-xs text-slate-600 mt-1">{trip.pickup} -> {trip.destination}</p>
+                          <p className="text-xs text-slate-600">Customer: {trip.customer_name || "Customer"}{trip.customer_phone ? ` (${trip.customer_phone})` : ""}</p>
+                        </div>
+                        <div className="text-right">
+                          <p className="text-[10px] uppercase tracking-widest text-slate-500 font-bold">Status</p>
+                          <p className="font-semibold text-emerald-900 uppercase">{status}</p>
+                          <p className="text-xs text-slate-600 mt-1">Fare: {inr(fare)}</p>
+                          <p className="text-xs text-amber-700">Reserve needed: {inr(required)}</p>
+                        </div>
+                      </div>
+
+                      {status === "booked" ? (
+                        <div className="mt-3 grid grid-cols-1 md:grid-cols-[1fr_auto_auto] gap-2">
+                          <Input
+                            type="number"
+                            min="1"
+                            step="0.01"
+                            value={fareDrafts?.[trip.id] ?? fare}
+                            onChange={(e) => setFareDrafts((prev) => ({ ...prev, [trip.id]: e.target.value }))}
+                            className="h-10"
+                            data-testid={`partner-trip-fare-${trip.id}`}
+                          />
+                          <Button variant="outline" className="rounded-full" onClick={() => updateTripFare(trip.id)}>
+                            Update Fare
+                          </Button>
+                          <Button className="rounded-full bg-emerald-900 hover:bg-emerald-950 text-white" onClick={() => startTrip(trip.id)}>
+                            <PlayCircle className="w-4 h-4 mr-1" /> Start Trip
+                          </Button>
+                        </div>
+                      ) : null}
+
+                      {status === "on_trip" ? (
+                        <div className="mt-3">
+                          <Button className="rounded-full bg-emerald-900 hover:bg-emerald-950 text-white" onClick={() => completeTrip(trip.id)}>
+                            <CheckCircle2 className="w-4 h-4 mr-1" /> Complete Trip (Show QR)
+                          </Button>
+                        </div>
+                      ) : null}
+
+                      {status === "completed" || status === "paid" ? (
+                        <div className="mt-3 rounded-lg border border-emerald-200 bg-emerald-50 p-3 space-y-2">
+                          <p className="text-xs text-emerald-900">Destination reached. Driver QR থেকে payment নিন, তারপর Transaction ID দিন।</p>
+                          <div className="flex flex-wrap gap-3 items-start">
+                            {paymentProfile?.partner_qr_url ? (
+                              <img src={paymentProfile.partner_qr_url} alt="Partner payment QR" className="w-24 h-24 rounded-lg border border-border bg-white object-contain" />
+                            ) : null}
+                            <div className="text-xs text-slate-700">
+                              <p className="font-semibold text-emerald-900">Payment UPI</p>
+                              <p className="font-mono">{paymentProfile?.partner_upi_id || "Not set"}</p>
+                              {!paymentProfile?.partner_qr_url ? <p className="text-amber-700 mt-1">QR আপলোড না থাকলে আগে Overview tab থেকে partner payment QR upload করুন।</p> : null}
+                            </div>
+                          </div>
+                          <div className="flex gap-2">
+                            <Input
+                              value={txnDrafts?.[trip.id] || ""}
+                              onChange={(e) => setTxnDrafts((prev) => ({ ...prev, [trip.id]: e.target.value }))}
+                              placeholder="UPI Transaction ID"
+                              className="h-10"
+                            />
+                            <Button className="rounded-full bg-emerald-900 hover:bg-emerald-950 text-white" onClick={() => markTripPaid(trip.id)}>
+                              Mark Paid
+                            </Button>
+                          </div>
+                        </div>
+                      ) : null}
+                    </div>
+                  );
+                })}
               </div>
             )}
           </div>

@@ -179,6 +179,15 @@ const isServiceListing = (item) => {
   return false;
 };
 
+const isTransportServiceListing = (item) => {
+  const key = String(item?.service_template_key || "").trim().toLowerCase();
+  if (["cab_airport_drop", "car_rental_daily", "bike_rental_daily"].includes(key)) return true;
+  const haystack = [item?.category, item?.name, item?.description]
+    .map((v) => String(v || "").toLowerCase())
+    .join(" ");
+  return ["transport", "cab", "taxi", "bike rental", "car rental", "ride"].some((k) => haystack.includes(k));
+};
+
 const normalizePartnerPayload = (payload) => {
   const partner = payload?.partner || {};
   const featuredImages = normalizeFeaturedImages(payload?.featured_images || payload?.partner?.featured_images);
@@ -225,6 +234,18 @@ export default function PartnerShopPage() {
   const [cashback, setCashback] = useState(null); // {percent, max, eligible}
   const [productSearch, setProductSearch] = useState("");
   const [serviceSearch, setServiceSearch] = useState("");
+  const [transportModalOpen, setTransportModalOpen] = useState(false);
+  const [transportService, setTransportService] = useState(null);
+  const [transportBusy, setTransportBusy] = useState(false);
+  const [transportBooking, setTransportBooking] = useState(null);
+  const [transportForm, setTransportForm] = useState({
+    customer_name: "",
+    customer_phone: "",
+    pickup: "",
+    destination: "",
+    travel_date: "",
+    notes: "",
+  });
 
   useEffect(() => {
     api.get(`/directory/partner/${partnerCode}`)
@@ -349,9 +370,71 @@ export default function PartnerShopPage() {
 
   const bookServiceNow = (service) => {
     if (!service?.id) return;
+    if (isTransportServiceListing(service)) {
+      if (!user) {
+        toast.error("Transport booking করতে login করতে হবে");
+        nav(`/login?next=/partner-shop/${partnerCode}`);
+        return;
+      }
+      setTransportService(service);
+      setTransportForm({
+        customer_name: user?.name || "",
+        customer_phone: user?.phone || "",
+        pickup: "",
+        destination: "",
+        travel_date: "",
+        notes: "",
+      });
+      setTransportBooking(null);
+      setTransportModalOpen(true);
+      return;
+    }
     setCart((prev) => ({ ...prev, [service.id]: 1 }));
     setOpen(true);
     toast.success(`${service.name || "Service"} booking started`);
+  };
+
+  const submitTransportBooking = async () => {
+    if (!transportService?.id) return;
+    if (!transportForm.pickup.trim() || !transportForm.destination.trim()) {
+      toast.error("Pickup আর destination দিন");
+      return;
+    }
+    setTransportBusy(true);
+    try {
+      const { data } = await api.post("/transport/bookings", {
+        partner_code: partnerCode,
+        service_product_id: transportService.id,
+        vehicle_type: String(transportService?.service_template_key || "cab").includes("bike") ? "bike_rental" : String(transportService?.service_template_key || "cab").includes("car") ? "car_rental" : "cab",
+        customer_name: transportForm.customer_name,
+        customer_phone: transportForm.customer_phone,
+        pickup: transportForm.pickup,
+        destination: transportForm.destination,
+        travel_date: transportForm.travel_date,
+        notes: transportForm.notes,
+        member_ref: guestMemberRef,
+      });
+      setTransportBooking(data?.booking || null);
+      toast.success("Transport booking submitted");
+    } catch (err) {
+      toast.error(err?.response?.data?.detail || "Transport booking failed");
+    } finally {
+      setTransportBusy(false);
+    }
+  };
+
+  const refreshTransportBooking = async () => {
+    const id = String(transportBooking?.id || "").trim();
+    if (!id) return;
+    try {
+      const { data } = await api.get(`/transport/bookings/${id}`);
+      setTransportBooking(data?.booking || null);
+      if (String(data?.booking?.status || "") === "completed") {
+        toast.success("Driver is waiting for payment QR flow at destination");
+      }
+    } catch (err) {
+      toast.error(err?.response?.data?.detail || "Refresh failed");
+    }
   };
 
   const closePreview = () => setPreviewItem(null);
@@ -839,7 +922,7 @@ export default function PartnerShopPage() {
                       className="w-full mt-3 rounded-full bg-emerald-900 hover:bg-emerald-950 text-white"
                       data-testid={`shop-book-service-${service.id}`}
                     >
-                      <CalendarCheck2 className="w-4 h-4 mr-2" /> Book Now
+                      <CalendarCheck2 className="w-4 h-4 mr-2" /> {isTransportServiceListing(service) ? "Book Ride" : "Book Now"}
                     </Button>
                   </div>
                 </div>
@@ -878,6 +961,56 @@ export default function PartnerShopPage() {
                 <span className="text-sm text-slate-500">{isServiceListing(previewItem) ? "Service" : `Stock: ${getStock(previewItem)}`}</span>
               </div>
             </div>
+          </div>
+        </div>
+      ) : null}
+
+      {transportModalOpen ? (
+        <div className="fixed inset-0 z-50 bg-black/55 backdrop-blur-sm flex items-end md:items-center justify-center p-4" onClick={() => setTransportModalOpen(false)}>
+          <div className="bg-white rounded-2xl w-full max-w-lg shadow-2xl" onClick={(e) => e.stopPropagation()} data-testid="transport-booking-modal">
+            <div className="px-5 pt-5 pb-3 border-b border-border flex items-start justify-between gap-3">
+              <div>
+                <p className="text-[10px] uppercase tracking-widest text-emerald-800 font-semibold">Transport Booking</p>
+                <h3 className="font-display font-bold text-emerald-950 text-lg mt-1">{transportService?.name || "Book Ride"}</h3>
+                <p className="text-xs text-slate-600 mt-1">Fare set by partner: ₹{transportService?.price || 0}</p>
+              </div>
+              <button onClick={() => setTransportModalOpen(false)} className="w-8 h-8 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-700 flex items-center justify-center">
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            {!transportBooking ? (
+              <div className="p-5 space-y-3">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                  <Input value={transportForm.customer_name} onChange={(e) => setTransportForm((prev) => ({ ...prev, customer_name: e.target.value }))} placeholder="Customer name" className="h-10" />
+                  <Input value={transportForm.customer_phone} onChange={(e) => setTransportForm((prev) => ({ ...prev, customer_phone: e.target.value }))} placeholder="Mobile number" className="h-10" />
+                </div>
+                <Input value={transportForm.pickup} onChange={(e) => setTransportForm((prev) => ({ ...prev, pickup: e.target.value }))} placeholder="Pickup location" className="h-10" />
+                <Input value={transportForm.destination} onChange={(e) => setTransportForm((prev) => ({ ...prev, destination: e.target.value }))} placeholder="Destination" className="h-10" />
+                <Input type="datetime-local" value={transportForm.travel_date} onChange={(e) => setTransportForm((prev) => ({ ...prev, travel_date: e.target.value }))} className="h-10" />
+                <Input value={transportForm.notes} onChange={(e) => setTransportForm((prev) => ({ ...prev, notes: e.target.value }))} placeholder="Notes (optional)" className="h-10" />
+                <div className="flex gap-2 pt-1">
+                  <Button className="rounded-full bg-emerald-900 hover:bg-emerald-950 text-white" onClick={submitTransportBooking} disabled={transportBusy}>
+                    {transportBusy ? "Booking..." : "Confirm Booking"}
+                  </Button>
+                  <Button variant="outline" className="rounded-full" onClick={() => setTransportModalOpen(false)}>Close</Button>
+                </div>
+              </div>
+            ) : (
+              <div className="p-5 space-y-3">
+                <div className="rounded-lg border border-emerald-200 bg-emerald-50 p-3">
+                  <p className="text-xs text-emerald-900 font-semibold">Booking ID: {transportBooking.trip_code || transportBooking.id}</p>
+                  <p className="text-xs text-slate-700 mt-1">Status: <span className="font-semibold uppercase">{transportBooking.status}</span></p>
+                  <p className="text-xs text-slate-700">Final Fare: ₹{transportBooking.fare_final || transportBooking.fare_quote || 0}</p>
+                  <p className="text-xs text-slate-700">Route: {transportBooking.pickup} -> {transportBooking.destination}</p>
+                </div>
+                <p className="text-xs text-slate-600">Partner driver trip complete করলে destination-এ QR payment নেবেন। তারপর admin approval এ invoice + commission flow হবে।</p>
+                <div className="flex gap-2">
+                  <Button variant="outline" className="rounded-full" onClick={refreshTransportBooking}>Refresh Status</Button>
+                  <Button className="rounded-full bg-emerald-900 hover:bg-emerald-950 text-white" onClick={() => setTransportModalOpen(false)}>Done</Button>
+                </div>
+              </div>
+            )}
           </div>
         </div>
       ) : null}

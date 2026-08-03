@@ -40,6 +40,8 @@ PARTNER_PRODUCT_GALLERY_MAX_UPLOAD_BYTES = 5 * 1024 * 1024
 PRODUCT_IMAGE_MAX_UPLOAD_BYTES = 5 * 1024 * 1024
 PARTNER_PRODUCT_UNITS_KEY = "partner_product_units"
 PARTNER_UNIT_OPTIONS = {"piece", "kg", "gram", "litre", "ml"}
+PARTNER_PRODUCT_META_KEY = "partner_product_meta"
+TRANSPORT_SERVICE_TEMPLATE_KEYS = {"cab_airport_drop", "car_rental_daily", "bike_rental_daily"}
 
 
 def _normalize_partner_unit_type(value: str | None) -> str:
@@ -242,6 +244,10 @@ def _partner_featured_images_key(partner_id: str) -> str:
     return f"partner_featured_images:{partner_id}"
 
 
+def _transport_trip_key(trip_id: str) -> str:
+    return f"transport_trip:{trip_id}"
+
+
 def _company_commission_wallet_key() -> str:
     return "company_commission_wallet"
 
@@ -266,6 +272,94 @@ def _list_existing_product_codes(db: Session) -> set[str]:
         except Exception:
             continue
     return used
+
+
+def _load_partner_product_meta(db: Session) -> dict[str, dict]:
+    row = db.query(AppSetting).filter(AppSetting.key == PARTNER_PRODUCT_META_KEY).first()
+    if not row:
+        return {}
+    try:
+        payload = json.loads(row.value_json or "{}")
+    except Exception:
+        return {}
+    return payload if isinstance(payload, dict) else {}
+
+
+def _is_transport_service_listing(item: PartnerProduct | None, meta_map: dict[str, dict] | None = None) -> bool:
+    if not item:
+        return False
+    meta = (meta_map or {}).get(str(item.id), {}) if isinstance(meta_map, dict) else {}
+    template_key = str(meta.get("service_template_key") or "").strip().lower()
+    if template_key in TRANSPORT_SERVICE_TEMPLATE_KEYS:
+        return True
+    listing_type = str(meta.get("listing_type") or "").strip().lower()
+    item_kind = str(meta.get("item_kind") or "").strip().lower()
+    if listing_type == "service" and any(k in str(item.category or "").lower() for k in ["transport", "cab", "bike", "rental", "taxi"]):
+        return True
+    if item_kind == "service" and any(k in str(item.name or "").lower() for k in ["cab", "bike", "rental", "taxi", "ride"]):
+        return True
+    return False
+
+
+def _transport_partner_payment_profile(db: Session, partner: AssociatePartner, request: Request | None = None) -> dict:
+    qr_row = db.query(AppSetting).filter(AppSetting.key == _partner_payment_qr_key(partner.id)).first()
+    qr_url = ""
+    if qr_row:
+        try:
+            qr_url = str(json.loads(qr_row.value_json or "{}").get("qr_url") or "").strip()
+        except Exception:
+            qr_url = ""
+    return {
+        "upi_id": str(partner.upi_id or "").strip(),
+        "payee_name": str(partner.business_name or "").strip(),
+        "qr_url": _file_url(qr_url, request) if request and qr_url else qr_url,
+    }
+
+
+def _save_transport_trip(db: Session, trip: dict) -> dict:
+    trip_id = str((trip or {}).get("id") or "").strip()
+    if not trip_id:
+        raise HTTPException(status_code=400, detail="Trip id missing")
+    payload = dict(trip or {})
+    payload["id"] = trip_id
+    payload["updated_at"] = now_iso()
+    row = db.query(AppSetting).filter(AppSetting.key == _transport_trip_key(trip_id)).first()
+    if not row:
+        db.add(AppSetting(key=_transport_trip_key(trip_id), value_json=json.dumps(payload), updated_at=datetime.now(timezone.utc)))
+    else:
+        row.value_json = json.dumps(payload)
+        row.updated_at = datetime.now(timezone.utc)
+    db.commit()
+    return payload
+
+
+def _load_transport_trip(db: Session, trip_id: str) -> dict | None:
+    row = db.query(AppSetting).filter(AppSetting.key == _transport_trip_key(trip_id)).first()
+    if not row:
+        return None
+    try:
+        payload = json.loads(row.value_json or "{}")
+    except Exception:
+        payload = {}
+    return payload if isinstance(payload, dict) else None
+
+
+def _list_transport_trips(db: Session, partner_id: str | None = None, limit: int = 200) -> list[dict]:
+    rows = db.query(AppSetting).filter(AppSetting.key.like("transport_trip:%")).order_by(AppSetting.updated_at.desc()).all()
+    out: list[dict] = []
+    for row in rows:
+        try:
+            payload = json.loads(row.value_json or "{}")
+        except Exception:
+            continue
+        if not isinstance(payload, dict):
+            continue
+        if partner_id and str(payload.get("partner_id") or "") != str(partner_id):
+            continue
+        out.append(payload)
+        if len(out) >= max(1, int(limit)):
+            break
+    return out
 
 
 def _generate_product_code(db: Session, product_type: str) -> str:
@@ -2751,6 +2845,316 @@ async def partner_upload_payment_qr(file: UploadFile = File(...), db: Session = 
         row.updated_at = datetime.now(timezone.utc)
     db.commit()
     return {"ok": True, "url": relative_url}
+
+
+@router.post("/transport/bookings")
+def create_transport_booking(payload: dict, request: Request, db: Session = Depends(get_db), current_user=Depends(get_current_user)):
+    partner_code = str((payload or {}).get("partner_code") or "").strip()
+    service_product_id = str((payload or {}).get("service_product_id") or "").strip()
+    pickup = str((payload or {}).get("pickup") or "").strip()
+    destination = str((payload or {}).get("destination") or "").strip()
+    customer_name = str((payload or {}).get("customer_name") or getattr(current_user, "name", "Customer") or "Customer").strip() or "Customer"
+    customer_phone = str((payload or {}).get("customer_phone") or getattr(current_user, "phone", "") or "").strip()
+    member_ref = str((payload or {}).get("member_ref") or "").strip()
+    notes = str((payload or {}).get("notes") or "").strip()
+    vehicle_type = str((payload or {}).get("vehicle_type") or "").strip().lower()
+    travel_date = str((payload or {}).get("travel_date") or "").strip()
+
+    if not partner_code:
+        raise HTTPException(status_code=400, detail="partner_code is required")
+    if not service_product_id:
+        raise HTTPException(status_code=400, detail="service_product_id is required")
+    if not pickup or not destination:
+        raise HTTPException(status_code=400, detail="pickup and destination are required")
+
+    partner = db.query(AssociatePartner).filter(AssociatePartner.partner_code == partner_code, AssociatePartner.active.is_(True)).first()
+    if not partner:
+        raise HTTPException(status_code=404, detail="Partner not found")
+
+    service = (
+        db.query(PartnerProduct)
+        .filter(
+            PartnerProduct.id == service_product_id,
+            PartnerProduct.partner_id == partner.id,
+            PartnerProduct.active.is_(True),
+            PartnerProduct.approval_status == "approved",
+        )
+        .first()
+    )
+    if not service:
+        raise HTTPException(status_code=404, detail="Transport service not found")
+
+    meta_map = _load_partner_product_meta(db)
+    if not _is_transport_service_listing(service, meta_map):
+        raise HTTPException(status_code=400, detail="Selected service is not configured as transport")
+
+    fare_quote = round(max(1.0, float(service.price or 0)), 2)
+    inferred_vehicle = "cab"
+    meta = meta_map.get(str(service.id), {}) if isinstance(meta_map, dict) else {}
+    template_key = str(meta.get("service_template_key") or "").strip().lower()
+    if template_key == "bike_rental_daily":
+        inferred_vehicle = "bike_rental"
+    elif template_key == "car_rental_daily":
+        inferred_vehicle = "car_rental"
+
+    trip_id = str(uuid.uuid4())
+    order_row = PublicOrder(
+        id=str(uuid.uuid4()),
+        customer_user_id=str(getattr(current_user, "id", "") or ""),
+        member_ref=member_ref,
+        shipping_address=f"Transport Trip: {pickup} -> {destination}",
+        payment_method="upi",
+        txn_id="",
+        payment_screenshot_url="",
+        payer_name=customer_name,
+        items_json=json.dumps(
+            [
+                {
+                    "product_id": service.id,
+                    "name": service.name,
+                    "price": fare_quote,
+                    "unit_base_price": fare_quote,
+                    "mrp": fare_quote,
+                    "discount_percent": 0,
+                    "gst_percent": 0,
+                    "gst_amount": 0,
+                    "pre_tax": fare_quote,
+                    "quantity": 1,
+                    "subtotal": fare_quote,
+                    "product_type": "associate_partner",
+                    "unit_type": "piece",
+                    "unit_label": "piece",
+                    "quantity_step": 1,
+                    "image_url": str(service.image_url or ""),
+                    "pricing_tiers": [],
+                    "tier_breakdown": [{"qty": 1, "count": 1, "price": fare_quote}],
+                    "listing_type": "service",
+                    "item_kind": "service",
+                    "is_service": True,
+                    "service_booking_enabled": True,
+                    "service_invoice_mode": "summary_total",
+                    "service_template_key": template_key,
+                }
+            ]
+        ),
+        total_amount=fare_quote,
+        status="pending_payment",
+    )
+    db.add(order_row)
+    db.commit()
+    db.refresh(order_row)
+
+    required_reserve = round(fare_quote * (max(0.0, float(partner.commission_percent or 0)) / 100.0), 2)
+    trip = {
+        "id": trip_id,
+        "trip_code": f"TRP-{trip_id[:8].upper()}",
+        "partner_id": partner.id,
+        "partner_code": partner.partner_code,
+        "business_name": partner.business_name,
+        "service_product_id": service.id,
+        "service_name": service.name,
+        "service_template_key": template_key,
+        "vehicle_type": vehicle_type or inferred_vehicle,
+        "pickup": pickup,
+        "destination": destination,
+        "travel_date": travel_date,
+        "notes": notes,
+        "customer_name": customer_name,
+        "customer_phone": customer_phone,
+        "member_ref": member_ref,
+        "customer_user_id": str(getattr(current_user, "id", "") or ""),
+        "fare_quote": fare_quote,
+        "fare_final": fare_quote,
+        "required_commission_reserve": required_reserve,
+        "status": "booked",
+        "payment_status": "unpaid",
+        "order_id": order_row.id,
+        "created_at": now_iso(),
+    }
+    saved = _save_transport_trip(db, trip)
+    return {
+        "ok": True,
+        "booking": saved,
+        "order": {"id": order_row.id, "order_no": f"ORD-{order_row.id[:8].upper()}", "status": order_row.status},
+        "next_step": "Partner starts trip after reserve balance check. Customer pays at destination via driver QR.",
+    }
+
+
+@router.get("/transport/bookings/{trip_id}")
+def get_transport_booking(trip_id: str, request: Request, db: Session = Depends(get_db)):
+    trip = _load_transport_trip(db, trip_id)
+    if not trip:
+        raise HTTPException(status_code=404, detail="Booking not found")
+    partner = db.query(AssociatePartner).filter(AssociatePartner.id == str(trip.get("partner_id") or "")).first()
+    payment_profile = _transport_partner_payment_profile(db, partner, request) if partner else {"upi_id": "", "payee_name": "", "qr_url": ""}
+    return {
+        "ok": True,
+        "booking": trip,
+        "payment_profile": payment_profile if str(trip.get("status") or "") in {"completed", "paid"} else {"upi_id": "", "payee_name": "", "qr_url": ""},
+    }
+
+
+@router.get("/partner/transport/bookings")
+def partner_transport_bookings(db: Session = Depends(get_db), current_user=Depends(get_current_user)):
+    if getattr(current_user, "role", "") != "partner":
+        raise HTTPException(status_code=403, detail="Partner access only")
+    partner = _resolve_partner_for_user(db, current_user)
+    if not partner:
+        raise HTTPException(status_code=404, detail="Partner profile not found")
+    wallet = _load_partner_wallet(db, partner.id)
+    trips = _list_transport_trips(db, partner_id=partner.id, limit=300)
+    return {
+        "partner_id": partner.id,
+        "partner_code": partner.partner_code,
+        "wallet": wallet,
+        "items": trips,
+    }
+
+
+@router.post("/partner/transport/bookings/{trip_id}/fare")
+def partner_transport_update_fare(trip_id: str, payload: dict, db: Session = Depends(get_db), current_user=Depends(get_current_user)):
+    if getattr(current_user, "role", "") != "partner":
+        raise HTTPException(status_code=403, detail="Partner access only")
+    partner = _resolve_partner_for_user(db, current_user)
+    if not partner:
+        raise HTTPException(status_code=404, detail="Partner profile not found")
+    trip = _load_transport_trip(db, trip_id)
+    if not trip:
+        raise HTTPException(status_code=404, detail="Booking not found")
+    if str(trip.get("partner_id") or "") != str(partner.id):
+        raise HTTPException(status_code=403, detail="Not your booking")
+    if str(trip.get("status") or "") not in {"booked"}:
+        raise HTTPException(status_code=400, detail="Fare can be updated only before trip start")
+
+    try:
+        new_fare = round(max(1.0, float((payload or {}).get("fare_final") or 0)), 2)
+    except Exception:
+        raise HTTPException(status_code=400, detail="Valid fare_final required")
+
+    trip["fare_final"] = new_fare
+    trip["required_commission_reserve"] = round(new_fare * (max(0.0, float(partner.commission_percent or 0)) / 100.0), 2)
+    saved = _save_transport_trip(db, trip)
+
+    order_id = str(trip.get("order_id") or "")
+    row = db.query(PublicOrder).filter(PublicOrder.id == order_id).first()
+    if row:
+        try:
+            items = json.loads(row.items_json or "[]")
+        except Exception:
+            items = []
+        if isinstance(items, list) and items:
+            it = dict(items[0] or {})
+            it["price"] = new_fare
+            it["unit_base_price"] = new_fare
+            it["mrp"] = new_fare
+            it["pre_tax"] = new_fare
+            it["subtotal"] = new_fare
+            items[0] = it
+            row.items_json = json.dumps(items)
+        row.total_amount = new_fare
+        db.commit()
+
+    return {"ok": True, "booking": saved}
+
+
+@router.post("/partner/transport/bookings/{trip_id}/start")
+def partner_transport_start_trip(trip_id: str, db: Session = Depends(get_db), current_user=Depends(get_current_user)):
+    if getattr(current_user, "role", "") != "partner":
+        raise HTTPException(status_code=403, detail="Partner access only")
+    partner = _resolve_partner_for_user(db, current_user)
+    if not partner:
+        raise HTTPException(status_code=404, detail="Partner profile not found")
+    trip = _load_transport_trip(db, trip_id)
+    if not trip:
+        raise HTTPException(status_code=404, detail="Booking not found")
+    if str(trip.get("partner_id") or "") != str(partner.id):
+        raise HTTPException(status_code=403, detail="Not your booking")
+    if str(trip.get("status") or "") not in {"booked"}:
+        raise HTTPException(status_code=400, detail="Trip cannot be started in current status")
+
+    required = round(float(trip.get("required_commission_reserve") or 0), 2)
+    wallet = _load_partner_wallet(db, partner.id)
+    available = round(float(wallet.get("balance") or 0), 2)
+    if available + 1e-9 < required:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Commission reserve wallet insufficient. Required ₹{required}, available ₹{available}. Top-up first.",
+        )
+
+    trip["status"] = "on_trip"
+    trip["started_at"] = now_iso()
+    saved = _save_transport_trip(db, trip)
+    return {"ok": True, "booking": saved, "wallet": wallet}
+
+
+@router.post("/partner/transport/bookings/{trip_id}/complete")
+def partner_transport_complete_trip(trip_id: str, request: Request, db: Session = Depends(get_db), current_user=Depends(get_current_user)):
+    if getattr(current_user, "role", "") != "partner":
+        raise HTTPException(status_code=403, detail="Partner access only")
+    partner = _resolve_partner_for_user(db, current_user)
+    if not partner:
+        raise HTTPException(status_code=404, detail="Partner profile not found")
+    trip = _load_transport_trip(db, trip_id)
+    if not trip:
+        raise HTTPException(status_code=404, detail="Booking not found")
+    if str(trip.get("partner_id") or "") != str(partner.id):
+        raise HTTPException(status_code=403, detail="Not your booking")
+    if str(trip.get("status") or "") not in {"on_trip"}:
+        raise HTTPException(status_code=400, detail="Trip can be completed only after start")
+
+    trip["status"] = "completed"
+    trip["completed_at"] = now_iso()
+    saved = _save_transport_trip(db, trip)
+    payment_profile = _transport_partner_payment_profile(db, partner, request)
+    return {
+        "ok": True,
+        "booking": saved,
+        "payment_profile": payment_profile,
+        "message": "Show this QR/UPI to customer at destination for payment.",
+    }
+
+
+@router.post("/partner/transport/bookings/{trip_id}/mark-paid")
+def partner_transport_mark_paid(trip_id: str, payload: dict | None = None, db: Session = Depends(get_db), current_user=Depends(get_current_user)):
+    if getattr(current_user, "role", "") != "partner":
+        raise HTTPException(status_code=403, detail="Partner access only")
+    partner = _resolve_partner_for_user(db, current_user)
+    if not partner:
+        raise HTTPException(status_code=404, detail="Partner profile not found")
+    trip = _load_transport_trip(db, trip_id)
+    if not trip:
+        raise HTTPException(status_code=404, detail="Booking not found")
+    if str(trip.get("partner_id") or "") != str(partner.id):
+        raise HTTPException(status_code=403, detail="Not your booking")
+    if str(trip.get("status") or "") not in {"completed", "paid"}:
+        raise HTTPException(status_code=400, detail="Trip payment can be marked after completion")
+
+    txn_id = str((payload or {}).get("txn_id") or "").strip()
+    payer_name = str((payload or {}).get("payer_name") or trip.get("customer_name") or "Customer").strip()
+    if not txn_id and str(trip.get("status") or "") != "paid":
+        raise HTTPException(status_code=400, detail="txn_id is required")
+
+    trip["status"] = "paid"
+    trip["payment_status"] = "paid"
+    trip["txn_id"] = txn_id or str(trip.get("txn_id") or "")
+    trip["paid_at"] = now_iso()
+    saved = _save_transport_trip(db, trip)
+
+    order_id = str(trip.get("order_id") or "")
+    row = db.query(PublicOrder).filter(PublicOrder.id == order_id).first()
+    if row:
+        row.txn_id = str(trip.get("txn_id") or row.txn_id or "")
+        row.payer_name = payer_name or row.payer_name
+        row.status = "pending_approval"
+        row.payment_method = "upi"
+        db.commit()
+
+    return {
+        "ok": True,
+        "booking": saved,
+        "order": {"id": order_id, "status": (row.status if row else "pending_approval")},
+        "next_step": "Admin approval will run existing commission debit/split and invoice flow unchanged.",
+    }
 
 
 @router.post("/partner/upload/topup-proof")
