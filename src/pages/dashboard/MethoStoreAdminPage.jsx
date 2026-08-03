@@ -52,6 +52,8 @@ export default function MethoStoreAdminPage() {
   const [selectedCommission, setSelectedCommission] = useState("");
   const [ownerForm, setOwnerForm] = useState(EMPTY_OWNER_FORM);
   const [catalogForm, setCatalogForm] = useState(EMPTY_CATALOG_FORM);
+  const [globalProducts, setGlobalProducts] = useState([]);
+  const [selectedGlobalProductId, setSelectedGlobalProductId] = useState("");
   const [allocationForm, setAllocationForm] = useState(EMPTY_ALLOCATION_FORM);
   const [inventoryRows, setInventoryRows] = useState([]);
   const [ownerEditForm, setOwnerEditForm] = useState(null);
@@ -68,9 +70,23 @@ export default function MethoStoreAdminPage() {
 
   const ownerOptions = useMemo(() => normalizeCollection(owners), [owners]);
   const catalogRows = useMemo(() => normalizeCollection(catalog), [catalog]);
+  const methoGlobalProducts = useMemo(
+    () => normalizeCollection(globalProducts).filter((item) => String(item.product_type || "metho").toLowerCase() === "metho"),
+    [globalProducts]
+  );
+  const methoGlobalProductIdSet = useMemo(
+    () => new Set(methoGlobalProducts.map((item) => String(item.id || "").trim()).filter(Boolean)),
+    [methoGlobalProducts]
+  );
   const methoCatalogRows = useMemo(
-    () => catalogRows.filter((item) => String(item.product_type || "metho").toLowerCase() === "metho"),
-    [catalogRows]
+    () => catalogRows.filter((item) => {
+      const itemType = String(item?.product_type || "metho").toLowerCase();
+      if (itemType === "associate_partner") return false;
+      const sourceId = String(item?.source_product_id || "").trim();
+      if (!sourceId) return true;
+      return methoGlobalProductIdSet.has(sourceId);
+    }),
+    [catalogRows, methoGlobalProductIdSet]
   );
   const selectedCatalogItem = useMemo(
     () => methoCatalogRows.find((item) => String(item.id || item.catalog_item_id || item.sku || "").trim() === String(invoiceForm.catalog_item_id || "").trim()),
@@ -119,6 +135,28 @@ export default function MethoStoreAdminPage() {
   useEffect(() => {
     api.get("/settings").then((r) => setSettings(r.data || {})).catch(() => setSettings({}));
   }, []);
+
+  useEffect(() => {
+    api
+      .get("/products")
+      .then((r) => setGlobalProducts(normalizeCollection(r.data)))
+      .catch(() => setGlobalProducts([]));
+  }, []);
+
+  useEffect(() => {
+    const selected = methoGlobalProducts.find((item) => String(item.id || "") === String(selectedGlobalProductId || ""));
+    if (!selected) return;
+    setCatalogForm((prev) => ({
+      ...prev,
+      name: String(selected.name || prev.name || ""),
+      sku: String(selected.product_code || selected.sku || prev.sku || ""),
+      mrp: Number(selected.mrp ?? selected.price ?? prev.mrp ?? 0) || 0,
+      price: Number(selected.price ?? selected.mrp ?? prev.price ?? 0) || 0,
+      bv: Number(selected.bv ?? prev.bv ?? 0) || 0,
+      stock: Number(selected.stock ?? prev.stock ?? 0) || 0,
+      source_product_id: String(selected.id || ""),
+    }));
+  }, [selectedGlobalProductId, methoGlobalProducts]);
 
   useEffect(() => {
     const owner = ownerOptions.find((item) => String(item.id || item.owner_id || "") === String(selectedOwnerId));
@@ -336,9 +374,11 @@ export default function MethoStoreAdminPage() {
         bv: Number(catalogForm.bv) || 0,
         stock: Number(catalogForm.stock) || 0,
         source_product_id: catalogForm.source_product_id.trim(),
+        product_type: "metho",
       });
       toast.success(data?.message || "Catalog item created");
       setCatalogForm(EMPTY_CATALOG_FORM);
+      setSelectedGlobalProductId("");
       await loadAll();
     });
   };
@@ -516,6 +556,22 @@ export default function MethoStoreAdminPage() {
             <div className="grid gap-4 lg:grid-cols-[1.05fr_0.95fr]">
               <div className="space-y-3 rounded-2xl border border-border bg-slate-50 p-4">
                 <p className="font-display font-bold text-emerald-950">Create catalog item</p>
+                <Field label="Global Metho product">
+                  <select
+                    value={selectedGlobalProductId}
+                    onChange={(e) => setSelectedGlobalProductId(e.target.value)}
+                    className="h-11 w-full rounded-lg border border-input bg-white px-3 text-sm"
+                  >
+                    <option value="">Choose global product (optional)</option>
+                    {methoGlobalProducts.map((item) => {
+                      const pid = String(item.id || "").trim();
+                      if (!pid) return null;
+                      const label = `${item.name || item.product_code || pid}${item.product_code ? ` · ${item.product_code}` : ""}${item.price ? ` · ₹${item.price}` : ""}`;
+                      return <option key={pid} value={pid}>{label}</option>;
+                    })}
+                  </select>
+                  <p className="text-[11px] text-slate-500 mt-1">Dropdown থেকে global product নিলেই নিচের field auto-fill হবে।</p>
+                </Field>
                 <Field label="Item name">
                   <Input value={catalogForm.name} onChange={(e) => setCatalogForm((prev) => ({ ...prev, name: e.target.value }))} placeholder="Product name" />
                 </Field>
@@ -538,8 +594,8 @@ export default function MethoStoreAdminPage() {
                     <Input type="number" value={catalogForm.stock} onChange={(e) => setCatalogForm((prev) => ({ ...prev, stock: e.target.value }))} />
                   </Field>
                 </div>
-                <Field label="Source product ID">
-                  <Input value={catalogForm.source_product_id} onChange={(e) => setCatalogForm((prev) => ({ ...prev, source_product_id: e.target.value }))} placeholder="Optional source product id" />
+                <Field label="Source product ID (auto)">
+                  <Input value={catalogForm.source_product_id} onChange={(e) => setCatalogForm((prev) => ({ ...prev, source_product_id: e.target.value }))} placeholder="Auto from global product" />
                 </Field>
               </div>
               <div className="rounded-2xl border border-border bg-slate-50 p-4 space-y-3">
@@ -634,7 +690,6 @@ export default function MethoStoreAdminPage() {
                   Selected product: <span className="font-semibold">{selectedCatalogItem.name || selectedCatalogItem.title || selectedCatalogItem.sku || selectedCatalogItem.id}</span>
                   {selectedCatalogItem.sku ? <span> · SKU {selectedCatalogItem.sku}</span> : null}
                   {selectedCatalogItem.price !== undefined ? <span> · ₹{selectedCatalogItem.price}</span> : null}
-                  {selectedCatalogItem.source_product_id ? <span> · Global Link {selectedCatalogItem.source_product_id}</span> : null}
                 </div>
               ) : null}
               <div className="grid gap-3 sm:grid-cols-3">

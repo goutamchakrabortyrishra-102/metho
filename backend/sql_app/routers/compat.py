@@ -851,16 +851,28 @@ def metho_store_admin_catalog_items(db: Session = Depends(get_db), current_user=
 def metho_store_admin_create_catalog_item(payload: dict, db: Session = Depends(get_db), current_user=Depends(get_current_user)):
     _require_admin_user(current_user)
     catalog = _store_catalog_docs(db)
+    source_product_id = str(payload.get("source_product_id") or "").strip()
+    source_product = None
+    source_meta = None
+    if source_product_id:
+        source_product = db.query(Product).filter(Product.id == source_product_id).first()
+        if not source_product:
+            raise HTTPException(status_code=400, detail="Invalid source product for Metho store catalog")
+        source_meta = db.query(ProductMeta).filter(ProductMeta.product_id == source_product_id).first()
+        source_type = str((source_meta.product_type if source_meta else "metho") or "metho").strip().lower()
+        if source_type != "metho":
+            raise HTTPException(status_code=400, detail="Only metho product is allowed for this catalog")
     item = {
         "id": str(uuid.uuid4()),
         "catalog_item_id": str(uuid.uuid4()),
-        "name": str(payload.get("name") or "").strip(),
+        "name": str(payload.get("name") or (source_product.name if source_product else "")).strip(),
         "sku": str(payload.get("sku") or "").strip() or f"SKU-{uuid.uuid4().hex[:8].upper()}",
-        "mrp": float(payload.get("mrp") or 0),
-        "price": float(payload.get("price") or 0),
+        "mrp": float(payload.get("mrp") or (source_meta.mrp if source_meta and source_meta.mrp is not None else (source_product.price if source_product else 0)) or 0),
+        "price": float(payload.get("price") or (source_product.price if source_product else 0) or 0),
         "bv": float(payload.get("bv") or 0),
         "stock": max(0, int(payload.get("stock") or 0)),
-        "source_product_id": str(payload.get("source_product_id") or "").strip(),
+        "source_product_id": source_product_id,
+        "product_type": "metho",
         "created_at": now_iso(),
         "updated_at": now_iso(),
     }
