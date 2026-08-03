@@ -62,6 +62,9 @@ export default function MethoStoreAdminPage() {
   const [busy, setBusy] = useState(false);
   const lastCreatePinRef = React.useRef("");
   const lastEditPinRef = React.useRef("");
+  const inventorySectionRef = React.useRef(null);
+  const invoiceSectionRef = React.useRef(null);
+  const editSectionRef = React.useRef(null);
 
   const ownerOptions = useMemo(() => normalizeCollection(owners), [owners]);
   const catalogRows = useMemo(() => normalizeCollection(catalog), [catalog]);
@@ -152,6 +155,12 @@ export default function MethoStoreAdminPage() {
     } finally {
       setBusy(false);
     }
+  };
+
+  const scrollToSection = (ref) => {
+    const el = ref?.current;
+    if (!el || typeof el.scrollIntoView !== "function") return;
+    el.scrollIntoView({ behavior: "smooth", block: "start" });
   };
 
   const lookupPincodeAndApply = async (pin, applyFn, pinRef) => {
@@ -388,23 +397,58 @@ export default function MethoStoreAdminPage() {
                         </div>
                         <div className="mt-3 flex flex-wrap gap-2">
                           {!approved && <Button size="sm" className="rounded-full bg-emerald-700 hover:bg-emerald-800 text-white" disabled={busy} onClick={() => approveOwner(ownerId)}><CheckCircle2 className="w-3.5 h-3.5 mr-1" />Approve</Button>}
-                          <Button size="sm" variant="outline" className="rounded-full" onClick={() => { setSelectedOwnerId(ownerId); loadInventory(ownerId); }}>Inventory</Button>
-                          <Button size="sm" variant="outline" className="rounded-full" onClick={() => { setSelectedOwnerId(ownerId); loadOwnerInvoices(ownerId); }}>Invoices</Button>
-                          <Button size="sm" variant="outline" className="rounded-full" onClick={() => setOwnerEditForm({
-                            id: ownerId,
-                            owner_name: owner.owner_name || owner.name || "",
-                            store_name: owner.store_name || owner.business_name || "",
-                            phone: owner.phone || "",
-                            whatsapp_no: owner.whatsapp_no || owner.phone || "",
-                            email: owner.email || "",
-                            password: "",
-                            address: owner.address || "",
-                            pincode: owner.pincode || "",
-                            google_map_url: owner.google_map_url || owner.map_url || "",
-                            city: owner.city || "",
-                            state: owner.state || "",
-                            commission_percent: owner.commission_percent ?? owner.commission ?? 0,
-                          })}><Pencil className="w-3.5 h-3.5 mr-1" />Edit</Button>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="rounded-full"
+                            onClick={async () => {
+                              setSelectedOwnerId(ownerId);
+                              await loadInventory(ownerId);
+                              scrollToSection(inventorySectionRef);
+                              toast.success("Inventory loaded");
+                            }}
+                          >
+                            Inventory
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="rounded-full"
+                            onClick={async () => {
+                              setSelectedOwnerId(ownerId);
+                              await loadOwnerInvoices(ownerId);
+                              scrollToSection(invoiceSectionRef);
+                              toast.success("Invoices loaded");
+                            }}
+                          >
+                            Invoices
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="rounded-full"
+                            onClick={() => {
+                              setSelectedOwnerId(ownerId);
+                              setOwnerEditForm({
+                                id: ownerId,
+                                owner_name: owner.owner_name || owner.name || "",
+                                store_name: owner.store_name || owner.business_name || "",
+                                phone: owner.phone || "",
+                                whatsapp_no: owner.whatsapp_no || owner.phone || "",
+                                email: owner.email || "",
+                                password: "",
+                                address: owner.address || "",
+                                pincode: owner.pincode || "",
+                                google_map_url: owner.google_map_url || owner.map_url || "",
+                                city: owner.city || "",
+                                state: owner.state || "",
+                                commission_percent: owner.commission_percent ?? owner.commission ?? 0,
+                              });
+                              window.setTimeout(() => scrollToSection(editSectionRef), 80);
+                            }}
+                          >
+                            <Pencil className="w-3.5 h-3.5 mr-1" />Edit
+                          </Button>
                           <Button size="sm" variant="outline" className="rounded-full" onClick={() => toggleOwnerActive(owner)}>{approved ? "Deactivate" : "Activate"}</Button>
                           <Button size="sm" variant="outline" className="rounded-full" onClick={() => resetOwnerPassword(owner)}><KeyRound className="w-3.5 h-3.5 mr-1" />Password</Button>
                           <Button size="sm" variant="outline" className="rounded-full border-red-200 text-red-700 hover:bg-red-50" onClick={() => removeOwner(owner)}><Trash2 className="w-3.5 h-3.5 mr-1" />Delete</Button>
@@ -520,7 +564,8 @@ export default function MethoStoreAdminPage() {
         </section>
 
         <section className="space-y-6">
-          <Panel icon={Warehouse} title="Inventory allocation" subtitle="Admin-only stock assignment for isolated store owners.">
+          <div ref={inventorySectionRef}>
+            <Panel icon={Warehouse} title="Inventory allocation" subtitle="Admin-only stock assignment for isolated store owners.">
             <div className="space-y-4">
               <div>
                 <label className="text-sm font-semibold text-emerald-950">Selected owner</label>
@@ -560,9 +605,11 @@ export default function MethoStoreAdminPage() {
                 <Button variant="outline" className="rounded-full" disabled={!selectedOwnerId} onClick={() => loadInventory(selectedOwnerId)}>Load Inventory</Button>
               </div>
             </div>
-          </Panel>
+            </Panel>
+          </div>
 
-          <Panel icon={Receipt} title="Owner stock purchase invoice" subtitle="Admin sells product to owner, collects payment, then stock goes to owner inventory.">
+          <div ref={invoiceSectionRef}>
+            <Panel icon={Receipt} title="Owner stock purchase invoice" subtitle="Admin sells product to owner, collects payment, then stock goes to owner inventory.">
             <div className="space-y-4">
               <p className="text-xs text-slate-600">Owner product order করতে পারবে; admin payment confirm পেলে delivery/stock inventory-তে add হবে.</p>
               <div className="grid gap-3 sm:grid-cols-2">
@@ -650,7 +697,8 @@ export default function MethoStoreAdminPage() {
                 ))}
               </div>
             </div>
-          </Panel>
+            </Panel>
+          </div>
 
           <Panel icon={Boxes} title="Owner inventory snapshot" subtitle="Read-only view from isolated inventory endpoint.">
             <div className="space-y-3">
@@ -671,7 +719,7 @@ export default function MethoStoreAdminPage() {
       </div>
 
       {ownerEditForm && (
-        <section className="rounded-2xl border border-emerald-200 bg-emerald-50 p-5 space-y-4">
+        <section ref={editSectionRef} className="rounded-2xl border border-emerald-200 bg-emerald-50 p-5 space-y-4">
           <div className="flex items-center justify-between gap-3">
             <h2 className="font-display font-black text-xl text-emerald-950">Edit owner</h2>
             <Button variant="ghost" className="rounded-full" onClick={() => setOwnerEditForm(null)}>Close</Button>
