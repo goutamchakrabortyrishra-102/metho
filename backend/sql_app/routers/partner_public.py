@@ -24,13 +24,20 @@ def partner_register(payload: dict, db: Session = Depends(get_db)):
     raw_password = str(payload.get("password") or "").strip()
     sector = _normalize_partner_sector(payload.get("business_type") or payload.get("sector"))
     phone = str(payload.get("phone", "")).strip()
-    gst_no = str(payload.get("gst_no", "")).strip().upper()
+    pan_no = str(payload.get("pan_no") or payload.get("gst_no") or "").strip().upper()
+    aadhaar_no = "".join(ch for ch in str(payload.get("aadhaar_no") or "") if ch.isdigit())
     if not login_id:
         raise HTTPException(status_code=400, detail="Login ID is required")
     if len(raw_password) < 6:
         raise HTTPException(status_code=400, detail="Password must be at least 6 characters")
     if not phone:
         raise HTTPException(status_code=400, detail="Mobile number is required")
+    if not pan_no:
+        raise HTTPException(status_code=400, detail="PAN number is required")
+    if not aadhaar_no:
+        raise HTTPException(status_code=400, detail="Aadhaar number is required")
+    if len(aadhaar_no) != 12:
+        raise HTTPException(status_code=400, detail="Aadhaar number must be 12 digits")
 
     exists = db.query(User).filter(User.email == login_id).first()
     if exists:
@@ -44,14 +51,13 @@ def partner_register(payload: dict, db: Session = Depends(get_db)):
     if existing_partner:
         raise HTTPException(status_code=400, detail="This mobile number is already linked to an existing shop/service account")
 
-    if gst_no:
-        existing_gst_request = db.query(PartnerRequest).filter(PartnerRequest.gst_no == gst_no, PartnerRequest.status.in_(["pending", "approved"])).first()
-        if existing_gst_request:
-            raise HTTPException(status_code=400, detail="This GST/business ID already has a shop/service registration")
+    existing_gst_request = db.query(PartnerRequest).filter(PartnerRequest.gst_no == pan_no, PartnerRequest.status.in_(["pending", "approved"])).first()
+    if existing_gst_request:
+        raise HTTPException(status_code=400, detail="This PAN already has a shop/service registration")
 
-        existing_gst_partner = db.query(AssociatePartner).filter(AssociatePartner.gst_no == gst_no).first()
-        if existing_gst_partner:
-            raise HTTPException(status_code=400, detail="This GST/business ID is already linked to an existing shop/service account")
+    existing_gst_partner = db.query(AssociatePartner).filter(AssociatePartner.gst_no == pan_no).first()
+    if existing_gst_partner:
+        raise HTTPException(status_code=400, detail="This PAN is already linked to an existing shop/service account")
 
     request_id = str(uuid.uuid4())
     row = PartnerRequest(
@@ -66,7 +72,7 @@ def partner_register(payload: dict, db: Session = Depends(get_db)):
         city=str(payload.get("city", "")).strip(),
         state=str(payload.get("state", "")).strip(),
         pincode=str(payload.get("pincode", "")).strip(),
-        gst_no=gst_no,
+        gst_no=pan_no,
         upi_id=str(payload.get("upi_id", "")).strip(),
         business_description=str(payload.get("business_description", "")).strip(),
         commission_percent_ask=float(payload.get("commission_percent_ask") or 0),
@@ -80,6 +86,19 @@ def partner_register(payload: dict, db: Session = Depends(get_db)):
                 {
                     "login_id": login_id,
                     "password": raw_password,
+                    "created_at": datetime.now(timezone.utc).isoformat(),
+                }
+            ),
+            updated_at=datetime.now(timezone.utc),
+        )
+    )
+    db.add(
+        AppSetting(
+            key=f"partner_req_kyc:{request_id}",
+            value_json=json.dumps(
+                {
+                    "pan_no": pan_no,
+                    "aadhaar_no": aadhaar_no,
                     "created_at": datetime.now(timezone.utc).isoformat(),
                 }
             ),

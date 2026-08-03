@@ -62,7 +62,7 @@ export default function PartnerRegisterPage() {
     business_name: "", business_type: "Shop",
     contact_person: "", phone: "", dob: "", email: "", password: "", whatsapp_no: "",
     address: "", city: "", state: "", pincode: "",
-    gst_no: "", upi_id: "", website: "", social_link: "",
+    gst_no: "", pan_no: "", aadhaar_no: "", upi_id: "", website: "", social_link: "",
     business_description: "", commission_percent_ask: "", service_category: "",
   });
   const [busy, setBusy] = useState(false);
@@ -115,15 +115,29 @@ export default function PartnerRegisterPage() {
     if (!agreedToTerms) {
       return toast.error("Please read and accept Terms & Conditions before submitting");
     }
-    if (!form.business_name || !form.contact_person || !form.phone || !form.email || !form.password || !form.address || !form.city || !form.state) {
+    if (!form.business_name || !form.contact_person || !form.phone || !form.email || !form.password || !form.address || !form.city || !form.state || !form.pan_no || !form.aadhaar_no) {
       return toast.error("Please fill all required fields");
+    }
+    const pan = String(form.pan_no || "").trim().toUpperCase();
+    const aadhaar = String(form.aadhaar_no || "").replace(/\D/g, "");
+    if (!/^[A-Z]{5}[0-9]{4}[A-Z]$/.test(pan)) {
+      return toast.error("Please enter a valid PAN number");
+    }
+    if (!/^\d{12}$/.test(aadhaar)) {
+      return toast.error("Please enter a valid 12-digit Aadhaar number");
     }
     if (String(form.password || "").length < 6) {
       return toast.error("Password must be at least 6 characters");
     }
     setBusy(true);
     try {
-      const payload = { ...form };
+      const payload = {
+        ...form,
+        pan_no: pan,
+        aadhaar_no: aadhaar,
+        // Keep legacy key so backend uniqueness checks remain consistent.
+        gst_no: pan,
+      };
       if (payload.commission_percent_ask === "") delete payload.commission_percent_ask;
       else payload.commission_percent_ask = Number(payload.commission_percent_ask);
       const { data } = await api.post("/partners/register", payload);
@@ -178,7 +192,7 @@ export default function PartnerRegisterPage() {
           </h1>
           <p className="mt-3 text-emerald-100/85 font-body max-w-2xl">
             Choose only one sector: Shop or Service.
-            One mobile number and one PAN/GST/business ID can be used for only one partner registration.
+            One mobile number and one PAN can be used for only one partner registration.
             After admin approval, your partner login activates with your chosen username and password.
           </p>
         </div>
@@ -230,19 +244,47 @@ export default function PartnerRegisterPage() {
                   <p className="text-[11px] text-muted-foreground mt-1">This helps admin quickly map your service type during approval.</p>
                 </div>
               ) : (
-              <div>
-                <Label>PAN / GST / Business ID (optional)</Label>
-                <Input value={form.gst_no} onChange={upd("gst_no")} placeholder="PAN, GST or other business ID" maxLength={30} className="mt-1.5 h-11 font-mono uppercase" data-testid="reg-gst" />
-                <p className="text-[11px] text-muted-foreground mt-1">If provided, this ID can be used for only one Shop or Service registration.</p>
-              </div>
+                <div>
+                  <Label>PAN Number *</Label>
+                  <Input
+                    required
+                    value={form.pan_no}
+                    onChange={(e) => setForm((prev) => ({ ...prev, pan_no: String(e.target.value || "").toUpperCase() }))}
+                    placeholder="ABCDE1234F"
+                    maxLength={10}
+                    className="mt-1.5 h-11 font-mono uppercase"
+                    data-testid="reg-pan"
+                  />
+                  <p className="text-[11px] text-muted-foreground mt-1">PAN is mandatory and can be used for only one Shop or Service registration.</p>
+                </div>
               )}
               {isService ? (
                 <div>
-                  <Label>PAN / GST / Business ID (optional)</Label>
-                  <Input value={form.gst_no} onChange={upd("gst_no")} placeholder="PAN, GST or other business ID" maxLength={30} className="mt-1.5 h-11 font-mono uppercase" data-testid="reg-gst" />
-                  <p className="text-[11px] text-muted-foreground mt-1">If provided, this ID can be used for only one Shop or Service registration.</p>
+                  <Label>PAN Number *</Label>
+                  <Input
+                    required
+                    value={form.pan_no}
+                    onChange={(e) => setForm((prev) => ({ ...prev, pan_no: String(e.target.value || "").toUpperCase() }))}
+                    placeholder="ABCDE1234F"
+                    maxLength={10}
+                    className="mt-1.5 h-11 font-mono uppercase"
+                    data-testid="reg-pan"
+                  />
+                  <p className="text-[11px] text-muted-foreground mt-1">PAN is mandatory and can be used for only one Shop or Service registration.</p>
                 </div>
               ) : null}
+              <div>
+                <Label>Aadhaar Number *</Label>
+                <Input
+                  required
+                  value={form.aadhaar_no}
+                  onChange={(e) => setForm((prev) => ({ ...prev, aadhaar_no: String(e.target.value || "").replace(/\D/g, "") }))}
+                  placeholder="12-digit Aadhaar number"
+                  maxLength={12}
+                  className="mt-1.5 h-11 font-mono"
+                  data-testid="reg-aadhaar"
+                />
+              </div>
               <div className="md:col-span-2">
                 <Label>{isService ? "Service Description (optional)" : "Shop Description (optional)"}</Label>
                 <Textarea rows={3} value={form.business_description} onChange={upd("business_description")} placeholder={isService ? "Briefly describe your service, slots or specialties..." : "Briefly describe your shop and available items..."} className="mt-1.5" data-testid="reg-description" />
