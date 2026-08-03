@@ -13,6 +13,10 @@ import { Label } from "@/components/ui/label";
 import { resolveAssetUrl } from "@/lib/utils";
 
 const inr = (v) => `₹${(Number(v) || 0).toLocaleString("en-IN", { maximumFractionDigits: 2 })}`;
+const withUnit = (price, unitType) => {
+  const unit = String(unitType || "piece").trim().toLowerCase() || "piece";
+  return unit === "piece" ? inr(price) : `${inr(price)} / ${unit}`;
+};
 const PARTNER_IMAGE_MAX_BYTES = 200 * 1024;
 const PARTNER_IMAGE_MAX_TEXT = "200KB";
 const PDF_PREVIEW = "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 400 400'><rect width='400' height='400' fill='%23f1f5f9'/><rect x='80' y='50' width='240' height='300' rx='14' fill='%23ffffff' stroke='%2394a3b8' stroke-width='4'/><text x='200' y='190' text-anchor='middle' fill='%23dc2626' font-size='46' font-family='Arial' font-weight='bold'>PDF</text><text x='200' y='228' text-anchor='middle' fill='%23334155' font-size='16' font-family='Arial'>Tap to Open</text></svg>";
@@ -814,7 +818,7 @@ export default function PartnerDashboardPage() {
                         </button>
                       ) : null}
                     </div>
-                    <div className="p-3"><p className="font-semibold text-sm text-emerald-950">{p.name}</p><p className="text-xs text-muted-foreground">{p.category}</p><p className="font-display font-black text-emerald-800 mt-1">₹{p.price}</p><p className="text-[10px] text-slate-500">{(String(p?.listing_type || p?.item_kind || "").toLowerCase().includes("service") || p?.is_service) ? "Service" : `Stock: ${p.stock}`}</p>
+                    <div className="p-3"><p className="font-semibold text-sm text-emerald-950">{p.name}</p><p className="text-xs text-muted-foreground">{p.category}</p><p className="font-display font-black text-emerald-800 mt-1">{withUnit(p.price, p.unit_type)}</p><p className="text-[10px] text-slate-500">{(String(p?.listing_type || p?.item_kind || "").toLowerCase().includes("service") || p?.is_service) ? "Service" : `Stock: ${p.stock}`}</p>
                     <div className="flex gap-1 mt-2">
                       <PartnerProductForm product={p} onSaved={loadAll} />
                       <Button size="sm" variant="outline" className="rounded-full border-red-300 text-red-700 hover:bg-red-50 h-7 px-2 text-[11px]" onClick={() => deleteProduct(p.id)} data-testid={`del-my-product-${p.id}`}>Delete</Button>

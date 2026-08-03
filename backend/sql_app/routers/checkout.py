@@ -24,6 +24,68 @@ router = APIRouter(prefix="/api", tags=["checkout"])
 
 UPLOAD_DIR = UPLOADED_OBJECTS_DIR / "payment_screenshots"
 UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
+PARTNER_PRODUCT_UNITS_KEY = "partner_product_units"
+PARTNER_UNIT_OPTIONS = {"piece", "kg", "gram", "litre", "ml"}
+
+
+def _normalize_partner_unit_type(value: str | None) -> str:
+    text = str(value or "piece").strip().lower()
+    if text in {"pcs", "pc", "unit", "units"}:
+        text = "piece"
+    if text not in PARTNER_UNIT_OPTIONS:
+        return "piece"
+    return text
+
+
+def _partner_unit_step(unit_type: str) -> float:
+    unit = _normalize_partner_unit_type(unit_type)
+    if unit in {"kg", "litre"}:
+        return 0.25
+    if unit in {"gram", "ml"}:
+        return 50.0
+    return 1.0
+
+
+def _load_partner_product_units(db: Session) -> dict[str, dict]:
+    row = db.query(AppSetting).filter(AppSetting.key == PARTNER_PRODUCT_UNITS_KEY).first()
+    if not row:
+        return {}
+    try:
+        payload = json.loads(row.value_json or "{}")
+    except Exception:
+        return {}
+    return payload if isinstance(payload, dict) else {}
+
+
+def _save_partner_product_units(db: Session, mapping: dict[str, dict]) -> None:
+    row = db.query(AppSetting).filter(AppSetting.key == PARTNER_PRODUCT_UNITS_KEY).first()
+    if not row:
+        row = AppSetting(key=PARTNER_PRODUCT_UNITS_KEY, value_json="{}")
+        db.add(row)
+    row.value_json = json.dumps(mapping or {})
+    db.commit()
+
+
+def _set_partner_product_unit(db: Session, product_id: str, unit_type: str) -> dict[str, dict]:
+    mapping = _load_partner_product_units(db)
+    normalized = _normalize_partner_unit_type(unit_type)
+    mapping[str(product_id)] = {
+        "unit_type": normalized,
+        "quantity_step": _partner_unit_step(normalized),
+    }
+    _save_partner_product_units(db, mapping)
+    return mapping
+
+
+def _partner_unit_info(unit_map: dict[str, dict], product_id: str) -> dict:
+    meta = unit_map.get(str(product_id)) if isinstance(unit_map, dict) else None
+    unit_type = _normalize_partner_unit_type((meta or {}).get("unit_type"))
+    step = float((meta or {}).get("quantity_step") or _partner_unit_step(unit_type))
+    return {
+        "unit_type": unit_type,
+        "unit_label": unit_type,
+        "quantity_step": step,
+    }
 
 
 def _candidate_upload_roots() -> list[Path]:
@@ -282,6 +344,13 @@ def _calc_tiered_subtotal(quantity: int, unit_price: float, tiers: list[dict]) -
     return round(subtotal, 2), breakdown
 
 
+def _round_to_step(value: float, step: float) -> float:
+    safe_step = max(0.01, float(step or 1.0))
+    units = round(float(value or 0) / safe_step)
+    rounded = units * safe_step
+    return round(max(safe_step, rounded), 4)
+
+
 def _resolve_partner_for_user(db: Session, user) -> AssociatePartner | None:
     if not user:
         return None
@@ -343,6 +412,7 @@ def create_public_order(payload: dict, db: Session = Depends(get_db), authorizat
     total = 0.0
     normalized_items = []
     settings = load_settings(db)
+    partner_unit_map = _load_partner_product_units(db)
     pricing_tier_map = settings.get("product_pricing_tiers") if isinstance(settings.get("product_pricing_tiers"), dict) else {}
     enable_partner_slab_pricing = bool(settings.get("enable_partner_slab_pricing", False))
     customer_user_id = ""
@@ -357,7 +427,11 @@ def create_public_order(payload: dict, db: Session = Depends(get_db), authorizat
 
     for item in items:
         product_id = str(item.get("product_id", "")).strip()
-        qty = max(1, int(item.get("quantity") or 1))
+        qty_raw = item.get("quantity")
+        try:
+            qty_value = float(qty_raw if qty_raw is not None else 1)
+        except Exception:
+            qty_value = 1.0
         product = db.query(Product).filter(Product.id == product_id).first()
         product_type = "metho"
         gst_percent = 0.0
@@ -378,7 +452,16 @@ def create_public_order(payload: dict, db: Session = Depends(get_db), authorizat
                 product_type = "associate_partner"
         if not product:
             continue
-        available_stock = max(0, int(getattr(product, "stock", 0) or 0))
+        unit_info = {"unit_type": "piece", "unit_label": "piece", "quantity_step": 1.0}
+        if product_type == "associate_partner":
+            unit_info = _partner_unit_info(partner_unit_map, product.id)
+
+        if unit_info["unit_type"] == "piece":
+            qty = max(1, int(round(qty_value or 1)))
+        else:
+            qty = _round_to_step(qty_value or unit_info["quantity_step"], unit_info["quantity_step"])
+
+        available_stock = max(0.0, float(getattr(product, "stock", 0) or 0))
         if qty > available_stock:
             raise HTTPException(
                 status_code=400,
@@ -390,7 +473,11 @@ def create_public_order(payload: dict, db: Session = Depends(get_db), authorizat
             pricing_tiers = _normalize_pricing_tiers(pricing_tier_map.get(product.id, []))
         elif product_type == "associate_partner" and enable_partner_slab_pricing:
             pricing_tiers = _normalize_pricing_tiers(pricing_tier_map.get(product.id, []))
-        base_subtotal, tier_breakdown = _calc_tiered_subtotal(qty, unit_price, pricing_tiers)
+        if product_type == "associate_partner" and unit_info["unit_type"] != "piece":
+            base_subtotal = round(unit_price * float(qty), 2)
+            tier_breakdown = [{"qty": float(qty), "count": 1, "price": round(unit_price, 2)}]
+        else:
+            base_subtotal, tier_breakdown = _calc_tiered_subtotal(int(qty), unit_price, pricing_tiers)
 
         gst_amount = 0.0
         pre_tax = base_subtotal
@@ -415,6 +502,9 @@ def create_public_order(payload: dict, db: Session = Depends(get_db), authorizat
                 "quantity": qty,
                 "subtotal": line_total,
                 "product_type": product_type,
+                "unit_type": unit_info["unit_type"],
+                "unit_label": unit_info["unit_label"],
+                "quantity_step": unit_info["quantity_step"],
                 "image_url": image_url,
                 "pricing_tiers": pricing_tiers,
                 "tier_breakdown": tier_breakdown,
@@ -626,6 +716,7 @@ def partner_products(db: Session = Depends(get_db), current_user=Depends(get_cur
         .order_by(PartnerProduct.created_at.desc())
         .all()
     )
+    unit_map = _load_partner_product_units(db)
     return [
         {
             "id": p.id,
@@ -639,6 +730,7 @@ def partner_products(db: Session = Depends(get_db), current_user=Depends(get_cur
             "active": bool(p.active),
             "partner_id": p.partner_id,
             "created_at": p.created_at.isoformat() if p.created_at else None,
+            **_partner_unit_info(unit_map, p.id),
         }
         for p in rows
     ]
@@ -684,6 +776,7 @@ def partner_products_create(payload: dict, db: Session = Depends(get_db), curren
     db.add(row)
     db.commit()
     db.refresh(row)
+    _set_partner_product_unit(db, row.id, (payload or {}).get("unit_type"))
 
     return {"ok": True, "message": "Product created and live"}
 
@@ -735,6 +828,9 @@ def partner_products_update(product_id: str, payload: dict, db: Session = Depend
             stock = 0
         product.stock = max(0, stock)
 
+    if (payload or {}).get("unit_type") is not None:
+        _set_partner_product_unit(db, product.id, (payload or {}).get("unit_type"))
+
     # Partner edits stay live unless explicitly deactivated by admin.
     product.approval_status = "approved"
     db.commit()
@@ -763,6 +859,11 @@ def partner_products_delete(product_id: str, db: Session = Depends(get_db), curr
         raise HTTPException(status_code=404, detail="Product not found")
     product.active = False
     db.commit()
+
+    mapping = _load_partner_product_units(db)
+    if str(product_id) in mapping:
+        mapping.pop(str(product_id), None)
+        _save_partner_product_units(db, mapping)
 
     return {"ok": True, "id": product_id, "message": "Product deleted"}
 

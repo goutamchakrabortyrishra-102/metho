@@ -54,6 +54,41 @@ const firstValidAssetRef = (...values) => {
 
 const isPdfUrl = (value) => /\.pdf($|\?)/i.test(String(value || ""));
 
+const getUnitType = (item) => {
+  const unit = String(item?.unit_type || "piece").trim().toLowerCase();
+  if (["kg", "gram", "litre", "ml", "piece"].includes(unit)) return unit;
+  return "piece";
+};
+
+const getQtyStep = (item) => {
+  const unit = getUnitType(item);
+  if (unit === "kg" || unit === "litre") return 0.25;
+  if (unit === "gram" || unit === "ml") return 50;
+  return 1;
+};
+
+const normalizeQtyByUnit = (value, item) => {
+  const step = getQtyStep(item);
+  const unit = getUnitType(item);
+  const raw = Number(value || 0);
+  if (!Number.isFinite(raw) || raw <= 0) return 0;
+  if (unit === "piece" || step === 1) return Math.max(0, Math.round(raw));
+  const units = Math.round(raw / step);
+  const next = units * step;
+  return Number(next.toFixed(3));
+};
+
+const formatQty = (qty) => {
+  const n = Number(qty || 0);
+  if (!Number.isFinite(n)) return "0";
+  return Number.isInteger(n) ? String(n) : String(Number(n.toFixed(3)));
+};
+
+const formatPriceWithUnit = (price, unitType) => {
+  const unit = getUnitType({ unit_type: unitType });
+  return unit === "piece" ? `₹${price}` : `₹${price} / ${unit}`;
+};
+
 const getProductImageUrl = (product) => {
   const url = firstValidAssetRef(
     product?.image_url,
@@ -249,21 +284,30 @@ export default function PartnerShopPage() {
     });
   }, [data?.partner?.business_name, serviceListings, serviceSearch]);
 
-  const inc = (id) => {
-    const product = products.find((x) => String(x.id) === String(id));
+  const inc = (product) => {
+    const id = product?.id;
+    if (!id) return;
     const stock = getStock(product);
+    const step = getQtyStep(product);
     if (stock <= 0) {
       toast.error(`${product?.name || "Product"}: out of stock`);
       return;
     }
     const current = Number(cart[id] || 0);
-    if (current >= stock) {
+    const nextQty = normalizeQtyByUnit(current + step, product);
+    if (nextQty > stock) {
       toast.error(`${product?.name || "Product"}: max available stock is ${stock}`);
       return;
     }
-    setCart({ ...cart, [id]: current + 1 });
+    setCart({ ...cart, [id]: nextQty });
   };
-  const dec = (id) => setCart({ ...cart, [id]: Math.max(0, (cart[id] || 0) - 1) });
+  const dec = (product) => {
+    const id = product?.id;
+    if (!id) return;
+    const current = Number(cart[id] || 0);
+    const nextQty = normalizeQtyByUnit(current - getQtyStep(product), product);
+    setCart({ ...cart, [id]: Math.max(0, nextQty) });
+  };
 
   const items = useMemo(() =>
     Object.entries(cart)
@@ -449,7 +493,9 @@ export default function PartnerShopPage() {
             </div>
             <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
               {[0, 1, 2, 3, 4].map((slot) => {
-                const imageSrc = featuredImages[slot] || "";
+                const fallbackProduct = bestFiveProducts[slot];
+                const productImage = getProductImageUrl(fallbackProduct);
+                const imageSrc = featuredImages[slot] || productImage || fallbackProduct?.fallback_image_url || "";
                 return (
                 <div key={`best-product-${slot}`} className="aspect-square rounded-lg overflow-hidden border border-border bg-slate-100 relative">
                   {imageSrc ? (
@@ -458,7 +504,11 @@ export default function PartnerShopPage() {
                       alt={`Featured ${slot + 1}`}
                       className="w-full h-full object-cover"
                       onError={(e) => {
-                        applyImageFallback(e, "", "");
+                        applyImageFallback(
+                          e,
+                          productImage || fallbackProduct?.fallback_image_url || "",
+                          placeholder || PRODUCT_FALLBACK
+                        );
                       }}
                     />
                   ) : (
@@ -542,9 +592,10 @@ export default function PartnerShopPage() {
           ) : (
             <div className="mt-6 grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
               {displayedProducts.map((product) => {
-                const qty = cart[product.id] || 0;
+                const qty = Number(cart[product.id] || 0);
                 const outOfStock = getStock(product) <= 0;
                 const pdfUrl = getPdfUrl(product);
+                const unitType = getUnitType(product);
                 return (
                   <div key={product.id} className="border border-border rounded-xl overflow-hidden bg-white" data-testid={`shop-product-${product.id}`}>
                     <div className="aspect-square bg-slate-100 relative">
@@ -585,8 +636,8 @@ export default function PartnerShopPage() {
                       <p className="text-[10px] uppercase tracking-widest text-emerald-800 font-semibold truncate">{product.category}</p>
                       <p className="font-display font-bold text-emerald-950 mt-0.5 line-clamp-1">{product.name}</p>
                       <div className="mt-2 flex items-center justify-between">
-                        <span className="font-display font-black text-emerald-950">₹{product.price}</span>
-                        <span className="text-[11px] text-slate-500">Stock: {getStock(product)}</span>
+                        <span className="font-display font-black text-emerald-950">{formatPriceWithUnit(product.price, unitType)}</span>
+                        <span className="text-[11px] text-slate-500">Stock: {getStock(product)} {unitType === "piece" ? "" : unitType}</span>
                       </div>
 
                       {outOfStock ? (
@@ -595,16 +646,16 @@ export default function PartnerShopPage() {
                         <div className="mt-3 flex items-center justify-between bg-emerald-50 rounded-full px-2 py-1.5">
                           <button
                             type="button"
-                            onClick={() => dec(product.id)}
+                            onClick={() => dec(product)}
                             className="w-8 h-8 rounded-full bg-white flex items-center justify-center"
                             data-testid={`shop-dec-${product.id}`}
                           >
                             <Minus className="w-4 h-4" />
                           </button>
-                          <span className="font-bold text-emerald-950">{qty}</span>
+                          <span className="font-bold text-emerald-950">{formatQty(qty)}</span>
                           <button
                             type="button"
-                            onClick={() => inc(product.id)}
+                            onClick={() => inc(product)}
                             className="w-8 h-8 rounded-full bg-white flex items-center justify-center"
                             data-testid={`shop-inc-${product.id}`}
                           >
@@ -614,7 +665,7 @@ export default function PartnerShopPage() {
                       ) : (
                         <Button
                           type="button"
-                          onClick={() => inc(product.id)}
+                          onClick={() => inc(product)}
                           className="w-full mt-3 rounded-full bg-emerald-900 hover:bg-emerald-950 text-white"
                           data-testid={`shop-add-${product.id}`}
                         >

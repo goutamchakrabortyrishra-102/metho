@@ -10,6 +10,31 @@ from ..database import get_db
 from ..models import AppSetting, AssociatePartner, PartnerProduct
 
 router = APIRouter(prefix="/api", tags=["directory"])
+PARTNER_PRODUCT_UNITS_KEY = "partner_product_units"
+
+
+def _load_partner_product_units(db: Session) -> dict[str, dict]:
+    row = db.query(AppSetting).filter(AppSetting.key == PARTNER_PRODUCT_UNITS_KEY).first()
+    if not row:
+        return {}
+    try:
+        payload = json.loads(row.value_json or "{}")
+    except Exception:
+        return {}
+    return payload if isinstance(payload, dict) else {}
+
+
+def _unit_info_for_product(unit_map: dict[str, dict], product_id: str) -> dict:
+    meta = unit_map.get(str(product_id)) if isinstance(unit_map, dict) else None
+    unit_type = str((meta or {}).get("unit_type") or "piece").strip().lower() or "piece"
+    if unit_type not in {"piece", "kg", "gram", "litre", "ml"}:
+        unit_type = "piece"
+    step = float((meta or {}).get("quantity_step") or (1.0 if unit_type == "piece" else 0.25 if unit_type in {"kg", "litre"} else 50.0))
+    return {
+        "unit_type": unit_type,
+        "unit_label": unit_type,
+        "quantity_step": step,
+    }
 
 
 def _partner_banner_and_featured(db: Session, partner_id: str) -> tuple[str, list[str]]:
@@ -203,6 +228,7 @@ def partner_public_page(partner_code: str, db: Session = Depends(get_db)):
         .order_by(PartnerProduct.created_at.desc())
         .all()
     )
+    unit_map = _load_partner_product_units(db)
 
     partner_doc = _partner_to_dict(partner)
     partner_doc["banner_url"] = banner_url
@@ -221,6 +247,7 @@ def partner_public_page(partner_code: str, db: Session = Depends(get_db)):
                 "stock": p.stock,
                 "product_type": "associate_partner",
                 "partner_id": p.partner_id,
+                **_unit_info_for_product(unit_map, p.id),
             }
             for p in products
         ],

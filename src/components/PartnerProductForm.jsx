@@ -21,7 +21,16 @@ const EMPTY = {
   image_url: "",
   pdf_url: "",
   listing_type: "product",
+  unit_type: "piece",
 };
+
+const UNIT_OPTIONS = [
+  { value: "piece", label: "Per Piece" },
+  { value: "kg", label: "Per Kg" },
+  { value: "gram", label: "Per Gram" },
+  { value: "litre", label: "Per Litre" },
+  { value: "ml", label: "Per ML" },
+];
 
 const PARTNER_IMAGE_MAX_BYTES = 5 * 1024 * 1024;
 
@@ -176,6 +185,7 @@ export default function PartnerProductForm({ product, onSaved, disabled = false,
         item_kind: isService ? "service" : "product",
         is_service: isService,
         service_booking_enabled: isService,
+        unit_type: isService ? "piece" : String(form.unit_type || "piece").toLowerCase(),
       };
 
       let saved = null;
@@ -312,6 +322,22 @@ export default function PartnerProductForm({ product, onSaved, disabled = false,
             <div><Label>{form.listing_type === "service" ? "Booking Price (₹) *" : "Price (₹) *"}</Label><Input type="number" required value={form.price} onChange={(e) => setForm({ ...form, price: e.target.value })} className="mt-1" data-testid="my-prod-price" /></div>
             <div><Label>{form.listing_type === "service" ? "Daily Slot / Capacity" : "Stock"}</Label><Input type="number" value={form.stock} onChange={(e) => setForm({ ...form, stock: e.target.value })} className="mt-1" data-testid="my-prod-stock" /></div>
           </div>
+          {form.listing_type !== "service" ? (
+            <div>
+              <Label>Price Unit</Label>
+              <select
+                value={form.unit_type || "piece"}
+                onChange={(e) => setForm({ ...form, unit_type: e.target.value })}
+                className="mt-1 h-10 w-full rounded-md border border-input bg-white px-3 text-sm"
+                data-testid="my-prod-unit-type"
+              >
+                {UNIT_OPTIONS.map((opt) => (
+                  <option key={opt.value} value={opt.value}>{opt.label}</option>
+                ))}
+              </select>
+              <p className="text-[11px] text-muted-foreground mt-1">Example: যদি "Per Kg" দেন, তাহলে price হবে প্রতি কেজির দাম।</p>
+            </div>
+          ) : null}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
               <Label>Discount (%)</Label>
