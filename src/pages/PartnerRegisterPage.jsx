@@ -37,15 +37,7 @@ export default function PartnerRegisterPage() {
   const [pincodeBusy, setPincodeBusy] = useState(false);
   const lastLookupPinRef = useRef("");
   const [done, setDone] = useState(null);
-  const [terms, setTerms] = useState(DEFAULT_TERMS);
   const isService = form.business_type === "Service";
-
-  useEffect(() => {
-    api.get("/settings").then((r) => {
-      const s = r.data || {};
-      setTerms((s.rules_and_conditions || "").trim() || DEFAULT_TERMS);
-    }).catch(() => {});
-  }, []);
 
   const upd = (k) => (e) => setForm({ ...form, [k]: e.target.value });
 
@@ -275,7 +267,7 @@ export default function PartnerRegisterPage() {
             <p className="text-xs text-emerald-900/80 mt-1">Please read this section carefully before submitting your partner application. It explains your responsibilities for products, services, documents, and legal compliance.</p>
 
             <div className="mt-4 rounded-xl border border-emerald-200 bg-white p-4">
-              <p className="text-sm text-slate-700 whitespace-pre-line leading-6">{terms}</p>
+              <p className="text-sm text-slate-700 whitespace-pre-line leading-6">{DEFAULT_TERMS}</p>
             </div>
           </section>
 
