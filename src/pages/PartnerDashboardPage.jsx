@@ -178,6 +178,16 @@ export default function PartnerDashboardPage() {
     }
   };
 
+  const confirmTripBooking = async (tripId) => {
+    try {
+      await api.post(`/partner/transport/bookings/${tripId}/confirm`, {});
+      toast.success("Booking confirmed and commission credited");
+      loadAll();
+    } catch (err) {
+      toast.error(err?.response?.data?.detail || "Booking confirmation failed");
+    }
+  };
+
   const startTrip = async (tripId) => {
     try {
       await api.post(`/partner/transport/bookings/${tripId}/start`, {});
@@ -943,6 +953,14 @@ export default function PartnerDashboardPage() {
                           <Button variant="outline" className="rounded-full" onClick={() => updateTripFare(trip.id)}>
                             Update Fare
                           </Button>
+                          <Button className="rounded-full bg-emerald-900 hover:bg-emerald-950 text-white" onClick={() => confirmTripBooking(trip.id)}>
+                            <CheckCircle2 className="w-4 h-4 mr-1" /> Confirm Booking
+                          </Button>
+                        </div>
+                      ) : null}
+
+                      {status === "confirmed" ? (
+                        <div className="mt-3">
                           <Button className="rounded-full bg-emerald-900 hover:bg-emerald-950 text-white" onClick={() => startTrip(trip.id)}>
                             <PlayCircle className="w-4 h-4 mr-1" /> Start Trip
                           </Button>

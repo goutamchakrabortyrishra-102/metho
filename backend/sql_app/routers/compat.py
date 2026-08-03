@@ -2976,27 +2976,17 @@ def create_transport_booking(payload: dict, request: Request, db: Session = Depe
         "fare_quote": fare_quote,
         "fare_final": fare_quote,
         "required_commission_reserve": required_reserve,
-        "status": "confirmed",
+        "status": "booked",
         "payment_status": "unpaid",
         "order_id": order_row.id,
         "created_at": now_iso(),
     }
     saved = _save_transport_trip(db, trip)
-
-    auto_result = admin_approve_order(
-        order_id=order_row.id,
-        payload={"note": "Auto-approved transport booking at confirmation"},
-        db=db,
-        current_user=SimpleNamespace(role="super_admin"),
-    )
-    saved["order_status"] = "paid"
     return {
         "ok": True,
         "booking": saved,
-        "order": {"id": order_row.id, "order_no": f"ORD-{order_row.id[:8].upper()}", "status": "paid", "auto_approved": True},
-        "rewards_earned": auto_result.get("rewards_earned", {}),
-        "commission_split": auto_result.get("commission_split", {}),
-        "next_step": "Booking confirmed, commission credited to METHO, and trip can start anytime.",
+        "order": {"id": order_row.id, "order_no": f"ORD-{order_row.id[:8].upper()}", "status": order_row.status, "auto_approved": False},
+        "next_step": "Booking created. Final fare must be confirmed first; then commission will be credited and the trip will be auto-approved.",
     }
 
 
@@ -3043,7 +3033,7 @@ def partner_transport_update_fare(trip_id: str, payload: dict, db: Session = Dep
         raise HTTPException(status_code=404, detail="Booking not found")
     if str(trip.get("partner_id") or "") != str(partner.id):
         raise HTTPException(status_code=403, detail="Not your booking")
-    if str(trip.get("status") or "") not in {"confirmed"}:
+    if str(trip.get("status") or "") not in {"booked"}:
         raise HTTPException(status_code=400, detail="Fare can be updated only before trip start")
 
     try:
@@ -3075,6 +3065,76 @@ def partner_transport_update_fare(trip_id: str, payload: dict, db: Session = Dep
         db.commit()
 
     return {"ok": True, "booking": saved}
+
+
+@router.post("/partner/transport/bookings/{trip_id}/confirm")
+def partner_transport_confirm_booking(trip_id: str, db: Session = Depends(get_db), current_user=Depends(get_current_user)):
+    if getattr(current_user, "role", "") != "partner":
+        raise HTTPException(status_code=403, detail="Partner access only")
+    partner = _resolve_partner_for_user(db, current_user)
+    if not partner:
+        raise HTTPException(status_code=404, detail="Partner profile not found")
+    trip = _load_transport_trip(db, trip_id)
+    if not trip:
+        raise HTTPException(status_code=404, detail="Booking not found")
+    if str(trip.get("partner_id") or "") != str(partner.id):
+        raise HTTPException(status_code=403, detail="Not your booking")
+    if str(trip.get("status") or "") not in {"booked"}:
+        raise HTTPException(status_code=400, detail="Booking can be confirmed only once before trip start")
+
+    order_id = str(trip.get("order_id") or "")
+    row = db.query(PublicOrder).filter(PublicOrder.id == order_id).first()
+    if not row:
+        raise HTTPException(status_code=404, detail="Order not found")
+
+    required = round(float(trip.get("required_commission_reserve") or 0), 2)
+    wallet = _load_partner_wallet(db, partner.id)
+    available = round(float(wallet.get("balance") or 0), 2)
+    if available + 1e-9 < required:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Commission reserve wallet insufficient. Required ₹{required}, available ₹{available}. Top up first.",
+        )
+
+    fare_final = round(float(trip.get("fare_final") or trip.get("fare_quote") or row.total_amount or 0), 2)
+    order_items = []
+    try:
+        order_items = json.loads(row.items_json or "[]")
+    except Exception:
+        order_items = []
+    if isinstance(order_items, list) and order_items:
+        item = dict(order_items[0] or {})
+        item["price"] = fare_final
+        item["unit_base_price"] = fare_final
+        item["mrp"] = fare_final
+        item["pre_tax"] = fare_final
+        item["subtotal"] = fare_final
+        order_items[0] = item
+        row.items_json = json.dumps(order_items)
+    row.total_amount = fare_final
+    row.status = "pending_approval"
+    db.commit()
+
+    auto_result = admin_approve_order(
+        order_id=order_id,
+        payload={"note": "Auto-approved transport booking after final fare confirmation"},
+        db=db,
+        current_user=SimpleNamespace(role="super_admin"),
+    )
+
+    trip["status"] = "confirmed"
+    trip["confirmed_at"] = now_iso()
+    trip["order_status"] = "paid"
+    saved = _save_transport_trip(db, trip)
+
+    return {
+        "ok": True,
+        "booking": saved,
+        "order": {"id": order_id, "order_no": f"ORD-{order_id[:8].upper()}", "status": "paid", "auto_approved": True},
+        "rewards_earned": auto_result.get("rewards_earned", {}),
+        "commission_split": auto_result.get("commission_split", {}),
+        "message": "Final fare locked, commission credited to METHO, and trip auto-approved.",
+    }
 
 
 @router.post("/partner/transport/bookings/{trip_id}/start")
