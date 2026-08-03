@@ -12,20 +12,17 @@ import { INDIAN_STATES, isCompletePincode, normalizePincode } from "@/lib/indiaL
 
 const BUSINESS_TYPES = ["Shop", "Service"];
 
-const DEFAULT_POLICY = {
-  mission_statement: "To build a trusted, product-driven smart earning ecosystem that delivers fair and sustainable income opportunities for everyone.",
-  vision_statement: "Our vision is to empower marginalized people, transform small businesses from local to global, and build sustainable financial freedom with a special focus on women.",
-  rules_and_conditions:
-    "1. All bonuses, commissions, and rewards are processed strictly according to the official system rules and eligibility criteria.\n" +
-    "2. Any fake orders, forged documents, misuse, or fraudulent activity may lead to immediate account suspension or termination.\n" +
-    "3. The company reserves the right to update policies, plans, and operational rules whenever required, with notice through official channels.",
-  return_policy:
-    "1. Return requests for defective, damaged, or incorrect products can be raised within 7 days of delivery.\n" +
-    "2. Used, tampered, or physically damaged products are not eligible for return unless covered by an approved exception.\n" +
-    "3. For approved returns, refund or replacement will be processed within the committed service timeline as per policy.",
-  partner_agreement_policy:
-    "Each Associate Partner will have an individually approved agreement percentage, and commission will be calculated strictly according to that approved rate.",
-};
+const DEFAULT_TERMS = [
+  "1. The Partner acknowledges that all products, services, claims, guarantees, delivery commitments, quality assurances, and warranty obligations are the sole responsibility of the Partner.",
+  "2. The Partner must ensure that every product, service, price, description, image, certificate, license, registration number, and business document submitted on this platform is genuine, accurate, and legally valid.",
+  "3. The Partner must comply with all applicable Indian laws, rules, licensing requirements, tax regulations, consumer protection obligations, safety standards, and local authority rules relevant to the Partner's business.",
+  "4. If any incorrect, incomplete, misleading, expired, forged, or unauthorized document is uploaded or any false information is provided, the Partner alone will be fully responsible for all consequences, losses, penalties, claims, disputes, and legal actions.",
+  "5. METHO acts only as an intermediary technology platform and does not manufacture, own, verify, guarantee, certify, endorse, or assume liability for the Partner's business, products, services, staff, or documents.",
+  "6. METHO does not independently verify every original document, license, certificate, or business claim submitted by the Partner. The Partner remains fully responsible for the authenticity and legality of all submitted information and supporting documents.",
+  "7. By registering, the Partner confirms that all uploaded documents are original, lawful, and submitted with proper authority, and agrees to keep them updated whenever required.",
+  "8. Any violation of these Terms & Conditions may result in account suspension, listing removal, payment hold, settlement delay, or permanent termination, as determined by METHO or the applicable authority.",
+  "9. METHO's role is limited to providing the platform and related administrative services. Any dispute arising from the Partner's business operations shall be handled directly by the Partner, subject to applicable law.",
+].join("\n");
 
 export default function PartnerRegisterPage() {
   const nav = useNavigate();
@@ -40,19 +37,13 @@ export default function PartnerRegisterPage() {
   const [pincodeBusy, setPincodeBusy] = useState(false);
   const lastLookupPinRef = useRef("");
   const [done, setDone] = useState(null);
-  const [policy, setPolicy] = useState(DEFAULT_POLICY);
+  const [terms, setTerms] = useState(DEFAULT_TERMS);
   const isService = form.business_type === "Service";
 
   useEffect(() => {
     api.get("/settings").then((r) => {
       const s = r.data || {};
-      setPolicy({
-        mission_statement: (s.mission_statement || "").trim() || DEFAULT_POLICY.mission_statement,
-        vision_statement: (s.vision_statement || "").trim() || DEFAULT_POLICY.vision_statement,
-        rules_and_conditions: (s.rules_and_conditions || "").trim() || DEFAULT_POLICY.rules_and_conditions,
-        return_policy: (s.return_policy || "").trim() || DEFAULT_POLICY.return_policy,
-        partner_agreement_policy: (s.partner_agreement_policy || "").trim() || DEFAULT_POLICY.partner_agreement_policy,
-      });
+      setTerms((s.rules_and_conditions || "").trim() || DEFAULT_TERMS);
     }).catch(() => {});
   }, []);
 
@@ -280,40 +271,17 @@ export default function PartnerRegisterPage() {
           </section>
 
           <section className="rounded-xl border border-emerald-200 bg-emerald-50/50 p-4 md:p-5" data-testid="partner-policy-section">
-            <h2 className="font-display font-black text-lg text-emerald-950">Mission, Vision & Policies</h2>
-            <p className="text-xs text-emerald-900/80 mt-1">Please review these before submitting your partner application.</p>
+            <h2 className="font-display font-black text-lg text-emerald-950">Terms & Conditions</h2>
+            <p className="text-xs text-emerald-900/80 mt-1">Please read carefully before submitting your partner application.</p>
 
-            <div className="mt-4 space-y-4">
-              <div>
-                <p className="text-xs uppercase tracking-wider text-emerald-900 font-semibold">Mission Statement</p>
-                <p className="mt-1 text-sm text-slate-700 whitespace-pre-line">{policy.mission_statement}</p>
-              </div>
-
-              <div>
-                <p className="text-xs uppercase tracking-wider text-emerald-900 font-semibold">Vision Statement</p>
-                <p className="mt-1 text-sm text-slate-700 whitespace-pre-line">{policy.vision_statement}</p>
-              </div>
-
-              <div>
-                <p className="text-xs uppercase tracking-wider text-emerald-900 font-semibold">Terms & Conditions</p>
-                <p className="mt-1 text-sm text-slate-700 whitespace-pre-line">{policy.rules_and_conditions}</p>
-              </div>
-
-              <div>
-                <p className="text-xs uppercase tracking-wider text-emerald-900 font-semibold">Return Policy</p>
-                <p className="mt-1 text-sm text-slate-700 whitespace-pre-line">{policy.return_policy}</p>
-              </div>
-
-              <div>
-                <p className="text-xs uppercase tracking-wider text-emerald-900 font-semibold">Partner Agreement Policy</p>
-                <p className="mt-1 text-sm text-slate-700 whitespace-pre-line">{policy.partner_agreement_policy}</p>
-              </div>
+            <div className="mt-4 rounded-xl border border-emerald-200 bg-white p-4">
+              <p className="text-sm text-slate-700 whitespace-pre-line leading-6">{terms}</p>
             </div>
           </section>
 
           <div className="border-t border-border pt-4 flex flex-wrap items-center justify-between gap-3">
             <p className="text-xs text-muted-foreground font-body max-w-md">
-              By submitting, you agree to the Partner Agreement Policy above. Your Shop or Service appears in directory only after admin approval.
+              By submitting, you confirm that you have read and accepted the Terms & Conditions above. Your Shop or Service appears in the directory only after admin approval.
             </p>
             <Button type="submit" disabled={busy} className="bg-emerald-900 hover:bg-emerald-950 text-white rounded-full px-8 h-12" data-testid="reg-submit">
               {busy ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" /> Submitting...</> : <><Send className="w-4 h-4 mr-2" /> Submit Application</>}
