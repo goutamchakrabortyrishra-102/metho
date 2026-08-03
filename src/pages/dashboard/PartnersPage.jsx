@@ -653,6 +653,8 @@ export default function PartnersPage() {
 
   const totalSales = partners.reduce((s, p) => s + (p.total_sales || 0), 0);
   const totalCommission = partners.reduce((s, p) => s + (p.total_commission_paid || 0), 0);
+  const totalServiceBookings = partners.reduce((s, p) => s + Number(p.service_booking_count || 0), 0);
+  const totalServiceSales = partners.reduce((s, p) => s + Number(p.service_sales_total || 0), 0);
 
   return (
     <div className="space-y-6" data-testid="partners-page">
@@ -707,7 +709,7 @@ export default function PartnersPage() {
         </div>
       ) : null}
 
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
         <div className="bg-white rounded-xl border border-border p-5" data-testid="stat-total-partners">
           <div className="flex items-center gap-3"><div className="w-10 h-10 rounded-lg bg-emerald-100 flex items-center justify-center"><Building className="w-5 h-5 text-emerald-800" /></div><div><p className="text-[10px] uppercase tracking-widest text-slate-500 font-semibold">Active Partners</p><p className="font-display font-black text-2xl text-emerald-950">{partners.filter(p => p.active !== false).length} / {partners.length}</p></div></div>
         </div>
@@ -716,6 +718,9 @@ export default function PartnersPage() {
         </div>
         <div className="bg-white rounded-xl border border-border p-5">
           <div className="flex items-center gap-3"><div className="w-10 h-10 rounded-lg bg-emerald-100 flex items-center justify-center"><Percent className="w-5 h-5 text-emerald-800" /></div><div><p className="text-[10px] uppercase tracking-widest text-slate-500 font-semibold">Commission Collected</p><p className="font-display font-black text-2xl text-emerald-950">{inr(totalCommission)}</p></div></div>
+        </div>
+        <div className="bg-white rounded-xl border border-border p-5">
+          <div className="flex items-center gap-3"><div className="w-10 h-10 rounded-lg bg-emerald-50 flex items-center justify-center"><Package className="w-5 h-5 text-emerald-700" /></div><div><p className="text-[10px] uppercase tracking-widest text-slate-500 font-semibold">Service Bookings</p><p className="font-display font-black text-2xl text-emerald-950">{totalServiceBookings}</p><p className="text-[11px] text-muted-foreground">Sales {inr(totalServiceSales)}</p></div></div>
         </div>
       </div>
 
@@ -963,6 +968,15 @@ export default function PartnersPage() {
                     Sales: <span className="font-semibold text-emerald-800">{inr(p.total_sales || 0)}</span> ·
                     Commission: <span className="font-semibold text-emerald-800">{inr(p.total_commission_paid || 0)}</span>
                   </p>
+                  <p className="text-[11px] text-muted-foreground font-body mt-1">
+                    Service bookings: <span className="font-semibold text-emerald-800">{Number(p.service_booking_count || 0)}</span>
+                    {" · "}Paid: <span className="font-semibold text-emerald-800">{Number(p.service_paid_booking_count || 0)}</span>
+                    {" · "}Service sales: <span className="font-semibold text-emerald-800">{inr(Number(p.service_sales_total || 0))}</span>
+                    {" · "}Transport trips: <span className="font-semibold text-emerald-800">{Number(p.transport_trip_count || 0)}</span>
+                  </p>
+                  {Array.isArray(p.service_categories) && p.service_categories.length > 0 ? (
+                    <p className="text-[11px] text-slate-500 font-body mt-0.5">Service types: {p.service_categories.join(", ")}</p>
+                  ) : null}
                 </div>
               </div>
               <div className="mt-3 flex justify-end gap-2 flex-wrap">

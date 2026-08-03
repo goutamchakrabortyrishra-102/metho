@@ -3889,6 +3889,68 @@ def system_health(db: Session = Depends(get_db), current_user=Depends(get_curren
 def admin_partners(db: Session = Depends(get_db), current_user=Depends(get_current_user)):
     _require_admin_user(current_user)
     rows = db.query(AssociatePartner).order_by(AssociatePartner.created_at.desc()).all()
+    partner_ids = {str(p.id) for p in rows}
+
+    product_rows = db.query(PartnerProduct.id, PartnerProduct.partner_id, PartnerProduct.category).all()
+    product_partner_map: dict[str, str] = {}
+    product_category_map: dict[str, str] = {}
+    for product_id, partner_id, category in product_rows:
+        pid = str(product_id or "")
+        owner = str(partner_id or "")
+        if not pid or not owner:
+            continue
+        product_partner_map[pid] = owner
+        product_category_map[pid] = str(category or "General")
+
+    service_stats_map: dict[str, dict] = {}
+    for order in db.query(PublicOrder).all():
+        try:
+            items = json.loads(order.items_json or "[]")
+        except Exception:
+            items = []
+        if not isinstance(items, list):
+            continue
+        for item in items:
+            if not isinstance(item, dict):
+                continue
+            listing_type = str(item.get("listing_type") or item.get("item_kind") or "").strip().lower()
+            is_service = bool(item.get("is_service") or item.get("service_booking_enabled") or listing_type == "service")
+            if not is_service:
+                continue
+
+            product_id = str(item.get("product_id") or "").strip()
+            partner_id = product_partner_map.get(product_id)
+            if not partner_id or partner_id not in partner_ids:
+                continue
+
+            bucket = service_stats_map.setdefault(
+                partner_id,
+                {
+                    "service_booking_count": 0,
+                    "service_paid_booking_count": 0,
+                    "service_sales_total": 0.0,
+                    "service_categories": set(),
+                },
+            )
+            bucket["service_booking_count"] += 1
+            if str(order.status or "").strip().lower() in {"paid"}:
+                bucket["service_paid_booking_count"] += 1
+
+            amount = float(item.get("subtotal") or item.get("price") or 0)
+            if amount > 0:
+                bucket["service_sales_total"] += amount
+
+            category = str(item.get("category") or product_category_map.get(product_id) or "General").strip()
+            if category:
+                bucket["service_categories"].add(category)
+
+    transport_trip_count_map: dict[str, int] = {}
+    for trip in _list_transport_trips(db, limit=1000000):
+        pid = str((trip or {}).get("partner_id") or "")
+        if not pid:
+            continue
+        transport_trip_count_map[pid] = int(transport_trip_count_map.get(pid) or 0) + 1
+
     pending_rows = db.query(AppSetting).filter(AppSetting.key.like("partner_topup:%")).all()
     pending_map: dict[str, int] = {}
     for row in pending_rows:
@@ -3922,6 +3984,11 @@ def admin_partners(db: Session = Depends(get_db), current_user=Depends(get_curre
             "is_featured": p.is_featured,
             "total_sales": p.total_sales,
             "total_commission_paid": round(float(_load_partner_wallet(db, p.id).get("total_debit") or 0), 2),
+            "service_booking_count": int((service_stats_map.get(str(p.id), {}) or {}).get("service_booking_count") or 0),
+            "service_paid_booking_count": int((service_stats_map.get(str(p.id), {}) or {}).get("service_paid_booking_count") or 0),
+            "service_sales_total": round(float((service_stats_map.get(str(p.id), {}) or {}).get("service_sales_total") or 0), 2),
+            "service_categories": sorted(list((service_stats_map.get(str(p.id), {}) or {}).get("service_categories") or set()))[:8],
+            "transport_trip_count": int(transport_trip_count_map.get(str(p.id)) or 0),
             "wallet": _load_partner_wallet(db, p.id),
             "pending_topup_requests": int(pending_map.get(p.id) or 0),
         }
