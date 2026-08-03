@@ -69,8 +69,8 @@ const getUnitType = (item) => {
 
 const getQtyStep = (item) => {
   const unit = getUnitType(item);
-  if (unit === "kg" || unit === "litre") return 0.25;
-  if (unit === "gram" || unit === "ml") return 50;
+  if (unit === "kg" || unit === "litre") return 0.1;
+  if (unit === "gram" || unit === "ml") return 100;
   return 1;
 };
 
@@ -598,7 +598,7 @@ export default function PartnerShopPage() {
             <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
               {[0, 1, 2, 3, 4].map((slot) => {
                 const fallbackProduct = bestFiveProducts[slot];
-                const productImage = getProductImageUrl(fallbackProduct);
+                const productImage = getDisplayImage(fallbackProduct, placeholder);
                 const imageSrc = featuredImages[slot] || productImage || fallbackProduct?.fallback_image_url || "";
                 return (
                 <div key={`best-product-${slot}`} className="aspect-square rounded-lg overflow-hidden border border-border bg-slate-100 relative">
@@ -610,7 +610,7 @@ export default function PartnerShopPage() {
                       onError={(e) => {
                         applyImageFallback(
                           e,
-                          productImage || fallbackProduct?.fallback_image_url || "",
+                                  productImage || fallbackProduct?.fallback_image_url || "",
                           placeholder || PRODUCT_FALLBACK
                         );
                       }}

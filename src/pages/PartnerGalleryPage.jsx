@@ -159,6 +159,36 @@ const isServiceListing = (item) => {
   return false;
 };
 
+const getUnitType = (item) => {
+  const unit = String(item?.unit_type || "piece").trim().toLowerCase();
+  if (["kg", "gram", "litre", "ml", "piece"].includes(unit)) return unit;
+  return "piece";
+};
+
+const getQtyStep = (item) => {
+  const unit = getUnitType(item);
+  if (unit === "kg" || unit === "litre") return 0.1;
+  if (unit === "gram" || unit === "ml") return 100;
+  return 1;
+};
+
+const normalizeQtyByUnit = (value, item) => {
+  const step = getQtyStep(item);
+  const unit = getUnitType(item);
+  const raw = Number(value || 0);
+  if (!Number.isFinite(raw) || raw <= 0) return 0;
+  if (unit === "piece" || step === 1) return Math.max(0, Math.round(raw));
+  const units = Math.round(raw / step);
+  const next = units * step;
+  return Number(next.toFixed(3));
+};
+
+const formatQty = (qty) => {
+  const n = Number(qty || 0);
+  if (!Number.isFinite(n)) return "0";
+  return Number.isInteger(n) ? String(n) : String(Number(n.toFixed(3)));
+};
+
 function ProductModal({ product, onClose, onAdd, onDec, qty, galleryUrl, isBookNowRole, onBookNow, canAccessProductPdf }) {
   if (!product) return null;
   const productUrl = `${galleryUrl}?p=${product.id}`;
@@ -223,7 +253,7 @@ function ProductModal({ product, onClose, onAdd, onDec, qty, galleryUrl, isBookN
                 <button onClick={() => onDec(product.id)} className="w-9 h-9 rounded-full bg-white flex items-center justify-center hover:bg-emerald-100">
                   <Minus className="w-4 h-4" />
                 </button>
-                <span className="font-black text-emerald-950 text-lg">{qty}</span>
+                <span className="font-black text-emerald-950 text-lg">{formatQty(qty)}</span>
                 <button onClick={() => onAdd(product.id)} className="w-9 h-9 rounded-full bg-white flex items-center justify-center hover:bg-emerald-100">
                   <Plus className="w-4 h-4" />
                 </button>
@@ -315,8 +345,12 @@ export default function PartnerGalleryPage() {
   }, [activeListings, gallerySearch]);
   const canDownloadPdf = ["partner", "admin", "super_admin", "company_admin"].includes(String(user?.role || "").toLowerCase());
 
-  const addToCart = (id) => {
-    const product = products.find((x) => String(x.id) === String(id));
+  const addToCart = (productOrId) => {
+    const product = typeof productOrId === "object"
+      ? productOrId
+      : products.find((x) => String(x.id) === String(productOrId));
+    const id = product?.id;
+    if (!id) return;
     const isService = isServiceListing(product);
     if (isService) {
       setCart((c) => ({ ...c, [id]: (c[id] || 0) + 1 }));
@@ -324,6 +358,7 @@ export default function PartnerGalleryPage() {
     }
 
     const stock = getStock(product);
+    const step = getQtyStep(product);
     if (stock <= 0) {
       toast.error(`${product?.name || "Product"}: out of stock`);
       return;
@@ -331,14 +366,31 @@ export default function PartnerGalleryPage() {
 
     setCart((c) => {
       const current = Number(c[id] || 0);
-      if (current >= stock) {
+      const nextQty = normalizeQtyByUnit(current + step, product);
+      if (nextQty > stock) {
         toast.error(`${product?.name || "Product"}: max available stock is ${stock}`);
         return c;
       }
-      return { ...c, [id]: current + 1 };
+      return { ...c, [id]: nextQty };
     });
   };
-  const decCart = (id) => setCart(c => ({ ...c, [id]: Math.max(0, (c[id] || 0) - 1) }));
+  const decCart = (productOrId) => {
+    const product = typeof productOrId === "object"
+      ? productOrId
+      : products.find((x) => String(x.id) === String(productOrId));
+    const id = product?.id;
+    if (!id) return;
+    if (isServiceListing(product)) {
+      setCart((c) => ({ ...c, [id]: Math.max(0, (c[id] || 0) - 1) }));
+      return;
+    }
+    const step = getQtyStep(product);
+    setCart((c) => {
+      const current = Number(c[id] || 0);
+      const nextQty = normalizeQtyByUnit(current - step, product);
+      return { ...c, [id]: Math.max(0, nextQty) };
+    });
+  };
 
   useEffect(() => {
     if (!products.length) return;
@@ -353,7 +405,7 @@ export default function PartnerGalleryPage() {
           return;
         }
         const stock = getStock(product);
-        const normalized = Math.min(Math.max(0, Number(qty) || 0), stock);
+        const normalized = Math.min(normalizeQtyByUnit(qty, product), stock);
         if (normalized > 0) next[id] = normalized;
       });
       return next;
