@@ -167,6 +167,22 @@ const isTransportServiceListing = (item) => {
     .join(" ");
   return ["transport", "cab", "taxi", "bike rental", "car rental", "ride", "cargo"].some((k) => haystack.includes(k));
 };
+const isHospitalityServiceListing = (item) => {
+  const key = String(item?.service_template_key || "").trim().toLowerCase();
+  if (["hotel_standard_room", "hotel_deluxe_room", "hotel_suite_room", "homestay_daily_stay", "homestay_weekend_package", "restaurant_table_booking", "banquet_slot", "restaurant_takeaway_slot", "cafe_table_reservation"].includes(key)) return true;
+  const haystack = [item?.category, item?.name, item?.description]
+    .map((v) => String(v || "").toLowerCase())
+    .join(" ");
+  return ["hotel", "homestay", "restaurant", "banquet", "cafe", "room booking", "table booking", "takeaway", "daily stay", "weekend package"].some((k) => haystack.includes(k));
+};
+const isDoorstepServiceListing = (item) => {
+  const key = String(item?.service_template_key || "").trim().toLowerCase();
+  if (["ac_service_visit", "plumbing_repair", "electrician_visit", "appliance_repair", "laundry_kg_service", "dry_clean_service", "tailoring_stitching", "beauty_home_service", "courier_pickup", "house_deep_clean", "office_cleaning", "pest_control_visit"].includes(key)) return true;
+  const haystack = [item?.category, item?.name, item?.description]
+    .map((v) => String(v || "").toLowerCase())
+    .join(" ");
+  return ["home repair", "home service", "laundry", "dry clean", "tailoring", "beauty", "courier", "cleaning", "pest control", "electrician", "plumbing", "appliance repair"].some((k) => haystack.includes(k));
+};
 
 const getUnitType = (item) => {
   const unit = String(item?.unit_type || "piece").trim().toLowerCase();
@@ -338,11 +354,17 @@ export default function PartnerGalleryPage() {
   const productListings = useMemo(() => products.filter((item) => !isServiceListing(item)), [products]);
   const serviceListings = useMemo(() => products.filter((item) => isServiceListing(item)), [products]);
   const transportListings = useMemo(() => serviceListings.filter((item) => isTransportServiceListing(item)), [serviceListings]);
-  const regularServiceListings = useMemo(() => serviceListings.filter((item) => !isTransportServiceListing(item)), [serviceListings]);
-  const activeTab = ["products", "services", "transport"].includes(requestedTab) ? requestedTab : "products";
+  const hospitalityListings = useMemo(() => serviceListings.filter((item) => !isTransportServiceListing(item) && isHospitalityServiceListing(item)), [serviceListings]);
+  const doorstepListings = useMemo(() => serviceListings.filter((item) => !isTransportServiceListing(item) && !isHospitalityServiceListing(item) && isDoorstepServiceListing(item)), [serviceListings]);
+  const regularServiceListings = useMemo(() => serviceListings.filter((item) => !isTransportServiceListing(item) && !isHospitalityServiceListing(item) && !isDoorstepServiceListing(item)), [serviceListings]);
+  const activeTab = ["products", "transport", "stay-dining", "doorstep", "other-services"].includes(requestedTab) ? requestedTab : "products";
   const activeListings = activeTab === "transport"
     ? transportListings
-    : (activeTab === "services" ? regularServiceListings : productListings);
+    : (activeTab === "stay-dining"
+      ? hospitalityListings
+      : (activeTab === "doorstep"
+        ? doorstepListings
+        : (activeTab === "other-services" ? regularServiceListings : productListings)));
   const isBookNowRole = !user || ["member", "customer"].includes(String(user?.role || "").toLowerCase());
   const canAccessProductPdf = ["partner", "admin", "super_admin", "company_admin"].includes(String(user?.role || "").toLowerCase());
   const getStock = (product) => Math.max(0, Number(product?.stock ?? 0));
@@ -458,7 +480,11 @@ export default function PartnerGalleryPage() {
     const productLines = visibleProducts.slice(0, 8).map(p =>
       `• ${p.name} — ₹${p.price}${(p.image_url || getPdfUrl(p)) ? `\n  ${p.image_url || getPdfUrl(p)}` : ""}`
     ).join("\n");
-    const sectionLabel = activeTab === "transport" ? "Transport Gallery" : (activeTab === "services" ? "Service Gallery" : "Product Gallery");
+    const sectionLabel = activeTab === "transport"
+      ? "Transport Gallery"
+      : (activeTab === "stay-dining"
+        ? "Stay & Dining Gallery"
+        : (activeTab === "doorstep" ? "Doorstep Services Gallery" : (activeTab === "other-services" ? "Other Services Gallery" : "Product Gallery")));
     const msg = `🛍️ *${partner.business_name}* এর ${sectionLabel}\n\n${productLines}\n\n👉 সব দেখুন ও Order করুন:\n${galleryUrl}?tab=${activeTab}`;
     window.open(`https://wa.me/?text=${encodeURIComponent(msg)}`, "_blank");
   };
@@ -671,7 +697,7 @@ export default function PartnerGalleryPage() {
             </p>
           </div>
           <div className="text-right">
-            <p className="text-[10px] text-amber-400 uppercase font-bold">{activeTab === "transport" ? "Transport" : (activeTab === "services" ? "Services" : "Products")}</p>
+            <p className="text-[10px] text-amber-400 uppercase font-bold">{activeTab === "transport" ? "Transport" : (activeTab === "stay-dining" ? "Stay & Dining" : (activeTab === "doorstep" ? "Doorstep" : (activeTab === "other-services" ? "Other Services" : "Products")))}</p>
             <p className="font-display font-black text-3xl">{activeListings.length}</p>
           </div>
         </div>
@@ -682,7 +708,7 @@ export default function PartnerGalleryPage() {
         <p className="text-sm text-slate-600 font-body">
           {activeTab === "transport"
             ? "Tap the image to view details and start ride booking"
-            : (activeTab === "services" ? "Tap the image to view details and book the service" : "Tap the image to view details and add to cart")}
+            : ((activeTab === "stay-dining" || activeTab === "doorstep" || activeTab === "other-services") ? "Tap the image to view details and book the service" : "Tap the image to view details and add to cart")}
         </p>
         <div className="flex flex-wrap gap-2 w-full sm:w-auto">
           <Link to={`/gallery/${partnerCode}?tab=products${gallerySearch ? `&q=${encodeURIComponent(gallerySearch)}` : ""}`}>
@@ -695,9 +721,19 @@ export default function PartnerGalleryPage() {
               Transport
             </Button>
           </Link>
-          <Link to={`/gallery/${partnerCode}?tab=services${gallerySearch ? `&q=${encodeURIComponent(gallerySearch)}` : ""}`}>
-            <Button variant={activeTab === "services" ? "default" : "outline"} size="sm" className={`rounded-full text-xs ${activeTab === "services" ? "bg-emerald-900 hover:bg-emerald-950 text-white" : "border-emerald-300 text-emerald-900 hover:bg-emerald-50"}`}>
-              Services
+          <Link to={`/gallery/${partnerCode}?tab=stay-dining${gallerySearch ? `&q=${encodeURIComponent(gallerySearch)}` : ""}`}>
+            <Button variant={activeTab === "stay-dining" ? "default" : "outline"} size="sm" className={`rounded-full text-xs ${activeTab === "stay-dining" ? "bg-amber-600 hover:bg-amber-700 text-white" : "border-amber-300 text-amber-900 hover:bg-amber-50"}`}>
+              Stay & Dining
+            </Button>
+          </Link>
+          <Link to={`/gallery/${partnerCode}?tab=doorstep${gallerySearch ? `&q=${encodeURIComponent(gallerySearch)}` : ""}`}>
+            <Button variant={activeTab === "doorstep" ? "default" : "outline"} size="sm" className={`rounded-full text-xs ${activeTab === "doorstep" ? "bg-violet-700 hover:bg-violet-800 text-white" : "border-violet-300 text-violet-900 hover:bg-violet-50"}`}>
+              Doorstep
+            </Button>
+          </Link>
+          <Link to={`/gallery/${partnerCode}?tab=other-services${gallerySearch ? `&q=${encodeURIComponent(gallerySearch)}` : ""}`}>
+            <Button variant={activeTab === "other-services" ? "default" : "outline"} size="sm" className={`rounded-full text-xs ${activeTab === "other-services" ? "bg-emerald-900 hover:bg-emerald-950 text-white" : "border-emerald-300 text-emerald-900 hover:bg-emerald-50"}`}>
+              Other Services
             </Button>
           </Link>
           {canDownloadPdf ? (
@@ -722,12 +758,12 @@ export default function PartnerGalleryPage() {
       <div className="max-w-4xl mx-auto px-4 pb-4">
         <div className="bg-white rounded-xl border border-border p-4 flex flex-col md:flex-row gap-2 md:items-center">
           <div className="flex items-center gap-2 text-emerald-900 font-semibold text-sm shrink-0">
-            <Search className="w-4 h-4" /> {activeTab === "transport" ? "Search Transport" : (activeTab === "services" ? "Search Service" : "Search Product")}
+            <Search className="w-4 h-4" /> {activeTab === "transport" ? "Search Transport" : (activeTab === "stay-dining" ? "Search Stay & Dining" : (activeTab === "doorstep" ? "Search Doorstep Service" : (activeTab === "other-services" ? "Search Other Service" : "Search Product")))}
           </div>
           <Input
             value={gallerySearch}
             onChange={(e) => setGallerySearch(e.target.value)}
-            placeholder={activeTab === "transport" ? "Search by cab, rental, bike, cargo" : (activeTab === "services" ? "Search by service name or category" : "Search by product name or category")}
+            placeholder={activeTab === "transport" ? "Search by cab, rental, bike, cargo" : (activeTab === "stay-dining" ? "Search hotel, homestay, restaurant" : (activeTab === "doorstep" ? "Search cleaning, repair, courier" : (activeTab === "other-services" ? "Search by other service name or category" : "Search by product name or category")))}
             className="rounded-full"
           />
           {gallerySearch ? (
@@ -750,8 +786,8 @@ export default function PartnerGalleryPage() {
             <Store className="w-10 h-10 text-slate-400 mx-auto" />
             <p className="mt-3 font-semibold text-emerald-950">
               {gallerySearch
-                ? (activeTab === "transport" ? "No matching transport service found" : (activeTab === "services" ? "No matching services found" : "No matching products found"))
-                : (activeTab === "transport" ? "No transport service yet" : (activeTab === "services" ? "No services yet" : "No products yet"))}
+                ? (activeTab === "transport" ? "No matching transport service found" : (activeTab === "stay-dining" ? "No matching stay/dining service found" : (activeTab === "doorstep" ? "No matching doorstep service found" : (activeTab === "other-services" ? "No matching other service found" : "No matching products found"))))
+                : (activeTab === "transport" ? "No transport service yet" : (activeTab === "stay-dining" ? "No stay/dining service yet" : (activeTab === "doorstep" ? "No doorstep service yet" : (activeTab === "other-services" ? "No other service yet" : "No products yet"))))}
             </p>
           </div>
         ) : (

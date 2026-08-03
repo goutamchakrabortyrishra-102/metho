@@ -32,6 +32,24 @@ const isTransportServiceListing = (item) => {
     .join(" ");
   return ["transport", "cab", "taxi", "bike rental", "car rental", "ride"].some((k) => haystack.includes(k));
 };
+const HOSPITALITY_SERVICE_SECTORS = ["Hotel", "Homestay", "Restaurant", "Cafe"];
+const DOORSTEP_SERVICE_SECTORS = ["Home Service", "Laundry", "Beauty at Home", "Cleaning", "Courier", "Tailoring"];
+const isHospitalityServiceListing = (item) => {
+  const key = String(item?.service_template_key || "").trim().toLowerCase();
+  if (["hotel_standard_room", "hotel_deluxe_room", "hotel_suite_room", "homestay_daily_stay", "homestay_weekend_package", "restaurant_table_booking", "banquet_slot", "restaurant_takeaway_slot", "cafe_table_reservation"].includes(key)) return true;
+  const haystack = [item?.category, item?.name, item?.description]
+    .map((v) => String(v || "").toLowerCase())
+    .join(" ");
+  return ["hotel", "homestay", "restaurant", "banquet", "cafe", "room booking", "table booking", "takeaway", "daily stay", "weekend package"].some((k) => haystack.includes(k));
+};
+const isDoorstepServiceListing = (item) => {
+  const key = String(item?.service_template_key || "").trim().toLowerCase();
+  if (["ac_service_visit", "plumbing_repair", "electrician_visit", "appliance_repair", "laundry_kg_service", "dry_clean_service", "tailoring_stitching", "beauty_home_service", "courier_pickup", "house_deep_clean", "office_cleaning", "pest_control_visit"].includes(key)) return true;
+  const haystack = [item?.category, item?.name, item?.description]
+    .map((v) => String(v || "").toLowerCase())
+    .join(" ");
+  return ["home repair", "home service", "laundry", "dry clean", "tailoring", "beauty", "courier", "cleaning", "pest control", "electrician", "plumbing", "appliance repair"].some((k) => haystack.includes(k));
+};
 const PARTNER_IMAGE_MAX_BYTES = 200 * 1024;
 const PARTNER_IMAGE_MAX_TEXT = "200KB";
 const PDF_PREVIEW = "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 400 400'><rect width='400' height='400' fill='%23f1f5f9'/><rect x='80' y='50' width='240' height='300' rx='14' fill='%23ffffff' stroke='%2394a3b8' stroke-width='4'/><text x='200' y='190' text-anchor='middle' fill='%23dc2626' font-size='46' font-family='Arial' font-weight='bold'>PDF</text><text x='200' y='228' text-anchor='middle' fill='%23334155' font-size='16' font-family='Arial'>Tap to Open</text></svg>";
@@ -164,7 +182,9 @@ export default function PartnerDashboardPage() {
   const [presetForm, setPresetForm] = useState({ service_product_id: "", destination: "", fare: "", pickup_hint: "", notes: "" });
   const productItems = products.filter((p) => !(String(p?.listing_type || p?.item_kind || "").toLowerCase().includes("service") || p?.is_service));
   const transportItems = products.filter((p) => (String(p?.listing_type || p?.item_kind || "").toLowerCase().includes("service") || p?.is_service) && isTransportServiceListing(p));
-  const serviceItems = products.filter((p) => (String(p?.listing_type || p?.item_kind || "").toLowerCase().includes("service") || p?.is_service) && !isTransportServiceListing(p));
+  const hospitalityItems = products.filter((p) => (String(p?.listing_type || p?.item_kind || "").toLowerCase().includes("service") || p?.is_service) && !isTransportServiceListing(p) && isHospitalityServiceListing(p));
+  const doorstepItems = products.filter((p) => (String(p?.listing_type || p?.item_kind || "").toLowerCase().includes("service") || p?.is_service) && !isTransportServiceListing(p) && !isHospitalityServiceListing(p) && isDoorstepServiceListing(p));
+  const serviceItems = products.filter((p) => (String(p?.listing_type || p?.item_kind || "").toLowerCase().includes("service") || p?.is_service) && !isTransportServiceListing(p) && !isHospitalityServiceListing(p) && !isDoorstepServiceListing(p));
 
   const loadAll = () => {
     api.get("/partner/summary").then(r => setSummary(r.data)).catch(() => {});
@@ -611,7 +631,9 @@ export default function PartnerDashboardPage() {
           <Tab id="overview" active={tab} onClick={setTab}>Overview</Tab>
           <Tab id="products" active={tab} onClick={setTab}>Products ({productItems.length})</Tab>
           <Tab id="transport" active={tab} onClick={setTab}>Transport ({transportItems.length})</Tab>
-          <Tab id="services" active={tab} onClick={setTab}>Services ({serviceItems.length})</Tab>
+          <Tab id="stay-dining" active={tab} onClick={setTab}>Stay & Dining ({hospitalityItems.length})</Tab>
+          <Tab id="doorstep" active={tab} onClick={setTab}>Doorstep ({doorstepItems.length})</Tab>
+          <Tab id="services" active={tab} onClick={setTab}>Other Services ({serviceItems.length})</Tab>
           <Tab id="offline" active={tab} onClick={setTab}>Offline Billing</Tab>
           <Tab id="orders" active={tab} onClick={setTab}>Orders ({orders.length})</Tab>
           <Tab id="ledger" active={tab} onClick={setTab}>Ledger ({ledger.length})</Tab>
@@ -622,7 +644,7 @@ export default function PartnerDashboardPage() {
             <div className="rounded-xl border border-amber-300 bg-amber-50 p-4 mb-5">
               <p className="text-[10px] uppercase tracking-widest text-amber-800 font-bold">Listing Manager</p>
               <h3 className="font-display font-bold text-emerald-950 text-base mt-1">Shop listing manage এখান থেকেই করুন</h3>
-              <p className="text-xs text-slate-700 mt-1">Product, regular service, আর transport এখন আলাদা tab-এ থাকবে, তাই mix হবে না।</p>
+              <p className="text-xs text-slate-700 mt-1">Product, transport, stay-dining, doorstep, আর other service এখন আলাদা tab-এ থাকবে, তাই mix হবে না।</p>
               <div className="mt-3">
                 <Button
                   type="button"
@@ -983,15 +1005,15 @@ export default function PartnerDashboardPage() {
           </div>
         )}
 
-        {tab === "services" && (
+        {tab === "stay-dining" && (
           <div className="bg-white rounded-xl border border-border p-6">
             <div className="flex items-center justify-between mb-4">
-              <h3 className="font-display font-bold text-emerald-950 text-lg">Service Listings</h3>
+              <h3 className="font-display font-bold text-emerald-950 text-lg">Stay & Dining Listings</h3>
               <div className="flex items-center gap-2">
                 {summary?.partner_code && (
-                  <Link to={`/gallery/${summary.partner_code}?tab=services`} target="_blank">
+                  <Link to={`/gallery/${summary.partner_code}?tab=stay-dining`} target="_blank">
                     <Button size="sm" variant="outline" className="rounded-full border-emerald-300 text-emerald-900 hover:bg-emerald-50">
-                      <Images className="w-4 h-4 mr-1" /> View Service Gallery
+                      <Images className="w-4 h-4 mr-1" /> View Stay & Dining
                     </Button>
                   </Link>
                 )}
@@ -999,18 +1021,152 @@ export default function PartnerDashboardPage() {
                   onSaved={loadAll}
                   defaultListingType="service"
                   fixedListingType="service"
-                  excludedServiceSectors={["Transport", "Logistics"]}
-                  triggerLabel="Add Service"
-                  dialogTitle="New Service"
-                  dialogDescription="Create only hotel, homestay, clinic, repair, salon and other non-transport service listings here."
+                  allowedServiceSectors={HOSPITALITY_SERVICE_SECTORS}
+                  initialServiceSectorFilter="Hotel"
+                  triggerLabel="Add Stay/Dining"
+                  dialogTitle="New Stay & Dining Service"
+                  dialogDescription="Create only hotel, homestay, restaurant, cafe, and similar stay-dining services here."
                 />
               </div>
             </div>
             <p className="mb-4 text-xs text-slate-600">
-              এখান থেকে service add/edit করুন।
+              এখান থেকে শুধু hotel, homestay, restaurant, cafe type service add/edit করুন।
+            </p>
+            {hospitalityItems.length === 0 ? (
+              <p className="text-sm text-muted-foreground">No stay/dining service yet. Click "Add Stay/Dining" to create one.</p>
+            ) : (
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                {hospitalityItems.map(p => (
+                  <div key={p.id} className="rounded-lg border border-border overflow-hidden">
+                    <div className="aspect-square bg-secondary relative">
+                      <img src={resolveAssetUrl(p.image_url) || (getPdfUrl(p) ? PDF_PREVIEW : undefined)} alt={p.name} className="w-full h-full object-cover" />
+                      {getPdfUrl(p) ? (
+                        <button
+                          type="button"
+                          onClick={() => window.open(getPdfUrl(p), "_blank")}
+                          className="absolute left-2 top-2 rounded-full bg-white/90 text-emerald-900 px-2.5 py-1 text-[10px] font-bold"
+                        >
+                          Open PDF
+                        </button>
+                      ) : null}
+                    </div>
+                    <div className="p-3"><p className="font-semibold text-sm text-emerald-950">{p.name}</p><p className="text-xs text-muted-foreground">{p.category}</p><p className="font-display font-black text-emerald-800 mt-1">{withUnit(p.price, p.unit_type)}</p><p className="text-[10px] text-slate-500">{String(p?.service_invoice_mode || "detailed").replace(/_/g, " ")}</p>
+                    <div className="flex gap-1 mt-2">
+                      <PartnerProductForm
+                        product={p}
+                        onSaved={loadAll}
+                        fixedListingType="service"
+                        allowedServiceSectors={HOSPITALITY_SERVICE_SECTORS}
+                        initialServiceSectorFilter="Hotel"
+                        triggerLabel="Edit Stay/Dining"
+                        dialogTitle="Edit Stay & Dining Service"
+                        dialogDescription="Update only this hotel, homestay, restaurant, or cafe service."
+                      />
+                      <Button size="sm" variant="outline" className="rounded-full border-red-300 text-red-700 hover:bg-red-50 h-7 px-2 text-[11px]" onClick={() => deleteProduct(p.id)} data-testid={`del-my-hospitality-${p.id}`}>Delete</Button>
+                    </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+
+        {tab === "doorstep" && (
+          <div className="bg-white rounded-xl border border-border p-6">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="font-display font-bold text-emerald-950 text-lg">Doorstep Service Listings</h3>
+              <div className="flex items-center gap-2">
+                {summary?.partner_code && (
+                  <Link to={`/gallery/${summary.partner_code}?tab=doorstep`} target="_blank">
+                    <Button size="sm" variant="outline" className="rounded-full border-emerald-300 text-emerald-900 hover:bg-emerald-50">
+                      <Images className="w-4 h-4 mr-1" /> View Doorstep Services
+                    </Button>
+                  </Link>
+                )}
+                <PartnerProductForm
+                  onSaved={loadAll}
+                  defaultListingType="service"
+                  fixedListingType="service"
+                  allowedServiceSectors={DOORSTEP_SERVICE_SECTORS}
+                  initialServiceSectorFilter="Home Service"
+                  triggerLabel="Add Doorstep"
+                  dialogTitle="New Doorstep Service"
+                  dialogDescription="Create only doorstep/home-visit service listings here."
+                />
+              </div>
+            </div>
+            <p className="mb-4 text-xs text-slate-600">
+              এখান থেকে শুধু home service, laundry, cleaning, beauty at home, courier, tailoring type service add/edit করুন।
+            </p>
+            {doorstepItems.length === 0 ? (
+              <p className="text-sm text-muted-foreground">No doorstep service yet. Click "Add Doorstep" to create one.</p>
+            ) : (
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                {doorstepItems.map(p => (
+                  <div key={p.id} className="rounded-lg border border-border overflow-hidden">
+                    <div className="aspect-square bg-secondary relative">
+                      <img src={resolveAssetUrl(p.image_url) || (getPdfUrl(p) ? PDF_PREVIEW : undefined)} alt={p.name} className="w-full h-full object-cover" />
+                      {getPdfUrl(p) ? (
+                        <button
+                          type="button"
+                          onClick={() => window.open(getPdfUrl(p), "_blank")}
+                          className="absolute left-2 top-2 rounded-full bg-white/90 text-emerald-900 px-2.5 py-1 text-[10px] font-bold"
+                        >
+                          Open PDF
+                        </button>
+                      ) : null}
+                    </div>
+                    <div className="p-3"><p className="font-semibold text-sm text-emerald-950">{p.name}</p><p className="text-xs text-muted-foreground">{p.category}</p><p className="font-display font-black text-emerald-800 mt-1">{withUnit(p.price, p.unit_type)}</p><p className="text-[10px] text-slate-500">{String(p?.service_invoice_mode || "detailed").replace(/_/g, " ")}</p>
+                    <div className="flex gap-1 mt-2">
+                      <PartnerProductForm
+                        product={p}
+                        onSaved={loadAll}
+                        fixedListingType="service"
+                        allowedServiceSectors={DOORSTEP_SERVICE_SECTORS}
+                        initialServiceSectorFilter="Home Service"
+                        triggerLabel="Edit Doorstep"
+                        dialogTitle="Edit Doorstep Service"
+                        dialogDescription="Update only this doorstep/home-visit service."
+                      />
+                      <Button size="sm" variant="outline" className="rounded-full border-red-300 text-red-700 hover:bg-red-50 h-7 px-2 text-[11px]" onClick={() => deleteProduct(p.id)} data-testid={`del-my-doorstep-${p.id}`}>Delete</Button>
+                    </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+
+        {tab === "services" && (
+          <div className="bg-white rounded-xl border border-border p-6">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="font-display font-bold text-emerald-950 text-lg">Other Service Listings</h3>
+              <div className="flex items-center gap-2">
+                {summary?.partner_code && (
+                  <Link to={`/gallery/${summary.partner_code}?tab=other-services`} target="_blank">
+                    <Button size="sm" variant="outline" className="rounded-full border-emerald-300 text-emerald-900 hover:bg-emerald-50">
+                      <Images className="w-4 h-4 mr-1" /> View Other Services
+                    </Button>
+                  </Link>
+                )}
+                <PartnerProductForm
+                  onSaved={loadAll}
+                  defaultListingType="service"
+                  fixedListingType="service"
+                  excludedServiceSectors={["Transport", "Logistics", ...HOSPITALITY_SERVICE_SECTORS, ...DOORSTEP_SERVICE_SECTORS]}
+                  triggerLabel="Add Other Service"
+                  dialogTitle="New Other Service"
+                  dialogDescription="Create only non-transport, non-hospitality, non-doorstep service listings here."
+                />
+              </div>
+            </div>
+            <p className="mb-4 text-xs text-slate-600">
+              এখান থেকে clinic, education, legal, accounting, fitness, photography, travel, repair center ইত্যাদি other service add/edit করুন।
             </p>
             {serviceItems.length === 0 ? (
-              <p className="text-sm text-muted-foreground">No service yet. Click "Add Listing" to create your first service.</p>
+              <p className="text-sm text-muted-foreground">No other service yet. Click "Add Other Service" to create one.</p>
             ) : (
               <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                 {serviceItems.map(p => (
@@ -1033,10 +1189,10 @@ export default function PartnerDashboardPage() {
                         product={p}
                         onSaved={loadAll}
                         fixedListingType="service"
-                        excludedServiceSectors={["Transport", "Logistics"]}
-                        triggerLabel="Edit Service"
-                        dialogTitle="Edit Service"
-                        dialogDescription="Update only this non-transport service listing. Transport templates are hidden here."
+                        excludedServiceSectors={["Transport", "Logistics", ...HOSPITALITY_SERVICE_SECTORS, ...DOORSTEP_SERVICE_SECTORS]}
+                        triggerLabel="Edit Other Service"
+                        dialogTitle="Edit Other Service"
+                        dialogDescription="Update only this other-service listing. Transport, stay-dining, and doorstep templates are hidden here."
                       />
                       <Button size="sm" variant="outline" className="rounded-full border-red-300 text-red-700 hover:bg-red-50 h-7 px-2 text-[11px]" onClick={() => deleteProduct(p.id)} data-testid={`del-my-product-${p.id}`}>Delete</Button>
                     </div>

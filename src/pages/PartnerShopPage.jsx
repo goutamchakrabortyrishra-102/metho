@@ -195,6 +195,22 @@ const isTransportServiceListing = (item) => {
     .join(" ");
   return ["transport", "cab", "taxi", "bike rental", "car rental", "ride"].some((k) => haystack.includes(k));
 };
+const isHospitalityServiceListing = (item) => {
+  const key = String(item?.service_template_key || "").trim().toLowerCase();
+  if (["hotel_standard_room", "hotel_deluxe_room", "hotel_suite_room", "homestay_daily_stay", "homestay_weekend_package", "restaurant_table_booking", "banquet_slot", "restaurant_takeaway_slot", "cafe_table_reservation"].includes(key)) return true;
+  const haystack = [item?.category, item?.name, item?.description]
+    .map((v) => String(v || "").toLowerCase())
+    .join(" ");
+  return ["hotel", "homestay", "restaurant", "banquet", "cafe", "room booking", "table booking", "takeaway", "daily stay", "weekend package"].some((k) => haystack.includes(k));
+};
+const isDoorstepServiceListing = (item) => {
+  const key = String(item?.service_template_key || "").trim().toLowerCase();
+  if (["ac_service_visit", "plumbing_repair", "electrician_visit", "appliance_repair", "laundry_kg_service", "dry_clean_service", "tailoring_stitching", "beauty_home_service", "courier_pickup", "house_deep_clean", "office_cleaning", "pest_control_visit"].includes(key)) return true;
+  const haystack = [item?.category, item?.name, item?.description]
+    .map((v) => String(v || "").toLowerCase())
+    .join(" ");
+  return ["home repair", "home service", "laundry", "dry clean", "tailoring", "beauty", "courier", "cleaning", "pest control", "electrician", "plumbing", "appliance repair"].some((k) => haystack.includes(k));
+};
 
 const normalizePartnerPayload = (payload) => {
   const partner = payload?.partner || {};
@@ -242,6 +258,8 @@ export default function PartnerShopPage() {
   const [cashback, setCashback] = useState(null); // {percent, max, eligible}
   const [productSearch, setProductSearch] = useState("");
   const [transportSearch, setTransportSearch] = useState("");
+  const [hospitalitySearch, setHospitalitySearch] = useState("");
+  const [doorstepSearch, setDoorstepSearch] = useState("");
   const [serviceSearch, setServiceSearch] = useState("");
   const [transportModalOpen, setTransportModalOpen] = useState(false);
   const [transportService, setTransportService] = useState(null);
@@ -290,7 +308,9 @@ export default function PartnerShopPage() {
   const productListings = useMemo(() => products.filter((item) => !isServiceListing(item)), [products]);
   const serviceListings = useMemo(() => products.filter((item) => isServiceListing(item)), [products]);
   const transportListings = useMemo(() => serviceListings.filter((item) => isTransportServiceListing(item)), [serviceListings]);
-  const regularServiceListings = useMemo(() => serviceListings.filter((item) => !isTransportServiceListing(item)), [serviceListings]);
+  const hospitalityListings = useMemo(() => serviceListings.filter((item) => !isTransportServiceListing(item) && isHospitalityServiceListing(item)), [serviceListings]);
+  const doorstepListings = useMemo(() => serviceListings.filter((item) => !isTransportServiceListing(item) && !isHospitalityServiceListing(item) && isDoorstepServiceListing(item)), [serviceListings]);
+  const regularServiceListings = useMemo(() => serviceListings.filter((item) => !isTransportServiceListing(item) && !isHospitalityServiceListing(item) && !isDoorstepServiceListing(item)), [serviceListings]);
   const featuredImages = useMemo(() => normalizeFeaturedImages(data?.featured_images), [data?.featured_images]);
   const hasAnyFeaturedImage = useMemo(() => featuredImages.some(Boolean), [featuredImages]);
   const getStock = (product) => Math.max(0, Number(product?.stock ?? 0));
@@ -307,6 +327,26 @@ export default function PartnerShopPage() {
     });
   }, [productListings, productSearch]);
   const displayedProducts = useMemo(() => filteredProducts, [filteredProducts]);
+  const filteredHospitality = useMemo(() => {
+    const q = hospitalitySearch.trim().toLowerCase();
+    if (!q) return hospitalityListings;
+    return hospitalityListings.filter((p) => {
+      const haystack = [data?.partner?.business_name, p?.name, p?.category, p?.description]
+        .map((v) => String(v || "").toLowerCase())
+        .join(" ");
+      return haystack.includes(q);
+    });
+  }, [data?.partner?.business_name, hospitalityListings, hospitalitySearch]);
+  const filteredDoorstep = useMemo(() => {
+    const q = doorstepSearch.trim().toLowerCase();
+    if (!q) return doorstepListings;
+    return doorstepListings.filter((p) => {
+      const haystack = [data?.partner?.business_name, p?.name, p?.category, p?.description]
+        .map((v) => String(v || "").toLowerCase())
+        .join(" ");
+      return haystack.includes(q);
+    });
+  }, [data?.partner?.business_name, doorstepListings, doorstepSearch]);
   const filteredServices = useMemo(() => {
     const q = serviceSearch.trim().toLowerCase();
     if (!q) return regularServiceListings;
@@ -327,6 +367,8 @@ export default function PartnerShopPage() {
       return haystack.includes(q);
     });
   }, [data?.partner?.business_name, transportListings, transportSearch]);
+  const hasHospitalityListings = hospitalityListings.length > 0;
+  const hasDoorstepListings = doorstepListings.length > 0;
   const hasServiceListings = regularServiceListings.length > 0;
   const hasTransportListings = transportListings.length > 0;
 
@@ -964,30 +1006,246 @@ export default function PartnerShopPage() {
         </>
       ) : null}
 
+      {hasHospitalityListings ? (
+        <>
+          <div className="mb-8">
+            <div className="bg-white rounded-xl border border-amber-200 p-6" data-testid="partner-shop-hospitality-panel">
+              <div className="flex items-start gap-2 mb-1">
+                <p className="text-[10px] uppercase tracking-widest text-amber-700 font-semibold">Stay & Dining</p>
+              </div>
+              <h3 className="font-display font-bold text-emerald-950 text-lg mt-1">Hotel, homestay, restaurant services</h3>
+              <p className="text-sm text-slate-600 mt-3">Room stay, table booking, banquet, cafe and dining services এক জায়গায় দেখুন।</p>
+              <div className="mt-6 flex flex-col lg:flex-row gap-3 lg:items-center">
+                <Button onClick={() => openGallery(hospitalitySearch, "stay-dining")} className="w-full lg:w-auto lg:min-w-[220px] bg-amber-600 hover:bg-amber-700 text-white rounded-full" data-testid="partner-stay-gallery-btn">
+                  <CalendarCheck2 className="w-4 h-4 mr-2" /> View Stay & Dining
+                </Button>
+                <div className="flex flex-1 gap-2" data-testid="partner-shop-hospitality-search-panel">
+                  <Input
+                    value={hospitalitySearch}
+                    onChange={(e) => setHospitalitySearch(e.target.value)}
+                    onKeyDown={(e) => { if (e.key === "Enter") e.preventDefault(); }}
+                    placeholder="Search hotel, homestay, restaurant, cafe"
+                    className="h-11 rounded-full text-sm"
+                    data-testid="partner-shop-hospitality-search"
+                  />
+                  <Button
+                    onClick={() => openGallery(hospitalitySearch, "stay-dining")}
+                    className="bg-amber-600 hover:bg-amber-700 text-white rounded-full shrink-0"
+                    data-testid="partner-shop-hospitality-search-btn"
+                  >
+                    Search
+                  </Button>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <section className="bg-white rounded-xl border border-amber-200 p-6 mb-8" data-testid="partner-shop-hospitality-box">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div>
+                <p className="text-[10px] uppercase tracking-widest text-amber-700 font-semibold">Stay & Dining</p>
+                <h3 className="font-display font-bold text-emerald-950 text-lg mt-1">Stay & Dining ({filteredHospitality.length})</h3>
+              </div>
+              <div className="flex items-center gap-2 w-full md:w-auto">
+                <Button variant="outline" className="rounded-full shrink-0 border-amber-300 text-amber-900" onClick={() => openGallery(hospitalitySearch, "stay-dining")} data-testid="partner-shop-hospitality-view-all-link">
+                  View Stay & Dining
+                </Button>
+                <div className="flex items-center gap-2 border border-amber-200 rounded-full px-3 h-11 bg-amber-50 w-full md:w-72">
+                  <Search className="w-4 h-4 text-slate-500" />
+                  <input
+                    value={hospitalitySearch}
+                    onChange={(e) => setHospitalitySearch(e.target.value)}
+                    placeholder="Search stay or dining"
+                    className="bg-transparent outline-none text-sm w-full"
+                    data-testid="partner-shop-inline-hospitality-search"
+                  />
+                </div>
+              </div>
+            </div>
+
+            {filteredHospitality.length === 0 ? (
+              <div className="mt-6 rounded-xl border border-dashed border-amber-200 p-10 text-center text-slate-500">
+                No stay/dining service found for this search.
+              </div>
+            ) : (
+              <div className="mt-6 grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
+                {filteredHospitality.map((service) => {
+                  const pdfUrl = getPdfUrl(service);
+                  return (
+                    <div key={service.id} className="border border-amber-200 rounded-xl overflow-hidden bg-white" data-testid={`shop-hospitality-${service.id}`}>
+                      <div className="aspect-square bg-slate-100 relative">
+                        <button type="button" onClick={() => setPreviewItem(service)} className="block w-full h-full" data-testid={`shop-open-hospitality-image-${service.id}`}>
+                          <img
+                            src={getDisplayImage(service, placeholder)}
+                            alt={service.name}
+                            className="w-full h-full object-cover"
+                            onError={(e) => {
+                              applyImageFallback(
+                                e,
+                                getProductImageUrl(service) || service?.fallback_image_url || featuredImages[0] || heroBannerSrc || "",
+                                placeholder || ""
+                              );
+                            }}
+                          />
+                        </button>
+                        {canAccessProductPdf && pdfUrl ? (
+                          <button type="button" onClick={(e) => { e.stopPropagation(); window.open(pdfUrl, "_blank"); }} className="absolute top-2 left-2 rounded-full bg-white/90 text-emerald-900 text-[10px] font-bold px-2.5 py-1" data-testid={`shop-open-hospitality-pdf-${service.id}`}>
+                            <FileText className="w-3 h-3 inline mr-1" /> PDF
+                          </button>
+                        ) : null}
+                      </div>
+                      <div className="p-3">
+                        <p className="text-[10px] uppercase tracking-widest text-amber-700 font-semibold truncate">{service.category}</p>
+                        <p className="font-display font-bold text-emerald-950 mt-0.5 line-clamp-1">{service.name}</p>
+                        <div className="mt-2 flex items-center justify-between">
+                          <span className="font-display font-black text-emerald-950">₹{service.price}</span>
+                          <span className="text-[11px] text-slate-500">Stay / Dining</span>
+                        </div>
+                        <Button type="button" onClick={() => bookServiceNow(service)} className="w-full mt-3 rounded-full bg-amber-600 hover:bg-amber-700 text-white" data-testid={`shop-book-hospitality-${service.id}`}>
+                          <CalendarCheck2 className="w-4 h-4 mr-2" /> Book Now
+                        </Button>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </section>
+        </>
+      ) : null}
+
+      {hasDoorstepListings ? (
+        <>
+          <div className="mb-8">
+            <div className="bg-white rounded-xl border border-violet-200 p-6" data-testid="partner-shop-doorstep-panel">
+              <div className="flex items-start gap-2 mb-1">
+                <p className="text-[10px] uppercase tracking-widest text-violet-700 font-semibold">Doorstep Services</p>
+              </div>
+              <h3 className="font-display font-bold text-emerald-950 text-lg mt-1">Home visit and doorstep services</h3>
+              <p className="text-sm text-slate-600 mt-3">Cleaning, repair, laundry, courier, beauty-at-home এর মতো services এখানেই পাবেন।</p>
+              <div className="mt-6 flex flex-col lg:flex-row gap-3 lg:items-center">
+                <Button onClick={() => openGallery(doorstepSearch, "doorstep")} className="w-full lg:w-auto lg:min-w-[220px] bg-violet-700 hover:bg-violet-800 text-white rounded-full" data-testid="partner-doorstep-gallery-btn">
+                  <CalendarCheck2 className="w-4 h-4 mr-2" /> View Doorstep Services
+                </Button>
+                <div className="flex flex-1 gap-2" data-testid="partner-shop-doorstep-search-panel">
+                  <Input
+                    value={doorstepSearch}
+                    onChange={(e) => setDoorstepSearch(e.target.value)}
+                    onKeyDown={(e) => { if (e.key === "Enter") e.preventDefault(); }}
+                    placeholder="Search cleaning, repair, laundry, courier"
+                    className="h-11 rounded-full text-sm"
+                    data-testid="partner-shop-doorstep-search"
+                  />
+                  <Button
+                    onClick={() => openGallery(doorstepSearch, "doorstep")}
+                    className="bg-violet-700 hover:bg-violet-800 text-white rounded-full shrink-0"
+                    data-testid="partner-shop-doorstep-search-btn"
+                  >
+                    Search
+                  </Button>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <section className="bg-white rounded-xl border border-violet-200 p-6 mb-8" data-testid="partner-shop-doorstep-box">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div>
+                <p className="text-[10px] uppercase tracking-widest text-violet-700 font-semibold">Doorstep Services</p>
+                <h3 className="font-display font-bold text-emerald-950 text-lg mt-1">Doorstep ({filteredDoorstep.length})</h3>
+              </div>
+              <div className="flex items-center gap-2 w-full md:w-auto">
+                <Button variant="outline" className="rounded-full shrink-0 border-violet-300 text-violet-900" onClick={() => openGallery(doorstepSearch, "doorstep")} data-testid="partner-shop-doorstep-view-all-link">
+                  View Doorstep Services
+                </Button>
+                <div className="flex items-center gap-2 border border-violet-200 rounded-full px-3 h-11 bg-violet-50 w-full md:w-72">
+                  <Search className="w-4 h-4 text-slate-500" />
+                  <input
+                    value={doorstepSearch}
+                    onChange={(e) => setDoorstepSearch(e.target.value)}
+                    placeholder="Search doorstep service"
+                    className="bg-transparent outline-none text-sm w-full"
+                    data-testid="partner-shop-inline-doorstep-search"
+                  />
+                </div>
+              </div>
+            </div>
+
+            {filteredDoorstep.length === 0 ? (
+              <div className="mt-6 rounded-xl border border-dashed border-violet-200 p-10 text-center text-slate-500">
+                No doorstep service found for this search.
+              </div>
+            ) : (
+              <div className="mt-6 grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
+                {filteredDoorstep.map((service) => {
+                  const pdfUrl = getPdfUrl(service);
+                  return (
+                    <div key={service.id} className="border border-violet-200 rounded-xl overflow-hidden bg-white" data-testid={`shop-doorstep-${service.id}`}>
+                      <div className="aspect-square bg-slate-100 relative">
+                        <button type="button" onClick={() => setPreviewItem(service)} className="block w-full h-full" data-testid={`shop-open-doorstep-image-${service.id}`}>
+                          <img
+                            src={getDisplayImage(service, placeholder)}
+                            alt={service.name}
+                            className="w-full h-full object-cover"
+                            onError={(e) => {
+                              applyImageFallback(
+                                e,
+                                getProductImageUrl(service) || service?.fallback_image_url || featuredImages[0] || heroBannerSrc || "",
+                                placeholder || ""
+                              );
+                            }}
+                          />
+                        </button>
+                        {canAccessProductPdf && pdfUrl ? (
+                          <button type="button" onClick={(e) => { e.stopPropagation(); window.open(pdfUrl, "_blank"); }} className="absolute top-2 left-2 rounded-full bg-white/90 text-emerald-900 text-[10px] font-bold px-2.5 py-1" data-testid={`shop-open-doorstep-pdf-${service.id}`}>
+                            <FileText className="w-3 h-3 inline mr-1" /> PDF
+                          </button>
+                        ) : null}
+                      </div>
+                      <div className="p-3">
+                        <p className="text-[10px] uppercase tracking-widest text-violet-700 font-semibold truncate">{service.category}</p>
+                        <p className="font-display font-bold text-emerald-950 mt-0.5 line-clamp-1">{service.name}</p>
+                        <div className="mt-2 flex items-center justify-between">
+                          <span className="font-display font-black text-emerald-950">₹{service.price}</span>
+                          <span className="text-[11px] text-slate-500">Doorstep</span>
+                        </div>
+                        <Button type="button" onClick={() => bookServiceNow(service)} className="w-full mt-3 rounded-full bg-violet-700 hover:bg-violet-800 text-white" data-testid={`shop-book-doorstep-${service.id}`}>
+                          <CalendarCheck2 className="w-4 h-4 mr-2" /> Book Now
+                        </Button>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </section>
+        </>
+      ) : null}
+
       {hasServiceListings ? (
         <>
           <div className="mb-8">
             <div className="bg-white rounded-xl border border-border p-6" data-testid="partner-shop-left-services-panel">
               <div className="flex items-start gap-2 mb-1">
-                <p className="text-[10px] uppercase tracking-widest text-emerald-800 font-semibold">All Service View</p>
+                <p className="text-[10px] uppercase tracking-widest text-emerald-800 font-semibold">Other Services</p>
               </div>
-              <h3 className="font-display font-bold text-emerald-950 text-lg mt-1">View All Services</h3>
-              <p className="text-sm text-slate-600 mt-3">Browse the partner services gallery, open service details, and start booking with Book Now.</p>
+              <h3 className="font-display font-bold text-emerald-950 text-lg mt-1">View all other services</h3>
+              <p className="text-sm text-slate-600 mt-3">Clinic, education, fitness, legal, photography, travel and other remaining services এখানে পাবেন।</p>
               <div className="mt-6 flex flex-col lg:flex-row gap-3 lg:items-center">
-                <Button onClick={() => openGallery("", "services")} className="w-full lg:w-auto lg:min-w-[220px] bg-emerald-900 hover:bg-emerald-950 text-white rounded-full" data-testid="partner-services-gallery-btn">
-                  <CalendarCheck2 className="w-4 h-4 mr-2" /> View All Services
+                <Button onClick={() => openGallery(serviceSearch, "other-services")} className="w-full lg:w-auto lg:min-w-[220px] bg-emerald-900 hover:bg-emerald-950 text-white rounded-full" data-testid="partner-services-gallery-btn">
+                  <CalendarCheck2 className="w-4 h-4 mr-2" /> View Other Services
                 </Button>
                 <div className="flex flex-1 gap-2" data-testid="partner-shop-right-service-search-panel">
                   <Input
                     value={serviceSearch}
                     onChange={(e) => setServiceSearch(e.target.value)}
                     onKeyDown={(e) => { if (e.key === "Enter") e.preventDefault(); }}
-                    placeholder="Search by business name, service, category"
+                    placeholder="Search clinic, fitness, legal, travel"
                     className="h-11 rounded-full text-sm"
                     data-testid="partner-shop-service-search"
                   />
                   <Button
-                    onClick={() => openGallery(serviceSearch, "services")}
+                    onClick={() => openGallery(serviceSearch, "other-services")}
                     className="bg-emerald-900 hover:bg-emerald-950 text-white rounded-full shrink-0"
                     data-testid="partner-shop-service-search-btn"
                   >
@@ -1001,19 +1259,19 @@ export default function PartnerShopPage() {
           <section className="bg-white rounded-xl border border-border p-6 mb-8" data-testid="partner-shop-all-services-box">
             <div className="flex flex-wrap items-center justify-between gap-3">
               <div>
-                <p className="text-[10px] uppercase tracking-widest text-emerald-800 font-semibold">All Service View</p>
-                <h3 className="font-display font-bold text-emerald-950 text-lg mt-1">Services ({filteredServices.length})</h3>
+                <p className="text-[10px] uppercase tracking-widest text-emerald-800 font-semibold">Other Services</p>
+                <h3 className="font-display font-bold text-emerald-950 text-lg mt-1">Other Services ({filteredServices.length})</h3>
               </div>
               <div className="flex items-center gap-2 w-full md:w-auto">
-                <Button variant="outline" className="rounded-full shrink-0" onClick={() => openGallery(serviceSearch, "services")} data-testid="partner-shop-services-view-all-link">
-                  View All Services
+                <Button variant="outline" className="rounded-full shrink-0" onClick={() => openGallery(serviceSearch, "other-services")} data-testid="partner-shop-services-view-all-link">
+                  View Other Services
                 </Button>
                 <div className="flex items-center gap-2 border border-border rounded-full px-3 h-11 bg-slate-50 w-full md:w-72">
                   <Search className="w-4 h-4 text-slate-500" />
                   <input
                     value={serviceSearch}
                     onChange={(e) => setServiceSearch(e.target.value)}
-                    placeholder="Search by business name/service/category"
+                    placeholder="Search other services"
                     className="bg-transparent outline-none text-sm w-full"
                     data-testid="partner-shop-inline-service-search"
                   />
