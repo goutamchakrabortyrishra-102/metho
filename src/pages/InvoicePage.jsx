@@ -105,6 +105,18 @@ export default function InvoicePage() {
   if (err) return <div className="p-8 text-center text-red-700">{err}</div>;
   if (!inv) return <div className="p-8 text-center text-muted-foreground">Loading invoice...</div>;
 
+  const invoiceItems = Array.isArray(inv.items) ? inv.items : [];
+  const isServiceRow = (it) => {
+    if (it?.is_service === true) return true;
+    const listingType = String(it?.listing_type || "").trim().toLowerCase();
+    const itemKind = String(it?.item_kind || "").trim().toLowerCase();
+    return listingType === "service" || itemKind === "service";
+  };
+  const summaryServiceInvoice =
+    invoiceItems.length > 0 &&
+    invoiceItems.every((it) => isServiceRow(it)) &&
+    invoiceItems.some((it) => String(it?.service_invoice_mode || "").trim().toLowerCase() === "summary_total");
+
   return (
     <div className="min-h-screen bg-slate-100 py-6 print:bg-white print:py-0" data-testid="invoice-page">
       {/* Top action bar — hidden in print */}
@@ -257,45 +269,65 @@ export default function InvoicePage() {
 
         {/* Items */}
         <div className="px-8 py-5">
-          <table className="w-full text-sm border-collapse">
-            <thead>
-              <tr className="bg-emerald-900 text-white">
-                <th className="text-left px-3 py-2 font-semibold text-xs uppercase tracking-wider">#</th>
-                <th className="text-left px-3 py-2 font-semibold text-xs uppercase tracking-wider">Item</th>
-                <th className="text-center px-3 py-2 font-semibold text-xs uppercase tracking-wider">HSN/SAC</th>
-                <th className="text-right px-3 py-2 font-semibold text-xs uppercase tracking-wider">Qty</th>
-                <th className="text-right px-3 py-2 font-semibold text-xs uppercase tracking-wider">Rate (₹)</th>
-                <th className="text-right px-3 py-2 font-semibold text-xs uppercase tracking-wider">Pre-Tax (₹)</th>
-                <th className="text-right px-3 py-2 font-semibold text-xs uppercase tracking-wider">CGST</th>
-                <th className="text-right px-3 py-2 font-semibold text-xs uppercase tracking-wider">SGST</th>
-                <th className="text-right px-3 py-2 font-semibold text-xs uppercase tracking-wider">Total (₹)</th>
-              </tr>
-            </thead>
-            <tbody>
-              {inv.items.map((it, i) => (
-                <tr key={i} className={i % 2 ? "bg-slate-50" : ""}>
-                  <td className="px-3 py-2 text-xs">{i + 1}</td>
-                  <td className="px-3 py-2"><p className="font-semibold text-emerald-950">{it.product_name}</p><p className="text-[10px] text-slate-500">{it.product_type}</p></td>
-                  <td className="text-center px-3 py-2 font-mono text-xs">{it.hsn_sac}</td>
-                  <td className="text-right px-3 py-2">{it.quantity}</td>
-                  <td className="text-right px-3 py-2">{inr(it.price)}</td>
-                  <td className="text-right px-3 py-2">{inr(it.pre_tax)}</td>
-                  <td className="text-right px-3 py-2 text-xs">{inr(it.cgst)}<br /><span className="text-[9px] text-slate-500">@{(it.gst_rate/2).toFixed(1)}%</span></td>
-                  <td className="text-right px-3 py-2 text-xs">{inr(it.sgst)}<br /><span className="text-[9px] text-slate-500">@{(it.gst_rate/2).toFixed(1)}%</span></td>
-                  <td className="text-right px-3 py-2 font-semibold">{inr(it.subtotal)}</td>
+          {summaryServiceInvoice ? (
+            <div className="rounded-xl border border-emerald-200 bg-emerald-50/60 p-4" data-testid="invoice-summary-service-mode">
+              <p className="text-[10px] uppercase tracking-widest text-emerald-800 font-bold">Service Invoice · Summary Mode</p>
+              <div className="mt-2 grid grid-cols-1 sm:grid-cols-3 gap-3 text-sm">
+                <div className="rounded-lg border border-emerald-200 bg-white px-3 py-2">
+                  <p className="text-[10px] uppercase tracking-wider text-slate-500">Service Lines</p>
+                  <p className="font-display font-extrabold text-emerald-950 text-xl">{invoiceItems.length}</p>
+                </div>
+                <div className="rounded-lg border border-emerald-200 bg-white px-3 py-2">
+                  <p className="text-[10px] uppercase tracking-wider text-slate-500">Grand Total</p>
+                  <p className="font-display font-extrabold text-emerald-900 text-xl">₹{inr(inv.grand_total)}</p>
+                </div>
+                <div className="rounded-lg border border-emerald-200 bg-white px-3 py-2">
+                  <p className="text-[10px] uppercase tracking-wider text-slate-500">Mode</p>
+                  <p className="font-semibold text-emerald-950">Unorganized Service</p>
+                </div>
+              </div>
+            </div>
+          ) : (
+            <table className="w-full text-sm border-collapse">
+              <thead>
+                <tr className="bg-emerald-900 text-white">
+                  <th className="text-left px-3 py-2 font-semibold text-xs uppercase tracking-wider">#</th>
+                  <th className="text-left px-3 py-2 font-semibold text-xs uppercase tracking-wider">Item</th>
+                  <th className="text-center px-3 py-2 font-semibold text-xs uppercase tracking-wider">HSN/SAC</th>
+                  <th className="text-right px-3 py-2 font-semibold text-xs uppercase tracking-wider">Qty</th>
+                  <th className="text-right px-3 py-2 font-semibold text-xs uppercase tracking-wider">Rate (₹)</th>
+                  <th className="text-right px-3 py-2 font-semibold text-xs uppercase tracking-wider">Pre-Tax (₹)</th>
+                  <th className="text-right px-3 py-2 font-semibold text-xs uppercase tracking-wider">CGST</th>
+                  <th className="text-right px-3 py-2 font-semibold text-xs uppercase tracking-wider">SGST</th>
+                  <th className="text-right px-3 py-2 font-semibold text-xs uppercase tracking-wider">Total (₹)</th>
                 </tr>
-              ))}
-            </tbody>
-            <tfoot>
-              <tr className="border-t-2 border-emerald-900 font-bold">
-                <td colSpan="5" className="px-3 py-2 text-right text-emerald-950">Sub-total</td>
-                <td className="text-right px-3 py-2">{inr(inv.subtotal_pre_tax)}</td>
-                <td className="text-right px-3 py-2">{inr(inv.total_cgst)}</td>
-                <td className="text-right px-3 py-2">{inr(inv.total_sgst)}</td>
-                <td className="text-right px-3 py-2 text-emerald-950">₹{inr(inv.grand_total)}</td>
-              </tr>
-            </tfoot>
-          </table>
+              </thead>
+              <tbody>
+                {invoiceItems.map((it, i) => (
+                  <tr key={i} className={i % 2 ? "bg-slate-50" : ""}>
+                    <td className="px-3 py-2 text-xs">{i + 1}</td>
+                    <td className="px-3 py-2"><p className="font-semibold text-emerald-950">{it.product_name}</p><p className="text-[10px] text-slate-500">{it.product_type}</p></td>
+                    <td className="text-center px-3 py-2 font-mono text-xs">{it.hsn_sac}</td>
+                    <td className="text-right px-3 py-2">{it.quantity}</td>
+                    <td className="text-right px-3 py-2">{inr(it.price)}</td>
+                    <td className="text-right px-3 py-2">{inr(it.pre_tax)}</td>
+                    <td className="text-right px-3 py-2 text-xs">{inr(it.cgst)}<br /><span className="text-[9px] text-slate-500">@{(it.gst_rate/2).toFixed(1)}%</span></td>
+                    <td className="text-right px-3 py-2 text-xs">{inr(it.sgst)}<br /><span className="text-[9px] text-slate-500">@{(it.gst_rate/2).toFixed(1)}%</span></td>
+                    <td className="text-right px-3 py-2 font-semibold">{inr(it.subtotal)}</td>
+                  </tr>
+                ))}
+              </tbody>
+              <tfoot>
+                <tr className="border-t-2 border-emerald-900 font-bold">
+                  <td colSpan="5" className="px-3 py-2 text-right text-emerald-950">Sub-total</td>
+                  <td className="text-right px-3 py-2">{inr(inv.subtotal_pre_tax)}</td>
+                  <td className="text-right px-3 py-2">{inr(inv.total_cgst)}</td>
+                  <td className="text-right px-3 py-2">{inr(inv.total_sgst)}</td>
+                  <td className="text-right px-3 py-2 text-emerald-950">₹{inr(inv.grand_total)}</td>
+                </tr>
+              </tfoot>
+            </table>
+          )}
 
           {/* Total in words */}
           <div className="mt-4 p-3 bg-amber-50 border-l-4 border-amber-500 rounded">
@@ -306,9 +338,9 @@ export default function InvoicePage() {
           {/* Totals summary block */}
           <div className="mt-4 flex justify-end">
             <div className="w-full max-w-xs space-y-1 text-sm">
-              <div className="flex justify-between"><span className="text-slate-600">Taxable Value:</span><span className="font-mono font-semibold">₹{inr(inv.subtotal_pre_tax)}</span></div>
-              <div className="flex justify-between"><span className="text-slate-600">CGST:</span><span className="font-mono">₹{inr(inv.total_cgst)}</span></div>
-              <div className="flex justify-between"><span className="text-slate-600">SGST:</span><span className="font-mono">₹{inr(inv.total_sgst)}</span></div>
+              {!summaryServiceInvoice ? <div className="flex justify-between"><span className="text-slate-600">Taxable Value:</span><span className="font-mono font-semibold">₹{inr(inv.subtotal_pre_tax)}</span></div> : null}
+              {!summaryServiceInvoice ? <div className="flex justify-between"><span className="text-slate-600">CGST:</span><span className="font-mono">₹{inr(inv.total_cgst)}</span></div> : null}
+              {!summaryServiceInvoice ? <div className="flex justify-between"><span className="text-slate-600">SGST:</span><span className="font-mono">₹{inr(inv.total_sgst)}</span></div> : null}
               <div className="flex justify-between pt-2 border-t-2 border-emerald-900 font-display font-black text-lg">
                 <span className="text-emerald-950">Grand Total</span>
                 <span className="text-emerald-800">₹{inr(inv.grand_total)}</span>

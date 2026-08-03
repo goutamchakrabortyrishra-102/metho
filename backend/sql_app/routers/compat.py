@@ -2195,6 +2195,11 @@ def _invoice_payload(db: Session, order_id: str, current_user: User):
                 "sgst": sgst,
                 "gst_rate": gst_rate,
                 "subtotal": subtotal,
+                "listing_type": str(item.get("listing_type") or "").strip().lower(),
+                "item_kind": str(item.get("item_kind") or "").strip().lower(),
+                "is_service": bool(item.get("is_service")),
+                "service_invoice_mode": str(item.get("service_invoice_mode") or "").strip().lower(),
+                "service_template_key": str(item.get("service_template_key") or "").strip(),
             }
         )
 

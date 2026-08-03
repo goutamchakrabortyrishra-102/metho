@@ -25,6 +25,7 @@ router = APIRouter(prefix="/api", tags=["checkout"])
 UPLOAD_DIR = UPLOADED_OBJECTS_DIR / "payment_screenshots"
 UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
 PARTNER_PRODUCT_UNITS_KEY = "partner_product_units"
+PARTNER_PRODUCT_META_KEY = "partner_product_meta"
 PARTNER_UNIT_OPTIONS = {"piece", "kg", "gram", "litre", "ml"}
 
 
@@ -86,6 +87,65 @@ def _partner_unit_info(unit_map: dict[str, dict], product_id: str) -> dict:
         "unit_label": unit_type,
         "quantity_step": step,
     }
+
+
+def _load_partner_product_meta(db: Session) -> dict[str, dict]:
+    row = db.query(AppSetting).filter(AppSetting.key == PARTNER_PRODUCT_META_KEY).first()
+    if not row:
+        return {}
+    try:
+        payload = json.loads(row.value_json or "{}")
+    except Exception:
+        return {}
+    return payload if isinstance(payload, dict) else {}
+
+
+def _save_partner_product_meta(db: Session, mapping: dict[str, dict]) -> None:
+    row = db.query(AppSetting).filter(AppSetting.key == PARTNER_PRODUCT_META_KEY).first()
+    if not row:
+        row = AppSetting(key=PARTNER_PRODUCT_META_KEY, value_json="{}")
+        db.add(row)
+    row.value_json = json.dumps(mapping or {})
+    db.commit()
+
+
+def _partner_product_meta(meta_map: dict[str, dict], product_id: str) -> dict:
+    meta = meta_map.get(str(product_id)) if isinstance(meta_map, dict) else None
+    listing_type = str((meta or {}).get("listing_type") or "product").strip().lower()
+    if listing_type not in {"product", "service"}:
+        listing_type = "product"
+    is_service = bool((meta or {}).get("is_service") or listing_type == "service")
+    service_invoice_mode = str((meta or {}).get("service_invoice_mode") or "detailed").strip().lower()
+    if service_invoice_mode not in {"detailed", "summary_total"}:
+        service_invoice_mode = "detailed"
+    return {
+        "listing_type": "service" if is_service else "product",
+        "item_kind": "service" if is_service else "product",
+        "is_service": is_service,
+        "service_booking_enabled": bool((meta or {}).get("service_booking_enabled") if (meta or {}).get("service_booking_enabled") is not None else is_service),
+        "service_invoice_mode": service_invoice_mode,
+        "service_template_key": str((meta or {}).get("service_template_key") or "").strip(),
+    }
+
+
+def _set_partner_product_meta(db: Session, product_id: str, payload: dict | None) -> dict[str, dict]:
+    mapping = _load_partner_product_meta(db)
+    src = payload or {}
+    listing_hint = str(src.get("listing_type") or src.get("item_kind") or "").strip().lower()
+    is_service = bool(src.get("is_service") or src.get("service_booking_enabled") or listing_hint == "service")
+    service_invoice_mode = str(src.get("service_invoice_mode") or "detailed").strip().lower()
+    if service_invoice_mode not in {"detailed", "summary_total"}:
+        service_invoice_mode = "detailed"
+    mapping[str(product_id)] = {
+        "listing_type": "service" if is_service else "product",
+        "item_kind": "service" if is_service else "product",
+        "is_service": is_service,
+        "service_booking_enabled": bool(src.get("service_booking_enabled") if src.get("service_booking_enabled") is not None else is_service),
+        "service_invoice_mode": service_invoice_mode,
+        "service_template_key": str(src.get("service_template_key") or "").strip(),
+    }
+    _save_partner_product_meta(db, mapping)
+    return mapping
 
 
 def _candidate_upload_roots() -> list[Path]:
@@ -413,6 +473,7 @@ def create_public_order(payload: dict, db: Session = Depends(get_db), authorizat
     normalized_items = []
     settings = load_settings(db)
     partner_unit_map = _load_partner_product_units(db)
+    partner_meta_map = _load_partner_product_meta(db)
     pricing_tier_map = settings.get("product_pricing_tiers") if isinstance(settings.get("product_pricing_tiers"), dict) else {}
     enable_partner_slab_pricing = bool(settings.get("enable_partner_slab_pricing", False))
     customer_user_id = ""
@@ -453,8 +514,17 @@ def create_public_order(payload: dict, db: Session = Depends(get_db), authorizat
         if not product:
             continue
         unit_info = {"unit_type": "piece", "unit_label": "piece", "quantity_step": 1.0}
+        listing_meta = {
+            "listing_type": "product",
+            "item_kind": "product",
+            "is_service": False,
+            "service_booking_enabled": False,
+            "service_invoice_mode": "detailed",
+            "service_template_key": "",
+        }
         if product_type == "associate_partner":
             unit_info = _partner_unit_info(partner_unit_map, product.id)
+            listing_meta = _partner_product_meta(partner_meta_map, product.id)
 
         if unit_info["unit_type"] == "piece":
             qty = max(1, int(round(qty_value or 1)))
@@ -508,6 +578,12 @@ def create_public_order(payload: dict, db: Session = Depends(get_db), authorizat
                 "image_url": image_url,
                 "pricing_tiers": pricing_tiers,
                 "tier_breakdown": tier_breakdown,
+                "listing_type": str(item.get("listing_type") or listing_meta["listing_type"]).strip().lower(),
+                "item_kind": str(item.get("item_kind") or listing_meta["item_kind"]).strip().lower(),
+                "is_service": bool(item.get("is_service") if item.get("is_service") is not None else listing_meta["is_service"]),
+                "service_booking_enabled": bool(listing_meta["service_booking_enabled"]),
+                "service_invoice_mode": str(item.get("service_invoice_mode") or listing_meta["service_invoice_mode"]).strip().lower(),
+                "service_template_key": str(item.get("service_template_key") or listing_meta["service_template_key"]).strip(),
             }
         )
 
@@ -717,6 +793,7 @@ def partner_products(db: Session = Depends(get_db), current_user=Depends(get_cur
         .all()
     )
     unit_map = _load_partner_product_units(db)
+    meta_map = _load_partner_product_meta(db)
     return [
         {
             "id": p.id,
@@ -731,6 +808,7 @@ def partner_products(db: Session = Depends(get_db), current_user=Depends(get_cur
             "partner_id": p.partner_id,
             "created_at": p.created_at.isoformat() if p.created_at else None,
             **_partner_unit_info(unit_map, p.id),
+            **_partner_product_meta(meta_map, p.id),
         }
         for p in rows
     ]
@@ -777,6 +855,7 @@ def partner_products_create(payload: dict, db: Session = Depends(get_db), curren
     db.commit()
     db.refresh(row)
     _set_partner_product_unit(db, row.id, (payload or {}).get("unit_type"))
+    _set_partner_product_meta(db, row.id, payload)
 
     return {"ok": True, "message": "Product created and live"}
 
@@ -830,6 +909,15 @@ def partner_products_update(product_id: str, payload: dict, db: Session = Depend
 
     if (payload or {}).get("unit_type") is not None:
         _set_partner_product_unit(db, product.id, (payload or {}).get("unit_type"))
+    if any((payload or {}).get(key) is not None for key in [
+        "listing_type",
+        "item_kind",
+        "is_service",
+        "service_booking_enabled",
+        "service_invoice_mode",
+        "service_template_key",
+    ]):
+        _set_partner_product_meta(db, product.id, payload)
 
     # Partner edits stay live unless explicitly deactivated by admin.
     product.approval_status = "approved"

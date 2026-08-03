@@ -22,6 +22,8 @@ const EMPTY = {
   pdf_url: "",
   listing_type: "product",
   unit_type: "piece",
+  service_invoice_mode: "detailed",
+  service_template_key: "",
 };
 
 const UNIT_OPTIONS = [
@@ -30,6 +32,104 @@ const UNIT_OPTIONS = [
   { value: "gram", label: "Per Gram" },
   { value: "litre", label: "Per Litre" },
   { value: "ml", label: "Per ML" },
+];
+
+const SERVICE_TEMPLATES = [
+  {
+    key: "hotel_standard_room",
+    sector: "Hotel",
+    name: "Standard Room Booking",
+    category: "Service / Hotel",
+    price: 1800,
+    stock: 12,
+    description: "Per-night room booking with check-in/check-out support. Ideal for small to mid-size hotels.",
+  },
+  {
+    key: "hotel_deluxe_room",
+    sector: "Hotel",
+    name: "Deluxe Room Booking",
+    category: "Service / Hotel",
+    price: 3200,
+    stock: 8,
+    description: "Deluxe room with premium amenities. Use daily capacity as available room count.",
+  },
+  {
+    key: "homestay_daily_stay",
+    sector: "Homestay",
+    name: "Homestay Daily Stay",
+    category: "Service / Homestay",
+    price: 1400,
+    stock: 6,
+    description: "Homestay stay booking per day with basic guest support and check-in details.",
+  },
+  {
+    key: "doctor_consultation",
+    sector: "Doctor Clinic",
+    name: "Doctor Consultation Slot",
+    category: "Service / Clinic",
+    price: 700,
+    stock: 30,
+    description: "Consultation booking slot for clinic patients. Capacity indicates slots per day.",
+  },
+  {
+    key: "diagnostic_visit",
+    sector: "Doctor Clinic",
+    name: "Diagnostic Follow-up Visit",
+    category: "Service / Clinic",
+    price: 450,
+    stock: 20,
+    description: "Follow-up or test-review visit booking for clinic operations.",
+  },
+  {
+    key: "restaurant_table_booking",
+    sector: "Restaurant",
+    name: "Restaurant Table Booking",
+    category: "Service / Restaurant",
+    price: 500,
+    stock: 25,
+    description: "Table reservation booking. Capacity can represent total bookable tables per slot.",
+  },
+  {
+    key: "banquet_slot",
+    sector: "Restaurant",
+    name: "Event / Banquet Slot Booking",
+    category: "Service / Restaurant",
+    price: 3500,
+    stock: 4,
+    description: "Banquet or private event slot booking for party/date-based reservations.",
+  },
+  {
+    key: "salon_haircut",
+    sector: "Salon",
+    name: "Salon Haircut Service",
+    category: "Service / Salon",
+    price: 350,
+    stock: 35,
+    description: "Professional haircut appointment template for men/women/kids.",
+  },
+  {
+    key: "salon_grooming_package",
+    sector: "Salon",
+    name: "Salon Grooming Package",
+    category: "Service / Salon",
+    price: 1200,
+    stock: 15,
+    description: "Package booking template for facial, grooming, and combo services.",
+  },
+  {
+    key: "misc_local_service",
+    sector: "Other Service",
+    name: "General Local Service Booking",
+    category: "Service / Local",
+    price: 600,
+    stock: 20,
+    description: "Template for unorganized service businesses needing quick booking setup.",
+  },
+];
+
+const SERVICE_INVOICE_OPTIONS = [
+  { value: "detailed", label: "Detailed Invoice (Line-wise)" },
+  { value: "summary_total", label: "Summary Invoice (Grand Total Only)" },
 ];
 
 const PARTNER_IMAGE_MAX_BYTES = 5 * 1024 * 1024;
@@ -87,6 +187,7 @@ export default function PartnerProductForm({ product, onSaved, disabled = false,
   const [busy, setBusy] = useState(false);
   const [uploadingImage, setUploadingImage] = useState(false);
   const [localPreviewUrl, setLocalPreviewUrl] = useState("");
+  const [serviceSectorFilter, setServiceSectorFilter] = useState("All");
   const fileRef = useRef(null);
 
   useEffect(() => {
@@ -94,6 +195,24 @@ export default function PartnerProductForm({ product, onSaved, disabled = false,
     setForm({ ...EMPTY, ...source, listing_type: resolveListingType(source) });
     setLocalPreviewUrl("");
   }, [product]);
+
+  const visibleServiceTemplates = SERVICE_TEMPLATES.filter((tpl) => serviceSectorFilter === "All" || tpl.sector === serviceSectorFilter);
+
+  const applyServiceTemplate = (tpl) => {
+    if (!tpl) return;
+    setForm((prev) => ({
+      ...prev,
+      listing_type: "service",
+      name: tpl.name,
+      category: tpl.category,
+      description: tpl.description,
+      price: String(tpl.price),
+      stock: String(tpl.stock),
+      service_template_key: tpl.key,
+      service_invoice_mode: prev.service_invoice_mode || "detailed",
+    }));
+    toast.success(`${tpl.sector} template applied`);
+  };
 
   useEffect(() => () => {
     if (localPreviewUrl) URL.revokeObjectURL(localPreviewUrl);
@@ -185,6 +304,8 @@ export default function PartnerProductForm({ product, onSaved, disabled = false,
         item_kind: isService ? "service" : "product",
         is_service: isService,
         service_booking_enabled: isService,
+        service_invoice_mode: isService ? String(form.service_invoice_mode || "detailed").toLowerCase() : "detailed",
+        service_template_key: isService ? String(form.service_template_key || "").trim() : "",
         unit_type: isService ? "piece" : String(form.unit_type || "piece").toLowerCase(),
       };
 
@@ -255,6 +376,39 @@ export default function PartnerProductForm({ product, onSaved, disabled = false,
             <div><Label>Category *</Label><Input required value={form.category} onChange={(e) => setForm({ ...form, category: e.target.value })} className="mt-1" data-testid="my-prod-cat" /></div>
             <div><Label>PDF Link</Label><Input value={form.pdf_url || ""} onChange={(e) => setForm({ ...form, pdf_url: e.target.value })} className="mt-1" placeholder="https://...pdf" data-testid="my-prod-pdf" /></div>
           </div>
+          {form.listing_type === "service" ? (
+            <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-3 space-y-3" data-testid="service-template-block">
+              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+                <div>
+                  <p className="text-sm font-semibold text-emerald-950">Ready Service Templates</p>
+                  <p className="text-[11px] text-emerald-900">Hotel room, homestay, clinic, restaurant table, salon সহ pre-built setup।</p>
+                </div>
+                <select
+                  value={serviceSectorFilter}
+                  onChange={(e) => setServiceSectorFilter(e.target.value)}
+                  className="h-9 rounded-md border border-emerald-300 bg-white px-3 text-xs"
+                >
+                  {Array.from(new Set(["All", ...SERVICE_TEMPLATES.map((s) => s.sector)])).map((sector) => (
+                    <option key={sector} value={sector}>{sector}</option>
+                  ))}
+                </select>
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                {visibleServiceTemplates.map((tpl) => (
+                  <button
+                    key={tpl.key}
+                    type="button"
+                    onClick={() => applyServiceTemplate(tpl)}
+                    className={`text-left rounded-lg border p-2.5 transition ${form.service_template_key === tpl.key ? "border-emerald-700 bg-white" : "border-emerald-200 bg-white/80 hover:bg-white"}`}
+                  >
+                    <p className="text-[10px] uppercase tracking-widest text-emerald-700 font-semibold">{tpl.sector}</p>
+                    <p className="font-semibold text-emerald-950 text-sm mt-0.5">{tpl.name}</p>
+                    <p className="text-[11px] text-slate-600 mt-0.5">₹{tpl.price} · Slots {tpl.stock}</p>
+                  </button>
+                ))}
+              </div>
+            </div>
+          ) : null}
           <div>
               <Label>Image Upload (Saved as PDF)</Label>
             <div className="mt-1.5 flex flex-wrap items-center gap-3">
@@ -336,6 +490,22 @@ export default function PartnerProductForm({ product, onSaved, disabled = false,
                 ))}
               </select>
               <p className="text-[11px] text-muted-foreground mt-1">Example: যদি "Per Kg" দেন, তাহলে price হবে প্রতি কেজির দাম।</p>
+            </div>
+          ) : null}
+          {form.listing_type === "service" ? (
+            <div>
+              <Label>Service Invoice Style</Label>
+              <select
+                value={form.service_invoice_mode || "detailed"}
+                onChange={(e) => setForm({ ...form, service_invoice_mode: e.target.value })}
+                className="mt-1 h-10 w-full rounded-md border border-input bg-white px-3 text-sm"
+                data-testid="my-service-invoice-mode"
+              >
+                {SERVICE_INVOICE_OPTIONS.map((opt) => (
+                  <option key={opt.value} value={opt.value}>{opt.label}</option>
+                ))}
+              </select>
+              <p className="text-[11px] text-muted-foreground mt-1">Unorganized service হলে Summary mode নিলে invoice-এ Grand Total ফোকাস থাকে।</p>
             </div>
           ) : null}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">

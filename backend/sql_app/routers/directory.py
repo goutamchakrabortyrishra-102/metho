@@ -11,6 +11,7 @@ from ..models import AppSetting, AssociatePartner, PartnerProduct
 
 router = APIRouter(prefix="/api", tags=["directory"])
 PARTNER_PRODUCT_UNITS_KEY = "partner_product_units"
+PARTNER_PRODUCT_META_KEY = "partner_product_meta"
 
 
 def _load_partner_product_units(db: Session) -> dict[str, dict]:
@@ -34,6 +35,36 @@ def _unit_info_for_product(unit_map: dict[str, dict], product_id: str) -> dict:
         "unit_type": unit_type,
         "unit_label": unit_type,
         "quantity_step": step,
+    }
+
+
+def _load_partner_product_meta(db: Session) -> dict[str, dict]:
+    row = db.query(AppSetting).filter(AppSetting.key == PARTNER_PRODUCT_META_KEY).first()
+    if not row:
+        return {}
+    try:
+        payload = json.loads(row.value_json or "{}")
+    except Exception:
+        return {}
+    return payload if isinstance(payload, dict) else {}
+
+
+def _service_meta_for_product(meta_map: dict[str, dict], product_id: str) -> dict:
+    meta = meta_map.get(str(product_id)) if isinstance(meta_map, dict) else None
+    listing_type = str((meta or {}).get("listing_type") or "product").strip().lower()
+    if listing_type not in {"product", "service"}:
+        listing_type = "product"
+    is_service = bool((meta or {}).get("is_service") or listing_type == "service")
+    mode = str((meta or {}).get("service_invoice_mode") or "detailed").strip().lower()
+    if mode not in {"detailed", "summary_total"}:
+        mode = "detailed"
+    return {
+        "listing_type": "service" if is_service else "product",
+        "item_kind": "service" if is_service else "product",
+        "is_service": is_service,
+        "service_booking_enabled": bool((meta or {}).get("service_booking_enabled") if (meta or {}).get("service_booking_enabled") is not None else is_service),
+        "service_invoice_mode": mode,
+        "service_template_key": str((meta or {}).get("service_template_key") or "").strip(),
     }
 
 
@@ -229,6 +260,7 @@ def partner_public_page(partner_code: str, db: Session = Depends(get_db)):
         .all()
     )
     unit_map = _load_partner_product_units(db)
+    meta_map = _load_partner_product_meta(db)
 
     partner_doc = _partner_to_dict(partner)
     partner_doc["banner_url"] = banner_url
@@ -248,6 +280,7 @@ def partner_public_page(partner_code: str, db: Session = Depends(get_db)):
                 "product_type": "associate_partner",
                 "partner_id": p.partner_id,
                 **_unit_info_for_product(unit_map, p.id),
+                **_service_meta_for_product(meta_map, p.id),
             }
             for p in products
         ],

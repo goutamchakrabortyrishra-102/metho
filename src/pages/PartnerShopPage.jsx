@@ -323,6 +323,8 @@ export default function PartnerShopPage() {
           listing_type: isServiceListing(pr) ? "service" : "product",
           item_kind: isServiceListing(pr) ? "service" : "product",
           is_service: isServiceListing(pr),
+          service_invoice_mode: String(pr?.service_invoice_mode || "detailed").toLowerCase(),
+          service_template_key: String(pr?.service_template_key || ""),
         };
       }),
     [cart, products]
