@@ -44,6 +44,27 @@ const SERVICE_CATEGORY_OPTIONS = [
   "Other Service",
 ];
 
+const SERVICE_SECTOR_OPTIONS = [
+  "Transport",
+  "Stay & Dining",
+  "Doorstep",
+  "Other Services",
+];
+
+const SERVICE_TEMPLATE_OPTIONS_BY_SECTOR = {
+  Transport: ["Cab", "Car Rental", "Bike Rental", "Courier", "Logistics", "Travel Agency"],
+  "Stay & Dining": ["Hotel", "Homestay", "Restaurant", "Cafe", "Banquet"],
+  Doorstep: ["Home Service", "Laundry", "Cleaning", "Tailoring", "Beauty at Home", "Repair Center"],
+  "Other Services": ["Doctor Clinic", "Diagnostic Center", "Education", "Fitness", "Legal", "Accounting", "Photography", "Internet Service", "Other Service"],
+};
+
+const ALL_SERVICE_TEMPLATE_OPTIONS = Array.from(
+  new Set([
+    ...SERVICE_CATEGORY_OPTIONS,
+    ...Object.values(SERVICE_TEMPLATE_OPTIONS_BY_SECTOR).flat(),
+  ])
+);
+
 const DEFAULT_TERMS = [
   "1. The Partner shall be solely responsible for the quality, warranty, delivery, service standards, after-sales support, customer promises, and all business outcomes related to its products and services.",
   "2. The Partner must ensure that every product, service, price, description, image, certificate, license, registration number, and supporting business document uploaded on this platform is genuine, accurate, complete, and legally valid.",
@@ -63,7 +84,7 @@ export default function PartnerRegisterPage() {
     contact_person: "", phone: "", dob: "", email: "", password: "", whatsapp_no: "",
     address: "", city: "", state: "", pincode: "",
     gst_no: "", pan_no: "", aadhaar_no: "", upi_id: "", website: "", social_link: "",
-    business_description: "", commission_percent_ask: "", service_category: "",
+    business_description: "", commission_percent_ask: "", service_sector: "", service_category: "",
   });
   const [busy, setBusy] = useState(false);
   const [pincodeBusy, setPincodeBusy] = useState(false);
@@ -72,6 +93,9 @@ export default function PartnerRegisterPage() {
   const [termsOpen, setTermsOpen] = useState(false);
   const [agreedToTerms, setAgreedToTerms] = useState(false);
   const isService = form.business_type === "Service";
+  const suggestedServiceTemplates = isService
+    ? (SERVICE_TEMPLATE_OPTIONS_BY_SECTOR[form.service_sector] || ALL_SERVICE_TEMPLATE_OPTIONS)
+    : [];
 
   const upd = (k) => (e) => setForm({ ...form, [k]: e.target.value });
 
@@ -129,6 +153,9 @@ export default function PartnerRegisterPage() {
     if (String(form.password || "").length < 6) {
       return toast.error("Password must be at least 6 characters");
     }
+    if (isService && !String(form.service_sector || "").trim()) {
+      return toast.error("Please select service sector");
+    }
     setBusy(true);
     try {
       const payload = {
@@ -140,6 +167,10 @@ export default function PartnerRegisterPage() {
       };
       if (payload.commission_percent_ask === "") delete payload.commission_percent_ask;
       else payload.commission_percent_ask = Number(payload.commission_percent_ask);
+      if (!isService) {
+        delete payload.service_sector;
+        delete payload.service_category;
+      }
       const { data } = await api.post("/partners/register", payload);
       setDone(data);
       toast.success("Application submitted!");
@@ -218,6 +249,7 @@ export default function PartnerRegisterPage() {
                     setForm((prev) => ({
                       ...prev,
                       business_type: nextType,
+                      service_sector: nextType === "Service" ? (prev.service_sector || "Other Services") : "",
                       service_category: nextType === "Service" ? (prev.service_category || "") : "",
                     }));
                   }}
@@ -228,20 +260,51 @@ export default function PartnerRegisterPage() {
                 </select>
               </div>
               {isService ? (
-                <div>
-                  <Label>Service Category (optional)</Label>
-                  <select
-                    value={form.service_category || ""}
-                    onChange={upd("service_category")}
-                    className="mt-1.5 h-11 w-full rounded-md border border-input bg-white px-3 text-sm"
-                    data-testid="reg-service-category"
-                  >
-                    <option value="">Select common category</option>
-                    {SERVICE_CATEGORY_OPTIONS.map((category) => (
-                      <option key={category} value={category}>{category}</option>
-                    ))}
-                  </select>
-                  <p className="text-[11px] text-muted-foreground mt-1">This helps admin quickly map your service type during approval.</p>
+                <div className="space-y-3">
+                  <div>
+                    <Label>Primary Service Sector *</Label>
+                    <select
+                      required={isService}
+                      value={form.service_sector || ""}
+                      onChange={upd("service_sector")}
+                      className="mt-1.5 h-11 w-full rounded-md border border-input bg-white px-3 text-sm"
+                      data-testid="reg-service-sector"
+                    >
+                      <option value="">Select service sector</option>
+                      {SERVICE_SECTOR_OPTIONS.map((sector) => (
+                        <option key={sector} value={sector}>{sector}</option>
+                      ))}
+                    </select>
+                  </div>
+                  <div>
+                    <Label>Service Template / Category</Label>
+                    <Input
+                      list="service-template-options"
+                      value={form.service_category || ""}
+                      onChange={upd("service_category")}
+                      placeholder="Select from template or type your own"
+                      className="mt-1.5 h-11"
+                      data-testid="reg-service-category"
+                    />
+                    <datalist id="service-template-options">
+                      {suggestedServiceTemplates.map((category) => (
+                        <option key={category} value={category} />
+                      ))}
+                    </datalist>
+                    <p className="text-[11px] text-muted-foreground mt-1">Dropdown থেকে নিতে পারবেন, বা নিজে type করেও দিতে পারবেন।</p>
+                    <div className="mt-2 flex flex-wrap gap-1.5">
+                      {suggestedServiceTemplates.slice(0, 8).map((template) => (
+                        <button
+                          key={template}
+                          type="button"
+                          onClick={() => setForm((prev) => ({ ...prev, service_category: template }))}
+                          className="rounded-full border border-emerald-300 bg-emerald-50 px-2.5 py-1 text-[11px] font-semibold text-emerald-900 hover:bg-emerald-100"
+                        >
+                          {template}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
                 </div>
               ) : (
                 <div>

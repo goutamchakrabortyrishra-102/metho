@@ -18,6 +18,29 @@ def _normalize_partner_sector(value: str) -> str:
     return "Shop"
 
 
+def _compose_partner_description(payload: dict, sector: str) -> str:
+    base = str(payload.get("business_description", "") or "").strip()
+    if sector != "Service":
+        return base
+
+    service_sector = str(payload.get("service_sector") or "").strip()
+    service_category = str(payload.get("service_category") or "").strip()
+    meta_parts = []
+    if service_sector:
+        meta_parts.append(f"Primary Sector: {service_sector}")
+    if service_category:
+        meta_parts.append(f"Template/Category: {service_category}")
+    if not meta_parts:
+        return base
+
+    meta_line = "[Service Registration Meta] " + " | ".join(meta_parts)
+    if not base:
+        return meta_line
+    if meta_line in base:
+        return base
+    return f"{base}\n\n{meta_line}"
+
+
 @router.post("/partners/register")
 def partner_register(payload: dict, db: Session = Depends(get_db)):
     login_id = str(payload.get("login_id") or payload.get("email") or "").strip()
@@ -60,6 +83,8 @@ def partner_register(payload: dict, db: Session = Depends(get_db)):
         raise HTTPException(status_code=400, detail="This PAN is already linked to an existing shop/service account")
 
     request_id = str(uuid.uuid4())
+    composed_description = _compose_partner_description(payload, sector)
+
     row = PartnerRequest(
         id=request_id,
         business_name=str(payload.get("business_name", "")).strip(),
@@ -74,7 +99,7 @@ def partner_register(payload: dict, db: Session = Depends(get_db)):
         pincode=str(payload.get("pincode", "")).strip(),
         gst_no=pan_no,
         upi_id=str(payload.get("upi_id", "")).strip(),
-        business_description=str(payload.get("business_description", "")).strip(),
+        business_description=composed_description,
         commission_percent_ask=float(payload.get("commission_percent_ask") or 0),
         status="pending",
     )
