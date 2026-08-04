@@ -111,6 +111,18 @@ export function resolveAssetUrl(rawUrl) {
   return normalizedUrl;
 }
 
+export function buildUpiPaymentUri(upiId, payeeName = "", amount = 0) {
+  const normalizedUpiId = String(upiId || "").trim();
+  if (!normalizedUpiId) return "";
+  const params = new URLSearchParams({
+    pa: normalizedUpiId,
+    pn: String(payeeName || "").trim() || "METHO",
+    am: Number(amount || 0).toFixed(2),
+    cu: "INR",
+  });
+  return `upi://pay?${params.toString()}`;
+}
+
 export function getAssetImageFallbackCandidates(rawUrl, extras = []) {
   const base = getBackendBaseUrl();
   const unique = [];

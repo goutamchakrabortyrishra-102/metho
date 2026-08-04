@@ -8,7 +8,8 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
-import { resolveAssetUrl } from "@/lib/utils";
+import { QRCodeCanvas } from "qrcode.react";
+import { resolveAssetUrl, buildUpiPaymentUri } from "@/lib/utils";
 
 
 const loadRazorpayScript = () => new Promise((resolve) => {
@@ -50,6 +51,7 @@ export default function UpiPaymentDialog({
   const [submitting, setSubmitting] = useState(false);
   const [copied, setCopied] = useState(false);
   const [forceManualUpiFlow, setForceManualUpiFlow] = useState(false);
+  const [qrImageFailed, setQrImageFailed] = useState(false);
   const codEnabled = paymentConfig ? paymentConfig.cod_enabled !== false : true;
   const normalizedPayerPhone = String(payerPhone || "").replace(/\D/g, "");
   const normalizedUserPhone = String(user?.phone || "").replace(/\D/g, "");
@@ -309,6 +311,7 @@ export default function UpiPaymentDialog({
   const upiId = paymentConfig?.upi_id || settings?.upi_id || "methopvtltd@paytm";
   const payeeName = paymentConfig?.payee_name || settings?.upi_payee_name || "METHOO STORE";
   const qrUrl = paymentConfig?.qr_url || settings?.upi_qr_url;
+  const fallbackQrValue = buildUpiPaymentUri(upiId, payeeName, total);
   const payLabel = paymentConfig?.label || "UPI Payment";
   const manualUpiEnabled = forceManualUpiFlow || (paymentConfig ? paymentConfig.manual_upi_enabled !== false : !!settings?.manual_upi_enabled);
   const razorpayEnabled = paymentConfig
@@ -390,10 +393,25 @@ export default function UpiPaymentDialog({
                   </div>
                 </div>
 
-                {qrUrl ? (
+                {qrUrl && !qrImageFailed ? (
                   <div className="rounded-xl border border-border p-3 bg-white text-center">
                     <p className="text-[10px] uppercase text-emerald-800 font-bold tracking-wider mb-2">Scan QR Code</p>
-                    <img src={resolveAssetUrl(qrUrl)} alt="UPI QR" className="w-full max-w-[240px] mx-auto object-contain rounded-lg" />
+                    <img
+                      src={resolveAssetUrl(qrUrl)}
+                      alt="UPI QR"
+                      className="w-full max-w-[240px] mx-auto object-contain rounded-lg"
+                      onError={() => setQrImageFailed(true)}
+                    />
+                  </div>
+                ) : fallbackQrValue ? (
+                  <div className="rounded-xl border border-border p-3 bg-white text-center">
+                    <p className="text-[10px] uppercase text-emerald-800 font-bold tracking-wider mb-2">Scan QR Code</p>
+                    <div className="flex justify-center">
+                      <QRCodeCanvas value={fallbackQrValue} size={220} level="H" includeMargin />
+                    </div>
+                    <p className="text-[11px] text-slate-500 mt-2">
+                      Preview generated from the UPI details because the uploaded QR image is not currently reachable.
+                    </p>
                   </div>
                 ) : (
                   <div className="rounded-xl border border-dashed border-amber-300 bg-amber-50 p-4 text-center">

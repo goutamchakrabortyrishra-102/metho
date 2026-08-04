@@ -290,7 +290,7 @@ function ProductModal({ product, onClose, onAdd, onDec, qty, galleryUrl, isBookN
                 </Button>
               </div>
             ) : (
-              <Button onClick={() => { onAdd(product.id); onCheckout?.(); }} className="w-full bg-emerald-900 hover:bg-emerald-950 text-white rounded-full text-base h-12">
+              <Button onClick={() => { onAdd(product.id); }} className="w-full bg-emerald-900 hover:bg-emerald-950 text-white rounded-full text-base h-12">
                 {isService ? <CalendarCheck2 className="w-4 h-4 mr-2" /> : <ShoppingCart className="w-4 h-4 mr-2" />} {isService ? "Book Now" : "Add to Cart"}
               </Button>
             )}
@@ -883,7 +883,6 @@ export default function PartnerGalleryPage() {
                               return;
                             }
                             addToCart(p.id);
-                            setCheckoutOpen(true);
                             toast.success(`${p.name} ${isService ? "booked" : "added"}`);
                           }}
                           className={`w-7 h-7 rounded-full text-white flex items-center justify-center shrink-0 ${isTransport ? "bg-sky-700 hover:bg-sky-800" : "bg-emerald-900 hover:bg-emerald-950"}`}
