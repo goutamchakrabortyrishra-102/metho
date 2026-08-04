@@ -25,6 +25,7 @@ const links = [
   { to: "/app/product-approvals", icon: Package, label: "Product Approvals", testId: "nav-product-approvals", adminOnly: true },
   { to: "/app/orders", icon: ShoppingCart, label: "Orders", testId: "nav-orders" },
   { to: "/app/pending-payments", icon: BadgeIndianRupee, label: "Pending Payments", testId: "nav-pending-payments", adminOnly: true },
+  { to: "/app/accounts", icon: Calculator, label: "Accounts", testId: "nav-accounts", adminOnly: true },
   { to: "/app/withdrawals", icon: Send, label: "Withdrawals", testId: "nav-withdrawals", adminOnly: true },
   { to: "/app/settlement", icon: Calculator, label: "Settlement", testId: "nav-settlement", adminOnly: true },
   { to: "/app/mps-claims", icon: Shield, label: "MPS Claims", testId: "nav-mps-claims", adminOnly: true },

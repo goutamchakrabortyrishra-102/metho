@@ -22,6 +22,7 @@ import SettingsPage from "@/pages/dashboard/SettingsPage";
 import SmartCyclePage from "@/pages/dashboard/SmartCyclePage";
 import PendingPaymentsPage from "@/pages/dashboard/PendingPaymentsPage";
 import MonthlySettlementPage from "@/pages/dashboard/MonthlySettlementPage";
+import AccountsPage from "@/pages/dashboard/AccountsPage";
 import MPSClaimsPage from "@/pages/dashboard/MPSClaimsPage";
 import PartnersPage from "@/pages/dashboard/PartnersPage";
 import ProductApprovalsPage from "@/pages/dashboard/ProductApprovalsPage";
@@ -180,6 +181,7 @@ function App() {
               <Route path="settings" element={<SettingsPage />} />
               <Route path="metho-store-owner" element={<StoreOwnerRoute><MethoStoreOwnerPage /></StoreOwnerRoute>} />
               <Route path="pending-payments" element={<AdminRoute><PendingPaymentsPage /></AdminRoute>} />
+              <Route path="accounts" element={<AdminRoute><AccountsPage /></AdminRoute>} />
               <Route path="settlement" element={<AdminRoute><MonthlySettlementPage /></AdminRoute>} />
               <Route path="mps-claims" element={<AdminRoute><MPSClaimsPage /></AdminRoute>} />
               <Route path="partners" element={<AdminRoute><PartnersPage /></AdminRoute>} />

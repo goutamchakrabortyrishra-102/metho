@@ -42,6 +42,7 @@ PARTNER_PRODUCT_UNITS_KEY = "partner_product_units"
 PARTNER_UNIT_OPTIONS = {"piece", "kg", "gram", "litre", "ml"}
 PARTNER_PRODUCT_META_KEY = "partner_product_meta"
 TRANSPORT_SERVICE_TEMPLATE_KEYS = {"cab_airport_drop", "car_rental_daily", "bike_rental_daily"}
+ADMIN_ACCOUNTS_LEDGER_KEY = "admin_accounts_ledger"
 
 
 def _normalize_partner_unit_type(value: str | None) -> str:
@@ -240,6 +241,61 @@ def _partner_banner_key(partner_id: str) -> str:
     return f"partner_banner:{partner_id}"
 
 
+def _purge_partner_related_records(db: Session, partner: AssociatePartner) -> None:
+    partner_id = str(getattr(partner, "id", "") or "").strip()
+    login_id = str(getattr(partner, "email", "") or "").strip()
+    phone = str(getattr(partner, "phone", "") or "").strip()
+    gst_no = str(getattr(partner, "gst_no", "") or "").strip()
+
+    if partner_id:
+        db.query(PartnerProduct).filter(PartnerProduct.partner_id == partner_id).delete(synchronize_session=False)
+        db.query(AppSetting).filter(
+            AppSetting.key.in_(
+                [
+                    _partner_wallet_key(partner_id),
+                    _partner_wallet_tx_key(partner_id),
+                    _partner_topup_qr_key(partner_id),
+                    _partner_payment_qr_key(partner_id),
+                    _partner_banner_key(partner_id),
+                ]
+            )
+        ).delete(synchronize_session=False)
+
+        partner_topup_rows = db.query(AppSetting).filter(AppSetting.key.like("partner_topup:%")).all()
+        topup_keys_to_delete = []
+        for row in partner_topup_rows:
+            try:
+                doc = json.loads(row.value_json or "{}")
+            except Exception:
+                continue
+            if str(doc.get("partner_id") or "").strip() == partner_id:
+                topup_keys_to_delete.append(row.key)
+        if topup_keys_to_delete:
+            db.query(AppSetting).filter(AppSetting.key.in_(topup_keys_to_delete)).delete(synchronize_session=False)
+
+    if login_id:
+        db.query(User).filter(User.email == login_id, User.role == "partner").delete(synchronize_session=False)
+
+    related_requests = []
+    if login_id:
+        related_requests.extend(db.query(PartnerRequest).filter(PartnerRequest.email == login_id).all())
+    if phone:
+        related_requests.extend(db.query(PartnerRequest).filter(PartnerRequest.phone == phone).all())
+    if gst_no:
+        related_requests.extend(db.query(PartnerRequest).filter(PartnerRequest.gst_no == gst_no).all())
+
+    seen_request_ids = set()
+    for request in related_requests:
+        request_id = str(getattr(request, "id", "") or "").strip()
+        if not request_id or request_id in seen_request_ids:
+            continue
+        seen_request_ids.add(request_id)
+        db.query(AppSetting).filter(
+            AppSetting.key.in_([f"partner_req_creds:{request_id}", f"partner_req_kyc:{request_id}"])
+        ).delete(synchronize_session=False)
+        db.delete(request)
+
+
 def _partner_featured_images_key(partner_id: str) -> str:
     return f"partner_featured_images:{partner_id}"
 
@@ -334,6 +390,126 @@ def _save_transport_trip(db: Session, trip: dict) -> dict:
         row.value_json = json.dumps(payload)
         row.updated_at = datetime.now(timezone.utc)
     db.commit()
+
+
+def _load_admin_accounts_ledger(db: Session) -> dict:
+    row = db.query(AppSetting).filter(AppSetting.key == ADMIN_ACCOUNTS_LEDGER_KEY).first()
+    if not row:
+        return {"entries": [], "updated_at": now_iso()}
+    try:
+        payload = json.loads(row.value_json or "{}")
+    except Exception:
+        payload = {}
+    if not isinstance(payload, dict):
+        payload = {}
+    payload.setdefault("entries", [])
+    payload.setdefault("updated_at", now_iso())
+    return payload
+
+
+def _save_admin_accounts_ledger(db: Session, payload: dict) -> dict:
+    row = db.query(AppSetting).filter(AppSetting.key == ADMIN_ACCOUNTS_LEDGER_KEY).first()
+    if not row:
+        row = AppSetting(key=ADMIN_ACCOUNTS_LEDGER_KEY, value_json="{}")
+        db.add(row)
+    clean = {
+        "entries": list((payload or {}).get("entries") or [])[:500],
+        "updated_at": now_iso(),
+    }
+    row.value_json = json.dumps(clean)
+    row.updated_at = datetime.now(timezone.utc)
+    db.commit()
+    return clean
+
+
+def _accounts_auto_summary(db: Session) -> dict:
+    income_rows = db.query(PublicOrder).all()
+    income_total = 0.0
+    income_items = []
+    for order in income_rows:
+        amount = round(float(order.total_amount or 0), 2)
+        if amount <= 0:
+            continue
+        income_total += amount
+        income_items.append(
+            {
+                "id": f"order:{order.id}",
+                "source": "order",
+                "category": "Sales Income",
+                "label": f"Order {order.id}",
+                "amount": amount,
+                "direction": "income",
+                "created_at": order.created_at.isoformat() if order.created_at else now_iso(),
+            }
+        )
+
+    partner_topups = []
+    pending_topup_rows = db.query(AppSetting).filter(AppSetting.key.like("partner_topup:%")).all()
+    for row in pending_topup_rows:
+        try:
+            doc = json.loads(row.value_json or "{}")
+        except Exception:
+            continue
+        if str(doc.get("status") or "").lower() != "approved":
+            continue
+        amount = round(float(doc.get("amount") or 0), 2)
+        if amount <= 0:
+            continue
+        partner_topups.append(
+            {
+                "id": str(doc.get("id") or row.key),
+                "source": "partner_topup",
+                "category": "Partner Wallet Top-up",
+                "label": str(doc.get("partner_name") or doc.get("partner_code") or "Partner top-up"),
+                "amount": amount,
+                "direction": "income",
+                "created_at": str(doc.get("created_at") or row.updated_at.isoformat() if row.updated_at else now_iso()),
+            }
+        )
+
+    withdrawals = []
+    for item in WITHDRAWALS:
+        if str(item.get("status") or "").lower() != "approved":
+            continue
+        amount = round(float(item.get("amount") or 0), 2)
+        if amount <= 0:
+            continue
+        withdrawals.append(
+            {
+                "id": str(item.get("id") or ""),
+                "source": "withdrawal",
+                "category": "Member Withdrawal",
+                "label": str(item.get("user_name") or item.get("user_member_code") or "Withdrawal"),
+                "amount": amount,
+                "direction": "expense",
+                "created_at": str(item.get("created_at") or now_iso()),
+            }
+        )
+
+    mps_claims = []
+    for claim in MPS_CLAIMS:
+        if str(claim.get("status") or "").lower() != "approved" or float(claim.get("amount") or 0) <= 0:
+            continue
+        amount = round(float(claim.get("amount") or 0), 2)
+        mps_claims.append(
+            {
+                "id": str(claim.get("id") or ""),
+                "source": "mps_claim",
+                "category": "MPS Claim Payout",
+                "label": str(claim.get("user_name") or "MPS claim"),
+                "amount": amount,
+                "direction": "expense",
+                "created_at": str(claim.get("created_at") or now_iso()),
+            }
+        )
+
+    expenses_total = sum(item["amount"] for item in withdrawals + mps_claims)
+    return {
+        "income_total": round(income_total, 2),
+        "income_items": sorted(income_items + partner_topups, key=lambda item: str(item.get("created_at") or ""), reverse=True)[:200],
+        "expense_total": round(expenses_total, 2),
+        "expense_items": sorted(withdrawals + mps_claims, key=lambda item: str(item.get("created_at") or ""), reverse=True)[:200],
+    }
     return payload
 
 
@@ -4107,17 +4283,7 @@ def admin_partners_delete(
         db.commit()
         return {"ok": True, "id": partner_id, "active": False, "permanent": False}
 
-    db.query(PartnerProduct).filter(PartnerProduct.partner_id == partner_id).delete(synchronize_session=False)
-    db.query(AppSetting).filter(
-        AppSetting.key.in_(
-            [
-                _partner_wallet_key(partner_id),
-                _partner_wallet_tx_key(partner_id),
-                _partner_topup_qr_key(partner_id),
-                _partner_payment_qr_key(partner_id),
-            ]
-        )
-    ).delete(synchronize_session=False)
+    _purge_partner_related_records(db, p)
     db.delete(p)
     db.commit()
     return {"ok": True, "id": partner_id, "permanent": True}
@@ -4141,17 +4307,7 @@ def admin_partners_permanent_delete(partner_id: str, db: Session = Depends(get_d
     if not p:
         return {"ok": True, "id": partner_id, "permanent": True}
 
-    db.query(PartnerProduct).filter(PartnerProduct.partner_id == partner_id).delete(synchronize_session=False)
-    db.query(AppSetting).filter(
-        AppSetting.key.in_(
-            [
-                _partner_wallet_key(partner_id),
-                _partner_wallet_tx_key(partner_id),
-                _partner_topup_qr_key(partner_id),
-                _partner_payment_qr_key(partner_id),
-            ]
-        )
-    ).delete(synchronize_session=False)
+    _purge_partner_related_records(db, p)
     db.delete(p)
     db.commit()
     return {"ok": True, "id": partner_id, "permanent": True}
@@ -4448,6 +4604,84 @@ def settlement_execute(year: int, month: int, current_user=Depends(get_current_u
 @router.get("/admin/settlements")
 def settlement_history(current_user=Depends(get_current_user)):
     return []
+
+
+@router.get("/admin/accounts")
+def admin_accounts(current_user=Depends(get_current_user), db: Session = Depends(get_db)):
+    _require_admin_user(current_user)
+    auto = _accounts_auto_summary(db)
+    manual = _load_admin_accounts_ledger(db)
+    entries = list(manual.get("entries") or [])
+
+    income_total = round(float(auto.get("income_total") or 0), 2)
+    expense_total = round(float(auto.get("expense_total") or 0), 2)
+    manual_income = 0.0
+    manual_expense = 0.0
+    for entry in entries:
+        amount = round(float(entry.get("amount") or 0), 2)
+        if str(entry.get("direction") or "expense").lower() == "income" or amount > 0 and str(entry.get("direction") or "").lower() == "income":
+            manual_income += amount
+        else:
+            manual_expense += abs(amount)
+
+    balance = round(income_total + manual_income - expense_total - manual_expense, 2)
+    bucket_totals: dict[str, dict[str, float]] = {}
+    for entry in entries:
+        bucket = str(entry.get("category") or "Miscellaneous").strip() or "Miscellaneous"
+        direction = str(entry.get("direction") or "expense").lower()
+        amount = round(float(entry.get("amount") or 0), 2)
+        stat = bucket_totals.setdefault(bucket, {"income": 0.0, "expense": 0.0})
+        if direction == "income":
+            stat["income"] += amount
+        else:
+            stat["expense"] += abs(amount)
+
+    return {
+        "summary": {
+            "income_total": income_total + manual_income,
+            "expense_total": expense_total + manual_expense,
+            "net_balance": balance,
+            "manual_income_total": round(manual_income, 2),
+            "manual_expense_total": round(manual_expense, 2),
+            "auto_income_total": income_total,
+            "auto_expense_total": expense_total,
+        },
+        "auto": auto,
+        "manual_entries": entries,
+        "category_totals": bucket_totals,
+        "last_updated": str(manual.get("updated_at") or now_iso()),
+    }
+
+
+@router.post("/admin/accounts/entries")
+def admin_accounts_add_entry(payload: dict, current_user=Depends(get_current_user), db: Session = Depends(get_db)):
+    _require_admin_user(current_user)
+    category = str(payload.get("category") or "Miscellaneous").strip() or "Miscellaneous"
+    direction = str(payload.get("direction") or "expense").strip().lower()
+    if direction not in {"income", "expense"}:
+        direction = "expense"
+    amount = round(abs(float(payload.get("amount") or 0)), 2)
+    if amount <= 0:
+        raise HTTPException(status_code=400, detail="Amount must be greater than 0")
+
+    ledger = _load_admin_accounts_ledger(db)
+    entries = list(ledger.get("entries") or [])
+    entry = {
+        "id": str(uuid.uuid4()),
+        "category": category,
+        "direction": direction,
+        "amount": amount,
+        "description": str(payload.get("description") or "").strip(),
+        "reference": str(payload.get("reference") or "").strip(),
+        "date": str(payload.get("date") or now_iso()),
+        "created_at": now_iso(),
+        "created_by": getattr(current_user, "id", ""),
+        "created_by_name": getattr(current_user, "name", "Admin"),
+    }
+    entries.insert(0, entry)
+    ledger["entries"] = entries
+    saved = _save_admin_accounts_ledger(db, ledger)
+    return {"ok": True, "entry": entry, "ledger": saved}
 
 
 @router.get("/admin/withdrawals")

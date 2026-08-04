@@ -11,6 +11,64 @@ from ..models import AppSetting, AssociatePartner, PartnerRequest, User
 router = APIRouter(prefix="/api", tags=["partner-public"])
 
 
+def _delete_partner_request_artifacts(db: Session, request: PartnerRequest) -> None:
+    request_id = str(getattr(request, "id", "") or "").strip()
+    if request_id:
+        db.query(AppSetting).filter(
+            AppSetting.key.in_([f"partner_req_creds:{request_id}", f"partner_req_kyc:{request_id}"])
+        ).delete(synchronize_session=False)
+    db.delete(request)
+
+
+def _cleanup_orphaned_partner_registration(db: Session, login_id: str, phone: str, pan_no: str) -> None:
+    seen_request_ids = set()
+    stale_requests: list[PartnerRequest] = []
+    request_queries = []
+    if login_id:
+        request_queries.append(db.query(PartnerRequest).filter(PartnerRequest.email == login_id, PartnerRequest.status.in_(["pending", "approved"])).all())
+    if phone:
+        request_queries.append(db.query(PartnerRequest).filter(PartnerRequest.phone == phone, PartnerRequest.status.in_(["pending", "approved"])).all())
+    if pan_no:
+        request_queries.append(db.query(PartnerRequest).filter(PartnerRequest.gst_no == pan_no, PartnerRequest.status.in_(["pending", "approved"])).all())
+
+    for request_rows in request_queries:
+        for request in request_rows:
+            request_id = str(getattr(request, "id", "") or "").strip()
+            if not request_id or request_id in seen_request_ids:
+                continue
+            seen_request_ids.add(request_id)
+
+            linked_partner = None
+            req_email = str(getattr(request, "email", "") or "").strip()
+            req_phone = str(getattr(request, "phone", "") or "").strip()
+            req_gst = str(getattr(request, "gst_no", "") or "").strip()
+            if req_email:
+                linked_partner = db.query(AssociatePartner).filter(AssociatePartner.email == req_email).first()
+            if not linked_partner and req_phone:
+                linked_partner = db.query(AssociatePartner).filter(AssociatePartner.phone == req_phone).first()
+            if not linked_partner and req_gst:
+                linked_partner = db.query(AssociatePartner).filter(AssociatePartner.gst_no == req_gst).first()
+
+            if linked_partner is None:
+                stale_requests.append(request)
+
+    cleaned = False
+    for request in stale_requests:
+        _delete_partner_request_artifacts(db, request)
+        cleaned = True
+
+    if login_id:
+        orphan_user = db.query(User).filter(User.email == login_id, User.role == "partner").first()
+        linked_partner = db.query(AssociatePartner).filter(AssociatePartner.email == login_id).first() if login_id else None
+        remaining_request = db.query(PartnerRequest).filter(PartnerRequest.email == login_id, PartnerRequest.status.in_(["pending", "approved"])).first()
+        if orphan_user and linked_partner is None and remaining_request is None:
+            db.delete(orphan_user)
+            cleaned = True
+
+    if cleaned:
+        db.commit()
+
+
 def _normalize_partner_sector(value: str) -> str:
     text = str(value or "").strip().lower()
     if text in {"service", "services", "service provider"}:
@@ -61,6 +119,8 @@ def partner_register(payload: dict, db: Session = Depends(get_db)):
         raise HTTPException(status_code=400, detail="Aadhaar number is required")
     if len(aadhaar_no) != 12:
         raise HTTPException(status_code=400, detail="Aadhaar number must be 12 digits")
+
+    _cleanup_orphaned_partner_registration(db, login_id, phone, pan_no)
 
     exists = db.query(User).filter(User.email == login_id).first()
     if exists:
