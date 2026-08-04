@@ -267,6 +267,7 @@ export default function ProductsPage() {
       };
     })
     .filter((item) => item.id);
+  const selectedTopProductSlots = Array.from({ length: LANDING_TOP_PRODUCTS_LIMIT }, (_, idx) => selectedTopProducts[idx] || null);
   const filteredProducts = selectedCategory === "all"
     ? products
     : products.filter((p) => p.category === selectedCategory);
@@ -572,11 +573,18 @@ export default function ProductsPage() {
             ) : null}
           </div>
 
-          {selectedTopProducts.length === 0 ? (
-            <p className="mt-3 text-xs text-slate-500">No top products selected yet.</p>
-          ) : (
-            <div className="mt-3 grid gap-2 md:grid-cols-2 xl:grid-cols-3">
-              {selectedTopProducts.map((item, idx) => (
+          <div className="mt-3 grid gap-2 md:grid-cols-2 xl:grid-cols-3">
+            {selectedTopProductSlots.map((item, idx) => {
+              if (!item) {
+                return (
+                  <div key={`top-slot-empty-${idx}`} className="rounded-lg border border-dashed border-emerald-200 bg-white/70 px-3 py-2">
+                    <p className="text-[10px] uppercase tracking-wider text-emerald-800 font-bold">Top #{idx + 1}</p>
+                    <p className="text-sm font-semibold text-slate-400 mt-1">Empty Slot</p>
+                    <p className="text-[11px] text-slate-400">Select a METHO product below to fill this position.</p>
+                  </div>
+                );
+              }
+              return (
                 <div key={item.id} className="rounded-lg border border-emerald-200 bg-white px-3 py-2">
                   <div className="flex items-center justify-between gap-2">
                     <div className="min-w-0">
@@ -621,9 +629,9 @@ export default function ProductsPage() {
                     </div>
                   </div>
                 </div>
-              ))}
-            </div>
-          )}
+              );
+            })}
+          </div>
         </div>
       ) : null}
 
