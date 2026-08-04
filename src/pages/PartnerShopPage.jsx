@@ -125,6 +125,7 @@ const getProductImageUrl = (product) => {
 
 const getDisplayImage = (product, placeholder) => {
   const image = getProductImageUrl(product);
+  if (!image && getPdfUrl(product)) return PDF_PREVIEW;
   if (!image && product?.fallback_image_url) return resolveAssetUrl(product.fallback_image_url);
   if (image) return image;
   return placeholder || PRODUCT_FALLBACK;

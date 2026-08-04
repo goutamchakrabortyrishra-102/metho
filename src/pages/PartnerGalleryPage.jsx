@@ -16,6 +16,7 @@ import { Input } from "@/components/ui/input";
 import { inferPartnerPrimarySector, getPartnerVisibleSectors, PARTNER_SECTOR_KEYS } from "@/lib/partnerSector";
 
 const FALLBACK = "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 400 400'><rect width='400' height='400' fill='%23e2e8f0'/><text x='50%25' y='50%25' dominant-baseline='middle' text-anchor='middle' fill='%23475569' font-size='20' font-family='Arial'>No Image</text></svg>";
+const PDF_PREVIEW = "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 400 400'><rect width='400' height='400' fill='%23f1f5f9'/><rect x='80' y='50' width='240' height='300' rx='14' fill='%23ffffff' stroke='%2394a3b8' stroke-width='4'/><text x='200' y='190' text-anchor='middle' fill='%23dc2626' font-size='46' font-family='Arial' font-weight='bold'>PDF</text><text x='200' y='228' text-anchor='middle' fill='%23334155' font-size='16' font-family='Arial'>Tap to Open</text></svg>";
 
 const isLikelyAssetRef = (value) => {
   const s = String(value || "").trim();
@@ -50,6 +51,7 @@ const isPdfUrl = (value) => /\.pdf($|\?)/i.test(String(value || ""));
 
 const getDisplayImage = (product) => {
   if (product?.image_url && !isPdfUrl(product.image_url)) return resolveAssetUrl(product.image_url);
+  if (getPdfUrl(product)) return PDF_PREVIEW;
   if (product?.fallback_image_url) return resolveAssetUrl(product.fallback_image_url);
   return FALLBACK;
 };
@@ -91,7 +93,13 @@ const pickImageUrl = (value) => {
 
 const normalizeFeaturedImages = (raw) => {
   const source = raw?.items ?? raw?.featured_images ?? raw;
-  if (Array.isArray(source)) return source.map((u) => pickImageUrl(u)).filter(Boolean).slice(0, 5);
+  if (Array.isArray(source)) {
+    const items = ["", "", "", "", ""];
+    for (let idx = 0; idx < Math.min(5, source.length); idx += 1) {
+      items[idx] = pickImageUrl(source[idx]);
+    }
+    return items;
+  }
   if (source && typeof source === "object") {
     const ordered = [1, 2, 3, 4, 5].map((slot) => (
       source[String(slot)] ||
@@ -103,14 +111,11 @@ const normalizeFeaturedImages = (raw) => {
       source[`slot_${slot}_url`] ||
       ""
     ));
-    const direct = ordered.map((u) => pickImageUrl(u)).filter(Boolean);
-    if (direct.length) return direct.slice(0, 5);
-    return Object.values(source)
-      .map((u) => pickImageUrl(u))
-      .filter(Boolean)
-      .slice(0, 5);
+    const direct = ordered.map((u) => pickImageUrl(u));
+    if (direct.some(Boolean)) return direct.slice(0, 5);
+    return ["", "", "", "", ""];
   }
-  return [];
+  return ["", "", "", "", ""];
 };
 
 const normalizePartnerPayload = (payload) => {
