@@ -186,13 +186,29 @@ const isDoorstepServiceListing = (item) => {
 };
 
 const getUnitType = (item) => {
-  const unit = String(item?.unit_type || "piece").trim().toLowerCase();
+  const unit = String(item?.unit_type || "").trim().toLowerCase();
   if (["kg", "gram", "litre", "ml", "piece"].includes(unit)) return unit;
+
+  // Fallback: treat grocery/produce-like listings as weighted products when unit metadata is missing.
+  const haystack = [item?.category, item?.name, item?.description]
+    .map((v) => String(v || "").toLowerCase())
+    .join(" ");
+  const looksWeighted = [
+    "vegetable", "vegetabel", "veg", "sabji", "grocery", "fruit", "fish", "meat", "rice", "dal", "atta", "oil", "spice",
+  ].some((k) => haystack.includes(k));
+  if (looksWeighted) return "kg";
+
   return "piece";
 };
 
 const getQtyStep = (item) => {
   const unit = getUnitType(item);
+  const configured = Number(item?.quantity_step || 0);
+  if (Number.isFinite(configured) && configured > 0) {
+    if (unit === "gram" || unit === "ml") return Math.max(1, Math.round(configured));
+    if (unit === "piece") return Math.max(1, Math.round(configured));
+    return Number(configured.toFixed(3));
+  }
   if (unit === "kg" || unit === "litre") return 0.1;
   if (unit === "gram" || unit === "ml") return 100;
   return 1;
@@ -213,6 +229,13 @@ const formatQty = (qty) => {
   const n = Number(qty || 0);
   if (!Number.isFinite(n)) return "0";
   return Number.isInteger(n) ? String(n) : String(Number(n.toFixed(3)));
+};
+
+const formatQtyWithUnit = (qty, item) => {
+  const unit = getUnitType(item);
+  const value = formatQty(qty);
+  if (unit === "piece") return value;
+  return `${value} ${unit}`;
 };
 
 function ProductModal({ product, onClose, onAdd, onDec, qty, galleryUrl, isBookNowRole, onBookNow, canAccessProductPdf, onCheckout }) {
@@ -732,27 +755,29 @@ export default function PartnerGalleryPage() {
           <div className="text-right">
             <p className="text-[10px] text-amber-400 uppercase font-bold">{activeTab === "transport" ? "Transport" : (activeTab === "stay-dining" ? "Stay & Dining" : (activeTab === "doorstep" ? "Doorstep" : (activeTab === "other-services" ? "Other Services" : "Products")))}</p>
             <p className="font-display font-black text-3xl">{activeListings.length}</p>
-          </div>
-        </div>
-      </div>
-
-      {/* Toolbar */}
-      <div className="max-w-4xl mx-auto px-4 py-4 flex flex-wrap items-center justify-between gap-3">
-        <p className="text-sm text-slate-600 font-body">
-          {activeTab === "transport"
-            ? "Tap the image to view details and start ride booking"
-            : ((activeTab === "stay-dining" || activeTab === "doorstep" || activeTab === "other-services") ? "Tap the image to view details and book the service" : "Tap the image to view details and add to cart")}
-        </p>
-        <div className="flex flex-wrap gap-2 w-full sm:w-auto">
-          {allowedTabs.includes("products") ? (
-          <Link to={`/gallery/${partnerCode}?tab=products${gallerySearch ? `&q=${encodeURIComponent(gallerySearch)}` : ""}`}>
-            <Button variant={activeTab === "products" ? "default" : "outline"} size="sm" className={`rounded-full text-xs ${activeTab === "products" ? "bg-emerald-900 hover:bg-emerald-950 text-white" : "border-emerald-300 text-emerald-900 hover:bg-emerald-50"}`}>
-              Products
-            </Button>
-          </Link>
-          ) : null}
-          {allowedTabs.includes("transport") ? (
-          <Link to={`/gallery/${partnerCode}?tab=transport${gallerySearch ? `&q=${encodeURIComponent(gallerySearch)}` : ""}`}>
+                    <div className="mt-1.5 flex items-center justify-between">
+                      <span className="font-display font-black text-base text-emerald-950">₹{p.price}</span>
+                    </div>
+                    {outOfStock ? (
+                      <Button disabled className="w-full mt-2 rounded-full h-9">Out of Stock</Button>
+                    ) : (
+                      <Button
+                        type="button"
+                        onClick={e => {
+                          e.stopPropagation();
+                          if (isService) {
+                            handleBookNow(p);
+                            return;
+                          }
+                          addToCart(p.id);
+                          toast.success(`${p.name} ${isService ? "booked" : "added"}`);
+                        }}
+                        className={`w-full mt-2 rounded-full h-9 text-white ${isTransport ? "bg-sky-700 hover:bg-sky-800" : "bg-emerald-900 hover:bg-emerald-950"}`}
+                        data-testid={`quick-add-${p.id}`}
+                      >
+                        {isService ? "Book Now" : (qty > 0 ? `Add More (${formatQtyWithUnit(qty, p)})` : "Add to Cart")}
+                      </Button>
+                    )}
             <Button variant={activeTab === "transport" ? "default" : "outline"} size="sm" className={`rounded-full text-xs ${activeTab === "transport" ? "bg-sky-700 hover:bg-sky-800 text-white" : "border-sky-300 text-sky-900 hover:bg-sky-50"}`}>
               Transport
             </Button>
@@ -925,7 +950,7 @@ export default function PartnerGalleryPage() {
                 <ShoppingCart className="w-3.5 h-3.5" /> {items.length} item(s)
               </p>
               <p className="text-[11px] text-slate-500 mt-0.5">
-                {items.map(i => `${i.name} ×${i.quantity}`).join(", ")}
+                {items.map(i => `${i.name} ×${formatQtyWithUnit(i.quantity, i)}`).join(", ")}
               </p>
             </div>
             <Button
