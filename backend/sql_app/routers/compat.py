@@ -4449,7 +4449,22 @@ def admin_partner_request_approve(request_id: str, payload: dict | None = None, 
 
     partner = db.query(AssociatePartner).filter(AssociatePartner.email == login_id).first()
     if not partner:
-        partner_code = "MTH-PARTNER-" + str(db.query(AssociatePartner).count() + 1).zfill(3)
+        existing_codes = {
+            str(row.partner_code or "").strip().upper()
+            for row in db.query(AssociatePartner.partner_code).all()
+            if row.partner_code
+        }
+        max_suffix = 0
+        for code in existing_codes:
+            if code.startswith("MTH-PARTNER-"):
+                suffix = code.replace("MTH-PARTNER-", "", 1)
+                if suffix.isdigit():
+                    max_suffix = max(max_suffix, int(suffix))
+        next_suffix = max_suffix + 1
+        partner_code = f"MTH-PARTNER-{next_suffix:03d}"
+        while partner_code in existing_codes:
+            next_suffix += 1
+            partner_code = f"MTH-PARTNER-{next_suffix:03d}"
         partner = AssociatePartner(
             partner_code=partner_code,
             business_name=str(req.business_name or "Partner Business").strip() or "Partner Business",
