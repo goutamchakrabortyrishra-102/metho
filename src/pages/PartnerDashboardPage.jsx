@@ -594,8 +594,8 @@ export default function PartnerDashboardPage() {
     }
   };
 
-  const savePartnerUpiId = async () => {
-    if (offerPopupEnabled && !String(offerPopupTitle || offerPopupMessage || "").trim()) {
+  const savePartnerUpiId = async ({ validateOffer = false } = {}) => {
+    if (validateOffer && offerPopupEnabled && !String(offerPopupTitle || offerPopupMessage || "").trim()) {
       toast.error("Popup enabled থাকলে title বা message দিতে হবে");
       return;
     }
@@ -946,7 +946,7 @@ export default function PartnerDashboardPage() {
                     />
                     <Button
                       type="button"
-                      onClick={savePartnerUpiId}
+                      onClick={() => savePartnerUpiId()}
                       disabled={savingPartnerUpi}
                       className="rounded-full bg-emerald-900 hover:bg-emerald-950 text-white"
                     >
@@ -1034,7 +1034,7 @@ export default function PartnerDashboardPage() {
                     <div className="pt-2 flex justify-end">
                       <Button
                         type="button"
-                        onClick={savePartnerUpiId}
+                        onClick={() => savePartnerUpiId({ validateOffer: true })}
                         disabled={savingPartnerUpi}
                         className="rounded-full bg-blue-700 hover:bg-blue-800 text-white"
                       >
@@ -1060,7 +1060,7 @@ export default function PartnerDashboardPage() {
                 <div className="mt-4 flex justify-end">
                   <Button
                     type="button"
-                    onClick={savePartnerUpiId}
+                    onClick={() => savePartnerUpiId()}
                     disabled={savingPartnerUpi}
                     className="rounded-full bg-emerald-900 hover:bg-emerald-950 text-white"
                   >
