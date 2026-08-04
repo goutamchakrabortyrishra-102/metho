@@ -305,24 +305,10 @@ export default function PartnerShopPage() {
       setShowOfferPopup(false);
       return;
     }
-    const signature = `${title}|${message}|${String(offerPopup?.coupon_code || "").trim()}`;
-    const seenKey = `partner_offer_seen:${partnerCode}:${signature}`;
-    const alreadySeen = sessionStorage.getItem(seenKey) === "1";
-    if (!alreadySeen) {
-      setShowOfferPopup(true);
-    }
+    setShowOfferPopup(true);
   }, [offerPopup, partnerCode]);
 
   const closeOfferPopup = () => {
-    const title = String(offerPopup?.title || "").trim();
-    const message = String(offerPopup?.message || "").trim();
-    const signature = `${title}|${message}|${String(offerPopup?.coupon_code || "").trim()}`;
-    const seenKey = `partner_offer_seen:${partnerCode}:${signature}`;
-    try {
-      sessionStorage.setItem(seenKey, "1");
-    } catch {
-      // ignore storage failures
-    }
     setShowOfferPopup(false);
   };
 
@@ -381,14 +367,14 @@ export default function PartnerShopPage() {
   const featuredProductFallbacks = useMemo(() => {
     const list = [];
     for (const item of productListings) {
-      const src = getProductImageUrl(item) || resolveAssetUrl(item?.fallback_image_url || "");
+      const src = getDisplayImage(item, placeholder) || getProductImageUrl(item) || resolveAssetUrl(item?.fallback_image_url || "");
       if (src && !list.includes(src)) list.push(src);
       if (list.length >= 5) break;
     }
     return list;
-  }, [productListings]);
+  }, [productListings, placeholder]);
   const featuredDisplayImages = useMemo(() => {
-    return [0, 1, 2, 3, 4].map((slot) => featuredImages[slot] || featuredProductFallbacks[slot] || "");
+    return [0, 1, 2, 3, 4].map((slot) => featuredProductFallbacks[slot] || featuredImages[slot] || "");
   }, [featuredImages, featuredProductFallbacks]);
   const hasAnyFeaturedImage = useMemo(() => featuredDisplayImages.some(Boolean), [featuredDisplayImages]);
   const getStock = (product) => Math.max(0, Number(product?.stock ?? 0));
@@ -941,7 +927,10 @@ export default function PartnerShopPage() {
                       ) : (
                         <Button
                           type="button"
-                          onClick={() => inc(product)}
+                          onClick={() => {
+                            inc(product);
+                            setOpen(true);
+                          }}
                           className="w-full mt-3 rounded-full bg-emerald-900 hover:bg-emerald-950 text-white"
                           data-testid={`shop-add-${product.id}`}
                         >
