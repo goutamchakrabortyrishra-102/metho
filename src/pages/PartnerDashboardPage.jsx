@@ -689,8 +689,21 @@ export default function PartnerDashboardPage() {
     setSavingFeaturedImages(true);
     try {
       const items = normalizeFeaturedImages({ items: featuredImages });
-      const { data } = await api.put("/partner/featured-images", { items });
-      const normalized = normalizeFeaturedImages(data);
+      let response = null;
+      try {
+        response = await api.put("/partner/featured-images", { items });
+      } catch (err) {
+        const status = Number(err?.response?.status || 0);
+        if (status === 404 || status === 405) {
+          // Older backend builds may not expose this route; per-slot uploads are already persisted.
+          setSavedFeaturedImages(items);
+          toast.success("Featured images are already saved");
+          return;
+        }
+        throw err;
+      }
+
+      const normalized = normalizeFeaturedImages(response?.data || { items });
       setFeaturedImages(normalized);
       setSavedFeaturedImages(normalized);
       toast.success("Featured images saved");
