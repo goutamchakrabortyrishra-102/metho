@@ -169,8 +169,14 @@ const loadRazorpayScript = () => new Promise((resolve) => {
   document.body.appendChild(script);
 });
 
-const Tab = ({ id, active, onClick, children }) => (
-  <button onClick={() => onClick(id)} className={`px-4 py-2 rounded-full text-sm font-semibold ${active === id ? "bg-emerald-900 text-white" : "bg-white text-emerald-900 border border-emerald-200 hover:bg-emerald-50"}`} data-testid={`tab-${id}`}>{children}</button>
+const Tab = ({ id, active, onClick, children, activeClassName, idleClassName }) => (
+  <button
+    onClick={() => onClick(id)}
+    className={`px-4 py-2 rounded-full text-sm font-semibold border transition-colors ${active === id ? activeClassName : idleClassName}`}
+    data-testid={`tab-${id}`}
+  >
+    {children}
+  </button>
 );
 
 const DASHBOARD_SECTOR_LABEL = {
@@ -179,6 +185,43 @@ const DASHBOARD_SECTOR_LABEL = {
   [PARTNER_SECTOR_KEYS.HOSPITALITY_SECTOR]: "Stay & Dining",
   [PARTNER_SECTOR_KEYS.DOORSTEP_SECTOR]: "Doorstep",
   [PARTNER_SECTOR_KEYS.OTHER_SERVICE_SECTOR]: "Other Services",
+};
+
+const getDashboardTheme = (primarySector) => {
+  if (primarySector === PARTNER_SECTOR_KEYS.TRANSPORT_SECTOR) {
+    return {
+      headerClass: "bg-sky-950 text-white",
+      chipClass: "text-sky-300",
+      metricHighlightClass: "bg-gradient-to-br from-sky-100 to-cyan-100 border-sky-300",
+      tabActiveClass: "bg-sky-900 text-white border-sky-900",
+      tabIdleClass: "bg-white text-sky-900 border-sky-200 hover:bg-sky-50",
+      overviewHeroClass: "border-sky-300 bg-sky-50",
+      overviewTitle: "Transport Control Center",
+      overviewDesc: "Trip request, fare locking, and transport listing management একসাথে এখানে করুন।",
+    };
+  }
+  if (primarySector === PARTNER_SECTOR_KEYS.HOSPITALITY_SECTOR) {
+    return {
+      headerClass: "bg-amber-950 text-white",
+      chipClass: "text-amber-300",
+      metricHighlightClass: "bg-gradient-to-br from-amber-100 to-orange-100 border-amber-300",
+      tabActiveClass: "bg-amber-800 text-white border-amber-800",
+      tabIdleClass: "bg-white text-amber-900 border-amber-200 hover:bg-amber-50",
+      overviewHeroClass: "border-amber-300 bg-amber-50",
+      overviewTitle: "Hotel & Homestay Operations Desk",
+      overviewDesc: "Stay/dining listing, room/service showcase, and hospitality operations এখানে আলাদাভাবে পরিচালনা করুন।",
+    };
+  }
+  return {
+    headerClass: "bg-emerald-950 text-white",
+    chipClass: "text-amber-400",
+    metricHighlightClass: "bg-gradient-to-br from-amber-100 to-emerald-100 border-amber-300",
+    tabActiveClass: "bg-emerald-900 text-white border-emerald-900",
+    tabIdleClass: "bg-white text-emerald-900 border-emerald-200 hover:bg-emerald-50",
+    overviewHeroClass: "border-amber-300 bg-amber-50",
+    overviewTitle: "Listing Manager",
+    overviewDesc: "Registration sector অনুযায়ী আপনার dashboard-এ নির্দিষ্ট listing tab দেখানো হচ্ছে।",
+  };
 };
 
 export default function PartnerDashboardPage() {
@@ -260,6 +303,7 @@ export default function PartnerDashboardPage() {
     canViewOtherServiceSector ? "services" : null,
   ].filter(Boolean);
   const listingDefaultTab = sectorTabs[0] || "products";
+  const dashboardTheme = getDashboardTheme(primarySector);
   const sortedTransportTrips = [...(transportData?.items || [])].sort((a, b) => {
     const aTs = new Date(a?.created_at || 0).getTime();
     const bTs = new Date(b?.created_at || 0).getTime();
@@ -791,18 +835,18 @@ export default function PartnerDashboardPage() {
   return (
     <div className="min-h-screen bg-slate-100" data-testid="partner-dashboard">
       {/* Header */}
-      <header className="bg-emerald-950 text-white">
+      <header className={dashboardTheme.headerClass}>
         <div className="max-w-6xl mx-auto px-4 py-4 flex items-center justify-between">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-lg bg-amber-400 text-emerald-950 flex items-center justify-center"><Store className="w-5 h-5" /></div>
             <div>
-              <p className="text-[10px] uppercase tracking-widest text-amber-400 font-bold">Partner Portal</p>
+              <p className={`text-[10px] uppercase tracking-widest font-bold ${dashboardTheme.chipClass}`}>Partner Portal</p>
               <h1 className="font-display font-black text-lg">{summary?.business_name || user.name}</h1>
             </div>
           </div>
           <div className="flex items-center gap-3">
             <div className="text-right hidden md:block">
-              <p className="text-[10px] text-amber-400 uppercase font-bold">Partner Code</p>
+              <p className={`text-[10px] uppercase font-bold ${dashboardTheme.chipClass}`}>Partner Code</p>
               <p className="font-mono text-sm">{summary?.partner_code}</p>
             </div>
             <Button variant="outline" size="sm" onClick={logout} className="border-white/20 bg-white/10 text-white hover:bg-white/20 rounded-full" data-testid="partner-logout">
@@ -818,28 +862,28 @@ export default function PartnerDashboardPage() {
             <div className="bg-white rounded-xl border border-border p-4"><div className="flex items-center gap-2 text-slate-500 text-[10px] uppercase font-bold tracking-widest"><TrendingUp className="w-3.5 h-3.5" /> Total Sales</div><p className="font-display font-black text-xl text-emerald-950 mt-1">{inr(summary.total_sales)}</p></div>
             <div className="bg-white rounded-xl border border-border p-4"><div className="flex items-center gap-2 text-slate-500 text-[10px] uppercase font-bold tracking-widest"><Percent className="w-3.5 h-3.5" /> Reserve Debited</div><p className="font-display font-black text-xl text-emerald-800 mt-1">{inr(paymentProfile?.wallet?.total_debit || 0)}</p></div>
             <div className="bg-white rounded-xl border border-border p-4"><div className="flex items-center gap-2 text-slate-500 text-[10px] uppercase font-bold tracking-widest"><Package className="w-3.5 h-3.5" /> Products Linked</div><p className="font-display font-black text-xl text-emerald-950 mt-1">{summary.products_linked}</p></div>
-            <div className="bg-gradient-to-br from-amber-100 to-emerald-100 rounded-xl border border-amber-300 p-4"><div className="flex items-center gap-2 text-amber-800 text-[10px] uppercase font-bold tracking-widest"><ShoppingCart className="w-3.5 h-3.5" /> This Month</div><p className="font-display font-black text-xl text-emerald-950 mt-1">{inr(summary.this_month.commission)}</p><p className="text-[10px] text-slate-600">{summary.this_month.orders} orders · {inr(summary.this_month.sales)} sales</p></div>
+            <div className={`${dashboardTheme.metricHighlightClass} rounded-xl border p-4`}><div className="flex items-center gap-2 text-amber-800 text-[10px] uppercase font-bold tracking-widest"><ShoppingCart className="w-3.5 h-3.5" /> This Month</div><p className="font-display font-black text-xl text-emerald-950 mt-1">{inr(summary.this_month.commission)}</p><p className="text-[10px] text-slate-600">{summary.this_month.orders} orders · {inr(summary.this_month.sales)} sales</p></div>
           </div>
         )}
 
         <div className="flex flex-wrap gap-2">
-          <Tab id="overview" active={tab} onClick={setTab}>Overview</Tab>
-          {canViewProductsSector ? <Tab id="products" active={tab} onClick={setTab}>Products ({productItems.length})</Tab> : null}
-          {canViewTransportSector ? <Tab id="transport" active={tab} onClick={setTab}>Transport ({transportItems.length})</Tab> : null}
-          {canViewHospitalitySector ? <Tab id="stay-dining" active={tab} onClick={setTab}>Stay & Dining ({hospitalityItems.length})</Tab> : null}
-          {canViewDoorstepSector ? <Tab id="doorstep" active={tab} onClick={setTab}>Doorstep ({doorstepItems.length})</Tab> : null}
-          {canViewOtherServiceSector ? <Tab id="services" active={tab} onClick={setTab}>Other Services ({serviceItems.length})</Tab> : null}
-          <Tab id="offline" active={tab} onClick={setTab}>Offline Billing</Tab>
-          <Tab id="orders" active={tab} onClick={setTab}>Orders ({orders.length})</Tab>
-          <Tab id="ledger" active={tab} onClick={setTab}>Ledger ({ledger.length})</Tab>
+          <Tab id="overview" active={tab} onClick={setTab} activeClassName={dashboardTheme.tabActiveClass} idleClassName={dashboardTheme.tabIdleClass}>Overview</Tab>
+          {canViewProductsSector ? <Tab id="products" active={tab} onClick={setTab} activeClassName={dashboardTheme.tabActiveClass} idleClassName={dashboardTheme.tabIdleClass}>Products ({productItems.length})</Tab> : null}
+          {canViewTransportSector ? <Tab id="transport" active={tab} onClick={setTab} activeClassName={dashboardTheme.tabActiveClass} idleClassName={dashboardTheme.tabIdleClass}>Transport ({transportItems.length})</Tab> : null}
+          {canViewHospitalitySector ? <Tab id="stay-dining" active={tab} onClick={setTab} activeClassName={dashboardTheme.tabActiveClass} idleClassName={dashboardTheme.tabIdleClass}>Stay & Dining ({hospitalityItems.length})</Tab> : null}
+          {canViewDoorstepSector ? <Tab id="doorstep" active={tab} onClick={setTab} activeClassName={dashboardTheme.tabActiveClass} idleClassName={dashboardTheme.tabIdleClass}>Doorstep ({doorstepItems.length})</Tab> : null}
+          {canViewOtherServiceSector ? <Tab id="services" active={tab} onClick={setTab} activeClassName={dashboardTheme.tabActiveClass} idleClassName={dashboardTheme.tabIdleClass}>Other Services ({serviceItems.length})</Tab> : null}
+          <Tab id="offline" active={tab} onClick={setTab} activeClassName={dashboardTheme.tabActiveClass} idleClassName={dashboardTheme.tabIdleClass}>Offline Billing</Tab>
+          <Tab id="orders" active={tab} onClick={setTab} activeClassName={dashboardTheme.tabActiveClass} idleClassName={dashboardTheme.tabIdleClass}>Orders ({orders.length})</Tab>
+          <Tab id="ledger" active={tab} onClick={setTab} activeClassName={dashboardTheme.tabActiveClass} idleClassName={dashboardTheme.tabIdleClass}>Ledger ({ledger.length})</Tab>
         </div>
 
         {tab === "overview" && summary && (
           <div className="bg-white rounded-xl border border-border p-6">
-            <div className="rounded-xl border border-amber-300 bg-amber-50 p-4 mb-5">
+            <div className={`rounded-xl border p-4 mb-5 ${dashboardTheme.overviewHeroClass}`}>
               <p className="text-[10px] uppercase tracking-widest text-amber-800 font-bold">Listing Manager</p>
-              <h3 className="font-display font-bold text-emerald-950 text-base mt-1">Shop listing manage এখান থেকেই করুন</h3>
-              <p className="text-xs text-slate-700 mt-1">Registration sector অনুযায়ী আপনার dashboard-এ শুধু {DASHBOARD_SECTOR_LABEL[primarySector]} tab দেখানো হচ্ছে। অন্য sector mix করা হবে না।</p>
+              <h3 className="font-display font-bold text-emerald-950 text-base mt-1">{dashboardTheme.overviewTitle}</h3>
+              <p className="text-xs text-slate-700 mt-1">{dashboardTheme.overviewDesc} এখন active sector: {DASHBOARD_SECTOR_LABEL[primarySector]}.</p>
               <div className="mt-3">
                 <Button
                   type="button"
