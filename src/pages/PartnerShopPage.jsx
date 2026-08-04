@@ -449,6 +449,7 @@ export default function PartnerShopPage() {
       return haystack.includes(q);
     });
   }, [data?.partner?.business_name, transportListings, transportSearch]);
+  const heroBannerSrc = data?.partner?.banner_url || "";
   const hasHospitalityListings = hospitalityListings.length > 0;
   const hasDoorstepListings = doorstepListings.length > 0;
   const hasServiceListings = regularServiceListings.length > 0;
@@ -608,7 +609,6 @@ export default function PartnerShopPage() {
   if (!data) return <div className="min-h-screen flex items-center justify-center text-slate-500">Loading shop...</div>;
 
   const addr = [p.address, p.city, p.state, p.pincode].filter(Boolean).join(", ");
-  const heroBannerSrc = p?.banner_url || "";
 
   return (
     <div className="min-h-screen bg-slate-50 pb-24 md:pb-8" data-testid="partner-shop-page">
