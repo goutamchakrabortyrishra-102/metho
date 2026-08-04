@@ -3715,6 +3715,44 @@ def partner_transport_confirm_booking(trip_id: str, db: Session = Depends(get_db
     }
 
 
+@router.post("/partner/transport/bookings/{trip_id}/reject")
+def partner_transport_reject_booking(trip_id: str, payload: dict | None = None, db: Session = Depends(get_db), current_user=Depends(get_current_user)):
+    if getattr(current_user, "role", "") != "partner":
+        raise HTTPException(status_code=403, detail="Partner access only")
+    partner = _resolve_partner_for_user(db, current_user)
+    if not partner:
+        raise HTTPException(status_code=404, detail="Partner profile not found")
+    trip = _load_transport_trip(db, trip_id)
+    if not trip:
+        raise HTTPException(status_code=404, detail="Booking not found")
+    if str(trip.get("partner_id") or "") != str(partner.id):
+        raise HTTPException(status_code=403, detail="Not your booking")
+    if str(trip.get("status") or "") not in {"booked"}:
+        raise HTTPException(status_code=400, detail="Only new booked requests can be rejected")
+
+    reason = str((payload or {}).get("reason") or "").strip() or "Rejected by partner"
+
+    # Reject does not touch commission reserve; commission flow remains only in confirm path.
+    trip["status"] = "rejected"
+    trip["response_note"] = reason
+    trip["rejected_at"] = now_iso()
+    trip["payment_status"] = "cancelled"
+    saved = _save_transport_trip(db, trip)
+
+    order_id = str(trip.get("order_id") or "")
+    row = db.query(PublicOrder).filter(PublicOrder.id == order_id).first()
+    if row:
+        row.status = "rejected"
+        db.commit()
+
+    return {
+        "ok": True,
+        "booking": saved,
+        "order": {"id": order_id, "status": "rejected"},
+        "message": "Booking request rejected by partner.",
+    }
+
+
 @router.post("/partner/transport/bookings/{trip_id}/start")
 def partner_transport_start_trip(trip_id: str, db: Session = Depends(get_db), current_user=Depends(get_current_user)):
     if getattr(current_user, "role", "") != "partner":

@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from "react";
 import { Link, Navigate } from "react-router-dom";
-import { Store, TrendingUp, Percent, Package, ShoppingCart, FileText, LogOut, ScrollText, FileSpreadsheet, FileDown, Images, ReceiptText, Copy, MessageCircle, ExternalLink, CarTaxiFront, PlayCircle, CheckCircle2, Wallet } from "lucide-react";
+import { Store, TrendingUp, Percent, Package, ShoppingCart, FileText, LogOut, ScrollText, FileSpreadsheet, FileDown, Images, ReceiptText, Copy, MessageCircle, ExternalLink, CarTaxiFront, PlayCircle, CheckCircle2, Wallet, Clock3, XCircle } from "lucide-react";
 import * as XLSX from "xlsx";
 import { toast } from "sonner";
 import api from "@/services/api";
@@ -51,6 +51,14 @@ const isDoorstepServiceListing = (item) => {
     .map((v) => String(v || "").toLowerCase())
     .join(" ");
   return ["home repair", "home service", "laundry", "dry clean", "tailoring", "beauty", "courier", "cleaning", "pest control", "electrician", "plumbing", "appliance repair"].some((k) => haystack.includes(k));
+};
+const TRANSPORT_STATUS_META = {
+  booked: { label: "New Request", tone: "bg-sky-100 text-sky-800 border-sky-200" },
+  confirmed: { label: "Confirmed", tone: "bg-emerald-100 text-emerald-800 border-emerald-200" },
+  on_trip: { label: "On Trip", tone: "bg-violet-100 text-violet-800 border-violet-200" },
+  completed: { label: "Completed", tone: "bg-amber-100 text-amber-800 border-amber-200" },
+  paid: { label: "Paid", tone: "bg-teal-100 text-teal-800 border-teal-200" },
+  rejected: { label: "Rejected", tone: "bg-rose-100 text-rose-800 border-rose-200" },
 };
 const PARTNER_IMAGE_MAX_BYTES = 200 * 1024;
 const PARTNER_IMAGE_MAX_TEXT = "200KB";
@@ -210,6 +218,8 @@ export default function PartnerDashboardPage() {
   const [transportPresets, setTransportPresets] = useState([]);
   const [presetBusy, setPresetBusy] = useState(false);
   const [presetForm, setPresetForm] = useState({ service_product_id: "", destination: "", fare: "", pickup_hint: "", notes: "" });
+  const [transportStatusFilter, setTransportStatusFilter] = useState("all");
+  const [rejectReasonDrafts, setRejectReasonDrafts] = useState({});
   const [serviceFareDrafts, setServiceFareDrafts] = useState({});
   const [serviceActionBusy, setServiceActionBusy] = useState({});
   const productItems = products.filter((p) => !(String(p?.listing_type || p?.item_kind || "").toLowerCase().includes("service") || p?.is_service));
@@ -250,6 +260,19 @@ export default function PartnerDashboardPage() {
     canViewOtherServiceSector ? "services" : null,
   ].filter(Boolean);
   const listingDefaultTab = sectorTabs[0] || "products";
+  const sortedTransportTrips = [...(transportData?.items || [])].sort((a, b) => {
+    const aTs = new Date(a?.created_at || 0).getTime();
+    const bTs = new Date(b?.created_at || 0).getTime();
+    return bTs - aTs;
+  });
+  const transportStatusCounts = sortedTransportTrips.reduce((acc, trip) => {
+    const key = String(trip?.status || "booked");
+    acc[key] = (acc[key] || 0) + 1;
+    return acc;
+  }, {});
+  const visibleTransportTrips = transportStatusFilter === "all"
+    ? sortedTransportTrips
+    : sortedTransportTrips.filter((trip) => String(trip?.status || "booked") === transportStatusFilter);
 
   const loadAll = () => {
     api.get("/partner/summary").then(r => setSummary(r.data)).catch(() => {});
@@ -329,6 +352,18 @@ export default function PartnerDashboardPage() {
       loadAll();
     } catch (err) {
       toast.error(err?.response?.data?.detail || "Payment mark failed");
+    }
+  };
+
+  const rejectTripBooking = async (tripId) => {
+    const reason = String(rejectReasonDrafts?.[tripId] || "").trim();
+    try {
+      await api.post(`/partner/transport/bookings/${tripId}/reject`, { reason });
+      toast.success("Booking request rejected");
+      setRejectReasonDrafts((prev) => ({ ...prev, [tripId]: "" }));
+      loadAll();
+    } catch (err) {
+      toast.error(err?.response?.data?.detail || "Reject failed");
     }
   };
 
@@ -1273,40 +1308,61 @@ export default function PartnerDashboardPage() {
         )}
 
         {tab === "stay-dining" && canViewHospitalitySector && (
-          <div className="bg-white rounded-xl border border-border p-6">
-            <div className="flex items-center justify-between mb-4">
-              <h3 className="font-display font-bold text-emerald-950 text-lg">Stay & Dining Listings</h3>
-              <div className="flex items-center gap-2">
-                {summary?.partner_code && (
-                  <Link to={`/gallery/${summary.partner_code}?tab=stay-dining`} target="_blank">
-                    <Button size="sm" variant="outline" className="rounded-full border-emerald-300 text-emerald-900 hover:bg-emerald-50">
-                      <Images className="w-4 h-4 mr-1" /> View Stay & Dining
-                    </Button>
-                  </Link>
-                )}
-                <PartnerProductForm
-                  onSaved={loadAll}
-                  defaultListingType="service"
-                  fixedListingType="service"
-                  allowedServiceSectors={HOSPITALITY_SERVICE_SECTORS}
-                  initialServiceSectorFilter="Hotel"
-                  triggerLabel="Add Stay/Dining"
-                  dialogTitle="New Stay & Dining Service"
-                  dialogDescription="Create only hotel, homestay, restaurant, cafe, and similar stay-dining services here."
-                />
+          <div className="rounded-2xl border border-amber-200 bg-gradient-to-br from-amber-50 via-white to-orange-50 p-6">
+            <div className="rounded-2xl border border-amber-200/80 bg-white/90 p-4 md:p-5">
+              <div className="flex flex-wrap items-start justify-between gap-3">
+                <div>
+                  <p className="text-[10px] uppercase tracking-[0.18em] text-amber-700 font-semibold">Hospitality Desk</p>
+                  <h3 className="font-display font-black text-emerald-950 text-xl mt-1">Hotel & Homestay Professional Panel</h3>
+                  <p className="text-xs text-slate-600 mt-1">Stay, room, dining, and reservation services এই panel থেকে manage করুন।</p>
+                </div>
+                <div className="flex items-center gap-2">
+                  {summary?.partner_code && (
+                    <Link to={`/gallery/${summary.partner_code}?tab=stay-dining`} target="_blank">
+                      <Button size="sm" variant="outline" className="rounded-full border-amber-300 text-amber-900 hover:bg-amber-50">
+                        <Images className="w-4 h-4 mr-1" /> View Stay & Dining
+                      </Button>
+                    </Link>
+                  )}
+                  <PartnerProductForm
+                    onSaved={loadAll}
+                    defaultListingType="service"
+                    fixedListingType="service"
+                    allowedServiceSectors={HOSPITALITY_SERVICE_SECTORS}
+                    initialServiceSectorFilter="Hotel"
+                    triggerLabel="Add Stay/Dining"
+                    dialogTitle="New Stay & Dining Service"
+                    dialogDescription="Create only hotel, homestay, restaurant, cafe, and similar stay-dining services here."
+                  />
+                </div>
+              </div>
+
+              <div className="mt-4 grid grid-cols-1 md:grid-cols-3 gap-3">
+                <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3">
+                  <p className="text-[10px] uppercase tracking-widest text-amber-700 font-semibold">Live Listings</p>
+                  <p className="font-display font-black text-2xl text-emerald-950 mt-1">{hospitalityItems.length}</p>
+                </div>
+                <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3">
+                  <p className="text-[10px] uppercase tracking-widest text-amber-700 font-semibold">Invoice Mode</p>
+                  <p className="text-sm font-semibold text-emerald-900 mt-1">Detailed or Summary</p>
+                </div>
+                <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3">
+                  <p className="text-[10px] uppercase tracking-widest text-amber-700 font-semibold">Sector Lock</p>
+                  <p className="text-sm font-semibold text-emerald-900 mt-1">Hotel / Homestay / Dining</p>
+                </div>
               </div>
             </div>
-            <p className="mb-4 text-xs text-slate-600">
-              এখান থেকে শুধু hotel, homestay, restaurant, cafe type service add/edit করুন।
-            </p>
+
+            <p className="mt-4 mb-4 text-xs text-slate-600">এখান থেকে শুধু hotel, homestay, restaurant, cafe type service add/edit করুন।</p>
             {hospitalityItems.length === 0 ? (
-              <p className="text-sm text-muted-foreground">No stay/dining service yet. Click "Add Stay/Dining" to create one.</p>
+              <div className="rounded-xl border border-dashed border-amber-300 bg-white px-4 py-8 text-center text-sm text-slate-500">No stay/dining service yet. Click "Add Stay/Dining" to create one.</div>
             ) : (
               <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                 {hospitalityItems.map(p => (
-                  <div key={p.id} className="rounded-lg border border-border overflow-hidden">
+                  <div key={p.id} className="rounded-xl border border-amber-200 overflow-hidden bg-white shadow-sm">
                     <div className="aspect-square bg-secondary relative">
                       <img src={resolveAssetUrl(p.image_url) || (getPdfUrl(p) ? PDF_PREVIEW : undefined)} alt={p.name} className="w-full h-full object-cover" />
+                      <span className="absolute right-2 top-2 rounded-full bg-amber-100 text-amber-900 px-2 py-0.5 text-[10px] font-bold">Stay/Dining</span>
                       {getPdfUrl(p) ? (
                         <button
                           type="button"
@@ -1472,12 +1528,12 @@ export default function PartnerDashboardPage() {
         )}
 
         {tab === "transport" && canViewTransportSector && (
-          <div className="bg-white rounded-xl border border-border p-6" data-testid="partner-transport-tab">
-            <div className="flex flex-wrap items-center justify-between gap-3">
+          <div className="rounded-2xl border border-sky-200 bg-gradient-to-br from-sky-50 via-white to-cyan-50 p-6" data-testid="partner-transport-tab">
+            <div className="rounded-2xl border border-sky-200/80 bg-white/90 p-4 md:p-5 flex flex-wrap items-center justify-between gap-3">
               <div>
-                <p className="text-[10px] uppercase tracking-widest text-emerald-800 font-semibold">Transport Hub</p>
-                <h3 className="font-display font-bold text-emerald-950 text-lg mt-1 inline-flex items-center gap-2"><CarTaxiFront className="w-4 h-4" /> Cab / Car Rental / Bike Rental Control Room</h3>
-                <p className="text-xs text-slate-600 mt-1">Transport service listing, fare lock, reserve debit, auto approval, and trip queue সবকিছু এই tab-এই থাকবে.</p>
+                <p className="text-[10px] uppercase tracking-[0.18em] text-sky-700 font-semibold">Transport Operations</p>
+                <h3 className="font-display font-black text-emerald-950 text-xl mt-1 inline-flex items-center gap-2"><CarTaxiFront className="w-5 h-5" /> Cab / Car Rental / Bike Rental Control Room</h3>
+                <p className="text-xs text-slate-600 mt-1">Transport listing, fare lock, reserve check, and trip lifecycle execution - all in one professional panel.</p>
               </div>
               <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900 inline-flex items-center gap-2">
                 <Wallet className="w-4 h-4" /> Wallet Balance: {inr(transportData?.wallet?.balance || 0)}
@@ -1513,6 +1569,11 @@ export default function PartnerDashboardPage() {
                     <p className="text-[10px] uppercase tracking-widest text-sky-700 font-semibold">Trip Queue</p>
                     <p className="font-display font-black text-2xl text-emerald-950 mt-1">{transportData?.items?.length || 0}</p>
                     <p className="text-xs text-slate-600 mt-1">Booked, confirmed, on-trip, completed, paid সব booking state এখানে track হবে.</p>
+                  </div>
+                  <div className="rounded-lg border border-sky-200 bg-white p-3 md:col-span-2">
+                    <p className="text-[10px] uppercase tracking-widest text-sky-700 font-semibold">Pending Partner Response</p>
+                    <p className="font-display font-black text-2xl text-emerald-950 mt-1">{transportStatusCounts?.booked || 0}</p>
+                    <p className="text-xs text-slate-600 mt-1">এই request গুলোতে fare set করে accept অথবা reject response দিন।</p>
                   </div>
                 </div>
                 {transportItems.length === 0 ? (
@@ -1651,16 +1712,41 @@ export default function PartnerDashboardPage() {
               )}
             </div>
 
+            <div className="mt-4 rounded-xl border border-slate-200 bg-white p-3">
+              <div className="flex flex-wrap items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => setTransportStatusFilter("all")}
+                  className={`px-3 py-1.5 rounded-full text-xs font-semibold border ${transportStatusFilter === "all" ? "bg-emerald-900 text-white border-emerald-900" : "bg-white text-slate-700 border-slate-300"}`}
+                >
+                  All ({sortedTransportTrips.length})
+                </button>
+                {Object.entries(TRANSPORT_STATUS_META).map(([statusKey, meta]) => (
+                  <button
+                    key={statusKey}
+                    type="button"
+                    onClick={() => setTransportStatusFilter(statusKey)}
+                    className={`px-3 py-1.5 rounded-full text-xs font-semibold border ${transportStatusFilter === statusKey ? "bg-emerald-900 text-white border-emerald-900" : "bg-white text-slate-700 border-slate-300"}`}
+                  >
+                    {meta.label} ({transportStatusCounts?.[statusKey] || 0})
+                  </button>
+                ))}
+              </div>
+            </div>
+
             {loadingTransport ? (
               <p className="text-sm text-slate-500 mt-4">Loading transport bookings...</p>
             ) : (transportData?.items || []).length === 0 ? (
               <p className="text-sm text-muted-foreground mt-4">No transport bookings yet.</p>
+            ) : visibleTransportTrips.length === 0 ? (
+              <p className="text-sm text-muted-foreground mt-4">No booking in selected filter.</p>
             ) : (
               <div className="mt-4 space-y-3">
-                {(transportData?.items || []).map((trip) => {
+                {visibleTransportTrips.map((trip) => {
                   const required = Number(trip?.required_commission_reserve || 0);
                   const fare = Number(trip?.fare_final || trip?.fare_quote || 0);
                   const status = String(trip?.status || "booked");
+                  const statusMeta = TRANSPORT_STATUS_META?.[status] || { label: status, tone: "bg-slate-100 text-slate-700 border-slate-200" };
                   return (
                     <div key={trip.id} className="rounded-xl border border-border p-4" data-testid={`partner-trip-${trip.id}`}>
                       <div className="flex flex-wrap items-start justify-between gap-3">
@@ -1669,6 +1755,7 @@ export default function PartnerDashboardPage() {
                           <p className="font-semibold text-emerald-950 mt-1">{trip.service_name || "Transport Service"} · {trip.vehicle_type || "cab"}</p>
                           <p className="text-xs text-slate-600 mt-1">{trip.pickup} -> {trip.destination}</p>
                           <p className="text-xs text-slate-600">Customer: {trip.customer_name || "Customer"}{trip.customer_phone ? ` (${trip.customer_phone})` : ""}</p>
+                          {trip?.travel_date ? <p className="text-xs text-slate-600">Schedule: {String(trip.travel_date)}</p> : null}
                           <button
                             type="button"
                             className="text-xs text-emerald-800 underline mt-1"
@@ -1682,7 +1769,9 @@ export default function PartnerDashboardPage() {
                         </div>
                         <div className="text-right">
                           <p className="text-[10px] uppercase tracking-widest text-slate-500 font-bold">Status</p>
-                          <p className="font-semibold text-emerald-900 uppercase">{status}</p>
+                          <span className={`inline-flex mt-1 items-center gap-1 px-2.5 py-1 rounded-full border text-xs font-semibold ${statusMeta.tone}`}>
+                            <Clock3 className="w-3.5 h-3.5" /> {statusMeta.label}
+                          </span>
                           <p className="text-xs text-slate-600 mt-1">Fare: {inr(fare)}</p>
                           <p className="text-xs text-amber-700">Reserve needed: {inr(required)}</p>
                         </div>
@@ -1704,6 +1793,20 @@ export default function PartnerDashboardPage() {
                           </Button>
                           <Button className="rounded-full bg-emerald-900 hover:bg-emerald-950 text-white" onClick={() => confirmTripBooking(trip.id)}>
                             <CheckCircle2 className="w-4 h-4 mr-1" /> Confirm + Lock Fare + Auto Approve
+                          </Button>
+                        </div>
+                      ) : null}
+
+                      {status === "booked" ? (
+                        <div className="mt-2 grid grid-cols-1 md:grid-cols-[1fr_auto] gap-2">
+                          <Input
+                            value={rejectReasonDrafts?.[trip.id] || ""}
+                            onChange={(e) => setRejectReasonDrafts((prev) => ({ ...prev, [trip.id]: e.target.value }))}
+                            placeholder="Reject reason (optional)"
+                            className="h-10"
+                          />
+                          <Button variant="outline" className="rounded-full border-rose-300 text-rose-700 hover:bg-rose-50" onClick={() => rejectTripBooking(trip.id)}>
+                            <XCircle className="w-4 h-4 mr-1" /> Reject Request
                           </Button>
                         </div>
                       ) : null}
@@ -1748,6 +1851,13 @@ export default function PartnerDashboardPage() {
                               Mark Paid
                             </Button>
                           </div>
+                        </div>
+                      ) : null}
+
+                      {status === "rejected" ? (
+                        <div className="mt-3 rounded-lg border border-rose-200 bg-rose-50 p-3 text-xs text-rose-800">
+                          <p className="font-semibold">Booking rejected</p>
+                          <p className="mt-1">Reason: {trip?.response_note || "Not specified"}</p>
                         </div>
                       ) : null}
                     </div>

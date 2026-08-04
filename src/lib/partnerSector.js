@@ -36,7 +36,21 @@ const TRANSPORT_HINTS = [
   "auto",
 ];
 
-const HOSPITALITY_HINTS = ["hotel", "homestay", "restaurant", "cafe", "banquet", "stay", "dining"];
+const HOSPITALITY_HINTS = [
+  "hotel",
+  "homestay",
+  "home stay",
+  "guest house",
+  "guesthouse",
+  "lodge",
+  "resort",
+  "inn",
+  "restaurant",
+  "cafe",
+  "banquet",
+  "stay",
+  "dining",
+];
 const DOORSTEP_HINTS = ["doorstep", "home service", "cleaning", "laundry", "plumbing", "electrician", "repair"];
 
 export const inferPartnerPrimarySector = ({ businessType, businessName, counts }) => {

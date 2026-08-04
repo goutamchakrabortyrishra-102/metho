@@ -23,6 +23,19 @@ const routeMapsUrl = (pickup, destination) => {
   if (!dest) return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(origin)}`;
   return `https://www.google.com/maps/dir/?api=1&origin=${encodeURIComponent(origin)}&destination=${encodeURIComponent(dest)}&travelmode=driving`;
 };
+const formatTransportSchedule = (value) => {
+  const raw = String(value || "").trim();
+  if (!raw) return "";
+  const dt = new Date(raw);
+  if (Number.isNaN(dt.getTime())) return raw;
+  return dt.toLocaleString("en-IN", {
+    day: "2-digit",
+    month: "short",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+};
 const PDF_PREVIEW = "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 400 400'><rect width='400' height='400' fill='%23f1f5f9'/><rect x='80' y='50' width='240' height='300' rx='14' fill='%23ffffff' stroke='%2394a3b8' stroke-width='4'/><text x='200' y='190' text-anchor='middle' fill='%23dc2626' font-size='46' font-family='Arial' font-weight='bold'>PDF</text><text x='200' y='228' text-anchor='middle' fill='%23334155' font-size='16' font-family='Arial'>Tap to Open</text></svg>";
 const PRODUCT_FALLBACK = "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 400 400'><defs><linearGradient id='g' x1='0' y1='0' x2='1' y2='1'><stop offset='0%25' stop-color='%23ecfeff'/><stop offset='100%25' stop-color='%23dcfce7'/></linearGradient></defs><rect width='400' height='400' fill='url(%23g)'/><circle cx='200' cy='150' r='72' fill='%23059669' opacity='0.12'/><text x='200' y='150' text-anchor='middle' dominant-baseline='middle' fill='%230f766e' font-size='46' font-family='Arial' font-weight='700'>M</text><text x='200' y='230' text-anchor='middle' fill='%230f172a' font-size='22' font-family='Arial' font-weight='700'>METHO Product</text></svg>";
 const cleanPhone = (v) => (v || "").replace(/[^\d]/g, "");
@@ -1364,7 +1377,7 @@ export default function PartnerShopPage() {
               <div>
                 <p className="text-[10px] uppercase tracking-widest text-emerald-800 font-semibold">Transport Booking</p>
                 <h3 className="font-display font-bold text-emerald-950 text-lg mt-1">{transportService?.name || "Book Ride"}</h3>
-                <p className="text-xs text-slate-600 mt-1">Pickup + destination দিয়ে booking দিন। Partner পরে final fare set করবে।</p>
+                <p className="text-xs text-slate-600 mt-1">Pickup + destination + date/time দিয়ে booking request পাঠান। Partner fare adjust করে accept/reject response দেবে।</p>
               </div>
               <button onClick={() => setTransportModalOpen(false)} className="w-8 h-8 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-700 flex items-center justify-center">
                 <X className="w-4 h-4" />
@@ -1394,6 +1407,7 @@ export default function PartnerShopPage() {
                             }}
                           />
                           <span>{preset.destination} · ₹{Number(preset.fare || 0).toLocaleString("en-IN")}</span>
+                          {preset.pickup_hint ? <span className="text-[10px] text-slate-500">Pickup: {preset.pickup_hint}</span> : null}
                         </label>
                       ))}
                       <button
@@ -1420,6 +1434,15 @@ export default function PartnerShopPage() {
                   placeholder="Destination"
                   className="h-10"
                 />
+                <div className="rounded-lg border border-sky-200 bg-sky-50 p-3">
+                  <p className="text-[11px] font-semibold text-sky-900">Estimated fare</p>
+                  <p className="text-xs text-slate-700 mt-1">
+                    {selectedFarePresetId
+                      ? `Preset fare selected: ₹${Number((transportFarePresets.find((p) => String(p.id) === selectedFarePresetId)?.fare) || 0).toLocaleString("en-IN")}`
+                      : `Base fare from listing: ₹${Number(transportService?.price || 0).toLocaleString("en-IN")}`}
+                  </p>
+                  <p className="text-[11px] text-slate-600 mt-1">Partner can adjust final fare after checking your request details.</p>
+                </div>
                 <div className="flex gap-2">
                   <Button
                     type="button"
@@ -1437,7 +1460,10 @@ export default function PartnerShopPage() {
                     Open Route in Google Maps
                   </Button>
                 </div>
-                <Input type="datetime-local" value={transportForm.travel_date} onChange={(e) => setTransportForm((prev) => ({ ...prev, travel_date: e.target.value }))} className="h-10" />
+                <div>
+                  <p className="text-[11px] text-slate-600 mb-1">Travel date and time</p>
+                  <Input type="datetime-local" value={transportForm.travel_date} onChange={(e) => setTransportForm((prev) => ({ ...prev, travel_date: e.target.value }))} className="h-10" />
+                </div>
                 <Input value={transportForm.notes} onChange={(e) => setTransportForm((prev) => ({ ...prev, notes: e.target.value }))} placeholder="Notes (optional)" className="h-10" />
                 <div className="flex gap-2 pt-1">
                   <Button className="rounded-full bg-emerald-900 hover:bg-emerald-950 text-white" onClick={submitTransportBooking} disabled={transportBusy}>
@@ -1451,8 +1477,11 @@ export default function PartnerShopPage() {
                 <div className="rounded-lg border border-emerald-200 bg-emerald-50 p-3">
                   <p className="text-xs text-emerald-900 font-semibold">Booking ID: {transportBooking.trip_code || transportBooking.id}</p>
                   <p className="text-xs text-slate-700 mt-1">Status: <span className="font-semibold uppercase">{transportBooking.status}</span></p>
+                  {transportBooking?.travel_date ? <p className="text-xs text-slate-700">Schedule: {formatTransportSchedule(transportBooking.travel_date)}</p> : null}
+                  <p className="text-xs text-slate-700">Quoted Fare: ₹{Number(transportBooking.fare_quote || 0).toLocaleString("en-IN")}</p>
                   <p className="text-xs text-slate-700">Final Fare: {Number(transportBooking.fare_final || 0) > 0 ? `₹${transportBooking.fare_final}` : "Partner will set after review"}</p>
                   <p className="text-xs text-slate-700">Route: {transportBooking.pickup} -> {transportBooking.destination}</p>
+                  {transportBooking?.response_note ? <p className="text-xs text-slate-700">Partner Note: {transportBooking.response_note}</p> : null}
                   <button
                     type="button"
                     className="text-xs text-emerald-800 underline mt-1"
@@ -1464,7 +1493,7 @@ export default function PartnerShopPage() {
                     View route on Google Maps
                   </button>
                 </div>
-                <p className="text-xs text-slate-600">Booking এর পরে partner fare final করবে। Confirm হওয়ার পর trip start হবে, শেষে destination-এ QR payment flow চলবে।</p>
+                <p className="text-xs text-slate-600">Booking request partner queue-তে গেছে। Partner fare final করে accept/reject করবে; accept হলে trip execution flow এগোবে।</p>
                 <div className="flex gap-2">
                   <Button variant="outline" className="rounded-full" onClick={refreshTransportBooking}>Refresh Status</Button>
                   <Button className="rounded-full bg-emerald-900 hover:bg-emerald-950 text-white" onClick={() => setTransportModalOpen(false)}>Done</Button>
