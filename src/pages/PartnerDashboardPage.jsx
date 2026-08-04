@@ -1000,6 +1000,16 @@ export default function PartnerDashboardPage() {
                         />
                       </div>
                     </div>
+                    <div className="pt-2 flex justify-end">
+                      <Button
+                        type="button"
+                        onClick={savePartnerUpiId}
+                        disabled={savingPartnerUpi}
+                        className="rounded-full bg-blue-700 hover:bg-blue-800 text-white"
+                      >
+                        {savingPartnerUpi ? "Saving..." : "Save Popup Settings"}
+                      </Button>
+                    </div>
                   </div>
                 </div>
                 <p className="font-mono text-xs text-emerald-900 mt-2">Current UPI: {paymentProfile?.partner_upi_id || "Not set"}</p>
