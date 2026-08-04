@@ -280,11 +280,12 @@ const Hero = () => {
               <p className="text-[10px] uppercase tracking-[0.2em] text-emerald-100 font-semibold">Member / Customer Direct Sector Access</p>
               <span className="text-[10px] text-emerald-100/80">One tap to browse</span>
             </div>
-            <div className="mt-3 grid grid-cols-2 lg:grid-cols-5 gap-2">
+            <div className="mt-3 grid gap-3 lg:grid-cols-12">
+              <div className="grid grid-cols-2 lg:grid-cols-3 gap-2 lg:col-span-7">
               <Link to="/directory?quick=products" className="group" data-testid="hero-sector-products">
                 <div className="rounded-xl border border-emerald-200/35 bg-white/95 text-emerald-950 px-3 py-2.5 hover:bg-emerald-50 transition-colors">
                   <p className="text-[10px] uppercase tracking-widest text-emerald-700 font-semibold">Sector</p>
-                  <p className="text-sm font-bold mt-0.5">Products</p>
+                  <p className="text-sm font-bold mt-0.5">All Products</p>
                 </div>
               </Link>
               <Link to="/directory?quick=transport" className="group" data-testid="hero-sector-transport">
@@ -311,6 +312,28 @@ const Hero = () => {
                   <p className="text-sm font-bold mt-0.5">Other Services</p>
                 </div>
               </Link>
+              </div>
+
+              <div className="lg:col-span-5 rounded-xl border border-emerald-200/35 bg-white/95 text-emerald-950 px-3 py-2.5" data-testid="hero-product-subsectors">
+                <div className="flex items-center justify-between gap-2">
+                  <p className="text-[10px] uppercase tracking-widest text-emerald-700 font-semibold">Product Sectors</p>
+                  <span className="text-[10px] text-slate-500">4 parts</span>
+                </div>
+                <div className="mt-2 grid grid-cols-2 gap-2">
+                  <Link to="/directory?quick=products&q=vegetables" className="rounded-lg border border-emerald-200 bg-emerald-50/50 px-2.5 py-2 text-sm font-semibold hover:bg-emerald-100 transition-colors" data-testid="hero-product-vegetables">
+                    Vegetables
+                  </Link>
+                  <Link to="/directory?quick=products&q=grocery" className="rounded-lg border border-emerald-200 bg-emerald-50/50 px-2.5 py-2 text-sm font-semibold hover:bg-emerald-100 transition-colors" data-testid="hero-product-grocery">
+                    Grocery
+                  </Link>
+                  <Link to="/directory?quick=products&q=cosmetics beauty" className="rounded-lg border border-emerald-200 bg-emerald-50/50 px-2.5 py-2 text-sm font-semibold hover:bg-emerald-100 transition-colors" data-testid="hero-product-cosmetics-beauty">
+                    Cosmetics &amp; Beauty
+                  </Link>
+                  <Link to="/directory?quick=products&q=others" className="rounded-lg border border-emerald-200 bg-emerald-50/50 px-2.5 py-2 text-sm font-semibold hover:bg-emerald-100 transition-colors" data-testid="hero-product-others">
+                    Others
+                  </Link>
+                </div>
+              </div>
             </div>
           </div>
           <div className="mt-10 flex items-center gap-1 text-amber-500" data-testid="hero-rating-stars">
