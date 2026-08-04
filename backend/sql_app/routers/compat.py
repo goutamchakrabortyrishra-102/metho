@@ -2672,16 +2672,34 @@ def _invoice_payload(db: Session, order_id: str, current_user: User):
     row = db.query(PublicOrder).filter(PublicOrder.id == order_id).first()
     if not row:
         raise HTTPException(status_code=404, detail="Order not found")
-    if current_user.role not in {"super_admin", "company_admin", "admin"} and row.customer_user_id != current_user.id:
-        raise HTTPException(status_code=403, detail="Not allowed")
-    if str(row.status or "") != "paid":
-        raise HTTPException(status_code=400, detail="Invoice is available only after admin approval")
 
-    settings = load_settings(db)
     try:
         items = json.loads(row.items_json or "[]")
     except Exception:
         items = []
+
+    is_admin = current_user.role in {"super_admin", "company_admin", "admin"}
+    is_buyer = str(row.customer_user_id or "") == str(current_user.id or "")
+    is_partner_order = False
+    if not is_admin and not is_buyer and str(getattr(current_user, "role", "") or "") == "partner":
+        partner = _resolve_partner_for_user(db, current_user)
+        if partner:
+            partner_product_ids = {
+                str(pid)
+                for (pid,) in db.query(PartnerProduct.id).filter(PartnerProduct.partner_id == partner.id).all()
+                if pid
+            }
+            has_any_partner_item = any(str(item.get("product_id") or "") in partner_product_ids for item in items)
+            has_metho_item = any(str(item.get("product_type") or "").strip().lower() == "metho" for item in items)
+            is_partner_order = has_any_partner_item and not has_metho_item
+
+    if not (is_admin or is_buyer or is_partner_order):
+        raise HTTPException(status_code=403, detail="Not allowed")
+
+    if str(row.status or "") != "paid":
+        raise HTTPException(status_code=400, detail="Invoice is available only after admin approval")
+
+    settings = load_settings(db)
 
     invoice_items = []
     subtotal_pre_tax = 0.0

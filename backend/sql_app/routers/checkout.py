@@ -976,5 +976,76 @@ def partner_ledger(current_user=Depends(get_current_user)):
 
 
 @router.get("/partner/orders")
-def partner_orders(current_user=Depends(get_current_user)):
-    return []
+def partner_orders(db: Session = Depends(get_db), current_user=Depends(get_current_user)):
+    if current_user.role != "partner":
+        return []
+
+    partner = _resolve_partner_for_user(db, current_user)
+    if not partner:
+        return []
+
+    partner_rows = (
+        db.query(PartnerProduct.id)
+        .filter(PartnerProduct.partner_id == partner.id)
+        .all()
+    )
+    partner_product_ids = {str(row[0]) for row in partner_rows if row and row[0]}
+    if not partner_product_ids:
+        return []
+
+    partner_rate = max(0.0, min(100.0, float(partner.commission_percent or 0)))
+    rows = db.query(PublicOrder).order_by(PublicOrder.created_at.desc()).limit(500).all()
+
+    out = []
+    for row in rows:
+        try:
+            items = json.loads(row.items_json or "[]")
+        except Exception:
+            items = []
+
+        my_items = []
+        my_sales = 0.0
+        has_metho_item = False
+        for item in items:
+            if str(item.get("product_type") or "").strip().lower() == "metho":
+                has_metho_item = True
+            product_id = str(item.get("product_id") or "").strip()
+            if product_id not in partner_product_ids:
+                continue
+            line_subtotal = round(float(item.get("subtotal") or 0), 2)
+            my_sales += line_subtotal
+            my_items.append(
+                {
+                    "product_id": product_id,
+                    "product_name": str(item.get("name") or "Product").strip() or "Product",
+                    "quantity": float(item.get("quantity") or 1),
+                    "subtotal": line_subtotal,
+                    "listing_type": str(item.get("listing_type") or "").strip().lower(),
+                    "item_kind": str(item.get("item_kind") or "").strip().lower(),
+                    "is_service": bool(item.get("is_service")),
+                }
+            )
+
+        if not my_items:
+            continue
+
+        # Keep partner flow isolated: orders that include METHO items are admin-only.
+        if has_metho_item:
+            continue
+
+        my_sales = round(my_sales, 2)
+        out.append(
+            {
+                "id": row.id,
+                "order_no": f"ORD-{row.id[:8].upper()}",
+                "status": str(row.status or "pending_approval"),
+                "created_at": row.created_at.isoformat() if row.created_at else None,
+                "payment_method": str(row.payment_method or ""),
+                "my_sales": my_sales,
+                "my_commission": round(my_sales * (partner_rate / 100.0), 2),
+                "my_items": my_items,
+                "invoice_available": str(row.status or "") == "paid",
+            }
+        )
+
+    return out

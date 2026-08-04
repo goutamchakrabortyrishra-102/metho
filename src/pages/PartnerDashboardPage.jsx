@@ -1779,9 +1779,13 @@ export default function PartnerDashboardPage() {
                       <p className="text-[10px] uppercase text-slate-500 font-bold">Your Commission</p>
                       <p className="font-display font-black text-2xl text-emerald-800">{inr(o.my_commission)}</p>
                       <p className="text-[10px] text-slate-500">Sales: {inr(o.my_sales)} · Status: <b className="uppercase">{o.status}</b></p>
-                      <Link to={`/invoice/${o.id}`} target="_blank" className="inline-flex items-center gap-1 text-xs text-emerald-800 hover:underline mt-1">
-                        <FileText className="w-3 h-3" /> View Invoice
-                      </Link>
+                      {o.invoice_available ? (
+                        <Link to={`/invoice/${o.id}`} target="_blank" className="inline-flex items-center gap-1 text-xs text-emerald-800 hover:underline mt-1">
+                          <FileText className="w-3 h-3" /> View Online Invoice
+                        </Link>
+                      ) : (
+                        <p className="text-[11px] text-amber-700 mt-1">Invoice unlock হবে order paid/approved হলে। METHO item invoice admin থেকে manage হবে।</p>
+                      )}
                     </div>
                   </div>
                 ))}
