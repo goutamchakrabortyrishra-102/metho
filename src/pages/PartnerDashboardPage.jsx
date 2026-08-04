@@ -1830,8 +1830,11 @@ export default function PartnerDashboardPage() {
                           <FileText className="w-3 h-3" /> View Online Invoice
                         </Link>
                       ) : (
-                        <p className="text-[11px] text-amber-700 mt-1">Invoice unlock হবে order paid/approved হলে। METHO item invoice admin থেকে manage হবে।</p>
+                        <p className="text-[11px] text-amber-700 mt-1">{o?.invoice_locked_reason || "Invoice unlock হবে order paid/approved হলে। METHO item invoice admin থেকে manage হবে।"}</p>
                       )}
+                      {o?.blocked_by_wallet_reserve ? (
+                        <p className="text-[11px] text-red-700 mt-1">Reserve required: {inr(o?.commission_reserve_required || 0)} · Wallet: {inr(o?.wallet_balance_snapshot || 0)}</p>
+                      ) : null}
                       {o?.can_service_rate_edit ? (
                         <div className="mt-3 rounded-lg border border-sky-200 bg-sky-50 p-3 text-left" data-testid={`partner-service-fare-${o.id}`}>
                           <p className="text-[10px] uppercase tracking-widest text-sky-700 font-semibold">Service Fare Control</p>

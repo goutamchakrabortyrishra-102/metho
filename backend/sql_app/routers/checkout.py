@@ -989,6 +989,18 @@ def _partner_product_ids(db: Session, partner_id: str) -> set[str]:
     return {str(row[0]) for row in rows if row and row[0]}
 
 
+def _partner_wallet_balance(db: Session, partner_id: str) -> float:
+    key = f"partner_wallet:{partner_id}"
+    row = db.query(AppSetting).filter(AppSetting.key == key).first()
+    if not row:
+        return 0.0
+    try:
+        payload = json.loads(row.value_json or "{}")
+    except Exception:
+        payload = {}
+    return round(float((payload or {}).get("balance") or 0), 2)
+
+
 def _apply_partner_service_final_amount(items: list[dict], own_service_indexes: list[int], final_amount: float) -> list[dict]:
     next_items = [dict(it or {}) for it in (items or [])]
     current_total = round(sum(float(next_items[idx].get("subtotal") or 0) for idx in own_service_indexes), 2)
@@ -1037,6 +1049,7 @@ def partner_orders(db: Session = Depends(get_db), current_user=Depends(get_curre
         return []
 
     partner_rate = max(0.0, min(100.0, float(partner.commission_percent or 0)))
+    wallet_balance = _partner_wallet_balance(db, partner.id)
     rows = db.query(PublicOrder).order_by(PublicOrder.created_at.desc()).limit(500).all()
 
     out = []
@@ -1085,7 +1098,19 @@ def partner_orders(db: Session = Depends(get_db), current_user=Depends(get_curre
             continue
 
         my_sales = round(my_sales, 2)
+        my_commission = round(my_sales * (partner_rate / 100.0), 2)
         status = str(row.status or "pending_approval")
+        status_norm = status.strip().lower()
+        blocked_by_wallet_reserve = status_norm == "pending_approval" and (wallet_balance + 1e-9) < my_commission
+        invoice_locked_reason = ""
+        if status_norm == "pending_approval":
+            if blocked_by_wallet_reserve:
+                invoice_locked_reason = (
+                    f"Reserve wallet কম আছে। Required ₹{my_commission:.2f}, available ₹{wallet_balance:.2f}. "
+                    "Top-up করলে admin approve হবে এবং invoice unlock হবে।"
+                )
+            else:
+                invoice_locked_reason = "Admin approval pending. Approve হলে invoice unlock হবে।"
         all_my_items_service = my_service_items > 0 and my_service_items == len(my_items)
         out.append(
             {
@@ -1095,11 +1120,15 @@ def partner_orders(db: Session = Depends(get_db), current_user=Depends(get_curre
                 "created_at": row.created_at.isoformat() if row.created_at else None,
                 "payment_method": str(row.payment_method or ""),
                 "my_sales": my_sales,
-                "my_commission": round(my_sales * (partner_rate / 100.0), 2),
+                "my_commission": my_commission,
                 "my_items": my_items,
-                "invoice_available": status == "paid",
-                "can_service_rate_edit": all_my_items_service and status == "pending_approval",
-                "service_rate_locked": status == "paid",
+                "invoice_available": status_norm in {"paid", "approved"},
+                "can_service_rate_edit": all_my_items_service and status_norm == "pending_approval",
+                "service_rate_locked": status_norm in {"paid", "approved"},
+                "wallet_balance_snapshot": wallet_balance,
+                "commission_reserve_required": my_commission,
+                "blocked_by_wallet_reserve": blocked_by_wallet_reserve,
+                "invoice_locked_reason": invoice_locked_reason,
             }
         )
 
