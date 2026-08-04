@@ -69,6 +69,7 @@ const calcTieredSubtotal = (quantity, unitPrice, tiers) => {
 };
 
 export default function ProductsPage() {
+  const LANDING_TOP_PRODUCTS_LIMIT = 10;
   const { user } = useAuth();
   const { settings, refresh: refreshSettings } = useSettings();
   const placeholder = settings?.product_placeholder_image_url_full;
@@ -108,7 +109,7 @@ export default function ProductsPage() {
     const next = raw
       .map((id) => String(id || "").trim())
       .filter(Boolean)
-      .slice(0, 6);
+      .slice(0, LANDING_TOP_PRODUCTS_LIMIT);
     setLandingTopProductIds(next);
   }, [settings?.landing_top_product_ids]);
 
@@ -148,8 +149,8 @@ export default function ProductsPage() {
       saveLandingTopProductIds(landingTopProductIds.filter((id) => id !== productId));
       return;
     }
-    if (landingTopProductIds.length >= 6) {
-      toast.error("Maximum 6 top products can be selected");
+    if (landingTopProductIds.length >= LANDING_TOP_PRODUCTS_LIMIT) {
+      toast.error(`Maximum ${LANDING_TOP_PRODUCTS_LIMIT} top products can be selected`);
       return;
     }
     saveLandingTopProductIds([...landingTopProductIds, productId]);
@@ -553,7 +554,7 @@ export default function ProductsPage() {
             <div>
               <p className="text-xs uppercase tracking-[0.18em] text-emerald-800 font-semibold">Landing Top Products</p>
               <p className="text-[11px] text-slate-600 mt-1">
-                Selected: {landingTopProductIds.length}/6. এখানে থেকে remove/up/down করলে সাথে সাথে Landing এ reflect হবে।
+                Selected: {landingTopProductIds.length}/{LANDING_TOP_PRODUCTS_LIMIT}. এখানে থেকে remove/up/down করলে সাথে সাথে Landing এ reflect হবে।
               </p>
             </div>
             {landingTopProductIds.length > 0 ? (

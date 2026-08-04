@@ -135,13 +135,14 @@ const Hero = () => {
   const [shopSearch, setShopSearch] = useState("");
   const [bestProducts, setBestProducts] = useState([]);
   const hasBestProducts = bestProducts.length > 0;
+  const LANDING_TOP_PRODUCTS_LIMIT = 10;
   const selectedTopProductIds = useMemo(() => {
     const raw = settings?.landing_top_product_ids;
     if (!Array.isArray(raw)) return [];
     return raw
       .map((id) => String(id || "").trim())
       .filter(Boolean)
-      .slice(0, 6);
+      .slice(0, LANDING_TOP_PRODUCTS_LIMIT);
   }, [settings?.landing_top_product_ids]);
   const HERO_IMG = settings?.landing_hero_image_url_full || DEFAULT_HERO_IMG;
   const tagline = settings?.landing_tagline;
@@ -159,7 +160,9 @@ const Hero = () => {
         const selectedProducts = selectedTopProductIds
           .map((id) => productById.get(id))
           .filter(Boolean);
-        const picks = selectedProducts.length > 0 ? selectedProducts.slice(0, 6) : visibleProducts.slice(0, 6);
+        const picks = selectedProducts.length > 0
+          ? selectedProducts.slice(0, LANDING_TOP_PRODUCTS_LIMIT)
+          : visibleProducts.slice(0, LANDING_TOP_PRODUCTS_LIMIT);
         setBestProducts(picks);
       })
       .catch(() => {
@@ -450,15 +453,15 @@ const Hero = () => {
           </Link>
         </div>
 
-        <div className="grid grid-cols-2 md:grid-cols-3 gap-3 md:gap-4">
-          {(hasBestProducts ? bestProducts : Array.from({ length: 6 })).map((p, i) => (
+        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 xl:grid-cols-5 gap-2 md:gap-3">
+          {(hasBestProducts ? bestProducts : Array.from({ length: LANDING_TOP_PRODUCTS_LIMIT })).map((p, i) => (
             <Link
               key={p?.id || p?.name || i}
               to="/shop"
-              className="group rounded-2xl overflow-hidden border border-slate-200 bg-slate-50 hover:bg-white hover:shadow-md transition-all"
+              className="group rounded-xl overflow-hidden border border-slate-200 bg-slate-50 hover:bg-white hover:shadow-md transition-all"
               data-testid={`hero-best-product-${i + 1}`}
             >
-              <div className="aspect-[4/3] bg-slate-100 overflow-hidden">
+              <div className="aspect-[5/4] bg-slate-100 overflow-hidden">
                 <img
                   src={pickProductImageSrc(p) || FALLBACK_PRODUCT_IMG}
                   alt={p?.name || "METHO Product"}
@@ -467,8 +470,8 @@ const Hero = () => {
                   onError={(e) => { applyLandingImageFallback(e, [pickProductImageSrc(p)]); }}
                 />
               </div>
-              <div className="px-3 py-2.5">
-                <p className="text-xs md:text-sm font-semibold text-emerald-950 line-clamp-1">{p?.name || `Best Product ${i + 1}`}</p>
+              <div className="px-2.5 py-2">
+                <p className="text-[11px] md:text-xs font-semibold text-emerald-950 line-clamp-1">{p?.name || `Best Product ${i + 1}`}</p>
               </div>
             </Link>
           ))}
