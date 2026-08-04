@@ -509,11 +509,6 @@ export default function PartnerShopPage() {
   const bookServiceNow = (service) => {
     if (!service?.id) return;
     if (isTransportServiceListing(service)) {
-      if (!user) {
-        toast.error("Transport booking করতে login করতে হবে");
-        nav(`/login?next=/partner-shop/${partnerCode}`);
-        return;
-      }
       setTransportService(service);
       setTransportForm({
         customer_name: user?.name || "",
@@ -534,11 +529,22 @@ export default function PartnerShopPage() {
     }
     setCart((prev) => ({ ...prev, [service.id]: 1 }));
     setOpen(true);
+    if (!user) {
+      toast.info("Guest mode active: reward attribution-এর জন্য checkout-এ Member ID/Code দিন");
+    }
     toast.success(`${service.name || "Service"} booking started`);
   };
 
   const submitTransportBooking = async () => {
     if (!transportService?.id) return;
+    if (!transportForm.customer_name.trim()) {
+      toast.error("Customer name দিন");
+      return;
+    }
+    if (!transportForm.customer_phone.trim()) {
+      toast.error("Mobile number দিন");
+      return;
+    }
     if (!transportForm.pickup.trim()) {
       toast.error("Pickup দিন");
       return;
@@ -575,7 +581,10 @@ export default function PartnerShopPage() {
     const id = String(transportBooking?.id || "").trim();
     if (!id) return;
     try {
-      const { data } = await api.get(`/transport/bookings/${id}`);
+      const phone = String(transportForm?.customer_phone || transportBooking?.customer_phone || "").trim();
+      const { data } = await api.get(`/transport/bookings/${id}`, {
+        params: !user ? { customer_phone: phone } : undefined,
+      });
       setTransportBooking(data?.booking || null);
       if (String(data?.booking?.status || "") === "completed") {
         toast.success("Driver is waiting for payment QR flow at destination");
@@ -1378,6 +1387,7 @@ export default function PartnerShopPage() {
                 <p className="text-[10px] uppercase tracking-widest text-emerald-800 font-semibold">Transport Booking</p>
                 <h3 className="font-display font-bold text-emerald-950 text-lg mt-1">{transportService?.name || "Book Ride"}</h3>
                 <p className="text-xs text-slate-600 mt-1">Pickup + destination + date/time দিয়ে booking request পাঠান। Partner fare adjust করে accept/reject response দেবে।</p>
+                {!user ? <p className="text-[11px] text-amber-700 mt-1">Guest mode active: Member ID/Code দিলে reward attribution হবে, না দিলে guest booking হবে।</p> : null}
               </div>
               <button onClick={() => setTransportModalOpen(false)} className="w-8 h-8 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-700 flex items-center justify-center">
                 <X className="w-4 h-4" />
@@ -1424,6 +1434,7 @@ export default function PartnerShopPage() {
                   <Input value={transportForm.customer_name} onChange={(e) => setTransportForm((prev) => ({ ...prev, customer_name: e.target.value }))} placeholder="Customer name" className="h-10" />
                   <Input value={transportForm.customer_phone} onChange={(e) => setTransportForm((prev) => ({ ...prev, customer_phone: e.target.value }))} placeholder="Mobile number" className="h-10" />
                 </div>
+                <Input value={guestMemberRef} onChange={(e) => setGuestMemberRef(e.target.value)} placeholder="Member ID/Code (optional for reward %)" className="h-10" />
                 <Input value={transportForm.pickup} onChange={(e) => setTransportForm((prev) => ({ ...prev, pickup: e.target.value }))} placeholder="Pickup location" className="h-10" />
                 <Input
                   value={transportForm.destination}

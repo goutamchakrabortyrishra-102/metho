@@ -151,6 +151,23 @@ def get_current_user(
     return user
 
 
+def get_current_user_optional(
+    authorization: str | None = Header(None),
+    db: Session = Depends(get_db),
+) -> User | None:
+    if not authorization or not authorization.startswith("Bearer "):
+        return None
+
+    token = authorization.split(" ", 1)[1]
+    try:
+        payload = decode_token(token)
+    except Exception:
+        return None
+
+    user = db.query(User).filter(User.id == payload.get("user_id")).first()
+    return user
+
+
 @router.post("/register")
 def register(payload: RegisterRequest, db: Session = Depends(get_db)):
     requested_member_id = str(payload.email or "").strip().upper()

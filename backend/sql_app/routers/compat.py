@@ -12,7 +12,7 @@ import os
 import urllib.error
 import urllib.request
 
-from fastapi import APIRouter, Depends, File, HTTPException, Request, UploadFile
+from fastapi import APIRouter, Depends, File, HTTPException, Query, Request, UploadFile
 from fastapi.responses import Response
 from reportlab.lib.pagesizes import A4
 from reportlab.pdfgen import canvas
@@ -23,7 +23,7 @@ from ..database import get_db
 from ..models import AppSetting, AssociatePartner, Order, PartnerProduct, PartnerRequest, Product, ProductMeta, PublicOrder, User, UserReferral
 from ..security import hash_password, verify_password
 from ..storage import UPLOADED_OBJECTS_DIR
-from .auth import get_current_user
+from .auth import get_current_user, get_current_user_optional
 from .settings import load_settings, save_settings
 
 router = APIRouter(prefix="/api", tags=["compat"])
@@ -3400,7 +3400,7 @@ async def partner_upload_payment_qr(file: UploadFile = File(...), db: Session = 
 
 
 @router.post("/transport/bookings")
-def create_transport_booking(payload: dict, request: Request, db: Session = Depends(get_db), current_user=Depends(get_current_user)):
+def create_transport_booking(payload: dict, request: Request, db: Session = Depends(get_db), current_user=Depends(get_current_user_optional)):
     partner_code = str((payload or {}).get("partner_code") or "").strip()
     service_product_id = str((payload or {}).get("service_product_id") or "").strip()
     pickup = str((payload or {}).get("pickup") or "").strip()
@@ -3419,6 +3419,8 @@ def create_transport_booking(payload: dict, request: Request, db: Session = Depe
         raise HTTPException(status_code=400, detail="service_product_id is required")
     if not pickup:
         raise HTTPException(status_code=400, detail="pickup is required")
+    if not customer_phone:
+        raise HTTPException(status_code=400, detail="customer_phone is required")
 
     partner = db.query(AssociatePartner).filter(AssociatePartner.partner_code == partner_code, AssociatePartner.active.is_(True)).first()
     if not partner:
@@ -3546,24 +3548,33 @@ def create_transport_booking(payload: dict, request: Request, db: Session = Depe
         "booking": saved,
         "order": {"id": order_row.id, "order_no": f"ORD-{order_row.id[:8].upper()}", "status": order_row.status, "auto_approved": False},
         "next_step": "Booking created with route details. Partner will set final fare first; then commission will be credited and trip auto-approved on confirm.",
+        "reward_note": member_ref and "Member reference captured for reward attribution." or "Guest booking created without member reward attribution.",
     }
 
 
 @router.get("/transport/bookings/{trip_id}")
-def get_transport_booking(trip_id: str, request: Request, db: Session = Depends(get_db), current_user=Depends(get_current_user)):
+def get_transport_booking(trip_id: str, request: Request, customer_phone: str | None = Query(default=None), db: Session = Depends(get_db), current_user=Depends(get_current_user_optional)):
     trip = _load_transport_trip(db, trip_id)
     if not trip:
         raise HTTPException(status_code=404, detail="Booking not found")
 
     role = str(getattr(current_user, "role", "") or "")
     user_id = str(getattr(current_user, "id", "") or "")
+
+    def _digits(value: str | None) -> str:
+        return "".join(ch for ch in str(value or "") if ch.isdigit())
+
     if role not in {"super_admin", "company_admin", "admin"}:
         if role == "partner":
             partner = _resolve_partner_for_user(db, current_user)
             if not partner or str(trip.get("partner_id") or "") != str(partner.id):
                 raise HTTPException(status_code=403, detail="Not your booking")
-        elif str(trip.get("customer_user_id") or "") != user_id:
-            raise HTTPException(status_code=403, detail="Not your booking")
+        elif user_id:
+            if str(trip.get("customer_user_id") or "") != user_id:
+                raise HTTPException(status_code=403, detail="Not your booking")
+        else:
+            if not _digits(customer_phone) or _digits(customer_phone) != _digits(trip.get("customer_phone")):
+                raise HTTPException(status_code=403, detail="Guest access requires matching customer phone")
 
     partner = db.query(AssociatePartner).filter(AssociatePartner.id == str(trip.get("partner_id") or "")).first()
     payment_profile = _transport_partner_payment_profile(db, partner, request) if partner else {"upi_id": "", "payee_name": "", "qr_url": ""}

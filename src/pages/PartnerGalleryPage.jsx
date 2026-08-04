@@ -438,6 +438,7 @@ export default function PartnerGalleryPage() {
     return source;
   }, [activeListings, gallerySearch]);
   const canDownloadPdf = ["partner", "admin", "super_admin", "company_admin"].includes(String(user?.role || "").toLowerCase());
+  const guestServiceHintRef = useRef(false);
 
   const addToCart = (productOrId) => {
     const product = typeof productOrId === "object"
@@ -448,6 +449,10 @@ export default function PartnerGalleryPage() {
     const isService = isServiceListing(product);
     if (isService) {
       setCart((c) => ({ ...c, [id]: (c[id] || 0) + 1 }));
+      if (!user && !guestServiceHintRef.current) {
+        guestServiceHintRef.current = true;
+        toast.info("Guest mode: reward attribution-এর জন্য checkout-এ Member ID/Code দিন");
+      }
       return;
     }
 
@@ -530,6 +535,10 @@ export default function PartnerGalleryPage() {
     if (!listing?.id) return;
     setCart((prev) => ({ ...prev, [listing.id]: 1 }));
     setSelected(null);
+    if (!user && isServiceListing(listing) && !guestServiceHintRef.current) {
+      guestServiceHintRef.current = true;
+      toast.info("Guest mode: reward attribution-এর জন্য checkout-এ Member ID/Code দিন");
+    }
     toast.success(`${listing.name || "Service"} added to cart`);
   };
 
