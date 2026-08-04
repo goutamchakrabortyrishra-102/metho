@@ -1016,6 +1016,16 @@ export default function PartnerDashboardPage() {
                   <input type="file" accept="image/*" onChange={uploadPartnerPaymentQr} className="block w-full text-xs" />
                   {uploadingPaymentQr ? <p className="text-xs text-slate-500 mt-1">Uploading...</p> : null}
                 </div>
+                <div className="mt-4 flex justify-end">
+                  <Button
+                    type="button"
+                    onClick={savePartnerUpiId}
+                    disabled={savingPartnerUpi}
+                    className="rounded-full bg-emerald-900 hover:bg-emerald-950 text-white"
+                  >
+                    {savingPartnerUpi ? "Saving..." : "Save Payment Settings"}
+                  </Button>
+                </div>
               </div>
 
               {manualUpiEnabled ? (
