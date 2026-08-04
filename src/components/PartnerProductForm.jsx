@@ -664,7 +664,6 @@ export default function PartnerProductForm({
     }
     setUploadingImage(true);
     try {
-      const embeddedDataUrl = await toDataUrl(file);
       const preview = URL.createObjectURL(file);
       if (localPreviewUrl) URL.revokeObjectURL(localPreviewUrl);
       setLocalPreviewUrl(preview);
@@ -679,7 +678,6 @@ export default function PartnerProductForm({
       if (!imageUrl) {
         throw new Error("Image upload response missing url");
       }
-      const persistedImageUrl = embeddedDataUrl || imageUrl;
 
       const pdfBlob = await imageToPdfBlob(file);
       const pdfFile = new File([pdfBlob], `${Date.now()}-catalog.pdf`, { type: "application/pdf" });
@@ -704,7 +702,8 @@ export default function PartnerProductForm({
       const pdfUrl = resolveImageUrl(data?.pdf_url || data?.url || data?.file_url || data?.link || "");
       setForm((prev) => ({
         ...prev,
-        image_url: persistedImageUrl,
+        // Persist only server-hosted links to keep payload/DB lightweight.
+        image_url: imageUrl,
         pdf_url: pdfUrl || prev.pdf_url || "",
       }));
       if (pdfUrl) toast.success("Image uploaded and auto-converted to PDF");
