@@ -215,7 +215,7 @@ const formatQty = (qty) => {
   return Number.isInteger(n) ? String(n) : String(Number(n.toFixed(3)));
 };
 
-function ProductModal({ product, onClose, onAdd, onDec, qty, galleryUrl, isBookNowRole, onBookNow, canAccessProductPdf }) {
+function ProductModal({ product, onClose, onAdd, onDec, qty, galleryUrl, isBookNowRole, onBookNow, canAccessProductPdf, onCheckout }) {
   if (!product) return null;
   const productUrl = `${galleryUrl}?p=${product.id}`;
   const pdfUrl = getPdfUrl(product);
@@ -275,17 +275,22 @@ function ProductModal({ product, onClose, onAdd, onDec, qty, galleryUrl, isBookN
                 <CalendarCheck2 className="w-4 h-4 mr-2" /> Book Now
               </Button>
             ) : qty > 0 ? (
-              <div className="flex items-center justify-between bg-emerald-50 rounded-full px-3 py-2">
-                <button onClick={() => onDec(product.id)} className="w-9 h-9 rounded-full bg-white flex items-center justify-center hover:bg-emerald-100">
-                  <Minus className="w-4 h-4" />
-                </button>
-                <span className="font-black text-emerald-950 text-lg">{formatQty(qty)}</span>
-                <button onClick={() => onAdd(product.id)} className="w-9 h-9 rounded-full bg-white flex items-center justify-center hover:bg-emerald-100">
-                  <Plus className="w-4 h-4" />
-                </button>
+              <div className="space-y-2">
+                <div className="flex items-center justify-between bg-emerald-50 rounded-full px-3 py-2">
+                  <button onClick={() => onDec(product.id)} className="w-9 h-9 rounded-full bg-white flex items-center justify-center hover:bg-emerald-100">
+                    <Minus className="w-4 h-4" />
+                  </button>
+                  <span className="font-black text-emerald-950 text-lg">{formatQty(qty)}</span>
+                  <button onClick={() => onAdd(product.id)} className="w-9 h-9 rounded-full bg-white flex items-center justify-center hover:bg-emerald-100">
+                    <Plus className="w-4 h-4" />
+                  </button>
+                </div>
+                <Button onClick={() => onCheckout?.()} className="w-full bg-amber-500 hover:bg-amber-600 text-emerald-950 rounded-full text-base h-11 font-bold">
+                  <ShoppingCart className="w-4 h-4 mr-2" /> Checkout Now
+                </Button>
               </div>
             ) : (
-              <Button onClick={() => onAdd(product.id)} className="w-full bg-emerald-900 hover:bg-emerald-950 text-white rounded-full text-base h-12">
+              <Button onClick={() => { onAdd(product.id); onCheckout?.(); }} className="w-full bg-emerald-900 hover:bg-emerald-950 text-white rounded-full text-base h-12">
                 {isService ? <CalendarCheck2 className="w-4 h-4 mr-2" /> : <ShoppingCart className="w-4 h-4 mr-2" />} {isService ? "Book Now" : "Add to Cart"}
               </Button>
             )}
@@ -878,6 +883,7 @@ export default function PartnerGalleryPage() {
                               return;
                             }
                             addToCart(p.id);
+                            setCheckoutOpen(true);
                             toast.success(`${p.name} ${isService ? "booked" : "added"}`);
                           }}
                           className={`w-7 h-7 rounded-full text-white flex items-center justify-center shrink-0 ${isTransport ? "bg-sky-700 hover:bg-sky-800" : "bg-emerald-900 hover:bg-emerald-950"}`}
@@ -905,6 +911,7 @@ export default function PartnerGalleryPage() {
           isBookNowRole={isBookNowRole}
           onBookNow={handleBookNow}
           canAccessProductPdf={canAccessProductPdf}
+          onCheckout={() => { setSelected(null); setCheckoutOpen(true); }}
           onClose={() => setSelected(null)}
           onAdd={id => { addToCart(id); }}
           onDec={id => { decCart(id); if ((cart[id] || 0) <= 1) setSelected(null); }}
