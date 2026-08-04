@@ -138,6 +138,18 @@ const getPdfUrl = (product) => {
   return "";
 };
 
+const getPartnerProductImageUrl = (product) => {
+  return firstValidAssetRef(
+    product?.image_url,
+    product?.product_image_url,
+    product?.image,
+    product?.thumbnail_url,
+    product?.thumb_url,
+    product?.photo_url,
+    ""
+  );
+};
+
 const loadRazorpayScript = () => new Promise((resolve) => {
   if (typeof window === "undefined") return resolve(false);
   if (window.Razorpay) return resolve(true);
@@ -201,6 +213,11 @@ export default function PartnerDashboardPage() {
   const hospitalityItems = products.filter((p) => (String(p?.listing_type || p?.item_kind || "").toLowerCase().includes("service") || p?.is_service) && !isTransportServiceListing(p) && isHospitalityServiceListing(p));
   const doorstepItems = products.filter((p) => (String(p?.listing_type || p?.item_kind || "").toLowerCase().includes("service") || p?.is_service) && !isTransportServiceListing(p) && !isHospitalityServiceListing(p) && isDoorstepServiceListing(p));
   const serviceItems = products.filter((p) => (String(p?.listing_type || p?.item_kind || "").toLowerCase().includes("service") || p?.is_service) && !isTransportServiceListing(p) && !isHospitalityServiceListing(p) && !isDoorstepServiceListing(p));
+  const featuredProductFallbacks = productItems
+    .map((item) => getPartnerProductImageUrl(item))
+    .filter(Boolean)
+    .slice(0, 5);
+  const featuredDashboardImages = [0, 1, 2, 3, 4].map((slot) => featuredImages[slot] || featuredProductFallbacks[slot] || "");
   const primarySector = inferPartnerPrimarySector({
     businessType: summary?.business_type,
     counts: {
@@ -232,7 +249,7 @@ export default function PartnerDashboardPage() {
     api.get("/partner/ledger").then(r => setLedger(r.data)).catch(() => {});
     api.get("/partner/orders").then(r => setOrders(r.data)).catch(() => {});
     api.get("/settings").then(r => setSettings(r.data)).catch(() => setSettings(null));
-    api.get("/partner/payment-profile").then(r => setPaymentProfile(r.data)).catch(() => setPaymentProfile(null));
+    api.get("/partner/payment-profile").then(r => setPaymentProfile(r.data)).catch(() => {});
     api.get("/partner/banner").then(r => setShopBannerUrl(resolveAssetUrl(r.data?.banner_url || ""))).catch(() => setShopBannerUrl(""));
     api.get("/partner/featured-images").then(r => {
       const normalized = normalizeFeaturedImages(r.data);
@@ -365,6 +382,7 @@ export default function PartnerDashboardPage() {
   }, [tab, listingDefaultTab, sectorTabs]);
 
   useEffect(() => {
+    if (!paymentProfile) return;
     setPartnerUpiId(paymentProfile?.partner_upi_id || "");
     setPartnerCodEnabled(paymentProfile?.cod_enabled !== false);
     setOfferPopupEnabled(paymentProfile?.offer_popup?.enabled === true);
@@ -372,7 +390,7 @@ export default function PartnerDashboardPage() {
     setOfferPopupMessage(String(paymentProfile?.offer_popup?.message || ""));
     setOfferPopupCtaText(String(paymentProfile?.offer_popup?.cta_text || ""));
     setOfferPopupCoupon(String(paymentProfile?.offer_popup?.coupon_code || ""));
-  }, [paymentProfile?.partner_upi_id, paymentProfile?.cod_enabled, paymentProfile?.offer_popup]);
+  }, [paymentProfile]);
 
   const publicShopUrl = summary?.partner_code
     ? `${window.location.origin}/partner-shop/${encodeURIComponent(summary.partner_code)}`
@@ -571,9 +589,13 @@ export default function PartnerDashboardPage() {
   };
 
   const savePartnerUpiId = async () => {
+    if (offerPopupEnabled && !String(offerPopupTitle || offerPopupMessage || "").trim()) {
+      toast.error("Popup enabled থাকলে title বা message দিতে হবে");
+      return;
+    }
     setSavingPartnerUpi(true);
     try {
-      await api.put("/partner/payment-profile", {
+      const { data } = await api.put("/partner/payment-profile", {
         upi_id: String(partnerUpiId || "").trim(),
         cod_enabled: !!partnerCodEnabled,
         offer_popup: {
@@ -584,6 +606,10 @@ export default function PartnerDashboardPage() {
           coupon_code: String(offerPopupCoupon || "").trim(),
         },
       });
+      setPaymentProfile((prev) => ({
+        ...(prev || {}),
+        ...data,
+      }));
       toast.success("Payment settings updated");
       loadAll();
     } catch (err) {
@@ -811,7 +837,7 @@ export default function PartnerDashboardPage() {
               </div>
               <div className="mt-4 grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-5 gap-3">
                 {[1, 2, 3, 4, 5].map((slot) => {
-                  const url = featuredImages[slot - 1] || "";
+                  const url = featuredDashboardImages[slot - 1] || "";
                   return (
                     <div key={slot} className="rounded-xl border border-dashed border-slate-300 p-3 bg-slate-50">
                       <p className="text-[10px] uppercase tracking-widest text-slate-500 font-bold mb-2">Image {slot}</p>
@@ -836,12 +862,13 @@ export default function PartnerDashboardPage() {
                       </div>
                       <label className="mt-3 inline-flex w-full items-center justify-center rounded-full border border-emerald-300 bg-white px-3 py-2 text-xs font-semibold text-emerald-900 cursor-pointer hover:bg-emerald-50">
                         <input type="file" accept="image/*" onChange={(e) => uploadFeaturedImage(slot, e)} className="hidden" />
-                        {uploadingFeatured[slot] ? "Uploading..." : (url ? "Replace Image" : "Upload Image")}
+                        {uploadingFeatured[slot] ? "Uploading..." : (featuredImages[slot - 1] ? "Replace Image" : (url ? "Use Custom Image" : "Upload Image"))}
                       </label>
                     </div>
                   );
                 })}
               </div>
+              <p className="mt-3 text-[11px] text-slate-500">Custom featured image না দিলে product listing-এর প্রথম 5টা image auto দেখাবে।</p>
             </div>
 
             <div className="mt-6 rounded-xl border border-amber-300 bg-amber-50 p-4">

@@ -629,6 +629,7 @@ export default function PartnerProductForm({
   }, [initialServiceSectorFilter, fixedListingType, allowedServiceSectors, excludedServiceSectors, serviceSectorOptions]);
 
   const visibleServiceTemplates = serviceTemplatePool.filter((tpl) => serviceSectorFilter === "All" || tpl.sector === serviceSectorFilter);
+  const activeListingType = hasFixedListingType ? forcedListingType : form.listing_type;
 
   const applyServiceTemplate = (tpl) => {
     if (!tpl) return;
@@ -807,7 +808,7 @@ export default function PartnerProductForm({
               )}
             </div>
             <div>
-              <Label>{(hasFixedListingType ? forcedListingType : form.listing_type) === "service" ? "Service Name *" : "Product Name *"}</Label>
+              <Label>{activeListingType === "service" ? "Service Name *" : "Product Name *"}</Label>
               <Input required value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} className="mt-1" data-testid="my-prod-name" />
             </div>
           </div>
@@ -815,7 +816,7 @@ export default function PartnerProductForm({
             <div><Label>Category *</Label><Input required value={form.category} onChange={(e) => setForm({ ...form, category: e.target.value })} className="mt-1" data-testid="my-prod-cat" /></div>
             <div><Label>PDF Link</Label><Input value={form.pdf_url || ""} onChange={(e) => setForm({ ...form, pdf_url: e.target.value })} className="mt-1" placeholder="https://...pdf" data-testid="my-prod-pdf" /></div>
           </div>
-          {(hasFixedListingType ? forcedListingType : form.listing_type) === "service" ? (
+          {activeListingType === "service" ? (
             <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-3 space-y-3" data-testid="service-template-block">
               <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
                 <div>
@@ -849,7 +850,7 @@ export default function PartnerProductForm({
             </div>
           ) : null}
           <div>
-              <Label>{form.listing_type === "service" ? "Image Upload (Optional for Service)" : "Image Upload (Saved as PDF)"}</Label>
+              <Label>{activeListingType === "service" ? "Image Upload (Optional for Service)" : "Image Upload (Saved as PDF)"}</Label>
             <div className="mt-1.5 flex flex-wrap items-center gap-3">
               <input
                 ref={fileRef}
@@ -912,10 +913,10 @@ export default function PartnerProductForm({
             ) : null}
           </div>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            <div><Label>{form.listing_type === "service" ? "Booking Price (₹) *" : "Price (₹) *"}</Label><Input type="number" required value={form.price} onChange={(e) => setForm({ ...form, price: e.target.value })} className="mt-1" data-testid="my-prod-price" /></div>
-            <div><Label>{form.listing_type === "service" ? "Daily Slot / Capacity" : "Stock"}</Label><Input type="number" value={form.stock} onChange={(e) => setForm({ ...form, stock: e.target.value })} className="mt-1" data-testid="my-prod-stock" /></div>
+            <div><Label>{activeListingType === "service" ? "Booking Price (₹) *" : "Price (₹) *"}</Label><Input type="number" required value={form.price} onChange={(e) => setForm({ ...form, price: e.target.value })} className="mt-1" data-testid="my-prod-price" /></div>
+            <div><Label>{activeListingType === "service" ? "Daily Slot / Capacity" : "Stock"}</Label><Input type="number" value={form.stock} onChange={(e) => setForm({ ...form, stock: e.target.value })} className="mt-1" data-testid="my-prod-stock" /></div>
           </div>
-          {form.listing_type !== "service" ? (
+          {activeListingType !== "service" ? (
             <div>
               <Label>Price Unit</Label>
               <select
@@ -931,7 +932,7 @@ export default function PartnerProductForm({
               <p className="text-[11px] text-muted-foreground mt-1">Example: যদি "Per Kg" দেন, তাহলে price হবে প্রতি কেজির দাম।</p>
             </div>
           ) : null}
-          {form.listing_type === "service" ? (
+          {activeListingType === "service" ? (
             <div>
               <Label>Service Invoice Style</Label>
               <select
@@ -973,10 +974,10 @@ export default function PartnerProductForm({
               />
             </div>
           </div>
-          <div><Label>{form.listing_type === "service" ? "Service Description" : "Description"}</Label><Textarea value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} className="mt-1" data-testid="my-prod-desc" /></div>
-          <DialogFooter>
+          <div><Label>{activeListingType === "service" ? "Service Description" : "Description"}</Label><Textarea value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} className="mt-1" data-testid="my-prod-desc" /></div>
+          <DialogFooter className="sticky bottom-0 z-10 -mx-4 border-t border-slate-200 bg-white/95 px-4 py-3 backdrop-blur sm:-mx-6 sm:px-6">
             <Button type="submit" disabled={busy} className="bg-emerald-900 hover:bg-emerald-950 text-white" data-testid="my-prod-save">
-              {busy ? <Loader2 className="w-4 h-4 animate-spin" /> : (product?.id ? "Update Product" : "Save")}
+              {busy ? <Loader2 className="w-4 h-4 animate-spin" /> : (product?.id ? (activeListingType === "service" ? "Update Service" : "Update Product") : (activeListingType === "service" ? "Save Service" : "Save Product"))}
             </Button>
           </DialogFooter>
         </form>
