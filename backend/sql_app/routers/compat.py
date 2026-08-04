@@ -3484,10 +3484,21 @@ def create_transport_booking(payload: dict, request: Request, db: Session = Depe
 
 
 @router.get("/transport/bookings/{trip_id}")
-def get_transport_booking(trip_id: str, request: Request, db: Session = Depends(get_db)):
+def get_transport_booking(trip_id: str, request: Request, db: Session = Depends(get_db), current_user=Depends(get_current_user)):
     trip = _load_transport_trip(db, trip_id)
     if not trip:
         raise HTTPException(status_code=404, detail="Booking not found")
+
+    role = str(getattr(current_user, "role", "") or "")
+    user_id = str(getattr(current_user, "id", "") or "")
+    if role not in {"super_admin", "company_admin", "admin"}:
+        if role == "partner":
+            partner = _resolve_partner_for_user(db, current_user)
+            if not partner or str(trip.get("partner_id") or "") != str(partner.id):
+                raise HTTPException(status_code=403, detail="Not your booking")
+        elif str(trip.get("customer_user_id") or "") != user_id:
+            raise HTTPException(status_code=403, detail="Not your booking")
+
     partner = db.query(AssociatePartner).filter(AssociatePartner.id == str(trip.get("partner_id") or "")).first()
     payment_profile = _transport_partner_payment_profile(db, partner, request) if partner else {"upi_id": "", "payee_name": "", "qr_url": ""}
     return {
