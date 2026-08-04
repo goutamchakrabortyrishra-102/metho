@@ -118,6 +118,7 @@ def _partner_product_meta(meta_map: dict[str, dict], product_id: str) -> dict:
     service_invoice_mode = str((meta or {}).get("service_invoice_mode") or "detailed").strip().lower()
     if service_invoice_mode not in {"detailed", "summary_total"}:
         service_invoice_mode = "detailed"
+    pdf_url = str((meta or {}).get("pdf_url") or (meta or {}).get("product_pdf_url") or "").strip()
     return {
         "listing_type": "service" if is_service else "product",
         "item_kind": "service" if is_service else "product",
@@ -125,6 +126,8 @@ def _partner_product_meta(meta_map: dict[str, dict], product_id: str) -> dict:
         "service_booking_enabled": bool((meta or {}).get("service_booking_enabled") if (meta or {}).get("service_booking_enabled") is not None else is_service),
         "service_invoice_mode": service_invoice_mode,
         "service_template_key": str((meta or {}).get("service_template_key") or "").strip(),
+        "pdf_url": pdf_url,
+        "product_pdf_url": pdf_url,
     }
 
 
@@ -136,6 +139,12 @@ def _set_partner_product_meta(db: Session, product_id: str, payload: dict | None
     service_invoice_mode = str(src.get("service_invoice_mode") or "detailed").strip().lower()
     if service_invoice_mode not in {"detailed", "summary_total"}:
         service_invoice_mode = "detailed"
+    pdf_url = str(src.get("pdf_url") or src.get("product_pdf_url") or "").strip()
+
+    prev = mapping.get(str(product_id)) if isinstance(mapping.get(str(product_id)), dict) else {}
+    if not pdf_url:
+        pdf_url = str(prev.get("pdf_url") or prev.get("product_pdf_url") or "").strip()
+
     mapping[str(product_id)] = {
         "listing_type": "service" if is_service else "product",
         "item_kind": "service" if is_service else "product",
@@ -143,6 +152,8 @@ def _set_partner_product_meta(db: Session, product_id: str, payload: dict | None
         "service_booking_enabled": bool(src.get("service_booking_enabled") if src.get("service_booking_enabled") is not None else is_service),
         "service_invoice_mode": service_invoice_mode,
         "service_template_key": str(src.get("service_template_key") or "").strip(),
+        "pdf_url": pdf_url,
+        "product_pdf_url": pdf_url,
     }
     _save_partner_product_meta(db, mapping)
     return mapping

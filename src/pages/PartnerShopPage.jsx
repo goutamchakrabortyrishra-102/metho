@@ -365,19 +365,6 @@ export default function PartnerShopPage() {
       ? "stay-dining"
       : (canShowDoorstep ? "doorstep" : (canShowOtherServices ? "other-services" : "products")));
   const featuredImages = useMemo(() => normalizeFeaturedImages(data?.featured_images), [data?.featured_images]);
-  const partnerGalleryFallbackPool = useMemo(() => {
-    const pool = [];
-    const push = (src) => {
-      const next = String(src || "").trim();
-      if (!next || pool.includes(next)) return;
-      pool.push(next);
-    };
-    push(heroBannerSrc);
-    push(p?.logo_url);
-    push(placeholder);
-    push(PRODUCT_FALLBACK);
-    return pool;
-  }, [heroBannerSrc, p?.logo_url, placeholder]);
   const featuredProductFallbacks = useMemo(() => {
     const list = [];
     for (const item of productListings) {
@@ -387,14 +374,10 @@ export default function PartnerShopPage() {
     }
     return list;
   }, [productListings, placeholder]);
-  const featuredDisplayImages = useMemo(() => {
-    return [0, 1, 2, 3, 4].map((slot, index) => {
-      const directImage = featuredProductFallbacks[slot] || featuredImages[slot] || "";
-      if (directImage) return directImage;
-      const fallbackPool = partnerGalleryFallbackPool;
-      return fallbackPool[index % Math.max(1, fallbackPool.length)] || "";
-    });
-  }, [featuredImages, featuredProductFallbacks, partnerGalleryFallbackPool]);
+  const featuredDisplayImages = useMemo(
+    () => [0, 1, 2, 3, 4].map((slot) => featuredImages[slot] || ""),
+    [featuredImages]
+  );
   const hasAnyFeaturedImage = useMemo(() => featuredDisplayImages.some(Boolean), [featuredDisplayImages]);
   const getStock = (product) => Math.max(0, Number(product?.stock ?? 0));
   const isBookNowRole = !user || ["member", "customer"].includes(String(user?.role || "").toLowerCase());

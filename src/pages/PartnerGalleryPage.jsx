@@ -505,8 +505,7 @@ export default function PartnerGalleryPage() {
     if (!listing?.id) return;
     setCart((prev) => ({ ...prev, [listing.id]: 1 }));
     setSelected(null);
-    setCheckoutOpen(true);
-    toast.success(`${listing.name || "Service"} booking started`);
+    toast.success(`${listing.name || "Service"} added to cart`);
   };
 
   const shareWhatsApp = () => {

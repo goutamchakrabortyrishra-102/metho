@@ -64,6 +64,7 @@ def _service_meta_for_product(meta_map: dict[str, dict], product_id: str) -> dic
     mode = str((meta or {}).get("service_invoice_mode") or "detailed").strip().lower()
     if mode not in {"detailed", "summary_total"}:
         mode = "detailed"
+    pdf_url = str((meta or {}).get("pdf_url") or (meta or {}).get("product_pdf_url") or "").strip()
     return {
         "listing_type": "service" if is_service else "product",
         "item_kind": "service" if is_service else "product",
@@ -71,6 +72,8 @@ def _service_meta_for_product(meta_map: dict[str, dict], product_id: str) -> dic
         "service_booking_enabled": bool((meta or {}).get("service_booking_enabled") if (meta or {}).get("service_booking_enabled") is not None else is_service),
         "service_invoice_mode": mode,
         "service_template_key": str((meta or {}).get("service_template_key") or "").strip(),
+        "pdf_url": pdf_url,
+        "product_pdf_url": pdf_url,
     }
 
 
@@ -284,8 +287,6 @@ def partner_public_page(partner_code: str, db: Session = Depends(get_db)):
             PartnerProduct.partner_id == partner.id,
             PartnerProduct.active.is_(True),
             PartnerProduct.approval_status == "approved",
-            PartnerProduct.image_url.isnot(None),
-            PartnerProduct.image_url != "",
         )
         .order_by(PartnerProduct.created_at.desc())
         .all()
