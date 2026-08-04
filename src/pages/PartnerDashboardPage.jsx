@@ -210,6 +210,8 @@ export default function PartnerDashboardPage() {
   const [transportPresets, setTransportPresets] = useState([]);
   const [presetBusy, setPresetBusy] = useState(false);
   const [presetForm, setPresetForm] = useState({ service_product_id: "", destination: "", fare: "", pickup_hint: "", notes: "" });
+  const [serviceFareDrafts, setServiceFareDrafts] = useState({});
+  const [serviceActionBusy, setServiceActionBusy] = useState({});
   const productItems = products.filter((p) => !(String(p?.listing_type || p?.item_kind || "").toLowerCase().includes("service") || p?.is_service));
   const transportItems = products.filter((p) => (String(p?.listing_type || p?.item_kind || "").toLowerCase().includes("service") || p?.is_service) && isTransportServiceListing(p));
   const hospitalityItems = products.filter((p) => (String(p?.listing_type || p?.item_kind || "").toLowerCase().includes("service") || p?.is_service) && !isTransportServiceListing(p) && isHospitalityServiceListing(p));
@@ -326,6 +328,50 @@ export default function PartnerDashboardPage() {
       loadAll();
     } catch (err) {
       toast.error(err?.response?.data?.detail || "Payment mark failed");
+    }
+  };
+
+  const setServiceBusy = (orderId, patch) => {
+    setServiceActionBusy((prev) => ({
+      ...prev,
+      [orderId]: {
+        updating: false,
+        confirming: false,
+        ...(prev?.[orderId] || {}),
+        ...patch,
+      },
+    }));
+  };
+
+  const updateServiceFinalFare = async (orderId) => {
+    const amount = Number(serviceFareDrafts?.[orderId] || 0);
+    if (!amount || amount <= 0) {
+      toast.error("Valid final fare দিন");
+      return;
+    }
+    setServiceBusy(orderId, { updating: true });
+    try {
+      await api.post(`/partner/orders/${orderId}/service-final-fare`, { final_amount: amount });
+      toast.success("Final fare updated. Confirm করলে fare lock হবে");
+      loadAll();
+    } catch (err) {
+      toast.error(err?.response?.data?.detail || "Final fare update failed");
+    } finally {
+      setServiceBusy(orderId, { updating: false });
+    }
+  };
+
+  const confirmServiceBooking = async (orderId) => {
+    if (!window.confirm("Confirm booking করলে fare lock হবে এবং commission debit flow চলবে. Continue করবেন?")) return;
+    setServiceBusy(orderId, { confirming: true });
+    try {
+      await api.post(`/partner/orders/${orderId}/service-confirm`, {});
+      toast.success("Booking confirmed. Fare locked + auto approval done");
+      loadAll();
+    } catch (err) {
+      toast.error(err?.response?.data?.detail || "Service booking confirmation failed");
+    } finally {
+      setServiceBusy(orderId, { confirming: false });
     }
   };
 
@@ -1786,6 +1832,43 @@ export default function PartnerDashboardPage() {
                       ) : (
                         <p className="text-[11px] text-amber-700 mt-1">Invoice unlock হবে order paid/approved হলে। METHO item invoice admin থেকে manage হবে।</p>
                       )}
+                      {o?.can_service_rate_edit ? (
+                        <div className="mt-3 rounded-lg border border-sky-200 bg-sky-50 p-3 text-left" data-testid={`partner-service-fare-${o.id}`}>
+                          <p className="text-[10px] uppercase tracking-widest text-sky-700 font-semibold">Service Fare Control</p>
+                          <p className="text-[11px] text-slate-700 mt-1">Transport-এর মতো: প্রথমে final fare set করুন, তারপর confirm করলে fare lock + commission debit হবে।</p>
+                          <div className="mt-2 flex flex-col sm:flex-row gap-2">
+                            <Input
+                              type="number"
+                              min="1"
+                              step="0.01"
+                              placeholder={`Current: ₹${Number(o?.my_sales || 0).toFixed(2)}`}
+                              value={serviceFareDrafts?.[o.id] ?? ""}
+                              onChange={(e) => setServiceFareDrafts((prev) => ({ ...prev, [o.id]: e.target.value }))}
+                              className="h-9"
+                            />
+                            <Button
+                              type="button"
+                              variant="outline"
+                              className="rounded-full border-sky-300 text-sky-900 hover:bg-sky-100"
+                              onClick={() => updateServiceFinalFare(o.id)}
+                              disabled={!!serviceActionBusy?.[o.id]?.updating || !!serviceActionBusy?.[o.id]?.confirming}
+                            >
+                              {serviceActionBusy?.[o.id]?.updating ? "Updating..." : "Update Final Fare"}
+                            </Button>
+                            <Button
+                              type="button"
+                              className="rounded-full bg-emerald-900 hover:bg-emerald-950 text-white"
+                              onClick={() => confirmServiceBooking(o.id)}
+                              disabled={!!serviceActionBusy?.[o.id]?.updating || !!serviceActionBusy?.[o.id]?.confirming}
+                            >
+                              {serviceActionBusy?.[o.id]?.confirming ? "Confirming..." : "Confirm + Lock Fare"}
+                            </Button>
+                          </div>
+                        </div>
+                      ) : null}
+                      {o?.service_rate_locked ? (
+                        <p className="text-[11px] text-emerald-700 mt-2">Service fare locked. এই booking-এ আর rate edit করা যাবে না।</p>
+                      ) : null}
                     </div>
                   </div>
                 ))}

@@ -975,6 +975,54 @@ def partner_ledger(current_user=Depends(get_current_user)):
     return []
 
 
+def _is_service_order_item(item: dict | None) -> bool:
+    row = item or {}
+    if bool(row.get("is_service")):
+        return True
+    listing_type = str(row.get("listing_type") or "").strip().lower()
+    item_kind = str(row.get("item_kind") or "").strip().lower()
+    return listing_type == "service" or item_kind == "service"
+
+
+def _partner_product_ids(db: Session, partner_id: str) -> set[str]:
+    rows = db.query(PartnerProduct.id).filter(PartnerProduct.partner_id == partner_id).all()
+    return {str(row[0]) for row in rows if row and row[0]}
+
+
+def _apply_partner_service_final_amount(items: list[dict], own_service_indexes: list[int], final_amount: float) -> list[dict]:
+    next_items = [dict(it or {}) for it in (items or [])]
+    current_total = round(sum(float(next_items[idx].get("subtotal") or 0) for idx in own_service_indexes), 2)
+
+    allocations: list[float] = []
+    if current_total <= 0:
+        per_line = round(final_amount / max(1, len(own_service_indexes)), 2)
+        allocations = [per_line for _ in own_service_indexes]
+    else:
+        for idx in own_service_indexes:
+            line = round(float(next_items[idx].get("subtotal") or 0), 2)
+            allocations.append(round((line / current_total) * final_amount, 2))
+
+    drift = round(final_amount - sum(allocations), 2)
+    if allocations:
+        allocations[-1] = round(allocations[-1] + drift, 2)
+
+    for pos, idx in enumerate(own_service_indexes):
+        item = dict(next_items[idx] or {})
+        line_total = round(max(0.0, allocations[pos]), 2)
+        qty = float(item.get("quantity") or 1)
+        if qty <= 0:
+            qty = 1.0
+        unit_price = round(line_total / qty, 2)
+        item["price"] = unit_price
+        item["unit_base_price"] = unit_price
+        item["mrp"] = unit_price
+        item["pre_tax"] = line_total
+        item["subtotal"] = line_total
+        next_items[idx] = item
+
+    return next_items
+
+
 @router.get("/partner/orders")
 def partner_orders(db: Session = Depends(get_db), current_user=Depends(get_current_user)):
     if current_user.role != "partner":
@@ -984,12 +1032,7 @@ def partner_orders(db: Session = Depends(get_db), current_user=Depends(get_curre
     if not partner:
         return []
 
-    partner_rows = (
-        db.query(PartnerProduct.id)
-        .filter(PartnerProduct.partner_id == partner.id)
-        .all()
-    )
-    partner_product_ids = {str(row[0]) for row in partner_rows if row and row[0]}
+    partner_product_ids = _partner_product_ids(db, partner.id)
     if not partner_product_ids:
         return []
 
@@ -1006,14 +1049,22 @@ def partner_orders(db: Session = Depends(get_db), current_user=Depends(get_curre
         my_items = []
         my_sales = 0.0
         has_metho_item = False
+        has_foreign_partner_item = False
+        my_service_items = 0
         for item in items:
-            if str(item.get("product_type") or "").strip().lower() == "metho":
+            product_type = str(item.get("product_type") or "").strip().lower()
+            if product_type == "metho":
                 has_metho_item = True
             product_id = str(item.get("product_id") or "").strip()
+            if product_type == "associate_partner" and product_id and product_id not in partner_product_ids:
+                has_foreign_partner_item = True
             if product_id not in partner_product_ids:
                 continue
             line_subtotal = round(float(item.get("subtotal") or 0), 2)
             my_sales += line_subtotal
+            is_service_item = _is_service_order_item(item)
+            if is_service_item:
+                my_service_items += 1
             my_items.append(
                 {
                     "product_id": product_id,
@@ -1022,30 +1073,156 @@ def partner_orders(db: Session = Depends(get_db), current_user=Depends(get_curre
                     "subtotal": line_subtotal,
                     "listing_type": str(item.get("listing_type") or "").strip().lower(),
                     "item_kind": str(item.get("item_kind") or "").strip().lower(),
-                    "is_service": bool(item.get("is_service")),
+                    "is_service": is_service_item,
                 }
             )
 
         if not my_items:
             continue
 
-        # Keep partner flow isolated: orders that include METHO items are admin-only.
-        if has_metho_item:
+        # Keep partner flow isolated: METHO/multi-partner mix stays admin-only.
+        if has_metho_item or has_foreign_partner_item:
             continue
 
         my_sales = round(my_sales, 2)
+        status = str(row.status or "pending_approval")
+        all_my_items_service = my_service_items > 0 and my_service_items == len(my_items)
         out.append(
             {
                 "id": row.id,
                 "order_no": f"ORD-{row.id[:8].upper()}",
-                "status": str(row.status or "pending_approval"),
+                "status": status,
                 "created_at": row.created_at.isoformat() if row.created_at else None,
                 "payment_method": str(row.payment_method or ""),
                 "my_sales": my_sales,
                 "my_commission": round(my_sales * (partner_rate / 100.0), 2),
                 "my_items": my_items,
-                "invoice_available": str(row.status or "") == "paid",
+                "invoice_available": status == "paid",
+                "can_service_rate_edit": all_my_items_service and status == "pending_approval",
+                "service_rate_locked": status == "paid",
             }
         )
 
     return out
+
+
+@router.post("/partner/orders/{order_id}/service-final-fare")
+def partner_set_service_final_fare(order_id: str, payload: dict | None = None, db: Session = Depends(get_db), current_user=Depends(get_current_user)):
+    if current_user.role != "partner":
+        raise HTTPException(status_code=403, detail="Partner access only")
+    partner = _resolve_partner_for_user(db, current_user)
+    if not partner:
+        raise HTTPException(status_code=404, detail="Partner profile not found")
+
+    row = db.query(PublicOrder).filter(PublicOrder.id == order_id).first()
+    if not row:
+        raise HTTPException(status_code=404, detail="Order not found")
+    if str(row.status or "") != "pending_approval":
+        raise HTTPException(status_code=400, detail="Final fare can be edited only before confirmation")
+
+    partner_product_ids = _partner_product_ids(db, partner.id)
+    if not partner_product_ids:
+        raise HTTPException(status_code=400, detail="No partner products linked")
+
+    try:
+        items = json.loads(row.items_json or "[]")
+    except Exception:
+        items = []
+    if not isinstance(items, list) or not items:
+        raise HTTPException(status_code=400, detail="Order items missing")
+
+    own_service_indexes: list[int] = []
+    for idx, item in enumerate(items):
+        product_id = str((item or {}).get("product_id") or "").strip()
+        product_type = str((item or {}).get("product_type") or "").strip().lower()
+        if product_type == "metho":
+            raise HTTPException(status_code=403, detail="METHO orders are admin-only")
+        if product_type == "associate_partner" and product_id and product_id not in partner_product_ids:
+            raise HTTPException(status_code=403, detail="Mixed partner order cannot be edited")
+        if product_id in partner_product_ids and _is_service_order_item(item):
+            own_service_indexes.append(idx)
+
+    if not own_service_indexes:
+        raise HTTPException(status_code=400, detail="No editable service booking found for this partner")
+
+    try:
+        final_amount = round(float((payload or {}).get("final_amount") or 0), 2)
+    except Exception:
+        final_amount = 0.0
+    if final_amount <= 0:
+        raise HTTPException(status_code=400, detail="Valid final_amount is required")
+
+    next_items = _apply_partner_service_final_amount(items, own_service_indexes, final_amount)
+    row.items_json = json.dumps(next_items)
+    row.total_amount = round(sum(float((it or {}).get("subtotal") or 0) for it in next_items), 2)
+    db.commit()
+
+    return {
+        "ok": True,
+        "order_id": row.id,
+        "order_no": f"ORD-{row.id[:8].upper()}",
+        "status": str(row.status or "pending_approval"),
+        "final_amount": final_amount,
+        "total_amount": float(row.total_amount or 0),
+        "message": "Final fare updated. Confirm booking to lock fare and apply commission.",
+    }
+
+
+@router.post("/partner/orders/{order_id}/service-confirm")
+def partner_confirm_service_booking(order_id: str, db: Session = Depends(get_db), current_user=Depends(get_current_user)):
+    if current_user.role != "partner":
+        raise HTTPException(status_code=403, detail="Partner access only")
+    partner = _resolve_partner_for_user(db, current_user)
+    if not partner:
+        raise HTTPException(status_code=404, detail="Partner profile not found")
+
+    row = db.query(PublicOrder).filter(PublicOrder.id == order_id).first()
+    if not row:
+        raise HTTPException(status_code=404, detail="Order not found")
+    if str(row.status or "") != "pending_approval":
+        raise HTTPException(status_code=400, detail="Booking can be confirmed only once before approval")
+
+    partner_product_ids = _partner_product_ids(db, partner.id)
+    if not partner_product_ids:
+        raise HTTPException(status_code=400, detail="No partner products linked")
+
+    try:
+        items = json.loads(row.items_json or "[]")
+    except Exception:
+        items = []
+    if not isinstance(items, list) or not items:
+        raise HTTPException(status_code=400, detail="Order items missing")
+
+    own_service_items = 0
+    for item in items:
+        product_id = str((item or {}).get("product_id") or "").strip()
+        product_type = str((item or {}).get("product_type") or "").strip().lower()
+        if product_type == "metho":
+            raise HTTPException(status_code=403, detail="METHO orders are admin-only")
+        if product_type == "associate_partner" and product_id and product_id not in partner_product_ids:
+            raise HTTPException(status_code=403, detail="Mixed partner order cannot be confirmed")
+        if product_id in partner_product_ids and _is_service_order_item(item):
+            own_service_items += 1
+
+    if own_service_items <= 0:
+        raise HTTPException(status_code=400, detail="No partner service booking found to confirm")
+
+    from .compat import admin_approve_order
+
+    approved = admin_approve_order(
+        order_id=order_id,
+        payload={"note": "Partner confirmed service booking with locked fare"},
+        db=db,
+        current_user=SimpleNamespace(role="super_admin"),
+    )
+
+    return {
+        "ok": True,
+        "order_id": order_id,
+        "order_no": f"ORD-{order_id[:8].upper()}",
+        "status": "paid",
+        "auto_approved": True,
+        "rewards_earned": approved.get("rewards_earned", {}),
+        "commission_split": approved.get("commission_split", {}),
+        "message": "Booking confirmed. Fare locked and commission debited from reserve wallet.",
+    }
