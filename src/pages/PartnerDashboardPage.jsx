@@ -867,7 +867,7 @@ export default function PartnerDashboardPage() {
                     type="button"
                     size="sm"
                     onClick={saveFeaturedImages}
-                    disabled={savingFeaturedImages || !hasUnsavedFeaturedChanges}
+                    disabled={savingFeaturedImages}
                     className="rounded-full bg-emerald-900 hover:bg-emerald-950 text-white"
                     data-testid="save-featured-images"
                   >
