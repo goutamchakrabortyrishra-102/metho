@@ -33,6 +33,7 @@ export default function DirectoryPage() {
   const [pincode, setPincode] = useState("");
   const [type, setType] = useState("All");
   const [category, setCategory] = useState("");
+  const [shopSector, setShopSector] = useState("");
   const [q, setQ] = useState("");
   const [loading, setLoading] = useState(true);
   const [featured, setFeatured] = useState([]);
@@ -42,13 +43,15 @@ export default function DirectoryPage() {
     const queryQ = String(searchParams.get("q") || "").trim();
     const queryType = String(searchParams.get("business_type") || "").trim();
     const queryCategory = String(searchParams.get("category") || "").trim();
+    const queryShopSector = String(searchParams.get("shop_sector") || "").trim().toLowerCase();
     const queryCity = String(searchParams.get("city") || "").trim();
     const queryPincode = normalizePincode(searchParams.get("pincode") || "");
 
-    if (queryQ || queryType || queryCategory || queryCity || queryPincode) {
+    if (queryQ || queryType || queryCategory || queryShopSector || queryCity || queryPincode) {
       setQ(queryQ);
       setType(queryType || "All");
       setCategory(queryCategory);
+      setShopSector(queryShopSector);
       setCity(queryCity);
       setPincode(queryPincode);
       return;
@@ -56,11 +59,11 @@ export default function DirectoryPage() {
 
     if (!quick) return;
     const quickMap = {
-      products: { q: "", type: "All" },
-      vegetables: { q: "vegetable vegetables sabji fresh produce", type: "All" },
-      grocery: { q: "grocery groceries rice dal atta masala oil", type: "All" },
-      "cosmetics-beauty": { q: "cosmetics beauty makeup skincare personal care", type: "All" },
-      others: { q: "electronics hardware stationery household fashion", type: "All" },
+      products: { q: "", type: "All", shop_sector: "" },
+      vegetables: { q: "", type: "All", shop_sector: "vegetables" },
+      grocery: { q: "", type: "All", shop_sector: "grocery" },
+      "cosmetics-beauty": { q: "", type: "All", shop_sector: "cosmetics-beauty" },
+      others: { q: "", type: "All", shop_sector: "others" },
       transport: { q: "transport cab taxi rental bike logistics", type: "Service Provider" },
       "stay-dining": { q: "hotel homestay restaurant cafe", type: "Service Provider" },
       doorstep: { q: "home service cleaning repair laundry courier", type: "Service Provider" },
@@ -71,6 +74,7 @@ export default function DirectoryPage() {
     setQ(preset.q);
     setType(preset.type);
     setCategory("");
+    setShopSector(String(preset.shop_sector || ""));
     setCity("");
     setPincode("");
   }, [searchParams]);
@@ -88,12 +92,13 @@ export default function DirectoryPage() {
     if (pincode) params.set("pincode", pincode);
     if (type && type !== "All") params.set("business_type", type);
     if (category) params.set("category", category);
+    if (shopSector) params.set("shop_sector", shopSector);
     if (q) params.set("q", q);
     api.get(`/directory/partners?${params.toString()}`)
       .then(r => setPartners(r.data))
       .catch(() => setPartners([]))
       .finally(() => setLoading(false));
-  }, [city, pincode, type, category, q]);
+  }, [city, pincode, type, category, shopSector, q]);
 
   useEffect(() => {
     const pin = normalizePincode(pincode);
@@ -115,7 +120,7 @@ export default function DirectoryPage() {
     return Object.entries(map).sort((a, b) => b[1].length - a[1].length);
   }, [partners]);
 
-  const showGrouped = !city && !pincode && !type.replace("All", "") && !category && !q;
+  const showGrouped = !city && !pincode && !type.replace("All", "") && !category && !shopSector && !q;
 
   return (
     <div className="min-h-screen bg-slate-50" data-testid="directory-page">
@@ -198,9 +203,9 @@ export default function DirectoryPage() {
                   {c}
                 </button>
               ))}
-              {(city || pincode || type !== "All" || category || q) && (
+              {(city || pincode || type !== "All" || category || shopSector || q) && (
                 <button
-                  onClick={() => { setCity(""); setPincode(""); setType("All"); setCategory(""); setQ(""); }}
+                  onClick={() => { setCity(""); setPincode(""); setType("All"); setCategory(""); setShopSector(""); setQ(""); }}
                   className="text-xs px-3 py-1.5 rounded-full font-semibold bg-red-500/20 text-red-100 border border-red-300/30 hover:bg-red-500/30"
                   data-testid="chip-clear"
                 >Clear filters</button>

@@ -51,6 +51,13 @@ const SERVICE_SECTOR_OPTIONS = [
   "Other Services",
 ];
 
+const SHOP_SECTOR_OPTIONS = [
+  "Vegetables",
+  "Grocery",
+  "Cosmetics & Beauty",
+  "Others",
+];
+
 const SERVICE_TEMPLATE_OPTIONS_BY_SECTOR = {
   Transport: ["Cab", "Car Rental", "Bike Rental", "Courier", "Logistics", "Travel Agency"],
   "Stay & Dining": ["Hotel", "Homestay", "Restaurant", "Cafe", "Banquet"],
@@ -58,11 +65,22 @@ const SERVICE_TEMPLATE_OPTIONS_BY_SECTOR = {
   "Other Services": ["Doctor Clinic", "Diagnostic Center", "Education", "Fitness", "Legal", "Accounting", "Photography", "Internet Service", "Other Service"],
 };
 
+const SHOP_TEMPLATE_OPTIONS_BY_SECTOR = {
+  Vegetables: ["Fresh Vegetable", "Leafy Greens", "Seasonal Produce", "Root Vegetables"],
+  Grocery: ["Kirana Essentials", "Rice & Dal", "Spices & Masala", "Oil & Pantry"],
+  "Cosmetics & Beauty": ["Skincare", "Makeup", "Hair Care", "Personal Care"],
+  Others: ["Household", "Stationery", "Fashion", "General Store"],
+};
+
 const ALL_SERVICE_TEMPLATE_OPTIONS = Array.from(
   new Set([
     ...SERVICE_CATEGORY_OPTIONS,
     ...Object.values(SERVICE_TEMPLATE_OPTIONS_BY_SECTOR).flat(),
   ])
+);
+
+const ALL_SHOP_TEMPLATE_OPTIONS = Array.from(
+  new Set(Object.values(SHOP_TEMPLATE_OPTIONS_BY_SECTOR).flat())
 );
 
 const DEFAULT_TERMS = [
@@ -84,7 +102,7 @@ export default function PartnerRegisterPage() {
     contact_person: "", phone: "", dob: "", email: "", password: "", whatsapp_no: "",
     address: "", city: "", state: "", pincode: "",
     gst_no: "", pan_no: "", aadhaar_no: "", upi_id: "", website: "", social_link: "",
-    business_description: "", commission_percent_ask: "", service_sector: "", service_category: "",
+    business_description: "", commission_percent_ask: "", service_sector: "", service_category: "", shop_sector: "", shop_category: "",
   });
   const [busy, setBusy] = useState(false);
   const [pincodeBusy, setPincodeBusy] = useState(false);
@@ -92,9 +110,13 @@ export default function PartnerRegisterPage() {
   const [done, setDone] = useState(null);
   const [termsOpen, setTermsOpen] = useState(false);
   const [agreedToTerms, setAgreedToTerms] = useState(false);
+  const isShop = form.business_type === "Shop";
   const isService = form.business_type === "Service";
   const suggestedServiceTemplates = isService
     ? (SERVICE_TEMPLATE_OPTIONS_BY_SECTOR[form.service_sector] || ALL_SERVICE_TEMPLATE_OPTIONS)
+    : [];
+  const suggestedShopTemplates = isShop
+    ? (SHOP_TEMPLATE_OPTIONS_BY_SECTOR[form.shop_sector] || ALL_SHOP_TEMPLATE_OPTIONS)
     : [];
 
   const upd = (k) => (e) => setForm({ ...form, [k]: e.target.value });
@@ -156,6 +178,9 @@ export default function PartnerRegisterPage() {
     if (isService && !String(form.service_sector || "").trim()) {
       return toast.error("Please select service sector");
     }
+    if (isShop && !String(form.shop_sector || "").trim()) {
+      return toast.error("Please select shop sector");
+    }
     setBusy(true);
     try {
       const payload = {
@@ -170,6 +195,10 @@ export default function PartnerRegisterPage() {
       if (!isService) {
         delete payload.service_sector;
         delete payload.service_category;
+      }
+      if (!isShop) {
+        delete payload.shop_sector;
+        delete payload.shop_category;
       }
       const { data } = await api.post("/partners/register", payload);
       setDone(data);
@@ -251,6 +280,8 @@ export default function PartnerRegisterPage() {
                       business_type: nextType,
                       service_sector: nextType === "Service" ? (prev.service_sector || "Other Services") : "",
                       service_category: nextType === "Service" ? (prev.service_category || "") : "",
+                      shop_sector: nextType === "Shop" ? (prev.shop_sector || "Others") : "",
+                      shop_category: nextType === "Shop" ? (prev.shop_category || "") : "",
                     }));
                   }}
                   className="mt-1.5 h-11 w-full rounded-md border border-input bg-white px-3 text-sm"
@@ -307,35 +338,66 @@ export default function PartnerRegisterPage() {
                   </div>
                 </div>
               ) : (
-                <div>
-                  <Label>PAN Number *</Label>
-                  <Input
-                    required
-                    value={form.pan_no}
-                    onChange={(e) => setForm((prev) => ({ ...prev, pan_no: String(e.target.value || "").toUpperCase() }))}
-                    placeholder="ABCDE1234F"
-                    maxLength={10}
-                    className="mt-1.5 h-11 font-mono uppercase"
-                    data-testid="reg-pan"
-                  />
-                  <p className="text-[11px] text-muted-foreground mt-1">PAN is mandatory and can be used for only one Shop or Service registration.</p>
+                <div className="space-y-3">
+                  <div>
+                    <Label>Primary Shop Sector *</Label>
+                    <select
+                      required={isShop}
+                      value={form.shop_sector || ""}
+                      onChange={upd("shop_sector")}
+                      className="mt-1.5 h-11 w-full rounded-md border border-input bg-white px-3 text-sm"
+                      data-testid="reg-shop-sector"
+                    >
+                      <option value="">Select shop sector</option>
+                      {SHOP_SECTOR_OPTIONS.map((sector) => (
+                        <option key={sector} value={sector}>{sector}</option>
+                      ))}
+                    </select>
+                  </div>
+                  <div>
+                    <Label>Shop Template / Category</Label>
+                    <Input
+                      list="shop-template-options"
+                      value={form.shop_category || ""}
+                      onChange={upd("shop_category")}
+                      placeholder="Select from template or type your own"
+                      className="mt-1.5 h-11"
+                      data-testid="reg-shop-category"
+                    />
+                    <datalist id="shop-template-options">
+                      {suggestedShopTemplates.map((category) => (
+                        <option key={category} value={category} />
+                      ))}
+                    </datalist>
+                    <p className="text-[11px] text-muted-foreground mt-1">Dropdown থেকে নিতে পারবেন, বা নিজে type করেও দিতে পারবেন।</p>
+                    <div className="mt-2 flex flex-wrap gap-1.5">
+                      {suggestedShopTemplates.slice(0, 8).map((template) => (
+                        <button
+                          key={template}
+                          type="button"
+                          onClick={() => setForm((prev) => ({ ...prev, shop_category: template }))}
+                          className="rounded-full border border-emerald-300 bg-emerald-50 px-2.5 py-1 text-[11px] font-semibold text-emerald-900 hover:bg-emerald-100"
+                        >
+                          {template}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
                 </div>
               )}
-              {isService ? (
-                <div>
-                  <Label>PAN Number *</Label>
-                  <Input
-                    required
-                    value={form.pan_no}
-                    onChange={(e) => setForm((prev) => ({ ...prev, pan_no: String(e.target.value || "").toUpperCase() }))}
-                    placeholder="ABCDE1234F"
-                    maxLength={10}
-                    className="mt-1.5 h-11 font-mono uppercase"
-                    data-testid="reg-pan"
-                  />
-                  <p className="text-[11px] text-muted-foreground mt-1">PAN is mandatory and can be used for only one Shop or Service registration.</p>
-                </div>
-              ) : null}
+              <div>
+                <Label>PAN Number *</Label>
+                <Input
+                  required
+                  value={form.pan_no}
+                  onChange={(e) => setForm((prev) => ({ ...prev, pan_no: String(e.target.value || "").toUpperCase() }))}
+                  placeholder="ABCDE1234F"
+                  maxLength={10}
+                  className="mt-1.5 h-11 font-mono uppercase"
+                  data-testid="reg-pan"
+                />
+                <p className="text-[11px] text-muted-foreground mt-1">PAN is mandatory and can be used for only one Shop or Service registration.</p>
+              </div>
               <div>
                 <Label>Aadhaar Number *</Label>
                 <Input

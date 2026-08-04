@@ -78,20 +78,24 @@ def _normalize_partner_sector(value: str) -> str:
 
 def _compose_partner_description(payload: dict, sector: str) -> str:
     base = str(payload.get("business_description", "") or "").strip()
-    if sector != "Service":
-        return base
+    if sector == "Service":
+        primary_sector = str(payload.get("service_sector") or "").strip()
+        template_category = str(payload.get("service_category") or "").strip()
+        meta_prefix = "[Service Registration Meta]"
+    else:
+        primary_sector = str(payload.get("shop_sector") or "").strip()
+        template_category = str(payload.get("shop_category") or "").strip()
+        meta_prefix = "[Shop Registration Meta]"
 
-    service_sector = str(payload.get("service_sector") or "").strip()
-    service_category = str(payload.get("service_category") or "").strip()
     meta_parts = []
-    if service_sector:
-        meta_parts.append(f"Primary Sector: {service_sector}")
-    if service_category:
-        meta_parts.append(f"Template/Category: {service_category}")
+    if primary_sector:
+        meta_parts.append(f"Primary Sector: {primary_sector}")
+    if template_category:
+        meta_parts.append(f"Template/Category: {template_category}")
     if not meta_parts:
         return base
 
-    meta_line = "[Service Registration Meta] " + " | ".join(meta_parts)
+    meta_line = meta_prefix + " " + " | ".join(meta_parts)
     if not base:
         return meta_line
     if meta_line in base:

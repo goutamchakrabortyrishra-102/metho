@@ -2,7 +2,7 @@ import json
 from urllib import parse as urlparse
 from urllib import request as urlrequest
 
-from sqlalchemy import func
+from sqlalchemy import func, or_
 from sqlalchemy.orm import Session
 from fastapi import APIRouter, Depends, HTTPException
 
@@ -12,6 +12,12 @@ from ..models import AppSetting, AssociatePartner, PartnerProduct
 router = APIRouter(prefix="/api", tags=["directory"])
 PARTNER_PRODUCT_UNITS_KEY = "partner_product_units"
 PARTNER_PRODUCT_META_KEY = "partner_product_meta"
+SHOP_SECTOR_KEYWORDS = {
+    "vegetables": ["vegetable", "vegetables", "veg", "sabji"],
+    "grocery": ["grocery", "groceries", "kirana", "rice", "dal", "atta", "masala", "oil"],
+    "cosmetics-beauty": ["cosmetic", "cosmetics", "beauty", "makeup", "skincare", "personal care"],
+    "others": ["electronics", "hardware", "stationery", "household", "fashion", "general"],
+}
 
 
 def _load_partner_product_units(db: Session) -> dict[str, dict]:
@@ -121,6 +127,7 @@ def partner_directory(
     pincode: str | None = None,
     business_type: str | None = None,
     category: str | None = None,
+    shop_sector: str | None = None,
     q: str | None = None,
     db: Session = Depends(get_db),
 ):
@@ -152,6 +159,30 @@ def partner_directory(
             query = query.filter(AssociatePartner.id.in_(partner_ids))
         else:
             return []
+
+    normalized_shop_sector = str(shop_sector or "").strip().lower()
+    if normalized_shop_sector:
+        keywords = SHOP_SECTOR_KEYWORDS.get(normalized_shop_sector, [])
+        if keywords:
+            keyword_filters = []
+            for kw in keywords:
+                like_kw = f"%{kw}%"
+                keyword_filters.extend([
+                    PartnerProduct.name.ilike(like_kw),
+                    PartnerProduct.category.ilike(like_kw),
+                    PartnerProduct.description.ilike(like_kw),
+                ])
+            partner_ids = [
+                row[0]
+                for row in db.query(PartnerProduct.partner_id)
+                .filter(PartnerProduct.active.is_(True), or_(*keyword_filters))
+                .distinct()
+                .all()
+            ]
+            if partner_ids:
+                query = query.filter(AssociatePartner.id.in_(partner_ids))
+            else:
+                return []
 
     rows = query.order_by(AssociatePartner.is_featured.desc(), AssociatePartner.business_name.asc()).all()
     return [_partner_to_dict(p) for p in rows]
