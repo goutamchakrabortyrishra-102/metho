@@ -957,7 +957,7 @@ export default function PartnerGalleryPage() {
         isGuest={!user}
         memberRef={guestMemberRef}
         onMemberRefChange={setGuestMemberRef}
-        onOrderPlaced={() => { setCheckoutOpen(false); setCart({}); setGuestMemberRef(""); }}
+        onOrderPlaced={() => { setCheckoutOpen(false); setGuestMemberRef(""); }}
       />
     </div>
   );

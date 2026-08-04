@@ -1641,7 +1641,6 @@ export default function PartnerShopPage() {
         memberRef={guestMemberRef}
         onMemberRefChange={setGuestMemberRef}
         onOrderPlaced={() => {
-          setCart({});
           setGuestMemberRef("");
           setOpen(false);
           toast.success("Order placed successfully");
