@@ -341,7 +341,19 @@ export default function PartnerShopPage() {
       ? "stay-dining"
       : (canShowDoorstep ? "doorstep" : (canShowOtherServices ? "other-services" : "products")));
   const featuredImages = useMemo(() => normalizeFeaturedImages(data?.featured_images), [data?.featured_images]);
-  const hasAnyFeaturedImage = useMemo(() => featuredImages.some(Boolean), [featuredImages]);
+  const featuredProductFallbacks = useMemo(() => {
+    const list = [];
+    for (const item of productListings) {
+      const src = getProductImageUrl(item) || resolveAssetUrl(item?.fallback_image_url || "");
+      if (src && !list.includes(src)) list.push(src);
+      if (list.length >= 5) break;
+    }
+    return list;
+  }, [productListings]);
+  const featuredDisplayImages = useMemo(() => {
+    return [0, 1, 2, 3, 4].map((slot) => featuredImages[slot] || featuredProductFallbacks[slot] || "");
+  }, [featuredImages, featuredProductFallbacks]);
+  const hasAnyFeaturedImage = useMemo(() => featuredDisplayImages.some(Boolean), [featuredDisplayImages]);
   const getStock = (product) => Math.max(0, Number(product?.stock ?? 0));
   const isBookNowRole = !user || ["member", "customer"].includes(String(user?.role || "").toLowerCase());
   const canAccessProductPdf = ["partner", "admin", "super_admin", "company_admin"].includes(String(user?.role || "").toLowerCase());
@@ -685,7 +697,7 @@ export default function PartnerShopPage() {
             </div>
             <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
               {[0, 1, 2, 3, 4].map((slot) => {
-                const imageSrc = featuredImages[slot] || "";
+                const imageSrc = featuredDisplayImages[slot] || "";
                 return (
                 <div key={`best-product-${slot}`} className="aspect-square rounded-lg overflow-hidden border border-border bg-slate-100 relative">
                   {imageSrc ? (
@@ -696,7 +708,7 @@ export default function PartnerShopPage() {
                       onError={(e) => {
                         applyImageFallback(
                           e,
-                          "",
+                          featuredProductFallbacks[slot] || heroBannerSrc || p?.logo_url || "",
                           placeholder || PRODUCT_FALLBACK
                         );
                       }}
