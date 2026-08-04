@@ -1906,6 +1906,71 @@ def _save_company_commission_wallet(db: Session, wallet: dict) -> dict:
     return normalized
 
 
+def _auto_approve_pending_orders_for_partner(db: Session, partner_id: str, source_note: str = "") -> dict:
+    pid = str(partner_id or "").strip()
+    if not pid:
+        return {"attempted": 0, "approved": 0, "approved_order_ids": [], "skipped": []}
+
+    partner_product_ids = {
+        str(row[0])
+        for row in db.query(PartnerProduct.id).filter(PartnerProduct.partner_id == pid).all()
+        if row and row[0]
+    }
+    if not partner_product_ids:
+        return {"attempted": 0, "approved": 0, "approved_order_ids": [], "skipped": []}
+
+    rows = (
+        db.query(PublicOrder)
+        .filter(PublicOrder.status == "pending_approval")
+        .order_by(PublicOrder.created_at.asc())
+        .limit(500)
+        .all()
+    )
+
+    attempted = 0
+    approved_ids: list[str] = []
+    skipped: list[dict] = []
+    note = source_note.strip() or "partner wallet credit"
+
+    for row in rows:
+        try:
+            items = json.loads(row.items_json or "[]")
+        except Exception:
+            items = []
+        if not isinstance(items, list) or not items:
+            continue
+
+        has_partner_item = False
+        for item in items:
+            product_id = str((item or {}).get("product_id") or "").strip()
+            if product_id in partner_product_ids:
+                has_partner_item = True
+                break
+        if not has_partner_item:
+            continue
+
+        attempted += 1
+        try:
+            admin_approve_order(
+                order_id=row.id,
+                payload={"note": f"Auto-approved after {note}"},
+                db=db,
+                current_user=SimpleNamespace(role="super_admin"),
+            )
+            approved_ids.append(str(row.id))
+        except HTTPException as exc:
+            skipped.append({"order_id": str(row.id), "reason": str(exc.detail or "approval blocked")})
+        except Exception:
+            skipped.append({"order_id": str(row.id), "reason": "approval blocked"})
+
+    return {
+        "attempted": attempted,
+        "approved": len(approved_ids),
+        "approved_order_ids": approved_ids,
+        "skipped": skipped[:20],
+    }
+
+
 def _load_user_payout_details(db: Session, user_id: str, request: Request | None = None) -> dict:
     row = db.query(AppSetting).filter(AppSetting.key == _user_payout_key(user_id)).first()
     if not row:
@@ -2696,7 +2761,8 @@ def _invoice_payload(db: Session, order_id: str, current_user: User):
     if not (is_admin or is_buyer or is_partner_order):
         raise HTTPException(status_code=403, detail="Not allowed")
 
-    if str(row.status or "") != "paid":
+    status_norm = str(row.status or "").strip().lower()
+    if status_norm not in {"paid", "approved"}:
         raise HTTPException(status_code=400, detail="Invoice is available only after admin approval")
 
     settings = load_settings(db)
@@ -4091,7 +4157,8 @@ def partner_wallet_topup_razorpay_verify_and_credit(payload: dict, db: Session =
     row.updated_at = datetime.now(timezone.utc)
     db.commit()
 
-    return {"ok": True, "request": doc, "wallet": wallet}
+    auto = _auto_approve_pending_orders_for_partner(db, partner.id, "razorpay top-up")
+    return {"ok": True, "request": doc, "wallet": wallet, "auto_approval": auto}
 
 
 @router.get("/admin/partner-wallet/topup-requests")
@@ -4146,7 +4213,9 @@ def admin_approve_partner_topup(request_id: str, payload: dict | None = None, db
     row.value_json = json.dumps(doc)
     row.updated_at = datetime.now(timezone.utc)
     db.commit()
-    return {"ok": True, "request": doc, "wallet": wallet}
+
+    auto = _auto_approve_pending_orders_for_partner(db, partner_id, "admin top-up approval")
+    return {"ok": True, "request": doc, "wallet": wallet, "auto_approval": auto}
 
 
 @router.post("/admin/partner-wallet/topup-requests/{request_id}/reject")
