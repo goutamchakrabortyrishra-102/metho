@@ -3861,6 +3861,36 @@ async def partner_upload_featured_image(slot: int, file: UploadFile = File(...),
     }
 
 
+@router.put("/partner/featured-images")
+def partner_save_featured_images(payload: dict, db: Session = Depends(get_db), current_user=Depends(get_current_user)):
+    if getattr(current_user, "role", "") != "partner":
+        raise HTTPException(status_code=403, detail="Partner access only")
+    partner = _resolve_partner_for_user(db, current_user)
+    if not partner:
+        raise HTTPException(status_code=404, detail="Partner profile not found")
+
+    raw_items = payload.get("items") if isinstance(payload, dict) else []
+    items = ["", "", "", "", ""]
+    if isinstance(raw_items, list):
+        for idx in range(min(5, len(raw_items))):
+            items[idx] = str(raw_items[idx] or "").strip()
+
+    doc = {"items": items, "updated_at": now_iso()}
+    row = db.query(AppSetting).filter(AppSetting.key == _partner_featured_images_key(partner.id)).first()
+    if not row:
+        db.add(AppSetting(key=_partner_featured_images_key(partner.id), value_json=json.dumps(doc), updated_at=datetime.now(timezone.utc)))
+    else:
+        row.value_json = json.dumps(doc)
+        row.updated_at = datetime.now(timezone.utc)
+    db.commit()
+
+    return {
+        "partner_id": partner.id,
+        "partner_code": partner.partner_code,
+        "items": items,
+    }
+
+
 @router.post("/partner/wallet/topup-request")
 def partner_wallet_topup_request(payload: dict, db: Session = Depends(get_db), current_user=Depends(get_current_user)):
     if getattr(current_user, "role", "") != "partner":

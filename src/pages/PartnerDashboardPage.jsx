@@ -189,7 +189,9 @@ export default function PartnerDashboardPage() {
   const [uploadingPaymentQr, setUploadingPaymentQr] = useState(false);
   const [uploadingBanner, setUploadingBanner] = useState(false);
   const [featuredImages, setFeaturedImages] = useState([]);
+  const [savedFeaturedImages, setSavedFeaturedImages] = useState(["", "", "", "", ""]);
   const [uploadingFeatured, setUploadingFeatured] = useState({});
+  const [savingFeaturedImages, setSavingFeaturedImages] = useState(false);
   const [sendingTopup, setSendingTopup] = useState(false);
   const [sendingRazorpay, setSendingRazorpay] = useState(false);
   const [shopBannerUrl, setShopBannerUrl] = useState("");
@@ -218,6 +220,9 @@ export default function PartnerDashboardPage() {
     .filter(Boolean)
     .slice(0, 5);
   const featuredDashboardImages = [0, 1, 2, 3, 4].map((slot) => featuredImages[slot] || featuredProductFallbacks[slot] || "");
+  const featuredDraftSnapshot = JSON.stringify(normalizeFeaturedImages({ items: featuredImages }));
+  const featuredSavedSnapshot = JSON.stringify(normalizeFeaturedImages({ items: savedFeaturedImages }));
+  const hasUnsavedFeaturedChanges = featuredDraftSnapshot !== featuredSavedSnapshot;
   const primarySector = inferPartnerPrimarySector({
     businessType: summary?.business_type,
     counts: {
@@ -254,6 +259,7 @@ export default function PartnerDashboardPage() {
     api.get("/partner/featured-images").then(r => {
       const normalized = normalizeFeaturedImages(r.data);
       setFeaturedImages(normalized);
+      setSavedFeaturedImages(normalized);
     }).catch(() => {
       // Keep current UI state if reload fails; avoid wiping freshly uploaded previews.
     });
@@ -661,9 +667,14 @@ export default function PartnerDashboardPage() {
       const hasAnyImage = normalized.some(Boolean);
       if (hasAnyImage) {
         setFeaturedImages(normalized);
+        setSavedFeaturedImages(normalized);
       } else {
         const directUrl = data?.url || data?.image_url || data?.file_url || data?.path || "";
-        setFeaturedImages((prev) => mergeFeaturedBySlot(prev, slot, directUrl));
+        setFeaturedImages((prev) => {
+          const next = mergeFeaturedBySlot(prev, slot, directUrl);
+          setSavedFeaturedImages(next);
+          return next;
+        });
       }
       toast.success(`Featured image ${slot} uploaded`);
       loadAll();
@@ -671,6 +682,23 @@ export default function PartnerDashboardPage() {
       toast.error(err?.response?.data?.detail || "Featured image upload failed");
     } finally {
       setUploadingFeatured((prev) => ({ ...prev, [slot]: false }));
+    }
+  };
+
+  const saveFeaturedImages = async () => {
+    setSavingFeaturedImages(true);
+    try {
+      const items = normalizeFeaturedImages({ items: featuredImages });
+      const { data } = await api.put("/partner/featured-images", { items });
+      const normalized = normalizeFeaturedImages(data);
+      setFeaturedImages(normalized);
+      setSavedFeaturedImages(normalized);
+      toast.success("Featured images saved");
+      loadAll();
+    } catch (err) {
+      toast.error(err?.response?.data?.detail || "Featured images save failed");
+    } finally {
+      setSavingFeaturedImages(false);
     }
   };
 
@@ -833,7 +861,19 @@ export default function PartnerDashboardPage() {
                   <h3 className="font-display font-bold text-emerald-950 text-lg">Upload 5 partner images</h3>
                   <p className="text-xs text-slate-600 mt-1">Shop banner-এর পাশাপাশি partner নিজে 5টা image upload করতে পারবে. এগুলো shop page-এ highlight হবে.</p>
                 </div>
-                <p className="text-xs text-slate-500">Max 5 images, 200KB each</p>
+                <div className="flex items-center gap-2">
+                  <p className="text-xs text-slate-500">Max 5 images, 200KB each</p>
+                  <Button
+                    type="button"
+                    size="sm"
+                    onClick={saveFeaturedImages}
+                    disabled={savingFeaturedImages || !hasUnsavedFeaturedChanges}
+                    className="rounded-full bg-emerald-900 hover:bg-emerald-950 text-white"
+                    data-testid="save-featured-images"
+                  >
+                    {savingFeaturedImages ? "Saving..." : "Save Images"}
+                  </Button>
+                </div>
               </div>
               <div className="mt-4 grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-5 gap-3">
                 {[1, 2, 3, 4, 5].map((slot) => {
@@ -847,14 +887,6 @@ export default function PartnerDashboardPage() {
                             src={url}
                             alt={`Featured ${slot}`}
                             className="w-full h-full object-cover"
-                            onError={() => {
-                              setFeaturedImages((prev) => {
-                                const next = Array.isArray(prev) ? [...prev] : ["", "", "", "", ""];
-                                while (next.length < 5) next.push("");
-                                next[slot - 1] = "";
-                                return next;
-                              });
-                            }}
                           />
                         ) : (
                           <Images className="w-8 h-8 text-slate-300" />
@@ -869,6 +901,7 @@ export default function PartnerDashboardPage() {
                 })}
               </div>
               <p className="mt-3 text-[11px] text-slate-500">Custom featured image না দিলে product listing-এর প্রথম 5টা image auto দেখাবে।</p>
+              {hasUnsavedFeaturedChanges ? <p className="mt-1 text-[11px] text-amber-700">You have unsaved featured image changes.</p> : null}
             </div>
 
             <div className="mt-6 rounded-xl border border-amber-300 bg-amber-50 p-4">

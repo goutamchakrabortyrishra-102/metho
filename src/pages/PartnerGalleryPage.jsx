@@ -755,29 +755,27 @@ export default function PartnerGalleryPage() {
           <div className="text-right">
             <p className="text-[10px] text-amber-400 uppercase font-bold">{activeTab === "transport" ? "Transport" : (activeTab === "stay-dining" ? "Stay & Dining" : (activeTab === "doorstep" ? "Doorstep" : (activeTab === "other-services" ? "Other Services" : "Products")))}</p>
             <p className="font-display font-black text-3xl">{activeListings.length}</p>
-                    <div className="mt-1.5 flex items-center justify-between">
-                      <span className="font-display font-black text-base text-emerald-950">₹{p.price}</span>
-                    </div>
-                    {outOfStock ? (
-                      <Button disabled className="w-full mt-2 rounded-full h-9">Out of Stock</Button>
-                    ) : (
-                      <Button
-                        type="button"
-                        onClick={e => {
-                          e.stopPropagation();
-                          if (isService) {
-                            handleBookNow(p);
-                            return;
-                          }
-                          addToCart(p.id);
-                          toast.success(`${p.name} ${isService ? "booked" : "added"}`);
-                        }}
-                        className={`w-full mt-2 rounded-full h-9 text-white ${isTransport ? "bg-sky-700 hover:bg-sky-800" : "bg-emerald-900 hover:bg-emerald-950"}`}
-                        data-testid={`quick-add-${p.id}`}
-                      >
-                        {isService ? "Book Now" : (qty > 0 ? `Add More (${formatQtyWithUnit(qty, p)})` : "Add to Cart")}
-                      </Button>
-                    )}
+          </div>
+        </div>
+      </div>
+
+      {/* Toolbar */}
+      <div className="max-w-4xl mx-auto px-4 py-4 flex flex-wrap items-center justify-between gap-3">
+        <p className="text-sm text-slate-600 font-body">
+          {activeTab === "transport"
+            ? "Tap the image to view details and start ride booking"
+            : ((activeTab === "stay-dining" || activeTab === "doorstep" || activeTab === "other-services") ? "Tap the image to view details and book the service" : "Tap the image to view details and add to cart")}
+        </p>
+        <div className="flex flex-wrap gap-2 w-full sm:w-auto">
+          {allowedTabs.includes("products") ? (
+          <Link to={`/gallery/${partnerCode}?tab=products${gallerySearch ? `&q=${encodeURIComponent(gallerySearch)}` : ""}`}>
+            <Button variant={activeTab === "products" ? "default" : "outline"} size="sm" className={`rounded-full text-xs ${activeTab === "products" ? "bg-emerald-900 hover:bg-emerald-950 text-white" : "border-emerald-300 text-emerald-900 hover:bg-emerald-50"}`}>
+              Products
+            </Button>
+          </Link>
+          ) : null}
+          {allowedTabs.includes("transport") ? (
+          <Link to={`/gallery/${partnerCode}?tab=transport${gallerySearch ? `&q=${encodeURIComponent(gallerySearch)}` : ""}`}>
             <Button variant={activeTab === "transport" ? "default" : "outline"} size="sm" className={`rounded-full text-xs ${activeTab === "transport" ? "bg-sky-700 hover:bg-sky-800 text-white" : "border-sky-300 text-sky-900 hover:bg-sky-50"}`}>
               Transport
             </Button>
@@ -887,7 +885,7 @@ export default function PartnerGalleryPage() {
                     )}
                     {qty > 0 && (
                       <div className="absolute top-2 right-2 w-6 h-6 rounded-full bg-emerald-600 text-white flex items-center justify-center text-xs font-black shadow">
-                        {qty}
+                        {formatQty(qty)}
                       </div>
                     )}
                   </div>
@@ -897,26 +895,69 @@ export default function PartnerGalleryPage() {
                     <p className="font-display font-bold text-emerald-950 text-sm line-clamp-1 mt-0.5">{p.name}</p>
                     <div className="mt-1.5 flex items-center justify-between">
                       <span className="font-display font-black text-base text-emerald-950">₹{p.price}</span>
-                      {/* Quick add button */}
-                      {!outOfStock && (
-                        <button
-                          onClick={e => {
-                            e.stopPropagation();
-                            if (isService) {
-                              handleBookNow(p);
-                              return;
-                            }
-                            addToCart(p.id);
-                            toast.success(`${p.name} ${isService ? "booked" : "added"}`);
-                          }}
-                          className={`w-7 h-7 rounded-full text-white flex items-center justify-center shrink-0 ${isTransport ? "bg-sky-700 hover:bg-sky-800" : "bg-emerald-900 hover:bg-emerald-950"}`}
-                          data-testid={`quick-add-${p.id}`}
-                          title={isTransport ? "Book Ride" : undefined}
-                        >
-                          {isService ? <CalendarCheck2 className="w-3.5 h-3.5" /> : <Plus className="w-3.5 h-3.5" />}
-                        </button>
-                      )}
                     </div>
+                    {outOfStock ? (
+                      <Button disabled className="w-full mt-2 rounded-full h-9">Out of Stock</Button>
+                    ) : isService ? (
+                      <Button
+                        type="button"
+                        onClick={e => {
+                          e.stopPropagation();
+                          handleBookNow(p);
+                        }}
+                        className={`w-full mt-2 rounded-full h-9 text-white ${isTransport ? "bg-sky-700 hover:bg-sky-800" : "bg-emerald-900 hover:bg-emerald-950"}`}
+                        data-testid={`quick-add-${p.id}`}
+                      >
+                        Book Now
+                      </Button>
+                    ) : qty > 0 ? (
+                      <div
+                        className="mt-2 flex items-center justify-between bg-emerald-50 rounded-full px-2 py-1"
+                        onClick={(e) => e.stopPropagation()}
+                        data-testid={`quick-stepper-${p.id}`}
+                      >
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            decCart(p.id);
+                          }}
+                          className="w-8 h-8 rounded-full bg-white flex items-center justify-center hover:bg-emerald-100"
+                          data-testid={`quick-dec-${p.id}`}
+                          aria-label={`Decrease ${p.name}`}
+                        >
+                          <Minus className="w-4 h-4" />
+                        </button>
+                        <span className="font-bold text-emerald-950 text-sm" data-testid={`quick-qty-${p.id}`}>
+                          {formatQtyWithUnit(qty, p)}
+                        </span>
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            addToCart(p.id);
+                          }}
+                          className="w-8 h-8 rounded-full bg-white flex items-center justify-center hover:bg-emerald-100"
+                          data-testid={`quick-inc-${p.id}`}
+                          aria-label={`Increase ${p.name}`}
+                        >
+                          <Plus className="w-4 h-4" />
+                        </button>
+                      </div>
+                    ) : (
+                      <Button
+                        type="button"
+                        onClick={e => {
+                          e.stopPropagation();
+                          addToCart(p.id);
+                          toast.success(`${p.name} added`);
+                        }}
+                        className={`w-full mt-2 rounded-full h-9 text-white ${isTransport ? "bg-sky-700 hover:bg-sky-800" : "bg-emerald-900 hover:bg-emerald-950"}`}
+                        data-testid={`quick-add-${p.id}`}
+                      >
+                        Add to Cart
+                      </Button>
+                    )}
                   </div>
                 </div>
               );
