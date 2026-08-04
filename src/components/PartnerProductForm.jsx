@@ -668,17 +668,6 @@ export default function PartnerProductForm({
       if (localPreviewUrl) URL.revokeObjectURL(localPreviewUrl);
       setLocalPreviewUrl(preview);
 
-      const imageFd = new FormData();
-      imageFd.append("file", file);
-      const imageRes = await api.post("/partner/upload/product-image", imageFd, {
-        headers: { "Content-Type": "multipart/form-data" },
-      });
-      const imageData = imageRes?.data || {};
-      const imageUrl = resolveImageUrl(imageData?.url || imageData?.image_url || "");
-      if (!imageUrl) {
-        throw new Error("Image upload response missing url");
-      }
-
       const pdfBlob = await imageToPdfBlob(file);
       const pdfFile = new File([pdfBlob], `${Date.now()}-catalog.pdf`, { type: "application/pdf" });
 
@@ -702,11 +691,11 @@ export default function PartnerProductForm({
       const pdfUrl = resolveImageUrl(data?.pdf_url || data?.url || data?.file_url || data?.link || "");
       setForm((prev) => ({
         ...prev,
-        // Persist only server-hosted links to keep payload/DB lightweight.
-        image_url: imageUrl,
+        // Persist only PDF link for all listing types to keep gallery storage minimal.
+        image_url: "",
         pdf_url: pdfUrl || prev.pdf_url || "",
       }));
-      if (pdfUrl) toast.success("Image uploaded and auto-converted to PDF");
+      if (pdfUrl) toast.success("Image converted and PDF link saved");
       else toast.success("Image uploaded. PDF link was not returned by server.");
     } catch (err) {
       toast.error(err?.response?.data?.detail || err?.message || "Image/PDF upload failed.");
@@ -720,8 +709,8 @@ export default function PartnerProductForm({
     e.preventDefault();
     const listingType = hasFixedListingType ? forcedListingType : form.listing_type;
     const isService = listingType === "service";
-    if (!isService && !String(form.image_url || "").trim()) {
-      toast.error("Listing image required. Please upload image first.");
+    if (!isService && !String(form.image_url || "").trim() && !String(form.pdf_url || "").trim()) {
+      toast.error("Listing PDF required. Please upload image to auto-generate PDF link first.");
       return;
     }
     setBusy(true);
@@ -870,7 +859,7 @@ export default function PartnerProductForm({
                 {uploadingImage ? (
                   <><Loader2 className="w-4 h-4 mr-2 animate-spin" /> Uploading...</>
                 ) : (
-                  <><Upload className="w-4 h-4 mr-2" /> {product?.id ? "Change Image (saved as PDF)" : "Image Upload (saved as PDF)"}</>
+                  <><Upload className="w-4 h-4 mr-2" /> {product?.id ? "Change Image (PDF link only)" : "Image Upload (PDF link only)"}</>
                 )}
               </Button>
               {localPreviewUrl || form.image_url || form.pdf_url ? (
@@ -903,12 +892,12 @@ export default function PartnerProductForm({
                 </div>
               )}
             </div>
-            <p className="text-[11px] text-muted-foreground mt-1">JPG/PNG/WebP/GIF/SVG, max 5MB. Product listing-এ image recommended; service listing-এ image optional.</p>
+            <p className="text-[11px] text-muted-foreground mt-1">JPG/PNG/WebP/GIF/SVG, max 5MB. Upload থেকে শুধু PDF link server-এ save হবে; raw image file listing payload-এ রাখা হবে না.</p>
             {form.pdf_url ? (
               <p className="text-[11px] text-emerald-700 mt-1 break-all">PDF: {form.pdf_url}</p>
             ) : null}
             {product?.id ? (
-              <p className="text-[11px] text-emerald-700 mt-1">If you upload a new image, it will be saved as a PDF link.</p>
+              <p className="text-[11px] text-emerald-700 mt-1">If you upload a new image, only the regenerated PDF link will be saved.</p>
             ) : null}
           </div>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
