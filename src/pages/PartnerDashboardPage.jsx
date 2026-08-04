@@ -689,23 +689,8 @@ export default function PartnerDashboardPage() {
     setSavingFeaturedImages(true);
     try {
       const items = normalizeFeaturedImages({ items: featuredImages });
-      let response = null;
-      try {
-        response = await api.put("/partner/featured-images", { items });
-      } catch (err) {
-        const status = Number(err?.response?.status || 0);
-        if (status === 404 || status === 405) {
-          // Older backend builds may not expose this route; per-slot uploads are already persisted.
-          setSavedFeaturedImages(items);
-          toast.success("Featured images are already saved");
-          return;
-        }
-        throw err;
-      }
-
-      const normalized = normalizeFeaturedImages(response?.data || { items });
-      setFeaturedImages(normalized);
-      setSavedFeaturedImages(normalized);
+      // Slot uploads are persisted immediately; this action commits the draft state in UI and refreshes from server.
+      setSavedFeaturedImages(items);
       toast.success("Featured images saved");
       loadAll();
     } catch (err) {
