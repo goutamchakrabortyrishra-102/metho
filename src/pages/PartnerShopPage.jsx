@@ -328,6 +328,7 @@ export default function PartnerShopPage() {
   }, [user]);
 
   const p = data?.partner;
+  const heroBannerSrc = data?.partner?.banner_url || "";
   const products = useMemo(() => data?.products || [], [data?.products]);
   const productListings = useMemo(() => products.filter((item) => !isServiceListing(item)), [products]);
   const serviceListings = useMemo(() => products.filter((item) => isServiceListing(item)), [products]);
@@ -449,7 +450,6 @@ export default function PartnerShopPage() {
       return haystack.includes(q);
     });
   }, [data?.partner?.business_name, transportListings, transportSearch]);
-  const heroBannerSrc = data?.partner?.banner_url || "";
   const hasHospitalityListings = hospitalityListings.length > 0;
   const hasDoorstepListings = doorstepListings.length > 0;
   const hasServiceListings = regularServiceListings.length > 0;
