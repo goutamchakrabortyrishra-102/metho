@@ -227,6 +227,7 @@ export default function PartnerDashboardPage() {
   const hasUnsavedFeaturedChanges = featuredDraftSnapshot !== featuredSavedSnapshot;
   const primarySector = inferPartnerPrimarySector({
     businessType: summary?.business_type,
+    businessName: summary?.business_name,
     counts: {
       products: productItems.length,
       transport: transportItems.length,
@@ -1814,64 +1815,10 @@ export default function PartnerDashboardPage() {
                   <div key={o.id} className="border border-border rounded-lg p-4 flex flex-wrap justify-between gap-3" data-testid={`partner-order-${o.id}`}>
                     <div>
                       <p className="font-mono text-xs text-emerald-800">{o.order_no}</p>
-                      <p className="text-xs text-muted-foreground">{new Date(o.created_at).toLocaleString()}</p>
-                      <div className="mt-2 space-y-1">
-                        {o.my_items?.map((it, i) => (
-                          <p key={i} className="text-sm">• {it.product_name} × {it.quantity} = ₹{it.subtotal}</p>
-                        ))}
-                      </div>
+                      <p className="text-xs text-muted-foreground">Status: {String(o?.status || "pending_approval").toUpperCase()}</p>
                     </div>
                     <div className="text-right">
-                      <p className="text-[10px] uppercase text-slate-500 font-bold">Your Commission</p>
-                      <p className="font-display font-black text-2xl text-emerald-800">{inr(o.my_commission)}</p>
-                      <p className="text-[10px] text-slate-500">Sales: {inr(o.my_sales)} · Status: <b className="uppercase">{o.status}</b></p>
-                      {o.invoice_available ? (
-                        <Link to={`/invoice/${o.id}`} target="_blank" className="inline-flex items-center gap-1 text-xs text-emerald-800 hover:underline mt-1">
-                          <FileText className="w-3 h-3" /> View Online Invoice
-                        </Link>
-                      ) : (
-                        <p className="text-[11px] text-amber-700 mt-1">{o?.invoice_locked_reason || "Invoice unlock হবে order paid/approved হলে। METHO item invoice admin থেকে manage হবে।"}</p>
-                      )}
-                      {o?.blocked_by_wallet_reserve ? (
-                        <p className="text-[11px] text-red-700 mt-1">Reserve required: {inr(o?.commission_reserve_required || 0)} · Wallet: {inr(o?.wallet_balance_snapshot || 0)}</p>
-                      ) : null}
-                      {o?.can_service_rate_edit ? (
-                        <div className="mt-3 rounded-lg border border-sky-200 bg-sky-50 p-3 text-left" data-testid={`partner-service-fare-${o.id}`}>
-                          <p className="text-[10px] uppercase tracking-widest text-sky-700 font-semibold">Service Fare Control</p>
-                          <p className="text-[11px] text-slate-700 mt-1">Transport-এর মতো: প্রথমে final fare set করুন, তারপর confirm করলে fare lock + commission debit হবে।</p>
-                          <div className="mt-2 flex flex-col sm:flex-row gap-2">
-                            <Input
-                              type="number"
-                              min="1"
-                              step="0.01"
-                              placeholder={`Current: ₹${Number(o?.my_sales || 0).toFixed(2)}`}
-                              value={serviceFareDrafts?.[o.id] ?? ""}
-                              onChange={(e) => setServiceFareDrafts((prev) => ({ ...prev, [o.id]: e.target.value }))}
-                              className="h-9"
-                            />
-                            <Button
-                              type="button"
-                              variant="outline"
-                              className="rounded-full border-sky-300 text-sky-900 hover:bg-sky-100"
-                              onClick={() => updateServiceFinalFare(o.id)}
-                              disabled={!!serviceActionBusy?.[o.id]?.updating || !!serviceActionBusy?.[o.id]?.confirming}
-                            >
-                              {serviceActionBusy?.[o.id]?.updating ? "Updating..." : "Update Final Fare"}
-                            </Button>
-                            <Button
-                              type="button"
-                              className="rounded-full bg-emerald-900 hover:bg-emerald-950 text-white"
-                              onClick={() => confirmServiceBooking(o.id)}
-                              disabled={!!serviceActionBusy?.[o.id]?.updating || !!serviceActionBusy?.[o.id]?.confirming}
-                            >
-                              {serviceActionBusy?.[o.id]?.confirming ? "Confirming..." : "Confirm + Lock Fare"}
-                            </Button>
-                          </div>
-                        </div>
-                      ) : null}
-                      {o?.service_rate_locked ? (
-                        <p className="text-[11px] text-emerald-700 mt-2">Service fare locked. এই booking-এ আর rate edit করা যাবে না।</p>
-                      ) : null}
+                      <p className="text-[11px] text-amber-700 mt-1">Order details, invoice, এবং commission partner view-এ disabled।</p>
                     </div>
                   </div>
                 ))}

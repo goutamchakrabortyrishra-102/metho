@@ -18,8 +18,31 @@ const toCount = (value) => {
 
 const normalizeBusinessType = (value) => String(value || "").trim().toLowerCase();
 
-export const inferPartnerPrimarySector = ({ businessType, counts }) => {
+const includesAny = (text, keywords) => keywords.some((k) => text.includes(k));
+
+const TRANSPORT_HINTS = [
+  "transport",
+  "cab",
+  "taxi",
+  "car",
+  "car service",
+  "car rental",
+  "bike rental",
+  "bike",
+  "vehicle",
+  "logistics",
+  "cargo",
+  "ride",
+  "auto",
+];
+
+const HOSPITALITY_HINTS = ["hotel", "homestay", "restaurant", "cafe", "banquet", "stay", "dining"];
+const DOORSTEP_HINTS = ["doorstep", "home service", "cleaning", "laundry", "plumbing", "electrician", "repair"];
+
+export const inferPartnerPrimarySector = ({ businessType, businessName, counts }) => {
   const normalizedType = normalizeBusinessType(businessType);
+  const normalizedName = normalizeBusinessType(businessName);
+  const identity = `${normalizedType} ${normalizedName}`.trim();
   const productCount = toCount(counts?.products);
   const transportCount = toCount(counts?.transport);
   const hospitalityCount = toCount(counts?.hospitality);
@@ -30,15 +53,21 @@ export const inferPartnerPrimarySector = ({ businessType, counts }) => {
     return PRODUCT_SECTOR;
   }
 
+  const looksLikeTransport = includesAny(identity, TRANSPORT_HINTS);
+  const looksLikeHospitality = includesAny(identity, HOSPITALITY_HINTS);
+  const looksLikeDoorstep = includesAny(identity, DOORSTEP_HINTS);
+
   const looksLikeServicePartner =
     normalizedType.includes("service") ||
-    normalizedType.includes("transport") ||
-    normalizedType.includes("hotel") ||
-    normalizedType.includes("homestay") ||
-    normalizedType.includes("restaurant") ||
-    normalizedType.includes("doorstep");
+    looksLikeTransport ||
+    looksLikeHospitality ||
+    looksLikeDoorstep;
 
   if (looksLikeServicePartner) {
+    if (looksLikeTransport && transportCount <= 0) return TRANSPORT_SECTOR;
+    if (looksLikeHospitality && hospitalityCount <= 0) return HOSPITALITY_SECTOR;
+    if (looksLikeDoorstep && doorstepCount <= 0) return DOORSTEP_SECTOR;
+
     const rankedServiceSectors = [
       { key: TRANSPORT_SECTOR, count: transportCount },
       { key: HOSPITALITY_SECTOR, count: hospitalityCount },
@@ -47,6 +76,9 @@ export const inferPartnerPrimarySector = ({ businessType, counts }) => {
     ];
     const top = rankedServiceSectors.sort((a, b) => b.count - a.count)[0];
     if (top?.count > 0) return top.key;
+    if (looksLikeTransport) return TRANSPORT_SECTOR;
+    if (looksLikeHospitality) return HOSPITALITY_SECTOR;
+    if (looksLikeDoorstep) return DOORSTEP_SECTOR;
     return OTHER_SERVICE_SECTOR;
   }
 

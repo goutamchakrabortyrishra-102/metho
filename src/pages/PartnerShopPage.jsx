@@ -338,6 +338,7 @@ export default function PartnerShopPage() {
   const regularServiceListings = useMemo(() => serviceListings.filter((item) => !isTransportServiceListing(item) && !isHospitalityServiceListing(item) && !isDoorstepServiceListing(item)), [serviceListings]);
   const primarySector = useMemo(() => inferPartnerPrimarySector({
     businessType: data?.partner?.business_type,
+    businessName: data?.partner?.business_name,
     counts: {
       products: productListings.length,
       transport: transportListings.length,
@@ -347,6 +348,7 @@ export default function PartnerShopPage() {
     },
   }), [
     data?.partner?.business_type,
+    data?.partner?.business_name,
     productListings.length,
     transportListings.length,
     hospitalityListings.length,
