@@ -57,6 +57,10 @@ export default function DirectoryPage() {
     if (!quick) return;
     const quickMap = {
       products: { q: "", type: "All" },
+      vegetables: { q: "vegetable vegetables sabji fresh produce", type: "All" },
+      grocery: { q: "grocery groceries rice dal atta masala oil", type: "All" },
+      "cosmetics-beauty": { q: "cosmetics beauty makeup skincare personal care", type: "All" },
+      others: { q: "electronics hardware stationery household fashion", type: "All" },
       transport: { q: "transport cab taxi rental bike logistics", type: "Service Provider" },
       "stay-dining": { q: "hotel homestay restaurant cafe", type: "Service Provider" },
       doorstep: { q: "home service cleaning repair laundry courier", type: "Service Provider" },

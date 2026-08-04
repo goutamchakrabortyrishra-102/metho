@@ -943,6 +943,7 @@ export default function PartnerGalleryPage() {
           upi_id: paymentProfile.upi_id,
           payee_name: paymentProfile.payee_name,
           qr_url: paymentProfile.qr_url,
+          cod_enabled: paymentProfile.cod_enabled !== false,
           manual_upi_enabled: paymentProfile.manual_upi_enabled !== false,
           razorpay_enabled: false,
           label: "Partner UPI Payment",

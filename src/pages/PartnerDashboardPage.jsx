@@ -181,6 +181,12 @@ export default function PartnerDashboardPage() {
   const [sendingRazorpay, setSendingRazorpay] = useState(false);
   const [shopBannerUrl, setShopBannerUrl] = useState("");
   const [partnerUpiId, setPartnerUpiId] = useState("");
+  const [partnerCodEnabled, setPartnerCodEnabled] = useState(true);
+  const [offerPopupEnabled, setOfferPopupEnabled] = useState(false);
+  const [offerPopupTitle, setOfferPopupTitle] = useState("");
+  const [offerPopupMessage, setOfferPopupMessage] = useState("");
+  const [offerPopupCtaText, setOfferPopupCtaText] = useState("");
+  const [offerPopupCoupon, setOfferPopupCoupon] = useState("");
   const [savingPartnerUpi, setSavingPartnerUpi] = useState(false);
   const [transportData, setTransportData] = useState({ items: [], wallet: { balance: 0 } });
   const [loadingTransport, setLoadingTransport] = useState(false);
@@ -359,7 +365,13 @@ export default function PartnerDashboardPage() {
 
   useEffect(() => {
     setPartnerUpiId(paymentProfile?.partner_upi_id || "");
-  }, [paymentProfile?.partner_upi_id]);
+    setPartnerCodEnabled(paymentProfile?.cod_enabled !== false);
+    setOfferPopupEnabled(paymentProfile?.offer_popup?.enabled === true);
+    setOfferPopupTitle(String(paymentProfile?.offer_popup?.title || ""));
+    setOfferPopupMessage(String(paymentProfile?.offer_popup?.message || ""));
+    setOfferPopupCtaText(String(paymentProfile?.offer_popup?.cta_text || ""));
+    setOfferPopupCoupon(String(paymentProfile?.offer_popup?.coupon_code || ""));
+  }, [paymentProfile?.partner_upi_id, paymentProfile?.cod_enabled, paymentProfile?.offer_popup]);
 
   const publicShopUrl = summary?.partner_code
     ? `${window.location.origin}/partner-shop/${encodeURIComponent(summary.partner_code)}`
@@ -560,11 +572,21 @@ export default function PartnerDashboardPage() {
   const savePartnerUpiId = async () => {
     setSavingPartnerUpi(true);
     try {
-      await api.put("/partner/payment-profile", { upi_id: String(partnerUpiId || "").trim() });
-      toast.success("Partner UPI ID updated");
+      await api.put("/partner/payment-profile", {
+        upi_id: String(partnerUpiId || "").trim(),
+        cod_enabled: !!partnerCodEnabled,
+        offer_popup: {
+          enabled: !!offerPopupEnabled,
+          title: String(offerPopupTitle || "").trim(),
+          message: String(offerPopupMessage || "").trim(),
+          cta_text: String(offerPopupCtaText || "").trim(),
+          coupon_code: String(offerPopupCoupon || "").trim(),
+        },
+      });
+      toast.success("Payment settings updated");
       loadAll();
     } catch (err) {
-      toast.error(err?.response?.data?.detail || "UPI ID update failed");
+      toast.error(err?.response?.data?.detail || "Payment settings update failed");
     } finally {
       setSavingPartnerUpi(false);
     }
@@ -869,11 +891,92 @@ export default function PartnerDashboardPage() {
                       disabled={savingPartnerUpi}
                       className="rounded-full bg-emerald-900 hover:bg-emerald-950 text-white"
                     >
-                      {savingPartnerUpi ? "Saving..." : "Save UPI"}
+                      {savingPartnerUpi ? "Saving..." : "Save Payment Settings"}
                     </Button>
                   </div>
                 </div>
+                <div className="mt-3 rounded-lg border border-emerald-200 bg-emerald-50 p-3">
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <p className="text-xs font-semibold text-emerald-900">Cash on Delivery (COD)</p>
+                      <p className="text-[11px] text-emerald-800 mt-0.5">Turn COD on or off for your public checkout. Customers will only see COD if this is enabled.</p>
+                    </div>
+                    <label className="inline-flex items-center gap-2 cursor-pointer select-none">
+                      <input
+                        type="checkbox"
+                        checked={partnerCodEnabled}
+                        onChange={(e) => setPartnerCodEnabled(!!e.target.checked)}
+                        className="h-4 w-4 rounded border-emerald-400"
+                      />
+                      <span className="text-xs font-semibold text-emerald-900">{partnerCodEnabled ? "Enabled" : "Disabled"}</span>
+                    </label>
+                  </div>
+                  <p className="text-[11px] text-slate-600 mt-2">After changing this, click Save Payment Settings to apply updates.</p>
+                </div>
+                <div className="mt-3 rounded-lg border border-blue-200 bg-blue-50 p-3">
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <p className="text-xs font-semibold text-blue-900">Shop Popup Offer</p>
+                      <p className="text-[11px] text-blue-800 mt-0.5">Create an offer popup that appears on your public shop page.</p>
+                    </div>
+                    <label className="inline-flex items-center gap-2 cursor-pointer select-none">
+                      <input
+                        type="checkbox"
+                        checked={offerPopupEnabled}
+                        onChange={(e) => setOfferPopupEnabled(!!e.target.checked)}
+                        className="h-4 w-4 rounded border-blue-400"
+                      />
+                      <span className="text-xs font-semibold text-blue-900">{offerPopupEnabled ? "Enabled" : "Disabled"}</span>
+                    </label>
+                  </div>
+                  <div className="mt-3 grid grid-cols-1 gap-2">
+                    <div>
+                      <Label htmlFor="offer-popup-title">Offer Title</Label>
+                      <Input
+                        id="offer-popup-title"
+                        value={offerPopupTitle}
+                        onChange={(e) => setOfferPopupTitle(e.target.value)}
+                        placeholder="e.g. Weekend Special Offer"
+                        className="mt-1.5 h-10"
+                      />
+                    </div>
+                    <div>
+                      <Label htmlFor="offer-popup-message">Offer Message</Label>
+                      <Textarea
+                        id="offer-popup-message"
+                        value={offerPopupMessage}
+                        onChange={(e) => setOfferPopupMessage(e.target.value)}
+                        placeholder="Write your offer details for customers..."
+                        className="mt-1.5 min-h-[72px]"
+                      />
+                    </div>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                      <div>
+                        <Label htmlFor="offer-popup-coupon">Coupon Code (optional)</Label>
+                        <Input
+                          id="offer-popup-coupon"
+                          value={offerPopupCoupon}
+                          onChange={(e) => setOfferPopupCoupon(e.target.value)}
+                          placeholder="e.g. SAVE20"
+                          className="mt-1.5 h-10 font-mono"
+                        />
+                      </div>
+                      <div>
+                        <Label htmlFor="offer-popup-cta">Button Text (optional)</Label>
+                        <Input
+                          id="offer-popup-cta"
+                          value={offerPopupCtaText}
+                          onChange={(e) => setOfferPopupCtaText(e.target.value)}
+                          placeholder="e.g. Shop Now"
+                          className="mt-1.5 h-10"
+                        />
+                      </div>
+                    </div>
+                  </div>
+                </div>
                 <p className="font-mono text-xs text-emerald-900 mt-2">Current UPI: {paymentProfile?.partner_upi_id || "Not set"}</p>
+                <p className="text-xs text-slate-600 mt-1">Current COD: {paymentProfile?.cod_enabled === false ? "Disabled" : "Enabled"}</p>
+                <p className="text-xs text-slate-600 mt-1">Current Offer Popup: {paymentProfile?.offer_popup?.enabled ? "Enabled" : "Disabled"}</p>
                 {paymentProfile?.partner_qr_url ? (
                   <img
                     src={paymentProfile.partner_qr_url}

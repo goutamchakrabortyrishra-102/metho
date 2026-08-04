@@ -44,11 +44,13 @@ export default function UpiPaymentDialog({
   const [txnId, setTxnId] = useState("");
   const [payerName, setPayerName] = useState("");
   const [payerPhone, setPayerPhone] = useState("");
+  const [paymentMode, setPaymentMode] = useState("upi");
   const [screenshot, setScreenshot] = useState(null); // { url, storage_path }
   const [uploading, setUploading] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [copied, setCopied] = useState(false);
   const [forceManualUpiFlow, setForceManualUpiFlow] = useState(false);
+  const codEnabled = paymentConfig ? paymentConfig.cod_enabled !== false : true;
   const normalizedPayerPhone = String(payerPhone || "").replace(/\D/g, "");
   const normalizedUserPhone = String(user?.phone || "").replace(/\D/g, "");
   const resolvedPayerName = String(payerName || "").trim() || String(user?.name || "").trim();
@@ -71,7 +73,14 @@ export default function UpiPaymentDialog({
   useEffect(() => {
     if (open) return;
     setForceManualUpiFlow(false);
+    setPaymentMode("upi");
   }, [open]);
+
+  useEffect(() => {
+    if (paymentMode === "cod" && !codEnabled) {
+      setPaymentMode("upi");
+    }
+  }, [paymentMode, codEnabled]);
 
   useEffect(() => {
     if (!open || isGuest || normalizedUserRole !== "member") return;
@@ -117,9 +126,13 @@ export default function UpiPaymentDialog({
 
   const submit = async (e) => {
     e.preventDefault();
+    if (existingOrderId && paymentMode === "cod") return toast.error("COD is only available for new checkout");
+    if (paymentMode === "cod" && !codEnabled) return toast.error("COD is not available for this partner");
     if (!existingOrderId && requiresShippingAddress && !address.trim()) return toast.error("Please enter shipping address");
-    if (!txnId.trim()) return toast.error("Please enter UPI Transaction ID");
-    if (!screenshot?.url) return toast.error("Please upload payment screenshot");
+    if (paymentMode === "upi") {
+      if (!txnId.trim()) return toast.error("Please enter UPI Transaction ID");
+      if (!screenshot?.url) return toast.error("Please upload payment screenshot");
+    }
     setSubmitting(true);
     try {
       const payload = {
@@ -133,9 +146,9 @@ export default function UpiPaymentDialog({
           service_template_key: i.service_template_key,
         })),
         shipping_address: requiresShippingAddress ? address : "",
-        payment_method: "upi",
-        txn_id: txnId.trim(),
-        payment_screenshot_url: screenshot.url,
+        payment_method: paymentMode === "cod" ? "cod" : "upi",
+        txn_id: paymentMode === "cod" ? "COD" : txnId.trim(),
+        payment_screenshot_url: paymentMode === "cod" ? "" : screenshot.url,
         payer_name: resolvedPayerName || undefined,
         customer_phone: resolvedCustomerPhone,
       };
@@ -149,15 +162,20 @@ export default function UpiPaymentDialog({
       }
       const endpoint = existingOrderId ? `/orders/${existingOrderId}/submit-payment` : "/orders";
       const { data } = await api.post(endpoint, payload);
-      toast.success(
-        data?.status === "paid"
-          ? "Payment verified. Invoice generated."
-          : (data?.approval_reason || "Order placed! Recharge reserve wallet if needed, then invoice will generate."),
-        { duration: 4500 }
-      );
+      if (paymentMode === "cod") {
+        toast.success("COD order placed. Delivery charges should be discussed and negotiated directly with the partner.", { duration: 5000 });
+      } else {
+        toast.success(
+          data?.status === "paid"
+            ? "Payment verified. Invoice generated."
+            : (data?.approval_reason || "Order placed! Recharge reserve wallet if needed, then invoice will generate."),
+          { duration: 4500 }
+        );
+      }
       onOrderPlaced?.(data);
       // Reset
       setTxnId(""); setPayerName(""); setPayerPhone(""); setScreenshot(null); setAddress("");
+      setPaymentMode("upi");
     } catch (err) {
       toast.error(err?.response?.data?.detail || "Order submit failed");
     } finally {
@@ -392,9 +410,35 @@ export default function UpiPaymentDialog({
                 <div className="rounded-xl bg-amber-50 border border-amber-200 p-3">
                   <p className="text-[10px] uppercase tracking-[0.2em] text-amber-900 font-bold">Step 2 · Confirm payment</p>
                   <p className="text-xs text-amber-800 mt-1">
-                    After payment, copy the Transaction ID from your UPI app and upload a screenshot.
+                    {paymentMode === "cod"
+                      ? "Place your COD request now. Delivery charges should be discussed and negotiated directly with the partner."
+                      : "After payment, copy the Transaction ID from your UPI app and upload a screenshot."}
                   </p>
                 </div>
+
+                {!existingOrderId ? (
+                  <div>
+                    <Label htmlFor="payment-mode">Payment Mode</Label>
+                    <select
+                      id="payment-mode"
+                      value={paymentMode}
+                      onChange={(e) => setPaymentMode(String(e.target.value || "upi"))}
+                      className="mt-1.5 h-11 rounded-md border border-input px-3 bg-white text-slate-900 w-full"
+                      data-testid="payment-mode-select"
+                    >
+                      <option value="upi">UPI Payment Proof</option>
+                        {codEnabled ? <option value="cod">Cash on Delivery (COD)</option> : null}
+                    </select>
+                      {paymentMode === "cod" && codEnabled ? (
+                      <p className="text-[11px] text-slate-700 mt-1">
+                        Cash on Delivery (COD) is available. Delivery charges will be discussed and negotiated directly with the partner before final confirmation.
+                      </p>
+                    ) : null}
+                      {!codEnabled ? (
+                        <p className="text-[11px] text-slate-500 mt-1">COD is currently disabled by this partner.</p>
+                      ) : null}
+                  </div>
+                ) : null}
 
                 {!existingOrderId && (
               <div>
@@ -428,21 +472,23 @@ export default function UpiPaymentDialog({
               </div>
             )}
 
-                <div>
-              <Label htmlFor="txn">UPI Transaction ID <span className="text-red-500">*</span></Label>
-              <Input
-                id="txn"
-                required
-                value={txnId}
-                onChange={(e) => setTxnId(e.target.value)}
-                placeholder="e.g. T2506191234567890"
-                data-testid="upi-txn-input"
-                className="mt-1.5 h-11 font-mono text-sm"
-              />
-              <p className="text-[11px] text-muted-foreground mt-1">
-                Use UTR / Transaction Reference from your UPI success screen.
-              </p>
-                </div>
+                {paymentMode !== "cod" ? (
+                  <div>
+                    <Label htmlFor="txn">UPI Transaction ID <span className="text-red-500">*</span></Label>
+                    <Input
+                      id="txn"
+                      required
+                      value={txnId}
+                      onChange={(e) => setTxnId(e.target.value)}
+                      placeholder="e.g. T2506191234567890"
+                      data-testid="upi-txn-input"
+                      className="mt-1.5 h-11 font-mono text-sm"
+                    />
+                    <p className="text-[11px] text-muted-foreground mt-1">
+                      Use UTR / Transaction Reference from your UPI success screen.
+                    </p>
+                  </div>
+                ) : null}
 
                 <div>
               <Label htmlFor="payer-phone">Mobile Number</Label>
@@ -468,22 +514,24 @@ export default function UpiPaymentDialog({
               />
                 </div>
 
-                <div>
-              <Label>Payment Screenshot <span className="text-red-500">*</span></Label>
-              <label className="mt-1.5 flex items-center justify-center gap-2 border-2 border-dashed border-emerald-300 rounded-lg p-4 hover:bg-emerald-50/60 cursor-pointer transition-colors">
-                <input type="file" accept="image/*" className="hidden" onChange={handleFile} data-testid="upi-screenshot-input" />
-                {uploading ? (
-                  <><Loader2 className="w-4 h-4 animate-spin" /> Uploading...</>
-                ) : screenshot?.url ? (
-                  <div className="flex items-center gap-3">
-                    <img src={resolveAssetUrl(screenshot.url)} alt="proof" className="h-14 w-14 object-cover rounded" />
-                    <span className="text-emerald-700 font-semibold text-sm flex items-center gap-1"><CheckCircle2 className="w-4 h-4" /> Uploaded — click to change</span>
+                {paymentMode !== "cod" ? (
+                  <div>
+                    <Label>Payment Screenshot <span className="text-red-500">*</span></Label>
+                    <label className="mt-1.5 flex items-center justify-center gap-2 border-2 border-dashed border-emerald-300 rounded-lg p-4 hover:bg-emerald-50/60 cursor-pointer transition-colors">
+                      <input type="file" accept="image/*" className="hidden" onChange={handleFile} data-testid="upi-screenshot-input" />
+                      {uploading ? (
+                        <><Loader2 className="w-4 h-4 animate-spin" /> Uploading...</>
+                      ) : screenshot?.url ? (
+                        <div className="flex items-center gap-3">
+                          <img src={resolveAssetUrl(screenshot.url)} alt="proof" className="h-14 w-14 object-cover rounded" />
+                          <span className="text-emerald-700 font-semibold text-sm flex items-center gap-1"><CheckCircle2 className="w-4 h-4" /> Uploaded — click to change</span>
+                        </div>
+                      ) : (
+                        <><Upload className="w-4 h-4 text-emerald-700" /> <span className="text-sm text-emerald-800 font-semibold">Select screenshot (max 200KB)</span></>
+                      )}
+                    </label>
                   </div>
-                ) : (
-                  <><Upload className="w-4 h-4 text-emerald-700" /> <span className="text-sm text-emerald-800 font-semibold">Select screenshot (max 200KB)</span></>
-                )}
-              </label>
-                </div>
+                ) : null}
               </div>
             </>
           ) : (
@@ -560,7 +608,7 @@ export default function UpiPaymentDialog({
               {razorpayEnabled && !forceManualUpiFlow ? (
                 <Button
                   type="button"
-                  disabled={submitting || uploading}
+                  disabled={submitting || uploading || paymentMode === "cod"}
                   onClick={submitRazorpay}
                   className="w-full h-12 bg-blue-700 hover:bg-blue-800 text-white rounded-full font-semibold"
                   data-testid="razorpay-submit-button"
@@ -576,7 +624,11 @@ export default function UpiPaymentDialog({
                     className="w-full h-12 bg-emerald-900 hover:bg-emerald-950 text-white rounded-full font-semibold"
                     data-testid="upi-submit-button"
                   >
-                    {submitting ? "Submitting..." : `Submit UPI Proof · ₹${total.toLocaleString("en-IN")}`}
+                    {submitting
+                      ? "Submitting..."
+                      : (paymentMode === "cod"
+                        ? `Place COD Order · ₹${total.toLocaleString("en-IN")}`
+                        : `Submit UPI Proof · ₹${total.toLocaleString("en-IN")}`)}
                   </Button>
                   {razorpayEnabled ? (
                     <p className="text-[11px] text-slate-600 text-center">Razorpay online payment enabled. You can still use manual UPI proof flow below.</p>

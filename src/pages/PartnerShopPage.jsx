@@ -251,6 +251,8 @@ export default function PartnerShopPage() {
   const nav = useNavigate();
   const [data, setData] = useState(null);
   const [paymentProfile, setPaymentProfile] = useState(null);
+  const [offerPopup, setOfferPopup] = useState(null);
+  const [showOfferPopup, setShowOfferPopup] = useState(false);
   const [err, setErr] = useState(null);
   const [cart, setCart] = useState({});
   const [previewItem, setPreviewItem] = useState(null);
@@ -285,9 +287,44 @@ export default function PartnerShopPage() {
 
   useEffect(() => {
     api.get(`/partner/public-payment-profile/${partnerCode}`)
-      .then((r) => setPaymentProfile(r.data))
-      .catch(() => setPaymentProfile(null));
+      .then((r) => {
+        setPaymentProfile(r.data);
+        setOfferPopup(r.data?.offer_popup || null);
+      })
+      .catch(() => {
+        setPaymentProfile(null);
+        setOfferPopup(null);
+      });
   }, [partnerCode]);
+
+  useEffect(() => {
+    const enabled = offerPopup?.enabled === true;
+    const title = String(offerPopup?.title || "").trim();
+    const message = String(offerPopup?.message || "").trim();
+    if (!enabled || (!title && !message)) {
+      setShowOfferPopup(false);
+      return;
+    }
+    const signature = `${title}|${message}|${String(offerPopup?.coupon_code || "").trim()}`;
+    const seenKey = `partner_offer_seen:${partnerCode}:${signature}`;
+    const alreadySeen = sessionStorage.getItem(seenKey) === "1";
+    if (!alreadySeen) {
+      setShowOfferPopup(true);
+    }
+  }, [offerPopup, partnerCode]);
+
+  const closeOfferPopup = () => {
+    const title = String(offerPopup?.title || "").trim();
+    const message = String(offerPopup?.message || "").trim();
+    const signature = `${title}|${message}|${String(offerPopup?.coupon_code || "").trim()}`;
+    const seenKey = `partner_offer_seen:${partnerCode}:${signature}`;
+    try {
+      sessionStorage.setItem(seenKey, "1");
+    } catch {
+      // ignore storage failures
+    }
+    setShowOfferPopup(false);
+  };
 
   // Load cashback offer (public setting) + user's eligibility (only if logged in as member)
   useEffect(() => {
@@ -579,6 +616,40 @@ export default function PartnerShopPage() {
           <Logo />
         </div>
       </header>
+
+      {showOfferPopup && offerPopup?.enabled ? (
+        <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4" onClick={closeOfferPopup}>
+          <div className="w-full max-w-md rounded-2xl bg-white border border-emerald-200 shadow-2xl p-5" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <p className="text-[10px] uppercase tracking-widest text-emerald-700 font-bold">Special Offer</p>
+                <h3 className="font-display font-black text-xl text-emerald-950 mt-1">{offerPopup?.title || "Offer"}</h3>
+              </div>
+              <button
+                type="button"
+                onClick={closeOfferPopup}
+                className="w-8 h-8 rounded-full bg-slate-100 text-slate-600 hover:bg-slate-200 flex items-center justify-center"
+                aria-label="Close offer popup"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+            {offerPopup?.message ? <p className="text-sm text-slate-700 mt-3">{offerPopup.message}</p> : null}
+            {offerPopup?.coupon_code ? (
+              <div className="mt-4 rounded-lg border border-amber-300 bg-amber-50 px-3 py-2">
+                <p className="text-[10px] uppercase tracking-widest text-amber-700 font-bold">Coupon Code</p>
+                <p className="font-mono font-bold text-amber-900 mt-1">{offerPopup.coupon_code}</p>
+              </div>
+            ) : null}
+            <div className="mt-4 flex gap-2 justify-end">
+              <Button type="button" variant="outline" onClick={closeOfferPopup} className="rounded-full">Later</Button>
+              <Button type="button" onClick={closeOfferPopup} className="rounded-full bg-emerald-900 hover:bg-emerald-950 text-white">
+                {offerPopup?.cta_text || "Shop Now"}
+              </Button>
+            </div>
+          </div>
+        </div>
+      ) : null}
 
       {/* SHOP HERO */}
       <div className="bg-gradient-to-br from-emerald-900 to-emerald-950 text-white relative overflow-hidden">
@@ -1555,6 +1626,7 @@ export default function PartnerShopPage() {
           upi_id: paymentProfile.upi_id,
           payee_name: paymentProfile.payee_name,
           qr_url: paymentProfile.qr_url,
+          cod_enabled: paymentProfile.cod_enabled !== false,
           manual_upi_enabled: paymentProfile.manual_upi_enabled !== false,
           razorpay_enabled: false,
           label: "Partner UPI Payment",

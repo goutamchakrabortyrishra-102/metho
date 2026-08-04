@@ -241,6 +241,93 @@ def _partner_banner_key(partner_id: str) -> str:
     return f"partner_banner:{partner_id}"
 
 
+def _partner_checkout_pref_key(partner_id: str) -> str:
+    return f"partner_checkout_pref:{partner_id}"
+
+
+def _partner_offer_popup_key(partner_id: str) -> str:
+    return f"partner_offer_popup:{partner_id}"
+
+
+def _normalize_partner_offer_popup(payload: dict | None, current: dict | None = None) -> dict:
+    base = current or {}
+    src = payload or {}
+    return {
+        "enabled": bool(src.get("enabled", base.get("enabled", False))),
+        "title": str(src.get("title", base.get("title", "")) or "").strip()[:120],
+        "message": str(src.get("message", base.get("message", "")) or "").strip()[:600],
+        "cta_text": str(src.get("cta_text", base.get("cta_text", "")) or "").strip()[:60],
+        "coupon_code": str(src.get("coupon_code", base.get("coupon_code", "")) or "").strip()[:60],
+    }
+
+
+def _load_partner_offer_popup(db: Session, partner_id: str) -> dict:
+    defaults = {
+        "enabled": False,
+        "title": "",
+        "message": "",
+        "cta_text": "",
+        "coupon_code": "",
+    }
+    row = db.query(AppSetting).filter(AppSetting.key == _partner_offer_popup_key(partner_id)).first()
+    if not row:
+        return defaults
+    try:
+        payload = json.loads(row.value_json or "{}")
+        if not isinstance(payload, dict):
+            return defaults
+        return _normalize_partner_offer_popup(payload, defaults)
+    except Exception:
+        return defaults
+
+
+def _save_partner_offer_popup(db: Session, partner_id: str, payload: dict | None) -> dict:
+    current = _load_partner_offer_popup(db, partner_id)
+    next_payload = _normalize_partner_offer_popup(payload, current)
+    row = db.query(AppSetting).filter(AppSetting.key == _partner_offer_popup_key(partner_id)).first()
+    if not row:
+        row = AppSetting(key=_partner_offer_popup_key(partner_id), value_json="{}")
+        db.add(row)
+    row.value_json = json.dumps(next_payload)
+    row.updated_at = datetime.now(timezone.utc)
+    db.commit()
+    return next_payload
+
+
+def _load_partner_checkout_pref(db: Session, partner_id: str) -> dict:
+    defaults = {"cod_enabled": True}
+    key = _partner_checkout_pref_key(partner_id)
+    row = db.query(AppSetting).filter(AppSetting.key == key).first()
+    if not row:
+        return defaults
+    try:
+        payload = json.loads(row.value_json or "{}")
+        if not isinstance(payload, dict):
+            return defaults
+        return {
+            "cod_enabled": bool(payload.get("cod_enabled", True)),
+        }
+    except Exception:
+        return defaults
+
+
+def _save_partner_checkout_pref(db: Session, partner_id: str, payload: dict | None) -> dict:
+    current = _load_partner_checkout_pref(db, partner_id)
+    incoming = payload or {}
+    next_payload = {
+        "cod_enabled": bool(incoming.get("cod_enabled", current.get("cod_enabled", True))),
+    }
+    key = _partner_checkout_pref_key(partner_id)
+    row = db.query(AppSetting).filter(AppSetting.key == key).first()
+    if not row:
+        row = AppSetting(key=key, value_json="{}")
+        db.add(row)
+    row.value_json = json.dumps(next_payload)
+    row.updated_at = datetime.now(timezone.utc)
+    db.commit()
+    return next_payload
+
+
 def _purge_partner_related_records(db: Session, partner: AssociatePartner) -> None:
     partner_id = str(getattr(partner, "id", "") or "").strip()
     login_id = str(getattr(partner, "email", "") or "").strip()
@@ -257,6 +344,8 @@ def _purge_partner_related_records(db: Session, partner: AssociatePartner) -> No
                     _partner_topup_qr_key(partner_id),
                     _partner_payment_qr_key(partner_id),
                     _partner_banner_key(partner_id),
+                    _partner_checkout_pref_key(partner_id),
+                    _partner_offer_popup_key(partner_id),
                 ]
             )
         ).delete(synchronize_session=False)
@@ -3107,6 +3196,8 @@ def partner_payment_profile(request: Request, db: Session = Depends(get_db), cur
         raise HTTPException(status_code=404, detail="Partner profile not found")
 
     wallet = _load_partner_wallet(db, partner.id)
+    checkout_pref = _load_partner_checkout_pref(db, partner.id)
+    offer_popup = _load_partner_offer_popup(db, partner.id)
     settings = load_settings(db)
     topup_qr_row = db.query(AppSetting).filter(AppSetting.key == _partner_topup_qr_key(partner.id)).first()
     topup_qr = ""
@@ -3129,6 +3220,8 @@ def partner_payment_profile(request: Request, db: Session = Depends(get_db), cur
         "partner_code": partner.partner_code,
         "business_name": partner.business_name,
         "partner_upi_id": partner.upi_id,
+        "cod_enabled": bool(checkout_pref.get("cod_enabled", True)),
+        "offer_popup": offer_popup,
         "partner_qr_url": _file_url(partner_payment_qr, request) if partner_payment_qr else "",
         "metho_upi_id": str(settings.get("upi_id") or "").strip(),
         "metho_upi_payee_name": str(settings.get("upi_payee_name") or "METHO Logistics Pvt Ltd").strip(),
@@ -3145,11 +3238,44 @@ def partner_payment_profile(request: Request, db: Session = Depends(get_db), cur
     }
 
 
+@router.put("/partner/payment-profile")
+def partner_payment_profile_update(payload: dict, db: Session = Depends(get_db), current_user=Depends(get_current_user)):
+    if getattr(current_user, "role", "") != "partner":
+        raise HTTPException(status_code=403, detail="Partner access only")
+
+    partner = _resolve_partner_for_user(db, current_user)
+    if not partner:
+        raise HTTPException(status_code=404, detail="Partner profile not found")
+
+    body = payload or {}
+    if "upi_id" in body:
+        partner.upi_id = str(body.get("upi_id") or "").strip()
+
+    next_pref = _load_partner_checkout_pref(db, partner.id)
+    if "cod_enabled" in body:
+        next_pref["cod_enabled"] = bool(body.get("cod_enabled"))
+    next_offer = _load_partner_offer_popup(db, partner.id)
+    if isinstance(body.get("offer_popup"), dict):
+        next_offer = _normalize_partner_offer_popup(body.get("offer_popup"), next_offer)
+
+    db.commit()
+    saved_pref = _save_partner_checkout_pref(db, partner.id, next_pref)
+    saved_offer = _save_partner_offer_popup(db, partner.id, next_offer)
+    return {
+        "ok": True,
+        "partner_upi_id": str(partner.upi_id or "").strip(),
+        "cod_enabled": bool(saved_pref.get("cod_enabled", True)),
+        "offer_popup": saved_offer,
+    }
+
+
 @router.get("/partner/public-payment-profile/{partner_code}")
 def partner_public_payment_profile(partner_code: str, request: Request, db: Session = Depends(get_db)):
     partner = db.query(AssociatePartner).filter(AssociatePartner.partner_code == partner_code, AssociatePartner.active.is_(True)).first()
     if not partner:
         raise HTTPException(status_code=404, detail="Partner not found")
+    checkout_pref = _load_partner_checkout_pref(db, partner.id)
+    offer_popup = _load_partner_offer_popup(db, partner.id)
     qr_row = db.query(AppSetting).filter(AppSetting.key == _partner_payment_qr_key(partner.id)).first()
     qr_url = ""
     if qr_row:
@@ -3161,6 +3287,8 @@ def partner_public_payment_profile(partner_code: str, request: Request, db: Sess
         "partner_code": partner.partner_code,
         "business_name": partner.business_name,
         "upi_id": str(partner.upi_id or "").strip(),
+        "cod_enabled": bool(checkout_pref.get("cod_enabled", True)),
+        "offer_popup": offer_popup,
         "payee_name": str(partner.business_name or "").strip(),
         "qr_url": _file_url(qr_url, request) if qr_url else "",
     }
