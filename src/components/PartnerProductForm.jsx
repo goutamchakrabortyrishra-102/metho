@@ -865,7 +865,7 @@ export default function PartnerProductForm({
               {localPreviewUrl || form.image_url || form.pdf_url ? (
                 <div className="relative">
                   <img
-                    src={localPreviewUrl || form.image_url || "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 400 400'><rect width='400' height='400' fill='%23f1f5f9'/><rect x='80' y='50' width='240' height='300' rx='14' fill='%23ffffff' stroke='%2394a3b8' stroke-width='4'/><text x='200' y='190' text-anchor='middle' fill='%23dc2626' font-size='46' font-family='Arial' font-weight='bold'>PDF</text></svg>"}
+                    src={localPreviewUrl || form.image_url || "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 400 400'><defs><linearGradient id='g' x1='0' y1='0' x2='1' y2='1'><stop offset='0%25' stop-color='%23eff6ff'/><stop offset='100%25' stop-color='%23ecfdf5'/></linearGradient></defs><rect width='400' height='400' rx='28' fill='url(%23g)'/><rect x='62' y='54' width='276' height='292' rx='26' fill='%23ffffff' stroke='%23cbd5e1' stroke-width='4'/><circle cx='142' cy='142' r='22' fill='%23f59e0b' opacity='0.95'/><path d='M95 292 L162 220 L213 262 L260 208 L305 292 Z' fill='%2394a3b8' opacity='0.35'/><path d='M95 292 H305' stroke='%2394a3b8' stroke-width='5' stroke-linecap='round'/><text x='200' y='330' text-anchor='middle' fill='%230f766e' font-size='20' font-family='Arial' font-weight='700'>Image Preview</text></svg>"}
                     alt="Product preview"
                     className="w-16 h-16 rounded-lg border border-border object-cover"
                     data-testid={product?.id ? "partner-edit-product-image-preview" : "partner-add-product-image-preview"}

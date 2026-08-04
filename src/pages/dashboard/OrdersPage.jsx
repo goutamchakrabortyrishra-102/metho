@@ -147,13 +147,19 @@ export default function OrdersPage() {
                 </div>
               )}
 
-              {(o.status === "paid" || o.status === "pending_approval" || o.status === "delivered") && (
+              {(o.status === "paid" || o.status === "delivered") && (
                 <div className="mt-3 flex justify-end">
                   <Link to={`/invoice/${o.id}`} target="_blank">
                     <Button size="sm" variant="outline" className="rounded-full border-emerald-800 text-emerald-900 hover:bg-emerald-50" data-testid={`invoice-btn-${i}`}>
                       <FileText className="w-4 h-4 mr-1" /> View Invoice
                     </Button>
                   </Link>
+                </div>
+              )}
+
+              {o.status === "pending_approval" && (
+                <div className="mt-3 flex justify-end">
+                  <p className="text-[11px] text-amber-700">Online invoice admin approval/payment complete হলে open হবে।</p>
                 </div>
               )}
             </div>

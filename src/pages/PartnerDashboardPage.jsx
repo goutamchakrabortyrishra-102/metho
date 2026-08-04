@@ -62,7 +62,13 @@ const TRANSPORT_STATUS_META = {
 };
 const PARTNER_IMAGE_MAX_BYTES = 200 * 1024;
 const PARTNER_IMAGE_MAX_TEXT = "200KB";
-const PDF_PREVIEW = "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 400 400'><rect width='400' height='400' fill='%23f1f5f9'/><rect x='80' y='50' width='240' height='300' rx='14' fill='%23ffffff' stroke='%2394a3b8' stroke-width='4'/><text x='200' y='190' text-anchor='middle' fill='%23dc2626' font-size='46' font-family='Arial' font-weight='bold'>PDF</text><text x='200' y='228' text-anchor='middle' fill='%23334155' font-size='16' font-family='Arial'>Tap to Open</text></svg>";
+const PDF_PREVIEW = "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 400 400'><defs><linearGradient id='g' x1='0' y1='0' x2='1' y2='1'><stop offset='0%25' stop-color='%23eff6ff'/><stop offset='100%25' stop-color='%23ecfdf5'/></linearGradient></defs><rect width='400' height='400' rx='28' fill='url(%23g)'/><rect x='62' y='54' width='276' height='292' rx='26' fill='%23ffffff' stroke='%23cbd5e1' stroke-width='4'/><circle cx='142' cy='142' r='22' fill='%23f59e0b' opacity='0.95'/><path d='M95 292 L162 220 L213 262 L260 208 L305 292 Z' fill='%2394a3b8' opacity='0.35'/><path d='M95 292 H305' stroke='%2394a3b8' stroke-width='5' stroke-linecap='round'/><text x='200' y='330' text-anchor='middle' fill='%230f766e' font-size='20' font-family='Arial' font-weight='700'>Image Preview</text></svg>";
+
+const getPreviewImageUrl = (product) => {
+  const imageUrl = resolveAssetUrl(product?.image_url || "");
+  if (imageUrl) return imageUrl;
+  return getPdfUrl(product) ? PDF_PREVIEW : "";
+};
 
 const isLikelyAssetRef = (value) => {
   const s = String(value || "").trim();
@@ -1320,14 +1326,14 @@ export default function PartnerDashboardPage() {
                 {productItems.map(p => (
                   <div key={p.id} className="rounded-lg border border-border overflow-hidden">
                     <div className="aspect-square bg-secondary relative">
-                      <img src={resolveAssetUrl(p.image_url) || (getPdfUrl(p) ? PDF_PREVIEW : undefined)} alt={p.name} className="w-full h-full object-cover" />
+                      <img src={getPreviewImageUrl(p) || placeholder || undefined} alt={p.name} className="w-full h-full object-cover" />
                       {getPdfUrl(p) ? (
                         <button
                           type="button"
-                          onClick={() => window.open(getPdfUrl(p), "_blank")}
+                          onClick={() => window.open(getPreviewImageUrl(p) || getPdfUrl(p), "_blank")}
                           className="absolute left-2 top-2 rounded-full bg-white/90 text-emerald-900 px-2.5 py-1 text-[10px] font-bold"
                         >
-                          Open PDF
+                          Open Preview
                         </button>
                       ) : null}
                     </div>
@@ -1405,15 +1411,15 @@ export default function PartnerDashboardPage() {
                 {hospitalityItems.map(p => (
                   <div key={p.id} className="rounded-xl border border-amber-200 overflow-hidden bg-white shadow-sm">
                     <div className="aspect-square bg-secondary relative">
-                      <img src={resolveAssetUrl(p.image_url) || (getPdfUrl(p) ? PDF_PREVIEW : undefined)} alt={p.name} className="w-full h-full object-cover" />
+                      <img src={getPreviewImageUrl(p) || placeholder || undefined} alt={p.name} className="w-full h-full object-cover" />
                       <span className="absolute right-2 top-2 rounded-full bg-amber-100 text-amber-900 px-2 py-0.5 text-[10px] font-bold">Stay/Dining</span>
                       {getPdfUrl(p) ? (
                         <button
                           type="button"
-                          onClick={() => window.open(getPdfUrl(p), "_blank")}
+                          onClick={() => window.open(getPreviewImageUrl(p) || getPdfUrl(p), "_blank")}
                           className="absolute left-2 top-2 rounded-full bg-white/90 text-emerald-900 px-2.5 py-1 text-[10px] font-bold"
                         >
-                          Open PDF
+                          Open Preview
                         </button>
                       ) : null}
                     </div>
