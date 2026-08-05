@@ -147,6 +147,13 @@ def _set_product_hidden_flag(db: Session, product_id: str, hidden: bool) -> bool
     return bool(hidden_map.get(product_id, False))
 
 
+def _compact_public_image_url(value: str) -> str:
+    image_url = str(value or "").strip()
+    if image_url.startswith("data:") and len(image_url) > 4096:
+        return ""
+    return image_url
+
+
 @router.get("/products")
 def list_products(limit: int | None = None, db: Session = Depends(get_db)):
     products = db.query(Product).order_by(Product.created_at.desc()).all()
@@ -188,6 +195,15 @@ def list_products(limit: int | None = None, db: Session = Depends(get_db)):
         safe_limit = max(1, min(int(limit), 500))
         return out[:safe_limit]
     return out
+
+
+@router.get("/products/public")
+def list_public_products(limit: int = 120, db: Session = Depends(get_db)):
+    safe_limit = max(1, min(int(limit), 500))
+    rows = list_products(limit=safe_limit, db=db)
+    for item in rows:
+        item["image_url"] = _compact_public_image_url(item.get("image_url") or "")
+    return rows
 
 
 @router.get("/categories")

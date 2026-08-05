@@ -1544,6 +1544,14 @@ async def list_products(limit: Optional[int] = None, compact: int = 0):
             if len(description) > 320:
                 p["description"] = description[:320]
     return visible
+
+
+@api_router.get("/products/public")
+async def list_public_products(limit: int = 120):
+    safe_limit = max(1, min(int(limit), 500))
+    return await list_products(limit=safe_limit, compact=1)
+
+
 @api_router.post("/products")
 async def create_product(req: ProductRequest, admin: dict = Depends(require_role("super_admin", "company_admin"))):
     # Admin-created products are auto-approved
@@ -3979,6 +3987,26 @@ async def read_settings():
     """Public read — used by frontend to render dynamic labels (currency, cycle target, etc)."""
     s = await get_settings()
     return s
+
+
+@api_router.get("/settings/public")
+async def read_public_settings():
+    s = await get_settings()
+    excluded = {
+        "razorpay_key_secret",
+        "einvoice_api_key",
+        "einvoice_client_secret",
+        "einvoice_password",
+    }
+    out = {}
+    for k, v in (s or {}).items():
+        if k in excluded:
+            continue
+        if isinstance(v, str) and v.startswith("data:") and len(v) > 4096:
+            out[k] = ""
+        else:
+            out[k] = v
+    return out
 
 @api_router.put("/settings")
 async def update_settings(req: SettingsUpdate, admin: dict = Depends(require_role("super_admin", "company_admin"))):

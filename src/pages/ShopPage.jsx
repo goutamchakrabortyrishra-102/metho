@@ -120,7 +120,7 @@ export default function ShopPage() {
   useEffect(() => {
     api.post("/seed").catch(() => {});
     api
-      .get("/products?compact=1")
+      .get("/products/public?limit=240")
       .then((r) => {
         setProducts(normalizeCollection(r.data));
         setLoadError("");

@@ -8,7 +8,7 @@ export function SettingsProvider({ children }) {
   const [settings, setSettings] = useState(null);
   const refresh = useCallback(async () => {
     try {
-      const r = await api.get("/settings");
+      const r = await api.get("/settings/public");
       const s = r.data || {};
       // Resolve full URLs for brand assets so consumers can render directly
       s.site_logo_url_full = resolveAssetUrl(s.site_logo_url);

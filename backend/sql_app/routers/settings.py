@@ -9,6 +9,15 @@ from ..models import AppSetting
 
 router = APIRouter(prefix="/api", tags=["settings"])
 
+PUBLIC_SETTINGS_EXCLUDE_KEYS = {
+    "razorpay_key_secret",
+    "einvoice_api_key",
+    "einvoice_client_secret",
+    "einvoice_password",
+}
+
+DATA_URL_MAX_LEN = 4096
+
 
 DEFAULT_SETTINGS = {
     "site_title": "METHO AAY-UPAY",
@@ -161,6 +170,23 @@ def save_settings(db: Session, patch: dict) -> dict:
     return current
 
 
+def _sanitize_public_settings(payload: dict) -> dict:
+    safe: dict = {}
+    for key, value in (payload or {}).items():
+        if key in PUBLIC_SETTINGS_EXCLUDE_KEYS:
+            continue
+        if isinstance(value, str) and value.startswith("data:") and len(value) > DATA_URL_MAX_LEN:
+            safe[key] = ""
+        else:
+            safe[key] = value
+    return safe
+
+
 @router.get("/settings")
 def get_settings(db: Session = Depends(get_db)):
     return load_settings(db)
+
+
+@router.get("/settings/public")
+def get_public_settings(db: Session = Depends(get_db)):
+    return _sanitize_public_settings(load_settings(db))
