@@ -411,6 +411,15 @@ class SettingsUpdate(BaseModel):
     top_leader_3_name: Optional[str] = None
     top_leader_3_title: Optional[str] = None
     top_leader_3_image_url: Optional[str] = None
+    top_leader_4_name: Optional[str] = None
+    top_leader_4_title: Optional[str] = None
+    top_leader_4_image_url: Optional[str] = None
+    top_leader_5_name: Optional[str] = None
+    top_leader_5_title: Optional[str] = None
+    top_leader_5_image_url: Optional[str] = None
+    top_leader_6_name: Optional[str] = None
+    top_leader_6_title: Optional[str] = None
+    top_leader_6_image_url: Optional[str] = None
     # === Leader Eligibility (fully admin-defined, backend does NOT hardcode) ===
     leader_min_direct_members: Optional[int] = None
     leader_min_personal_product_sales: Optional[float] = None
@@ -535,6 +544,15 @@ DEFAULT_SETTINGS = {
     "top_leader_3_name": "Top Leader 3",
     "top_leader_3_title": "Fastest Growing Leader",
     "top_leader_3_image_url": "",
+    "top_leader_4_name": "Top Leader 4",
+    "top_leader_4_title": "Growth Mentor",
+    "top_leader_4_image_url": "",
+    "top_leader_5_name": "Top Leader 5",
+    "top_leader_5_title": "Business Leader",
+    "top_leader_5_image_url": "",
+    "top_leader_6_name": "Top Leader 6",
+    "top_leader_6_title": "Senior Advisor",
+    "top_leader_6_image_url": "",
     # === Leader Eligibility (all admin-configurable — 0 to disable) ===
     "leader_min_direct_members": 5,
     "leader_min_personal_product_sales": 5000.0,
@@ -3510,7 +3528,7 @@ async def upload_branding_image(
     directory_hero, social_share, etc. `purpose` is stored for audit and organizes storage paths."""
     allowed_purposes = {
         "site_logo", "landing_hero", "product_placeholder", "directory_hero", "social_share",
-        "top_leader_1", "top_leader_2", "top_leader_3",
+        "top_leader_1", "top_leader_2", "top_leader_3", "top_leader_4", "top_leader_5", "top_leader_6",
     }
     if purpose not in allowed_purposes:
         raise HTTPException(status_code=400, detail=f"purpose must be one of {sorted(allowed_purposes)}")
@@ -3995,11 +4013,24 @@ async def read_public_settings():
         "einvoice_client_secret",
         "einvoice_password",
     }
+    allow_large_data_url_keys = {
+        "site_logo_url",
+        "landing_hero_image_url",
+        "product_placeholder_image_url",
+        "directory_hero_image_url",
+        "social_share_image_url",
+        "top_leader_1_image_url",
+        "top_leader_2_image_url",
+        "top_leader_3_image_url",
+        "top_leader_4_image_url",
+        "top_leader_5_image_url",
+        "top_leader_6_image_url",
+    }
     out = {}
     for k, v in (s or {}).items():
         if k in excluded:
             continue
-        if isinstance(v, str) and v.startswith("data:") and len(v) > 4096:
+        if isinstance(v, str) and v.startswith("data:") and len(v) > 4096 and k not in allow_large_data_url_keys:
             out[k] = ""
         else:
             out[k] = v

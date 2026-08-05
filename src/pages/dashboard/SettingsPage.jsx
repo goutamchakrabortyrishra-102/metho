@@ -506,7 +506,7 @@ function BrandingImageUpload({ purpose, label, hint, value, onChange, onPersist,
     setBusy(true);
     try {
       const normalizedPurpose = String(purpose || "").trim().toLowerCase();
-      const shouldEmbedForDurability =
+      const shouldFallbackToEmbeddedForCriticalBranding =
         normalizedPurpose.startsWith("top_leader_") ||
         normalizedPurpose === "site_logo";
       let nextUrl = "";
@@ -515,10 +515,7 @@ function BrandingImageUpload({ purpose, label, hint, value, onChange, onPersist,
         fd.append("file", f);
         return fd;
       };
-      if (shouldEmbedForDurability) {
-        // Leader images must survive redeploys even if file storage is rotated.
-        nextUrl = await readAsDataUrl(f);
-      } else if (uploadEndpoint) {
+      if (uploadEndpoint) {
         let data;
         try {
           const res = await api.post(uploadEndpoint, makeFormData(), {
@@ -538,12 +535,19 @@ function BrandingImageUpload({ purpose, label, hint, value, onChange, onPersist,
         }
         nextUrl = String(data?.url || "").trim();
         if (!nextUrl) throw new Error("Upload response missing url");
-        // Prevent dead URL persistence: if uploaded URL is not actually loadable, keep a local embedded copy.
+        // Prevent dead URL persistence: if uploaded URL is not actually loadable, keep a local embedded copy for critical branding.
         const resolved = resolveAssetUrl(nextUrl);
         const reachable = await canLoadImage(resolved);
         if (!reachable) {
-          nextUrl = await readAsDataUrl(f);
+          if (shouldFallbackToEmbeddedForCriticalBranding) {
+            nextUrl = await readAsDataUrl(f);
+          } else {
+            throw new Error("Uploaded image URL is not reachable");
+          }
         }
+      } else if (shouldFallbackToEmbeddedForCriticalBranding) {
+        // Fallback mode for environments where dedicated upload endpoint is unavailable.
+        nextUrl = await readAsDataUrl(f);
       } else {
         // Keep existing data-url flow for non-critical branding fields.
         nextUrl = await readAsDataUrl(f);
