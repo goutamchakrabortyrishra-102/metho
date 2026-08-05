@@ -8,6 +8,20 @@ from fastapi import APIRouter, Depends, HTTPException
 
 from ..database import get_db
 from ..models import AppSetting, AssociatePartner, PartnerProduct
+from ..storage import UPLOADED_OBJECTS_DIR
+
+
+def _featured_url_alive(url: str) -> bool:
+    """data URLs always alive; file paths alive only if file exists on disk."""
+    raw = str(url or "").strip()
+    if not raw:
+        return False
+    if raw.startswith("data:"):
+        return True
+    for prefix in ("/api/files/", "/api/public-files/"):
+        if raw.startswith(prefix):
+            return (UPLOADED_OBJECTS_DIR / raw[len(prefix):]).exists()
+    return True
 
 router = APIRouter(prefix="/api", tags=["directory"])
 PARTNER_PRODUCT_UNITS_KEY = "partner_product_units"
@@ -99,6 +113,9 @@ def _partner_banner_and_featured(db: Session, partner_id: str) -> tuple[str, lis
                     featured_items[idx] = str(raw_items[idx] or "").strip()
         except Exception:
             featured_items = ["", "", "", "", ""]
+
+    # Drop paths whose files no longer exist on disk (ephemeral storage wipe).
+    featured_items = [item if _featured_url_alive(item) else "" for item in featured_items]
 
     return banner_url, featured_items
 

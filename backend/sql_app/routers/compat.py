@@ -3986,10 +3986,17 @@ def partner_featured_images(request: Request, db: Session = Depends(get_db), cur
             return raw
         return _file_url(raw, request)
 
+    # Drop stale file-path slots whose files were wiped (ephemeral storage).
+    alive_items = [path if (path.startswith("data:") or not path.startswith("/")) else path for path in items]
+    alive_items = [
+        _to_public_ref(path) if path and (path.startswith("data:") or (BRANDING_UPLOAD_DIR / Path(path).name).exists()) else ""
+        for path in items
+    ]
+
     return {
         "partner_id": partner.id,
         "partner_code": partner.partner_code,
-        "items": [_to_public_ref(path) for path in items],
+        "items": alive_items,
     }
 
 
@@ -4067,6 +4074,36 @@ def partner_save_featured_images(payload: dict, db: Session = Depends(get_db), c
         "partner_code": partner.partner_code,
         "items": items,
     }
+
+
+@router.post("/admin/partner-featured-clear/{partner_code}")
+def admin_clear_partner_featured(partner_code: str, db: Session = Depends(get_db), current_user=Depends(get_current_user)):
+    """Admin endpoint: clear broken file-path featured image slots for a partner."""
+    _require_admin_user(current_user)
+    partner = db.query(AssociatePartner).filter(AssociatePartner.partner_code == partner_code).first()
+    if not partner:
+        raise HTTPException(status_code=404, detail="Partner not found")
+    key = _partner_featured_images_key(partner.id)
+    row = db.query(AppSetting).filter(AppSetting.key == key).first()
+    cleared = 0
+    if row and row.value_json:
+        try:
+            payload = json.loads(row.value_json or "{}")
+            raw = payload.get("items") if isinstance(payload, dict) else []
+            items = ["", "", "", "", ""]
+            if isinstance(raw, list):
+                for idx in range(min(5, len(raw))):
+                    val = str(raw[idx] or "").strip()
+                    if val.startswith("data:"):
+                        items[idx] = val  # keep valid data URLs
+                    else:
+                        cleared += 1  # drop broken file paths
+            row.value_json = json.dumps({"items": items, "updated_at": now_iso()})
+            row.updated_at = datetime.now(timezone.utc)
+            db.commit()
+        except Exception:
+            pass
+    return {"ok": True, "partner_code": partner_code, "slots_cleared": cleared}
 
 
 @router.post("/partner/wallet/topup-request")
