@@ -22,6 +22,20 @@ const mapsUrl = (p) => {
   return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(q)}`;
 };
 
+const normalizeAddressForSearch = ({ address, city, state, pincode }) => {
+  const base = String(address || "").trim();
+  const tail = [city, state, pincode]
+    .map((v) => String(v || "").trim())
+    .filter(Boolean);
+  if (!tail.length) return base;
+  if (!base) return tail.join(", ");
+
+  const lowerBase = base.toLowerCase();
+  const missingTail = tail.filter((part) => !lowerBase.includes(part.toLowerCase()));
+  if (!missingTail.length) return base;
+  return `${base}, ${missingTail.join(", ")}`;
+};
+
 const DEFAULT_BUSINESS_TYPES = [
   "Retail Shop", "Super Market", "Pharmacy", "Restaurant",
   "Service Provider", "Distributor", "Wholesaler", "Online Seller",
@@ -710,6 +724,12 @@ export default function PartnersPage() {
     try {
       const payload = {
         ...form,
+        address: normalizeAddressForSearch({
+          address: form.address,
+          city: form.city,
+          state: form.state,
+          pincode: form.pincode,
+        }),
         login_password: (form.password || "").trim() || undefined,
       };
       delete payload.password;

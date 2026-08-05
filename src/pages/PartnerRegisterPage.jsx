@@ -95,6 +95,20 @@ const DEFAULT_TERMS = [
   "9. Any dispute arising from the Partner's business operations shall be handled directly by the Partner, subject to applicable Indian law. METHO shall not be liable for such disputes except to the extent required by law.",
 ].join("\n");
 
+const normalizeAddressForSearch = ({ address, city, state, pincode }) => {
+  const base = String(address || "").trim();
+  const tail = [city, state, pincode]
+    .map((v) => String(v || "").trim())
+    .filter(Boolean);
+  if (!tail.length) return base;
+  if (!base) return tail.join(", ");
+
+  const lowerBase = base.toLowerCase();
+  const missingTail = tail.filter((part) => !lowerBase.includes(part.toLowerCase()));
+  if (!missingTail.length) return base;
+  return `${base}, ${missingTail.join(", ")}`;
+};
+
 export default function PartnerRegisterPage() {
   const nav = useNavigate();
   const [form, setForm] = useState({
@@ -185,6 +199,12 @@ export default function PartnerRegisterPage() {
     try {
       const payload = {
         ...form,
+        address: normalizeAddressForSearch({
+          address: form.address,
+          city: form.city,
+          state: form.state,
+          pincode: form.pincode,
+        }),
         pan_no: pan,
         aadhaar_no: aadhaar,
         // Keep legacy key so backend uniqueness checks remain consistent.
