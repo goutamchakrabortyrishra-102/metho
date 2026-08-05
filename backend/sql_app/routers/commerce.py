@@ -148,7 +148,7 @@ def _set_product_hidden_flag(db: Session, product_id: str, hidden: bool) -> bool
 
 
 @router.get("/products")
-def list_products(db: Session = Depends(get_db)):
+def list_products(limit: int | None = None, db: Session = Depends(get_db)):
     products = db.query(Product).order_by(Product.created_at.desc()).all()
     meta_rows = db.query(ProductMeta).all()
     meta_map = {m.product_id: m for m in meta_rows}
@@ -184,6 +184,9 @@ def list_products(db: Session = Depends(get_db)):
                 "hidden": bool(hidden_map.get(p.id, False)),
             }
         )
+    if limit is not None:
+        safe_limit = max(1, min(int(limit), 500))
+        return out[:safe_limit]
     return out
 
 
