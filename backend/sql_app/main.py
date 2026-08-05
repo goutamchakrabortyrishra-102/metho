@@ -1,5 +1,6 @@
 from fastapi import FastAPI, Header, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.middleware.gzip import GZipMiddleware
 from starlette.middleware.trustedhost import TrustedHostMiddleware
 from starlette.responses import JSONResponse
 from collections import defaultdict, deque
@@ -59,6 +60,8 @@ RATE_LIMIT_LOGIN = _int_env("RATE_LIMIT_LOGIN", 20)
 RATE_LIMIT_REGISTER = _int_env("RATE_LIMIT_REGISTER", 10)
 RATE_LIMIT_PASSWORD = _int_env("RATE_LIMIT_PASSWORD", 8)
 RATE_LIMIT_UPLOAD = _int_env("RATE_LIMIT_UPLOAD", 30)
+GZIP_MINIMUM_SIZE = _int_env("GZIP_MINIMUM_SIZE", 1024)
+GZIP_COMPRESS_LEVEL = max(1, min(9, _int_env("GZIP_COMPRESS_LEVEL", 6)))
 ENABLE_BANDWIDTH_METRICS = str(os.getenv("ENABLE_BANDWIDTH_METRICS", "1") or "1").strip().lower() not in {"0", "false", "off", "no"}
 BANDWIDTH_METRICS_WINDOW_MINUTES = _int_env("BANDWIDTH_METRICS_WINDOW_MINUTES", 240)
 BANDWIDTH_METRICS_MAX_EVENTS = max(1000, _int_env("BANDWIDTH_METRICS_MAX_EVENTS", 50000))
@@ -314,6 +317,12 @@ app.add_middleware(
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
+)
+
+app.add_middleware(
+    GZipMiddleware,
+    minimum_size=max(256, int(GZIP_MINIMUM_SIZE or 1024)),
+    compresslevel=int(GZIP_COMPRESS_LEVEL),
 )
 
 
