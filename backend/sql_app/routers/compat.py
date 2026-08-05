@@ -106,6 +106,26 @@ def _save_image_upload(file: UploadFile, target_dir: Path, prefix: str, max_byte
     return name
 
 
+def _read_validated_image_upload(file: UploadFile, max_bytes: int = GLOBAL_IMAGE_MAX_UPLOAD_BYTES) -> tuple[str, bytes, str]:
+    ext = Path(file.filename or "upload.jpg").suffix.lower() or ".jpg"
+    allowed = {
+        ".jpg": "image/jpeg",
+        ".jpeg": "image/jpeg",
+        ".png": "image/png",
+        ".webp": "image/webp",
+        ".gif": "image/gif",
+        ".svg": "image/svg+xml",
+    }
+    mime = allowed.get(ext)
+    if not mime:
+        raise HTTPException(status_code=400, detail="Unsupported file type")
+    content = file.file.read()
+    if len(content) > max(1, int(max_bytes or 0)):
+        kb = max(1, int(max_bytes // 1024))
+        raise HTTPException(status_code=400, detail=f"File too large (max {kb}KB)")
+    return ext, content, mime
+
+
 def _load_razorpay_settings(db: Session) -> tuple[str, str]:
     settings = load_settings(db)
     enabled = bool(settings.get("razorpay_enabled"))
@@ -3958,10 +3978,18 @@ def partner_featured_images(request: Request, db: Session = Depends(get_db), cur
         except Exception:
             items = ["", "", "", "", ""]
 
+    def _to_public_ref(value: str) -> str:
+        raw = str(value or "").strip()
+        if not raw:
+            return ""
+        if raw.startswith("data:"):
+            return raw
+        return _file_url(raw, request)
+
     return {
         "partner_id": partner.id,
         "partner_code": partner.partner_code,
-        "items": [(_file_url(path, request) if path else "") for path in items],
+        "items": [_to_public_ref(path) for path in items],
     }
 
 
@@ -3987,8 +4015,14 @@ async def partner_upload_featured_image(slot: int, file: UploadFile = File(...),
         except Exception:
             items = ["", "", "", "", ""]
 
-    name = _save_image_upload(file, BRANDING_UPLOAD_DIR, f"partner-featured-{slot}", PARTNER_IMAGE_MAX_UPLOAD_BYTES)
-    items[slot - 1] = f"/api/files/branding_images/{name}"
+    ext, content, mime = _read_validated_image_upload(file, PARTNER_IMAGE_MAX_UPLOAD_BYTES)
+
+    # Keep filesystem copy for backward compatibility, but persist featured slot as data URL
+    # so the image survives storage cleanup/redeploy on ephemeral hosts.
+    name = f"partner-featured-{slot}-{uuid.uuid4().hex}{ext}"
+    (BRANDING_UPLOAD_DIR / name).write_bytes(content)
+    data_url = f"data:{mime};base64,{base64.b64encode(content).decode('ascii')}"
+    items[slot - 1] = data_url
 
     payload = {"items": items, "updated_at": now_iso()}
     if not row:
