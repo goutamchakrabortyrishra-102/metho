@@ -148,17 +148,11 @@ def _set_product_hidden_flag(db: Session, product_id: str, hidden: bool) -> bool
 
 
 def _compact_image_ref(value: str) -> str:
-    image_url = str(value or "").strip()
-    if image_url.startswith("data:") and len(image_url) > 4096:
-        return ""
-    return image_url
+    return str(value or "").strip()
 
 
 def _compact_public_image_url(value: str) -> str:
-    image_url = str(value or "").strip()
-    if image_url.startswith("data:") and len(image_url) > 4096:
-        return ""
-    return image_url
+    return str(value or "").strip()
 
 
 @router.get("/products")

@@ -1537,9 +1537,6 @@ async def list_products(limit: Optional[int] = None, compact: int = 0):
         if not p.get("product_type"):
             p["product_type"] = "metho"
         if compact:
-            image_url = str(p.get("image_url") or "")
-            if image_url.startswith("data:"):
-                p["image_url"] = ""
             description = str(p.get("description") or "")
             if len(description) > 320:
                 p["description"] = description[:320]
