@@ -151,7 +151,7 @@ const Hero = () => {
   useEffect(() => {
     let active = true;
     api
-      .get("/products?limit=200")
+      .get("/products?limit=200&compact=1")
       .then((r) => {
         if (!active) return;
         const rows = normalizeCollection(r.data);
@@ -873,7 +873,7 @@ const Products = () => {
   const [products, setProducts] = React.useState([]);
   useEffect(() => {
     api.post("/seed").catch(() => {});
-    api.get("/products?limit=40").then((r) => setProducts(normalizeCollection(r.data).filter(isVisibleMethoProduct).slice(0, 4))).catch(() => {});
+    api.get("/products?limit=40&compact=1").then((r) => setProducts(normalizeCollection(r.data).filter(isVisibleMethoProduct).slice(0, 4))).catch(() => {});
   }, []);
   return (
     <section id="products" className="relative py-24 overflow-hidden bg-[radial-gradient(circle_at_10%_20%,rgba(16,185,129,0.12),transparent_38%),radial-gradient(circle_at_90%_0%,rgba(245,158,11,0.14),transparent_42%),linear-gradient(180deg,#f8faf9_0%,#eef7f2_100%)]">

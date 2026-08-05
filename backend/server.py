@@ -1526,7 +1526,7 @@ async def admin_rank_recompute(admin: dict = Depends(require_role("super_admin",
 
 # ===================== PRODUCTS =====================
 @api_router.get("/products")
-async def list_products(limit: Optional[int] = None):
+async def list_products(limit: Optional[int] = None, compact: int = 0):
     # Public: only approved and non-hidden products (or legacy with unset status)
     fetch_limit = 500
     if limit is not None:
@@ -1536,6 +1536,13 @@ async def list_products(limit: Optional[int] = None):
     for p in visible:
         if not p.get("product_type"):
             p["product_type"] = "metho"
+        if compact:
+            image_url = str(p.get("image_url") or "")
+            if image_url.startswith("data:"):
+                p["image_url"] = ""
+            description = str(p.get("description") or "")
+            if len(description) > 320:
+                p["description"] = description[:320]
     return visible
 @api_router.post("/products")
 async def create_product(req: ProductRequest, admin: dict = Depends(require_role("super_admin", "company_admin"))):
