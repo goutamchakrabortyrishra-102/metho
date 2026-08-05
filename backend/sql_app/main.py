@@ -1,4 +1,4 @@
-from fastapi import FastAPI, Request
+from fastapi import FastAPI, Header, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from starlette.middleware.trustedhost import TrustedHostMiddleware
 from starlette.responses import JSONResponse
@@ -59,6 +59,10 @@ RATE_LIMIT_LOGIN = _int_env("RATE_LIMIT_LOGIN", 20)
 RATE_LIMIT_REGISTER = _int_env("RATE_LIMIT_REGISTER", 10)
 RATE_LIMIT_PASSWORD = _int_env("RATE_LIMIT_PASSWORD", 8)
 RATE_LIMIT_UPLOAD = _int_env("RATE_LIMIT_UPLOAD", 30)
+ENABLE_BANDWIDTH_METRICS = str(os.getenv("ENABLE_BANDWIDTH_METRICS", "1") or "1").strip().lower() not in {"0", "false", "off", "no"}
+BANDWIDTH_METRICS_WINDOW_MINUTES = _int_env("BANDWIDTH_METRICS_WINDOW_MINUTES", 240)
+BANDWIDTH_METRICS_MAX_EVENTS = max(1000, _int_env("BANDWIDTH_METRICS_MAX_EVENTS", 50000))
+METRICS_API_KEY = str(os.getenv("METRICS_API_KEY", "") or "").strip()
 
 SENSITIVE_RATE_LIMITS: list[tuple[str, int]] = [
     ("/api/login", RATE_LIMIT_LOGIN),
@@ -74,6 +78,8 @@ SENSITIVE_RATE_LIMITS: list[tuple[str, int]] = [
 
 _rate_limit_store: dict[str, deque[float]] = defaultdict(deque)
 _rate_limit_lock = Lock()
+_bandwidth_events: deque[dict] = deque(maxlen=BANDWIDTH_METRICS_MAX_EVENTS)
+_bandwidth_lock = Lock()
 
 PUBLIC_RESOURCE_PATH_PREFIXES = (
     "/api/files/",
@@ -109,6 +115,93 @@ def _is_rate_limited(client_ip: str, path: str, now_ts: float) -> tuple[bool, in
             return True, retry_after
         bucket.append(now_ts)
     return False, 0
+
+
+def _safe_int(value, fallback: int = 0) -> int:
+    try:
+        parsed = int(str(value or "0").strip())
+        return parsed if parsed >= 0 else fallback
+    except Exception:
+        return fallback
+
+
+def _capture_bandwidth_event(path: str, route_key: str, status_code: int, response_bytes: int) -> None:
+    if not ENABLE_BANDWIDTH_METRICS:
+        return
+    now_ts = time.time()
+    event = {
+        "ts": now_ts,
+        "path": str(path or ""),
+        "route": str(route_key or path or "unknown"),
+        "status": int(status_code or 0),
+        "bytes": max(0, int(response_bytes or 0)),
+    }
+    with _bandwidth_lock:
+        _bandwidth_events.append(event)
+
+
+def _summarize_bandwidth(minutes: int = 60, top: int = 20) -> dict:
+    safe_minutes = max(1, int(minutes or 60))
+    safe_top = max(1, min(100, int(top or 20)))
+    cutoff = time.time() - (safe_minutes * 60)
+
+    grouped: dict[str, dict] = {}
+    total_bytes = 0
+    total_hits = 0
+
+    with _bandwidth_lock:
+        for event in list(_bandwidth_events):
+            if float(event.get("ts") or 0) < cutoff:
+                continue
+            route = str(event.get("route") or event.get("path") or "unknown")
+            item = grouped.setdefault(
+                route,
+                {
+                    "route": route,
+                    "hits": 0,
+                    "bytes": 0,
+                    "avg_bytes": 0,
+                    "status_2xx": 0,
+                    "status_3xx": 0,
+                    "status_4xx": 0,
+                    "status_5xx": 0,
+                },
+            )
+            byte_count = _safe_int(event.get("bytes"), 0)
+            status = _safe_int(event.get("status"), 0)
+            item["hits"] += 1
+            item["bytes"] += byte_count
+            if 200 <= status <= 299:
+                item["status_2xx"] += 1
+            elif 300 <= status <= 399:
+                item["status_3xx"] += 1
+            elif 400 <= status <= 499:
+                item["status_4xx"] += 1
+            elif status >= 500:
+                item["status_5xx"] += 1
+
+            total_bytes += byte_count
+            total_hits += 1
+
+    rows = list(grouped.values())
+    for row in rows:
+        hits = max(1, int(row.get("hits") or 0))
+        row["avg_bytes"] = int(round(float(row.get("bytes") or 0) / hits))
+
+    rows.sort(key=lambda r: (int(r.get("bytes") or 0), int(r.get("hits") or 0)), reverse=True)
+    top_rows = rows[:safe_top]
+
+    return {
+        "window_minutes": safe_minutes,
+        "event_buffer_size": len(_bandwidth_events),
+        "totals": {
+            "hits": total_hits,
+            "bytes": total_bytes,
+            "megabytes": round(total_bytes / (1024 * 1024), 3),
+            "gigabytes": round(total_bytes / (1024 * 1024 * 1024), 4),
+        },
+        "top_routes": top_rows,
+    }
 
 
 def _seed_demo_admin():
@@ -251,6 +344,32 @@ async def security_headers_middleware(request: Request, call_next):
     if request.url.scheme == "https":
         response.headers.setdefault("Strict-Transport-Security", "max-age=31536000; includeSubDomains; preload")
     return response
+
+
+@app.middleware("http")
+async def bandwidth_metrics_middleware(request: Request, call_next):
+    response = await call_next(request)
+    if ENABLE_BANDWIDTH_METRICS and request.url.path.startswith("/api/"):
+        route_path = request.scope.get("route").path if request.scope.get("route") else request.url.path
+        content_len = _safe_int(response.headers.get("content-length"), 0)
+        _capture_bandwidth_event(
+            path=request.url.path,
+            route_key=str(route_path or request.url.path),
+            status_code=int(getattr(response, "status_code", 0) or 0),
+            response_bytes=content_len,
+        )
+    return response
+
+
+@app.get("/api/admin/system-bandwidth")
+def admin_system_bandwidth(
+    minutes: int = 60,
+    top: int = 20,
+    x_metrics_key: str | None = Header(default=None, alias="X-Metrics-Key"),
+):
+    if METRICS_API_KEY and str(x_metrics_key or "").strip() != METRICS_API_KEY:
+        raise HTTPException(status_code=403, detail="Metrics key required")
+    return _summarize_bandwidth(minutes=minutes, top=top)
 
 app.include_router(health.router)
 app.include_router(auth.router)
