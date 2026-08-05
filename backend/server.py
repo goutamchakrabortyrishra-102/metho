@@ -1526,9 +1526,12 @@ async def admin_rank_recompute(admin: dict = Depends(require_role("super_admin",
 
 # ===================== PRODUCTS =====================
 @api_router.get("/products")
-async def list_products():
+async def list_products(limit: Optional[int] = None):
     # Public: only approved and non-hidden products (or legacy with unset status)
-    all_docs = await db.products.find({}, {"_id": 0}).to_list(500)
+    fetch_limit = 500
+    if limit is not None:
+        fetch_limit = max(1, min(int(limit), 500))
+    all_docs = await db.products.find({}, {"_id": 0}).to_list(fetch_limit)
     visible = [p for p in all_docs if p.get("approval_status") in (None, "", "approved") and not p.get("hidden", False)]
     for p in visible:
         if not p.get("product_type"):
