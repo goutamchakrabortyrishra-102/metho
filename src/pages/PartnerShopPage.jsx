@@ -208,7 +208,7 @@ const isTransportServiceListing = (item) => {
   const haystack = [item?.category, item?.name, item?.description]
     .map((v) => String(v || "").toLowerCase())
     .join(" ");
-  return ["transport", "cab", "taxi", "bike rental", "car rental", "ride"].some((k) => haystack.includes(k));
+  return ["transport", "cab", "taxi", "bike rental", "car rental", "ride", "car service", "vehicle rental", "auto rental"].some((k) => haystack.includes(k));
 };
 const isHospitalityServiceListing = (item) => {
   const key = String(item?.service_template_key || "").trim().toLowerCase();
@@ -556,6 +556,7 @@ export default function PartnerShopPage() {
     }
     setTransportBusy(true);
     try {
+      const manualMemberRef = String(guestMemberRef || "").trim();
       const { data } = await api.post("/transport/bookings", {
         partner_code: partnerCode,
         service_product_id: transportService.id,
@@ -567,7 +568,7 @@ export default function PartnerShopPage() {
         fare_preset_id: selectedFarePresetId,
         travel_date: transportForm.travel_date,
         notes: transportForm.notes,
-        member_ref: guestMemberRef,
+        member_ref: manualMemberRef,
       });
       setTransportBooking(data?.booking || null);
       toast.success("Transport booking submitted");
@@ -992,7 +993,7 @@ export default function PartnerShopPage() {
                           className="w-full mt-3 rounded-full bg-sky-700 hover:bg-sky-800 text-white"
                           data-testid={`shop-book-transport-${service.id}`}
                         >
-                          <CalendarCheck2 className="w-4 h-4 mr-2" /> Book Ride
+                          <CalendarCheck2 className="w-4 h-4 mr-2" /> Book Now
                         </Button>
                       </div>
                     </div>
@@ -1335,7 +1336,7 @@ export default function PartnerShopPage() {
                           className="w-full mt-3 rounded-full bg-emerald-900 hover:bg-emerald-950 text-white"
                           data-testid={`shop-book-service-${service.id}`}
                         >
-                          <CalendarCheck2 className="w-4 h-4 mr-2" /> {isTransportServiceListing(service) ? "Book Ride" : "Book Now"}
+                          <CalendarCheck2 className="w-4 h-4 mr-2" /> Book Now
                         </Button>
                       </div>
                     </div>

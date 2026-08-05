@@ -32,7 +32,7 @@ const isTransportServiceListing = (item) => {
   const haystack = [item?.category, item?.name, item?.description]
     .map((v) => String(v || "").toLowerCase())
     .join(" ");
-  return ["transport", "cab", "taxi", "bike rental", "car rental", "ride"].some((k) => haystack.includes(k));
+  return ["transport", "cab", "taxi", "bike rental", "car rental", "ride", "car service", "vehicle rental", "auto rental"].some((k) => haystack.includes(k));
 };
 const HOSPITALITY_SERVICE_SECTORS = ["Hotel", "Homestay", "Restaurant", "Cafe"];
 const DOORSTEP_SERVICE_SECTORS = ["Home Service", "Laundry", "Beauty at Home", "Cleaning", "Courier", "Tailoring"];
