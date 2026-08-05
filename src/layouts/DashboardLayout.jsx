@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { Outlet, NavLink, useNavigate } from "react-router-dom";
+import { Outlet, NavLink, useLocation, useNavigate } from "react-router-dom";
 import { LayoutDashboard, Wallet, Users, Network, Package, ShoppingCart, TrendingUp, User, LogOut, Menu, X, Bell, Search, Settings, Sparkles, BadgeIndianRupee, Calculator, Shield, Store, Compass, Trophy, Send, CheckCircle2, Upload, Bot, ClipboardList, Activity, Warehouse, BookOpenCheck } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { Logo } from "@/components/Logo";
@@ -40,11 +40,26 @@ const links = [
 export default function DashboardLayout() {
   const { user, logout } = useAuth();
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [headerSearch, setHeaderSearch] = useState("");
   const nav = useNavigate();
+  const location = useLocation();
+
+  React.useEffect(() => {
+    if (!String(location.pathname || "").startsWith("/app/partners")) return;
+    const params = new URLSearchParams(location.search);
+    setHeaderSearch(params.get("search") || "");
+  }, [location.pathname, location.search]);
 
   const handleLogout = () => {
     logout();
     nav("/");
+  };
+
+  const runHeaderSearch = () => {
+    const term = String(headerSearch || "").trim();
+    const params = new URLSearchParams();
+    if (term) params.set("search", term);
+    nav({ pathname: "/app/partners", search: params.toString() ? `?${params.toString()}` : "" });
   };
 
   return (
@@ -112,7 +127,19 @@ export default function DashboardLayout() {
               </button>
               <div className="hidden md:flex items-center gap-2 bg-secondary/60 rounded-full px-4 py-2 w-72">
                 <Search className="w-4 h-4 text-muted-foreground" />
-                <input placeholder="Search members, orders..." className="bg-transparent outline-none text-sm flex-1 font-body" />
+                <input
+                  value={headerSearch}
+                  onChange={(e) => setHeaderSearch(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") {
+                      e.preventDefault();
+                      runHeaderSearch();
+                    }
+                  }}
+                  placeholder="Search partners, city, code..."
+                  className="bg-transparent outline-none text-sm flex-1 font-body"
+                  data-testid="header-global-search"
+                />
               </div>
             </div>
             <div className="flex items-center gap-3">

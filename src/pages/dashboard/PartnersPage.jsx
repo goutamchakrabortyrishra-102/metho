@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 import { Store, Plus, Pencil, Trash2, TrendingUp, Percent, Building, FileSpreadsheet, FileDown, ScrollText, Star, MessageCircle, Images, Upload, CheckCircle2, XCircle, ChevronDown, Search, Eye, Network, Package } from "lucide-react";
-import { Navigate, Link, useNavigate } from "react-router-dom";
+import { Navigate, Link, useLocation, useNavigate } from "react-router-dom";
 import * as XLSX from "xlsx";
 import { jsPDF } from "jspdf";
 import { Button } from "@/components/ui/button";
@@ -42,6 +42,7 @@ const DEFAULT_PARTNER_MESSAGE_TEMPLATES = [
 export default function PartnersPage() {
   const { user } = useAuth();
   const nav = useNavigate();
+  const location = useLocation();
   const isAdmin = user && (user.role === "super_admin" || user.role === "company_admin" || user.role === "admin");
   const [partners, setPartners] = useState([]);
   const [editing, setEditing] = useState(null); // partner object or {new: true}
@@ -58,6 +59,14 @@ export default function PartnersPage() {
   const [cities, setCities] = useState([]);
   const [newBusinessType, setNewBusinessType] = useState("");
   const [newCity, setNewCity] = useState("");
+  const [cityAdminState, setCityAdminState] = useState("");
+  const [cityAdminDistrict, setCityAdminDistrict] = useState("");
+  const [locationMetaBusy, setLocationMetaBusy] = useState(false);
+  const [indiaLocationMeta, setIndiaLocationMeta] = useState({
+    states: [],
+    districtsByState: {},
+    citiesByStateDistrict: {},
+  });
   const [metaBusy, setMetaBusy] = useState(false);
   const [search, setSearch] = useState("");
   const [cityFilter, setCityFilter] = useState("");
@@ -74,6 +83,22 @@ export default function PartnersPage() {
   const [selectedPartnerId, setSelectedPartnerId] = useState("");
   const lastFormPinRef = useRef("");
   const lastEditPinRef = useRef("");
+
+  const cityAdminDistrictOptions = useMemo(() => {
+    if (!cityAdminState) return [];
+    return indiaLocationMeta.districtsByState?.[cityAdminState] || [];
+  }, [cityAdminState, indiaLocationMeta.districtsByState]);
+
+  const cityAdminAutoOptions = useMemo(() => {
+    if (!cityAdminState || !cityAdminDistrict) {
+      return [...cities].sort((a, b) => String(a).localeCompare(String(b)));
+    }
+    const key = `${cityAdminState.toLowerCase()}||${cityAdminDistrict.toLowerCase()}`;
+    const generated = indiaLocationMeta.citiesByStateDistrict?.[key] || [];
+    const merged = [...generated, ...cities];
+    return Array.from(new Set(merged.map((v) => String(v || "").trim()).filter(Boolean)))
+      .sort((a, b) => a.localeCompare(b));
+  }, [cityAdminState, cityAdminDistrict, cities, indiaLocationMeta.citiesByStateDistrict]);
 
   const getApiErrorMessage = (err, fallback) => {
     const status = err?.response?.status;
@@ -559,6 +584,103 @@ export default function PartnersPage() {
     }
   }, [partners, selectedPartnerId]);
 
+  useEffect(() => {
+    if (!isAdmin) return;
+    let cancelled = false;
+    setLocationMetaBusy(true);
+    import("indian-pincodes")
+      .then((mod) => {
+        if (cancelled) return;
+        const pkg = mod?.default || mod;
+        const allRows = typeof pkg?.getAllPincodes === "function" ? pkg.getAllPincodes() : [];
+        const rows = Array.isArray(allRows) ? allRows : [];
+        const statesSet = new Set();
+        const districtsMap = {};
+        const citiesMap = {};
+
+        rows.forEach((row) => {
+          const state = String(row?.state || "").trim();
+          const district = String(row?.district || "").trim();
+          const city = String(row?.name || "").trim();
+          if (!state || !district) return;
+          statesSet.add(state);
+          if (!districtsMap[state]) districtsMap[state] = new Set();
+          districtsMap[state].add(district);
+          if (city) {
+            const key = `${state.toLowerCase()}||${district.toLowerCase()}`;
+            if (!citiesMap[key]) citiesMap[key] = new Set();
+            citiesMap[key].add(city);
+          }
+        });
+
+        const states = Array.from(statesSet).sort((a, b) => a.localeCompare(b));
+        const districtsByState = Object.fromEntries(
+          Object.entries(districtsMap).map(([state, districts]) => [state, Array.from(districts).sort((a, b) => a.localeCompare(b))])
+        );
+        const citiesByStateDistrict = Object.fromEntries(
+          Object.entries(citiesMap).map(([key, citySet]) => [key, Array.from(citySet).sort((a, b) => a.localeCompare(b))])
+        );
+
+        setIndiaLocationMeta({ states, districtsByState, citiesByStateDistrict });
+        if (states.length) {
+          setCityAdminState((prev) => prev || states[0]);
+        }
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setIndiaLocationMeta({ states: [...INDIAN_STATES], districtsByState: {}, citiesByStateDistrict: {} });
+        }
+      })
+      .finally(() => {
+        if (!cancelled) setLocationMetaBusy(false);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [isAdmin]);
+
+  useEffect(() => {
+    if (!cityAdminState) {
+      setCityAdminDistrict("");
+      return;
+    }
+    if (!cityAdminDistrictOptions.length) {
+      setCityAdminDistrict("");
+      return;
+    }
+    if (!cityAdminDistrictOptions.includes(cityAdminDistrict)) {
+      setCityAdminDistrict(cityAdminDistrictOptions[0]);
+    }
+  }, [cityAdminDistrict, cityAdminDistrictOptions, cityAdminState]);
+
+  useEffect(() => {
+    const params = new URLSearchParams(location.search);
+    const nextSearch = params.get("search") || "";
+    const nextCity = params.get("city") || "";
+    const nextType = params.get("type") || "";
+    setSearch(nextSearch);
+    setCityFilter(nextCity);
+    setTypeFilter(nextType);
+  }, [location.search]);
+
+  useEffect(() => {
+    const params = new URLSearchParams(location.search);
+    const apply = (key, value) => {
+      const normalized = String(value || "").trim();
+      if (normalized) params.set(key, normalized);
+      else params.delete(key);
+    };
+    apply("search", search);
+    apply("city", cityFilter);
+    apply("type", typeFilter);
+    const next = params.toString();
+    const current = String(location.search || "").replace(/^\?/, "");
+    if (next !== current) {
+      nav({ pathname: location.pathname, search: next ? `?${next}` : "" }, { replace: true });
+    }
+  }, [search, cityFilter, typeFilter, nav, location.pathname, location.search]);
+
   if (!isAdmin) return <Navigate to="/app" replace />;
 
   const openNew = () => { setForm(EMPTY); setEditing({ new: true }); };
@@ -810,10 +932,60 @@ export default function PartnersPage() {
         <div className="bg-white rounded-xl border border-border p-4">
           <p className="text-xs uppercase tracking-widest text-emerald-800 font-semibold">City List</p>
           <p className="text-xs text-muted-foreground mt-1">Partner form-এর city suggestion list এখানে add/remove করুন।</p>
+          <div className="mt-3 grid grid-cols-1 md:grid-cols-2 gap-2">
+            <div>
+              <Label>Country</Label>
+              <Input value="India" readOnly className="mt-1.5 h-11 bg-slate-50" data-testid="add-city-country" />
+            </div>
+            <div>
+              <Label>State</Label>
+              <select
+                value={cityAdminState}
+                onChange={(e) => {
+                  setCityAdminState(e.target.value);
+                  setCityAdminDistrict("");
+                }}
+                className="mt-1.5 h-11 w-full rounded-md border border-input bg-white px-3 text-sm"
+                data-testid="add-city-state"
+              >
+                {(indiaLocationMeta.states.length ? indiaLocationMeta.states : INDIAN_STATES).map((state) => (
+                  <option key={state} value={state}>{state}</option>
+                ))}
+              </select>
+            </div>
+            <div className="md:col-span-2">
+              <Label>District</Label>
+              <select
+                value={cityAdminDistrict}
+                onChange={(e) => setCityAdminDistrict(e.target.value)}
+                className="mt-1.5 h-11 w-full rounded-md border border-input bg-white px-3 text-sm"
+                data-testid="add-city-district"
+              >
+                <option value="">Select district</option>
+                {cityAdminDistrictOptions.map((district) => (
+                  <option key={district} value={district}>{district}</option>
+                ))}
+              </select>
+            </div>
+          </div>
           <div className="mt-3 flex gap-2">
-            <Input value={newCity} onChange={(e) => setNewCity(e.target.value)} placeholder="e.g. Howrah" data-testid="add-city-input" />
+            <select
+              value={newCity}
+              onChange={(e) => setNewCity(e.target.value)}
+              className="h-11 w-full rounded-md border border-input bg-white px-3 text-sm"
+              data-testid="add-city-select"
+            >
+              <option value="">Select city (auto)</option>
+              {cityAdminAutoOptions.map((cityName) => (
+                <option key={cityName} value={cityName}>{cityName}</option>
+              ))}
+            </select>
+          </div>
+          <div className="mt-2 flex gap-2">
+            <Input value={newCity} onChange={(e) => setNewCity(e.target.value)} placeholder="Manual city type করুন (e.g. Howrah)" data-testid="add-city-input" />
             <Button type="button" variant="outline" onClick={addCity} data-testid="add-city-btn">Add</Button>
           </div>
+          {locationMetaBusy ? <p className="text-[11px] text-muted-foreground mt-2">India state/district/city list loading...</p> : null}
           <div className="mt-3 flex flex-wrap gap-2">
             {cities.map((c) => (
               <button
