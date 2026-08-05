@@ -1,7 +1,7 @@
 import json
 from datetime import datetime, timezone
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Header
 from sqlalchemy.orm import Session
 
 from ..database import get_db
@@ -183,8 +183,11 @@ def _sanitize_public_settings(payload: dict) -> dict:
 
 
 @router.get("/settings")
-def get_settings(db: Session = Depends(get_db)):
-    return load_settings(db)
+def get_settings(authorization: str | None = Header(default=None), db: Session = Depends(get_db)):
+    payload = load_settings(db)
+    if str(authorization or "").strip():
+        return payload
+    return _sanitize_public_settings(payload)
 
 
 @router.get("/settings/public")

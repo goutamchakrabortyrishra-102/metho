@@ -1,6 +1,6 @@
 from datetime import datetime, timezone
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, Header, HTTPException
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
@@ -147,6 +147,13 @@ def _set_product_hidden_flag(db: Session, product_id: str, hidden: bool) -> bool
     return bool(hidden_map.get(product_id, False))
 
 
+def _compact_image_ref(value: str) -> str:
+    image_url = str(value or "").strip()
+    if image_url.startswith("data:") and len(image_url) > 4096:
+        return ""
+    return image_url
+
+
 def _compact_public_image_url(value: str) -> str:
     image_url = str(value or "").strip()
     if image_url.startswith("data:") and len(image_url) > 4096:
@@ -155,7 +162,7 @@ def _compact_public_image_url(value: str) -> str:
 
 
 @router.get("/products")
-def list_products(limit: int | None = None, db: Session = Depends(get_db)):
+def list_products(limit: int | None = None, authorization: str | None = Header(default=None), db: Session = Depends(get_db)):
     products = db.query(Product).order_by(Product.created_at.desc()).all()
     meta_rows = db.query(ProductMeta).all()
     meta_map = {m.product_id: m for m in meta_rows}
@@ -191,6 +198,19 @@ def list_products(limit: int | None = None, db: Session = Depends(get_db)):
                 "hidden": bool(hidden_map.get(p.id, False)),
             }
         )
+    is_authenticated = bool(str(authorization or "").strip())
+    if not is_authenticated:
+        public_limit = max(1, min(int(limit) if limit is not None else 200, 500))
+        compacted = []
+        for item in out[:public_limit]:
+            next_item = dict(item)
+            next_item["image_url"] = _compact_image_ref(next_item.get("image_url") or "")
+            description = str(next_item.get("description") or "")
+            if len(description) > 320:
+                next_item["description"] = description[:320]
+            compacted.append(next_item)
+        return compacted
+
     if limit is not None:
         safe_limit = max(1, min(int(limit), 500))
         return out[:safe_limit]
