@@ -21,7 +21,19 @@ const clearLegacyPwaState = async () => {
   }
 };
 
-void clearLegacyPwaState();
+const maybeClearLegacyPwaStateOnce = () => {
+  if (typeof window === "undefined") return;
+  const cleanupKey = "metho_legacy_pwa_cleanup_v1";
+  try {
+    if (window.localStorage.getItem(cleanupKey) === "1") return;
+    window.localStorage.setItem(cleanupKey, "1");
+  } catch {
+    // Continue best-effort cleanup even if localStorage is unavailable.
+  }
+  void clearLegacyPwaState();
+};
+
+maybeClearLegacyPwaStateOnce();
 
 const queryClient = new QueryClient({
   defaultOptions: {
