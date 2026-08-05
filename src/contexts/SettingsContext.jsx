@@ -7,9 +7,22 @@ const SettingsContext = createContext({ settings: null, refresh: () => {} });
 export function SettingsProvider({ children }) {
   const [settings, setSettings] = useState(null);
   const refresh = useCallback(async () => {
+    const loadSettings = async () => {
+      const candidates = ["/settings/public", "/settings"];
+      let lastError = null;
+      for (const path of candidates) {
+        try {
+          const r = await api.get(path);
+          return r.data || {};
+        } catch (err) {
+          lastError = err;
+        }
+      }
+      throw lastError || new Error("settings fetch failed");
+    };
+
     try {
-      const r = await api.get("/settings/public");
-      const s = r.data || {};
+      const s = await loadSettings();
       // Resolve full URLs for brand assets so consumers can render directly
       s.site_logo_url_full = resolveAssetUrl(s.site_logo_url);
       s.landing_hero_image_url_full = resolveAssetUrl(s.landing_hero_image_url);

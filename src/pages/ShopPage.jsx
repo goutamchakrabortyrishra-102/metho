@@ -99,6 +99,26 @@ const calcTieredSubtotal = (quantity, unitPrice, tiers) => {
   return Number(dp[qty].toFixed(2));
 };
 
+const loadShopStartupProducts = async (limit = 240) => {
+  const safeLimit = Math.max(1, Math.min(Number(limit) || 240, 500));
+  const candidates = [
+    `/products/public?limit=${safeLimit}`,
+    `/products?limit=${safeLimit}&compact=1`,
+    `/products?limit=${safeLimit}`,
+    "/products",
+  ];
+  let lastError = null;
+  for (const path of candidates) {
+    try {
+      const r = await api.get(path);
+      return normalizeCollection(r.data);
+    } catch (err) {
+      lastError = err;
+    }
+  }
+  throw lastError || new Error("shop products fetch failed");
+};
+
 export default function ShopPage() {
   const { user } = useAuth();
   const { settings } = useSettings();
@@ -118,11 +138,12 @@ export default function ShopPage() {
   const getStock = (product) => Math.max(0, Number(product?.stock ?? 0));
 
   useEffect(() => {
-    api.post("/seed").catch(() => {});
-    api
-      .get("/products/public?limit=240")
-      .then((r) => {
-        setProducts(normalizeCollection(r.data));
+    if (process.env.NODE_ENV !== "production") {
+      api.post("/seed").catch(() => {});
+    }
+    loadShopStartupProducts(240)
+      .then((rows) => {
+        setProducts(rows);
         setLoadError("");
       })
       .catch(() => {

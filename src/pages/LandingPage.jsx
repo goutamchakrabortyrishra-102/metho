@@ -95,6 +95,38 @@ const DEFAULT_POLICY = {
     "3. Approved returns are processed for refund or replacement within the committed service timeline.",
 };
 
+let landingProductsPromise = null;
+
+const fetchPublicStartupProducts = async (limit = 200) => {
+  const safeLimit = Math.max(1, Math.min(Number(limit) || 200, 500));
+  const candidates = [
+    `/products/public?limit=${safeLimit}`,
+    `/products?limit=${safeLimit}&compact=1`,
+    `/products?limit=${safeLimit}`,
+    "/products",
+  ];
+  let lastError = null;
+  for (const path of candidates) {
+    try {
+      const r = await api.get(path);
+      return normalizeCollection(r.data);
+    } catch (err) {
+      lastError = err;
+    }
+  }
+  throw lastError || new Error("products fetch failed");
+};
+
+const loadLandingProducts = async () => {
+  if (!landingProductsPromise) {
+    landingProductsPromise = fetchPublicStartupProducts(200).catch((err) => {
+      landingProductsPromise = null;
+      throw err;
+    });
+  }
+  return landingProductsPromise;
+};
+
 const Nav = () => (
   <header className="fixed top-0 left-0 right-0 z-50 glass" data-testid="landing-nav">
     <div className="max-w-7xl mx-auto px-4 md:px-6 py-3 flex items-center justify-between gap-3">
@@ -150,11 +182,9 @@ const Hero = () => {
 
   useEffect(() => {
     let active = true;
-    api
-      .get("/products/public?limit=200")
-      .then((r) => {
+    loadLandingProducts()
+      .then((rows) => {
         if (!active) return;
-        const rows = normalizeCollection(r.data);
         const visibleProducts = rows.filter(isVisibleMethoProduct);
         const productById = new Map(visibleProducts.map((product) => [String(product?.id || ""), product]));
         const selectedProducts = selectedTopProductIds
@@ -872,8 +902,10 @@ const Products = () => {
   const placeholder = settings?.product_placeholder_image_url_full || FALLBACK_PRODUCT_IMG;
   const [products, setProducts] = React.useState([]);
   useEffect(() => {
-    api.post("/seed").catch(() => {});
-    api.get("/products/public?limit=40").then((r) => setProducts(normalizeCollection(r.data).filter(isVisibleMethoProduct).slice(0, 4))).catch(() => {});
+    if (process.env.NODE_ENV !== "production") {
+      api.post("/seed").catch(() => {});
+    }
+    loadLandingProducts().then((rows) => setProducts(rows.filter(isVisibleMethoProduct).slice(0, 4))).catch(() => {});
   }, []);
   return (
     <section id="products" className="relative py-24 overflow-hidden bg-[radial-gradient(circle_at_10%_20%,rgba(16,185,129,0.12),transparent_38%),radial-gradient(circle_at_90%_0%,rgba(245,158,11,0.14),transparent_42%),linear-gradient(180deg,#f8faf9_0%,#eef7f2_100%)]">
