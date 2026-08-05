@@ -125,9 +125,9 @@ const getProductImageUrl = (product) => {
 
 const getDisplayImage = (product, placeholder) => {
   const image = getProductImageUrl(product);
-  if (!image && product?.fallback_image_url) return resolveAssetUrl(product.fallback_image_url);
-  if (!image && getPdfUrl(product)) return PDF_PREVIEW;
   if (image) return image;
+  if (product?.fallback_image_url) return resolveAssetUrl(product.fallback_image_url);
+  if (getPdfUrl(product)) return placeholder || PRODUCT_FALLBACK;
   return placeholder || PRODUCT_FALLBACK;
 };
 
@@ -375,6 +375,8 @@ export default function PartnerShopPage() {
   const canShowHospitality = visibleSectors.includes(PARTNER_SECTOR_KEYS.HOSPITALITY_SECTOR);
   const canShowDoorstep = visibleSectors.includes(PARTNER_SECTOR_KEYS.DOORSTEP_SECTOR);
   const canShowOtherServices = visibleSectors.includes(PARTNER_SECTOR_KEYS.OTHER_SERVICE_SECTOR);
+  const normalizedRole = String(user?.role || "").toLowerCase();
+  const isMemberOrCustomer = normalizedRole === "member" || normalizedRole === "customer";
   const defaultGalleryTab = canShowTransport
     ? "transport"
     : (canShowHospitality
@@ -396,7 +398,7 @@ export default function PartnerShopPage() {
   );
   const hasAnyFeaturedImage = useMemo(() => featuredDisplayImages.some(Boolean), [featuredDisplayImages]);
   const getStock = (product) => Math.max(0, Number(product?.stock ?? 0));
-  const isBookNowRole = !user || ["member", "customer"].includes(String(user?.role || "").toLowerCase());
+  const isBookNowRole = !user || isMemberOrCustomer;
   const canAccessProductPdf = ["partner", "admin", "super_admin", "company_admin"].includes(String(user?.role || "").toLowerCase());
   const filteredHospitality = useMemo(() => {
     const q = hospitalitySearch.trim().toLowerCase();
@@ -512,8 +514,8 @@ export default function PartnerShopPage() {
     if (isTransportServiceListing(service)) {
       setTransportService(service);
       setTransportForm({
-        customer_name: user?.name || "",
-        customer_phone: user?.phone || "",
+        customer_name: isMemberOrCustomer ? (user?.name || "") : "",
+        customer_phone: isMemberOrCustomer ? (user?.phone || "") : "",
         pickup: "",
         destination: "",
         travel_date: "",
@@ -557,6 +559,7 @@ export default function PartnerShopPage() {
     setTransportBusy(true);
     try {
       const manualMemberRef = String(guestMemberRef || "").trim();
+      const autoMemberRef = normalizedRole === "member" ? String(user?.id || "").trim() : "";
       const { data } = await api.post("/transport/bookings", {
         partner_code: partnerCode,
         service_product_id: transportService.id,
@@ -568,7 +571,7 @@ export default function PartnerShopPage() {
         fare_preset_id: selectedFarePresetId,
         travel_date: transportForm.travel_date,
         notes: transportForm.notes,
-        member_ref: manualMemberRef,
+        member_ref: manualMemberRef || autoMemberRef,
       });
       setTransportBooking(data?.booking || null);
       toast.success("Transport booking submitted");
