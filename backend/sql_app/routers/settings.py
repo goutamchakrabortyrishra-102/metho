@@ -16,7 +16,7 @@ PUBLIC_SETTINGS_EXCLUDE_KEYS = {
     "einvoice_password",
 }
 
-DATA_URL_MAX_LEN = 4096
+DATA_URL_MAX_LEN = 4096  # unused, kept for reference
 
 
 DEFAULT_SETTINGS = {
@@ -175,10 +175,7 @@ def _sanitize_public_settings(payload: dict) -> dict:
     for key, value in (payload or {}).items():
         if key in PUBLIC_SETTINGS_EXCLUDE_KEYS:
             continue
-        if isinstance(value, str) and value.startswith("data:") and len(value) > DATA_URL_MAX_LEN:
-            safe[key] = ""
-        else:
-            safe[key] = value
+        safe[key] = value
     return safe
 
 
