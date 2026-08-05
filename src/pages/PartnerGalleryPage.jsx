@@ -51,8 +51,8 @@ const isPdfUrl = (value) => /\.pdf($|\?)/i.test(String(value || ""));
 
 const getDisplayImage = (product) => {
   if (product?.image_url && !isPdfUrl(product.image_url)) return resolveAssetUrl(product.image_url);
-  if (getPdfUrl(product)) return PDF_PREVIEW;
   if (product?.fallback_image_url) return resolveAssetUrl(product.fallback_image_url);
+  if (getPdfUrl(product)) return PDF_PREVIEW;
   return FALLBACK;
 };
 
