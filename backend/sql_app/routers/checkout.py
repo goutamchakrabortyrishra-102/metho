@@ -4,12 +4,13 @@ import base64
 import hashlib
 import hmac
 import mimetypes
+from email.utils import formatdate
 from types import SimpleNamespace
 import urllib.error
 import urllib.request
 from pathlib import Path
 import os
-from fastapi import APIRouter, Depends, File, Header, HTTPException, UploadFile
+from fastapi import APIRouter, Depends, File, Header, HTTPException, Request, UploadFile
 from fastapi.responses import Response
 from sqlalchemy.orm import Session
 
@@ -282,6 +283,25 @@ def _resolve_uploaded_file(path: str) -> Path | None:
     return None
 
 
+def _build_file_cache_headers(file_path: Path, rel_path: str, media_type: str) -> dict[str, str]:
+    stat = file_path.stat()
+    etag = f'W/"{int(stat.st_mtime_ns):x}-{int(stat.st_size):x}"'
+    rel = str(rel_path or "").replace("\\", "/").lstrip("/").lower()
+    is_fast_static = (
+        rel.startswith("product_images/")
+        or rel.startswith("branding_images/")
+        or media_type.startswith("image/")
+        or media_type == "application/pdf"
+    )
+    cache_control = "public, max-age=604800, stale-while-revalidate=86400" if is_fast_static else "public, max-age=86400, stale-while-revalidate=3600"
+    return {
+        "ETag": etag,
+        "Last-Modified": formatdate(stat.st_mtime, usegmt=True),
+        "Cache-Control": cache_control,
+        "Vary": "Accept-Encoding",
+    }
+
+
 def _load_checkout_razorpay_settings(db: Session) -> tuple[dict, str, str]:
     settings = load_settings(db)
     enabled = bool(settings.get("razorpay_enabled"))
@@ -455,23 +475,30 @@ async def upload_payment_screenshot(file: UploadFile = File(...)):
 
 
 @router.get("/files/{path:path}")
-def get_file(path: str):
+def get_file(path: str, request: Request):
     file_path = _resolve_uploaded_file(path)
     if not file_path:
         raise HTTPException(status_code=404, detail="File not found")
     try:
+        media_type = mimetypes.guess_type(str(file_path))[0] or "application/octet-stream"
+        headers = _build_file_cache_headers(file_path, path, media_type)
+
+        # Conditional GET support: return 304 when client cache is still valid.
+        inm = str(request.headers.get("if-none-match") or "").strip()
+        if inm and inm == headers.get("ETag"):
+            return Response(status_code=304, headers=headers)
+
         # Read and return bytes directly to avoid sendfile/mount incompatibility on some hosts.
         content = file_path.read_bytes()
-        media_type = mimetypes.guess_type(str(file_path))[0] or "application/octet-stream"
-        return Response(content=content, media_type=media_type)
+        return Response(content=content, media_type=media_type, headers=headers)
     except Exception:
         raise HTTPException(status_code=404, detail="File not found")
 
 
 @router.get("/public-files/{path:path}")
-def get_public_file(path: str):
+def get_public_file(path: str, request: Request):
     # Alias route used when upstream/proxy rules interfere with /api/files/* paths.
-    return get_file(path)
+    return get_file(path, request)
 
 
 @router.post("/orders")
