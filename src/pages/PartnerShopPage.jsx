@@ -127,7 +127,7 @@ const getDisplayImage = (product, placeholder) => {
   const image = getProductImageUrl(product);
   if (image) return image;
   if (product?.fallback_image_url) return resolveAssetUrl(product.fallback_image_url);
-  if (getPdfUrl(product)) return placeholder || PRODUCT_FALLBACK;
+  if (getPdfUrl(product)) return PRODUCT_FALLBACK;
   return placeholder || PRODUCT_FALLBACK;
 };
 
@@ -1451,13 +1451,13 @@ export default function PartnerShopPage() {
                   className="h-10"
                 />
                 <div className="rounded-lg border border-sky-200 bg-sky-50 p-3">
-                  <p className="text-[11px] font-semibold text-sky-900">Estimated fare</p>
+                  <p className="text-[11px] font-semibold text-sky-900">Default fare estimate (not final)</p>
                   <p className="text-xs text-slate-700 mt-1">
                     {selectedFarePresetId
-                      ? `Preset fare selected: ₹${Number((transportFarePresets.find((p) => String(p.id) === selectedFarePresetId)?.fare) || 0).toLocaleString("en-IN")}`
-                      : `Base fare from listing: ₹${Number(transportService?.price || 0).toLocaleString("en-IN")}`}
+                      ? `Default fare shown: ₹${Number((transportFarePresets.find((p) => String(p.id) === selectedFarePresetId)?.fare) || 0).toLocaleString("en-IN")} (from selected preset)`
+                      : `Default fare shown: ₹${Number(transportService?.price || 0).toLocaleString("en-IN")} (from service listing)`}
                   </p>
-                  <p className="text-[11px] text-slate-600 mt-1">Partner can adjust final fare after checking your request details.</p>
+                  <p className="text-[11px] text-slate-600 mt-1">This is not the final fare. The final amount can be confirmed after discussing and agreeing with the business owner.</p>
                 </div>
                 <div className="flex gap-2">
                   <Button

@@ -1507,14 +1507,14 @@ export default function PartnerDashboardPage() {
                 {doorstepItems.map(p => (
                   <div key={p.id} className="rounded-lg border border-border overflow-hidden">
                     <div className="aspect-square bg-secondary relative">
-                      <img src={resolveAssetUrl(p.image_url) || (getPdfUrl(p) ? PDF_PREVIEW : undefined)} alt={p.name} className="w-full h-full object-cover" />
+                      <img src={getPreviewImageUrl(p) || undefined} alt={p.name} className="w-full h-full object-cover" />
                       {getPdfUrl(p) ? (
                         <button
                           type="button"
                           onClick={() => window.open(getPdfUrl(p), "_blank")}
                           className="absolute left-2 top-2 rounded-full bg-white/90 text-emerald-900 px-2.5 py-1 text-[10px] font-bold"
                         >
-                          Open PDF
+                          Open Preview
                         </button>
                       ) : null}
                     </div>
@@ -1573,14 +1573,14 @@ export default function PartnerDashboardPage() {
                 {serviceItems.map(p => (
                   <div key={p.id} className="rounded-lg border border-border overflow-hidden">
                     <div className="aspect-square bg-secondary relative">
-                      <img src={resolveAssetUrl(p.image_url) || (getPdfUrl(p) ? PDF_PREVIEW : undefined)} alt={p.name} className="w-full h-full object-cover" />
+                      <img src={getPreviewImageUrl(p) || undefined} alt={p.name} className="w-full h-full object-cover" />
                       {getPdfUrl(p) ? (
                         <button
                           type="button"
                           onClick={() => window.open(getPdfUrl(p), "_blank")}
                           className="absolute left-2 top-2 rounded-full bg-white/90 text-emerald-900 px-2.5 py-1 text-[10px] font-bold"
                         >
-                          Open PDF
+                          Open Preview
                         </button>
                       ) : null}
                     </div>
@@ -1663,14 +1663,14 @@ export default function PartnerDashboardPage() {
                     {transportItems.map((p) => (
                       <div key={p.id} className="rounded-lg border border-border overflow-hidden bg-white">
                         <div className="aspect-square bg-secondary relative">
-                          <img src={resolveAssetUrl(p.image_url) || (getPdfUrl(p) ? PDF_PREVIEW : undefined)} alt={p.name} className="w-full h-full object-cover" />
+                          <img src={getPreviewImageUrl(p) || undefined} alt={p.name} className="w-full h-full object-cover" />
                           {getPdfUrl(p) ? (
                             <button
                               type="button"
                               onClick={() => window.open(getPdfUrl(p), "_blank")}
                               className="absolute left-2 top-2 rounded-full bg-white/90 text-emerald-900 px-2.5 py-1 text-[10px] font-bold"
                             >
-                              Open PDF
+                              Open Preview
                             </button>
                           ) : null}
                         </div>
