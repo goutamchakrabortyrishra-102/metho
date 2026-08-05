@@ -159,7 +159,6 @@ function UpiSection({ form, setF, readOnly, onPersist }) {
   const handleFile = async (e) => {
     const f = e.target.files?.[0];
     if (!f) return;
-    if (f.size > 200 * 1024) return toast.error("File too large (max 200KB)");
     setUploading(true);
     try {
       const fd = new FormData();
@@ -322,7 +321,7 @@ function UpiSection({ form, setF, readOnly, onPersist }) {
                 </Button>
               )}
               <p className="text-[11px] text-muted-foreground">
-                Optional — QR না দিলেও UPI ID copy করেই customer pay করতে পারবেন। PNG/JPG, max 200KB।
+                Optional — QR না দিলেও UPI ID copy করেই customer pay করতে পারবেন। PNG/JPG supported.
               </p>
             </div>
           </div>

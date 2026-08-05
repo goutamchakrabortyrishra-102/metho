@@ -614,10 +614,6 @@ export default function PartnerDashboardPage() {
   const uploadTopupProof = async (e) => {
     const file = e.target.files?.[0];
     if (!file) return;
-    if (file.size > PARTNER_IMAGE_MAX_BYTES) {
-      toast.error(`File too large (max ${PARTNER_IMAGE_MAX_TEXT})`);
-      return;
-    }
     setUploadingProof(true);
     try {
       const fd = new FormData();

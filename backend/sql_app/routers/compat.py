@@ -11,6 +11,7 @@ import zipfile
 import os
 import urllib.error
 import urllib.request
+from PIL import Image
 
 from fastapi import APIRouter, Depends, File, HTTPException, Query, Request, UploadFile
 from fastapi.responses import Response
@@ -36,6 +37,7 @@ BRANDING_UPLOAD_DIR = UPLOADED_OBJECTS_DIR / "branding_images"
 BRANDING_UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
 PARTNER_IMAGE_MAX_UPLOAD_BYTES = 200 * 1024
 GLOBAL_IMAGE_MAX_UPLOAD_BYTES = 200 * 1024
+UPI_PROOF_MAX_UPLOAD_BYTES = 5 * 1024 * 1024
 PARTNER_PRODUCT_GALLERY_MAX_UPLOAD_BYTES = 5 * 1024 * 1024
 PRODUCT_IMAGE_MAX_UPLOAD_BYTES = 5 * 1024 * 1024
 PARTNER_PRODUCT_UNITS_KEY = "partner_product_units"
@@ -124,6 +126,35 @@ def _read_validated_image_upload(file: UploadFile, max_bytes: int = GLOBAL_IMAGE
         kb = max(1, int(max_bytes // 1024))
         raise HTTPException(status_code=400, detail=f"File too large (max {kb}KB)")
     return ext, content, mime
+
+
+def _save_image_upload_with_pdf_copy(file: UploadFile, target_dir: Path, prefix: str, max_bytes: int = UPI_PROOF_MAX_UPLOAD_BYTES) -> tuple[str, str]:
+    """Save original image and, when possible, an additional auto-generated PDF copy."""
+    ext = Path(file.filename or f"{prefix}.jpg").suffix.lower() or ".jpg"
+    if ext not in {".jpg", ".jpeg", ".png", ".webp", ".gif", ".svg"}:
+        raise HTTPException(status_code=400, detail="Unsupported file type")
+
+    content = file.file.read()
+    if len(content) > max(1, int(max_bytes or 0)):
+        mb = max(1, round(max_bytes / (1024 * 1024)))
+        raise HTTPException(status_code=400, detail=f"File too large (max {mb}MB)")
+
+    base_name = f"{prefix}-{uuid.uuid4().hex}"
+    image_name = f"{base_name}{ext}"
+    image_path = target_dir / image_name
+    image_path.write_bytes(content)
+
+    pdf_name = ""
+    try:
+        with Image.open(BytesIO(content)) as img:
+            rgb = img.convert("RGB")
+            pdf_name = f"{base_name}.pdf"
+            pdf_path = target_dir / pdf_name
+            rgb.save(pdf_path, format="PDF")
+    except Exception:
+        pdf_name = ""
+
+    return image_name, pdf_name
 
 
 def _load_razorpay_settings(db: Session) -> tuple[str, str]:
@@ -3883,8 +3914,14 @@ def partner_transport_mark_paid(trip_id: str, payload: dict | None = None, db: S
 async def partner_upload_topup_proof(file: UploadFile = File(...), current_user=Depends(get_current_user)):
     if getattr(current_user, "role", "") != "partner":
         raise HTTPException(status_code=403, detail="Partner access only")
-    name = _save_image_upload(file, UPI_QR_UPLOAD_DIR, "partner-topup-proof", PARTNER_IMAGE_MAX_UPLOAD_BYTES)
-    return {"ok": True, "url": f"/api/files/payment_screenshots/{name}", "storage_path": f"payment_screenshots/{name}"}
+    image_name, pdf_name = _save_image_upload_with_pdf_copy(file, UPI_QR_UPLOAD_DIR, "partner-topup-proof", UPI_PROOF_MAX_UPLOAD_BYTES)
+    return {
+        "ok": True,
+        "url": f"/api/files/payment_screenshots/{image_name}",
+        "storage_path": f"payment_screenshots/{image_name}",
+        "pdf_url": (f"/api/files/payment_screenshots/{pdf_name}" if pdf_name else ""),
+        "pdf_storage_path": (f"payment_screenshots/{pdf_name}" if pdf_name else ""),
+    }
 
 
 @router.post("/partner/upload/product-image")

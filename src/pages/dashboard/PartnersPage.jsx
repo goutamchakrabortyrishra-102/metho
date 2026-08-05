@@ -309,10 +309,6 @@ export default function PartnersPage() {
 
   const uploadTopupQr = async (partnerId, file) => {
     if (!file) return;
-    if (file.size > 200 * 1024) {
-      toast.error("File too large (max 200KB)");
-      return;
-    }
     const fd = new FormData();
     fd.append("file", file);
     try {

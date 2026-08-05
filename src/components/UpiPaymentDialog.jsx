@@ -109,7 +109,6 @@ export default function UpiPaymentDialog({
   const handleFile = async (e) => {
     const f = e.target.files?.[0];
     if (!f) return;
-    if (f.size > 200 * 1024) return toast.error("File too large (max 200KB)");
     setUploading(true);
     try {
       const fd = new FormData();
@@ -545,7 +544,7 @@ export default function UpiPaymentDialog({
                           <span className="text-emerald-700 font-semibold text-sm flex items-center gap-1"><CheckCircle2 className="w-4 h-4" /> Uploaded — click to change</span>
                         </div>
                       ) : (
-                        <><Upload className="w-4 h-4 text-emerald-700" /> <span className="text-sm text-emerald-800 font-semibold">Select screenshot (max 200KB)</span></>
+                        <><Upload className="w-4 h-4 text-emerald-700" /> <span className="text-sm text-emerald-800 font-semibold">Select screenshot</span></>
                       )}
                     </label>
                   </div>

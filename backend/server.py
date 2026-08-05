@@ -13,12 +13,14 @@ import logging
 import uuid
 import jwt
 import bcrypt
+from io import BytesIO
 from pathlib import Path
 import mimetypes
 from urllib.parse import quote_plus
 from pydantic import BaseModel, Field, EmailStr, ConfigDict
 from typing import List, Optional, Literal
 from datetime import datetime, timezone, timedelta
+from PIL import Image
 
 ROOT_DIR = Path(__file__).parent
 load_dotenv(ROOT_DIR / '.env')
@@ -2664,8 +2666,24 @@ ALLOWED_IMAGE_EXTS = {"jpg", "jpeg", "png", "webp", "gif"}
 MIME_BY_EXT = {"jpg": "image/jpeg", "jpeg": "image/jpeg", "png": "image/png", "webp": "image/webp", "gif": "image/gif"}
 MAX_UPLOAD_BYTES = 200 * 1024  # 200 KB
 MAX_UPLOAD_LABEL = "200KB"
+UPI_UPLOAD_MAX_BYTES = 5 * 1024 * 1024
+UPI_UPLOAD_MAX_LABEL = "5MB"
 PRODUCT_IMAGE_MAX_UPLOAD_BYTES = 5 * 1024 * 1024
 PRODUCT_IMAGE_MAX_UPLOAD_LABEL = "5MB"
+
+
+def _image_bytes_to_pdf_bytes(image_bytes: bytes) -> bytes:
+    """Convert an uploaded image to a single-page PDF blob.
+    Returns empty bytes when conversion is not possible.
+    """
+    try:
+        with Image.open(BytesIO(image_bytes)) as img:
+            rgb = img.convert("RGB")
+            buf = BytesIO()
+            rgb.save(buf, format="PDF")
+            return buf.getvalue()
+    except Exception:
+        return b""
 
 @api_router.post("/admin/upload/product-image")
 async def upload_product_image(
@@ -3410,8 +3428,8 @@ async def upload_payment_screenshot(
     if ext not in ALLOWED_IMAGE_EXTS:
         raise HTTPException(status_code=400, detail=f"Only {', '.join(ALLOWED_IMAGE_EXTS)} allowed")
     data = await file.read()
-    if len(data) > MAX_UPLOAD_BYTES:
-        raise HTTPException(status_code=400, detail=f"File too large (max {MAX_UPLOAD_LABEL})")
+    if len(data) > UPI_UPLOAD_MAX_BYTES:
+        raise HTTPException(status_code=400, detail=f"File too large (max {UPI_UPLOAD_MAX_LABEL})")
     content_type = MIME_BY_EXT.get(ext, "application/octet-stream")
     file_uuid = str(uuid.uuid4())
     storage_path = f"{APP_NAME}/payment-screenshots/{user['id']}/{file_uuid}.{ext}"
@@ -3421,6 +3439,19 @@ async def upload_payment_screenshot(
         raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Upload failed: {e}")
+
+    # Store a PDF copy for back-office workflows while preserving image URL for UI preview.
+    pdf_storage_path = f"{APP_NAME}/payment-screenshots/{user['id']}/{file_uuid}.pdf"
+    pdf_bytes = _image_bytes_to_pdf_bytes(data)
+    pdf_size = 0
+    if pdf_bytes:
+        try:
+            pdf_result = put_object(pdf_storage_path, pdf_bytes, "application/pdf")
+            pdf_size = pdf_result.get("size", len(pdf_bytes))
+        except Exception:
+            pdf_storage_path = ""
+            pdf_size = 0
+
     await db.files.insert_one({
         "id": file_uuid,
         "storage_path": result["path"],
@@ -3432,10 +3463,25 @@ async def upload_payment_screenshot(
         "is_deleted": False,
         "created_at": now_iso(),
     })
+    if pdf_storage_path:
+        await db.files.insert_one({
+            "id": str(uuid.uuid4()),
+            "storage_path": pdf_storage_path,
+            "original_filename": f"{Path(file.filename or 'screenshot').stem}.pdf",
+            "content_type": "application/pdf",
+            "size": pdf_size,
+            "uploaded_by": user["id"],
+            "purpose": "payment-screenshot-pdf",
+            "source_file_id": file_uuid,
+            "is_deleted": False,
+            "created_at": now_iso(),
+        })
     return {
         "id": file_uuid,
         "storage_path": result["path"],
         "url": f"/api/files/{result['path']}",
+        "pdf_storage_path": pdf_storage_path,
+        "pdf_url": (f"/api/files/{pdf_storage_path}" if pdf_storage_path else ""),
         "content_type": content_type,
         "size": result.get("size", len(data)),
     }
@@ -3451,8 +3497,8 @@ async def upload_member_upi_qr(
     if ext not in ALLOWED_IMAGE_EXTS:
         raise HTTPException(status_code=400, detail=f"Only {', '.join(ALLOWED_IMAGE_EXTS)} allowed")
     data = await file.read()
-    if len(data) > MAX_UPLOAD_BYTES:
-        raise HTTPException(status_code=400, detail=f"File too large (max {MAX_UPLOAD_LABEL})")
+    if len(data) > UPI_UPLOAD_MAX_BYTES:
+        raise HTTPException(status_code=400, detail=f"File too large (max {UPI_UPLOAD_MAX_LABEL})")
     content_type = MIME_BY_EXT.get(ext, "application/octet-stream")
     file_uuid = str(uuid.uuid4())
     storage_path = f"{APP_NAME}/member-upi-qr/{user['id']}/{file_uuid}.{ext}"
@@ -3493,8 +3539,8 @@ async def upload_upi_qr(
     if ext not in ALLOWED_IMAGE_EXTS:
         raise HTTPException(status_code=400, detail=f"Only {', '.join(ALLOWED_IMAGE_EXTS)} allowed")
     data = await file.read()
-    if len(data) > MAX_UPLOAD_BYTES:
-        raise HTTPException(status_code=400, detail=f"File too large (max {MAX_UPLOAD_LABEL})")
+    if len(data) > UPI_UPLOAD_MAX_BYTES:
+        raise HTTPException(status_code=400, detail=f"File too large (max {UPI_UPLOAD_MAX_LABEL})")
     content_type = MIME_BY_EXT.get(ext, "application/octet-stream")
     file_uuid = str(uuid.uuid4())
     storage_path = f"{APP_NAME}/upi-qr/{file_uuid}.{ext}"
