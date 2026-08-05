@@ -271,11 +271,14 @@ export default function PartnerDashboardPage() {
   const [rejectReasonDrafts, setRejectReasonDrafts] = useState({});
   const [serviceFareDrafts, setServiceFareDrafts] = useState({});
   const [serviceActionBusy, setServiceActionBusy] = useState({});
-  const productItems = products.filter((p) => !(String(p?.listing_type || p?.item_kind || "").toLowerCase().includes("service") || p?.is_service));
-  const transportItems = products.filter((p) => (String(p?.listing_type || p?.item_kind || "").toLowerCase().includes("service") || p?.is_service) && isTransportServiceListing(p));
-  const hospitalityItems = products.filter((p) => (String(p?.listing_type || p?.item_kind || "").toLowerCase().includes("service") || p?.is_service) && !isTransportServiceListing(p) && isHospitalityServiceListing(p));
-  const doorstepItems = products.filter((p) => (String(p?.listing_type || p?.item_kind || "").toLowerCase().includes("service") || p?.is_service) && !isTransportServiceListing(p) && !isHospitalityServiceListing(p) && isDoorstepServiceListing(p));
-  const serviceItems = products.filter((p) => (String(p?.listing_type || p?.item_kind || "").toLowerCase().includes("service") || p?.is_service) && !isTransportServiceListing(p) && !isHospitalityServiceListing(p) && !isDoorstepServiceListing(p));
+  const normalizedProducts = Array.isArray(products) ? products : [];
+  const normalizedLedger = Array.isArray(ledger) ? ledger : [];
+  const normalizedOrders = Array.isArray(orders) ? orders : [];
+  const productItems = normalizedProducts.filter((p) => !(String(p?.listing_type || p?.item_kind || "").toLowerCase().includes("service") || p?.is_service));
+  const transportItems = normalizedProducts.filter((p) => (String(p?.listing_type || p?.item_kind || "").toLowerCase().includes("service") || p?.is_service) && isTransportServiceListing(p));
+  const hospitalityItems = normalizedProducts.filter((p) => (String(p?.listing_type || p?.item_kind || "").toLowerCase().includes("service") || p?.is_service) && !isTransportServiceListing(p) && isHospitalityServiceListing(p));
+  const doorstepItems = normalizedProducts.filter((p) => (String(p?.listing_type || p?.item_kind || "").toLowerCase().includes("service") || p?.is_service) && !isTransportServiceListing(p) && !isHospitalityServiceListing(p) && isDoorstepServiceListing(p));
+  const serviceItems = normalizedProducts.filter((p) => (String(p?.listing_type || p?.item_kind || "").toLowerCase().includes("service") || p?.is_service) && !isTransportServiceListing(p) && !isHospitalityServiceListing(p) && !isDoorstepServiceListing(p));
   const featuredProductFallbacks = productItems
     .map((item) => getPartnerProductImageUrl(item))
     .filter(Boolean)
@@ -310,6 +313,9 @@ export default function PartnerDashboardPage() {
   ].filter(Boolean);
   const listingDefaultTab = sectorTabs[0] || "products";
   const dashboardTheme = getDashboardTheme(primarySector);
+  const summaryThisMonth = (summary && typeof summary === "object" && summary.this_month && typeof summary.this_month === "object")
+    ? summary.this_month
+    : { sales: 0, commission: 0, orders: 0 };
   const sortedTransportTrips = [...(transportData?.items || [])].sort((a, b) => {
     const aTs = new Date(a?.created_at || 0).getTime();
     const bTs = new Date(b?.created_at || 0).getTime();
@@ -325,10 +331,22 @@ export default function PartnerDashboardPage() {
     : sortedTransportTrips.filter((trip) => String(trip?.status || "booked") === transportStatusFilter);
 
   const loadAll = () => {
-    api.get("/partner/summary").then(r => setSummary(r.data)).catch(() => {});
-    api.get("/partner/products").then(r => setProducts(r.data)).catch(() => {});
-    api.get("/partner/ledger").then(r => setLedger(r.data)).catch(() => {});
-    api.get("/partner/orders").then(r => setOrders(r.data)).catch(() => {});
+    api.get("/partner/summary").then((r) => {
+      const next = r?.data;
+      setSummary(next && typeof next === "object" ? next : null);
+    }).catch(() => {});
+    api.get("/partner/products").then((r) => {
+      const next = r?.data;
+      setProducts(Array.isArray(next) ? next : (Array.isArray(next?.items) ? next.items : []));
+    }).catch(() => setProducts([]));
+    api.get("/partner/ledger").then((r) => {
+      const next = r?.data;
+      setLedger(Array.isArray(next) ? next : (Array.isArray(next?.items) ? next.items : []));
+    }).catch(() => setLedger([]));
+    api.get("/partner/orders").then((r) => {
+      const next = r?.data;
+      setOrders(Array.isArray(next) ? next : (Array.isArray(next?.items) ? next.items : []));
+    }).catch(() => setOrders([]));
     api.get("/settings").then(r => setSettings(r.data)).catch(() => setSettings(null));
     api.get("/partner/payment-profile").then(r => setPaymentProfile(r.data)).catch(() => {});
     api.get("/partner/banner").then(r => setShopBannerUrl(resolveAssetUrl(r.data?.banner_url || ""))).catch(() => setShopBannerUrl(""));
@@ -341,7 +359,14 @@ export default function PartnerDashboardPage() {
     });
     api.get("/partner/transport/fare-presets").then((r) => setTransportPresets(Array.isArray(r.data?.items) ? r.data.items : [])).catch(() => setTransportPresets([]));
     setLoadingTransport(true);
-    api.get("/partner/transport/bookings").then((r) => setTransportData(r.data || { items: [], wallet: { balance: 0 } })).catch(() => setTransportData({ items: [], wallet: { balance: 0 } })).finally(() => setLoadingTransport(false));
+    api.get("/partner/transport/bookings").then((r) => {
+      const next = r?.data && typeof r.data === "object" ? r.data : {};
+      setTransportData({
+        ...next,
+        wallet: (next.wallet && typeof next.wallet === "object") ? next.wallet : { balance: 0 },
+        items: Array.isArray(next.items) ? next.items : [],
+      });
+    }).catch(() => setTransportData({ items: [], wallet: { balance: 0 } })).finally(() => setLoadingTransport(false));
   };
 
   const updateTripFare = async (tripId) => {
@@ -461,7 +486,10 @@ export default function PartnerDashboardPage() {
     }
   };
 
-  const transportServices = React.useMemo(() => products.filter((p) => isTransportServiceListing(p)), [products]);
+  const transportServices = React.useMemo(() => {
+    const source = Array.isArray(products) ? products : [];
+    return source.filter((p) => isTransportServiceListing(p));
+  }, [products]);
 
   useEffect(() => {
     if (!transportServices.length) return;
@@ -561,8 +589,8 @@ export default function PartnerDashboardPage() {
     s1["!cols"] = [{ wch: 28 }, { wch: 30 }];
     XLSX.utils.book_append_sheet(wb, s1, "Summary");
     const rows = [["Date", "Period", "Sales (₹)", "Rate %", "Commission (₹)"],
-      ...ledger.map(e => [new Date(e.created_at).toLocaleString(), e.period, e.sales_amount, e.commission_percent, e.commission_amount]),
-      [], ["TOTAL", "", ledger.reduce((s, e) => s + (e.sales_amount || 0), 0), "", ledger.reduce((s, e) => s + (e.commission_amount || 0), 0)],
+      ...normalizedLedger.map(e => [new Date(e.created_at).toLocaleString(), e.period, e.sales_amount, e.commission_percent, e.commission_amount]),
+      [], ["TOTAL", "", normalizedLedger.reduce((s, e) => s + (e.sales_amount || 0), 0), "", normalizedLedger.reduce((s, e) => s + (e.commission_amount || 0), 0)],
     ];
     const s2 = XLSX.utils.aoa_to_sheet(rows);
     s2["!cols"] = [{ wch: 24 }, { wch: 12 }, { wch: 16 }, { wch: 12 }, { wch: 18 }];
@@ -868,7 +896,7 @@ export default function PartnerDashboardPage() {
             <div className="bg-white rounded-xl border border-border p-4"><div className="flex items-center gap-2 text-slate-500 text-[10px] uppercase font-bold tracking-widest"><TrendingUp className="w-3.5 h-3.5" /> Total Sales</div><p className="font-display font-black text-xl text-emerald-950 mt-1">{inr(summary.total_sales)}</p></div>
             <div className="bg-white rounded-xl border border-border p-4"><div className="flex items-center gap-2 text-slate-500 text-[10px] uppercase font-bold tracking-widest"><Percent className="w-3.5 h-3.5" /> Reserve Debited</div><p className="font-display font-black text-xl text-emerald-800 mt-1">{inr(paymentProfile?.wallet?.total_debit || 0)}</p></div>
             <div className="bg-white rounded-xl border border-border p-4"><div className="flex items-center gap-2 text-slate-500 text-[10px] uppercase font-bold tracking-widest"><Package className="w-3.5 h-3.5" /> Products Linked</div><p className="font-display font-black text-xl text-emerald-950 mt-1">{summary.products_linked}</p></div>
-            <div className={`${dashboardTheme.metricHighlightClass} rounded-xl border p-4`}><div className="flex items-center gap-2 text-amber-800 text-[10px] uppercase font-bold tracking-widest"><ShoppingCart className="w-3.5 h-3.5" /> This Month</div><p className="font-display font-black text-xl text-emerald-950 mt-1">{inr(summary.this_month.commission)}</p><p className="text-[10px] text-slate-600">{summary.this_month.orders} orders · {inr(summary.this_month.sales)} sales</p></div>
+            <div className={`${dashboardTheme.metricHighlightClass} rounded-xl border p-4`}><div className="flex items-center gap-2 text-amber-800 text-[10px] uppercase font-bold tracking-widest"><ShoppingCart className="w-3.5 h-3.5" /> This Month</div><p className="font-display font-black text-xl text-emerald-950 mt-1">{inr(summaryThisMonth.commission)}</p><p className="text-[10px] text-slate-600">{summaryThisMonth.orders} orders · {inr(summaryThisMonth.sales)} sales</p></div>
           </div>
         )}
 
@@ -880,8 +908,8 @@ export default function PartnerDashboardPage() {
           {canViewDoorstepSector ? <Tab id="doorstep" active={tab} onClick={setTab} activeClassName={dashboardTheme.tabActiveClass} idleClassName={dashboardTheme.tabIdleClass}>Doorstep ({doorstepItems.length})</Tab> : null}
           {canViewOtherServiceSector ? <Tab id="services" active={tab} onClick={setTab} activeClassName={dashboardTheme.tabActiveClass} idleClassName={dashboardTheme.tabIdleClass}>Other Services ({serviceItems.length})</Tab> : null}
           <Tab id="offline" active={tab} onClick={setTab} activeClassName={dashboardTheme.tabActiveClass} idleClassName={dashboardTheme.tabIdleClass}>Offline Billing</Tab>
-          <Tab id="orders" active={tab} onClick={setTab} activeClassName={dashboardTheme.tabActiveClass} idleClassName={dashboardTheme.tabIdleClass}>Orders ({orders.length})</Tab>
-          <Tab id="ledger" active={tab} onClick={setTab} activeClassName={dashboardTheme.tabActiveClass} idleClassName={dashboardTheme.tabIdleClass}>Ledger ({ledger.length})</Tab>
+          <Tab id="orders" active={tab} onClick={setTab} activeClassName={dashboardTheme.tabActiveClass} idleClassName={dashboardTheme.tabIdleClass}>Orders ({normalizedOrders.length})</Tab>
+          <Tab id="ledger" active={tab} onClick={setTab} activeClassName={dashboardTheme.tabActiveClass} idleClassName={dashboardTheme.tabIdleClass}>Ledger ({normalizedLedger.length})</Tab>
         </div>
 
         {tab === "overview" && summary && (
@@ -1326,7 +1354,7 @@ export default function PartnerDashboardPage() {
                 {productItems.map(p => (
                   <div key={p.id} className="rounded-lg border border-border overflow-hidden">
                     <div className="aspect-square bg-secondary relative">
-                      <img src={getPreviewImageUrl(p) || placeholder || undefined} alt={p.name} className="w-full h-full object-cover" />
+                      <img src={getPreviewImageUrl(p) || undefined} alt={p.name} className="w-full h-full object-cover" />
                       {getPdfUrl(p) ? (
                         <button
                           type="button"
@@ -1411,7 +1439,7 @@ export default function PartnerDashboardPage() {
                 {hospitalityItems.map(p => (
                   <div key={p.id} className="rounded-xl border border-amber-200 overflow-hidden bg-white shadow-sm">
                     <div className="aspect-square bg-secondary relative">
-                      <img src={getPreviewImageUrl(p) || placeholder || undefined} alt={p.name} className="w-full h-full object-cover" />
+                      <img src={getPreviewImageUrl(p) || undefined} alt={p.name} className="w-full h-full object-cover" />
                       <span className="absolute right-2 top-2 rounded-full bg-amber-100 text-amber-900 px-2 py-0.5 text-[10px] font-bold">Stay/Dining</span>
                       {getPdfUrl(p) ? (
                         <button
@@ -1941,7 +1969,7 @@ export default function PartnerDashboardPage() {
                 </Button>
               </div>
             </div>
-            {ledger.length === 0 ? (
+            {normalizedLedger.length === 0 ? (
               <p className="text-sm text-muted-foreground">No entries yet.</p>
             ) : (
               <table className="w-full text-sm">
@@ -1949,7 +1977,7 @@ export default function PartnerDashboardPage() {
                   <tr><th className="px-3 py-2 text-xs uppercase">Date</th><th className="px-3 py-2 text-xs uppercase">Period</th><th className="text-right px-3 py-2 text-xs uppercase">Sales</th><th className="text-right px-3 py-2 text-xs uppercase">Rate</th><th className="text-right px-3 py-2 text-xs uppercase">Commission</th></tr>
                 </thead>
                 <tbody className="divide-y divide-border">
-                  {ledger.map((e, i) => (
+                  {normalizedLedger.map((e, i) => (
                     <tr key={i}>
                       <td className="px-3 py-2 text-xs">{new Date(e.created_at).toLocaleString()}</td>
                       <td className="px-3 py-2 font-mono text-xs">{e.period}</td>
@@ -1967,11 +1995,11 @@ export default function PartnerDashboardPage() {
         {tab === "orders" && (
           <div className="bg-white rounded-xl border border-border p-6">
             <h3 className="font-display font-bold text-emerald-950 text-lg mb-4">Orders including your products</h3>
-            {orders.length === 0 ? (
+            {normalizedOrders.length === 0 ? (
               <p className="text-sm text-muted-foreground">No orders yet.</p>
             ) : (
               <div className="space-y-3">
-                {orders.map(o => (
+                {normalizedOrders.map(o => (
                   <div key={o.id} className="border border-border rounded-lg p-4 flex flex-wrap justify-between gap-3" data-testid={`partner-order-${o.id}`}>
                     <div>
                       <p className="font-mono text-xs text-emerald-800">{o.order_no}</p>
