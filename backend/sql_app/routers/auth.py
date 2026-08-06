@@ -30,7 +30,7 @@ SMTP_USE_TLS = str(os.getenv("SMTP_USE_TLS", "true")).lower() in {"1", "true", "
 MEMBER_ID_PREFIX = "MAU"
 DEFAULT_ADMIN_SPONSOR_ID = os.getenv("DEFAULT_ADMIN_SPONSOR_ID", "MAU00001").strip().upper()
 ADMIN_ROLES = {"super_admin", "company_admin", "admin"}
-ADMIN_LOGIN_ID = str(os.getenv("ADMIN_LOGIN_ID", "MTH-ADMIN") or "MTH-ADMIN").strip()
+ADMIN_LOGIN_ID = str(os.getenv("ADMIN_LOGIN_ID", "admin@metho.com") or "admin@metho.com").strip()
 
 
 def member_code_for_user(user_id: str) -> str:
@@ -69,6 +69,11 @@ def _resolve_user_by_identifier(db: Session, identifier: str) -> User | None:
     if by_email:
         return by_email
 
+    # Keep login resilient when stored email casing differs from user input.
+    by_email_lower = db.query(User).filter(User.email == ref.lower()).first()
+    if by_email_lower:
+        return by_email_lower
+
     users = db.query(User).all()
     for candidate in users:
         if member_code_for_user(candidate.id) == ref:
@@ -98,6 +103,7 @@ def _resolve_login_user(db: Session, identifier: str, admin_mode: bool = False) 
     compact = normalized.replace(" ", "")
     admin_aliases = {
         "ADMIN",
+        "ADMIN@METHO.COM",
         "MTHADMIN",
         "MTH-ADMIN",
         str(ADMIN_LOGIN_ID or "").strip().upper().replace(" ", ""),
