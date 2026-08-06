@@ -99,16 +99,16 @@ export default function MonthlySettlementPage() {
     // Sheet 3: Leader Payouts
     if (ls.lines.length > 0) {
       const leaderRows = [
-        ["Member Code", "Leader Name", "Monthly Purchase (₹)", "Points", "Point Value (₹)", "Reward (₹)"],
+        ["Member Code", "Leader Name", "Tier", "Monthly Purchase (₹)", "Points", "Point Value (₹)", "Reward (₹)"],
         ...ls.lines.map((l) => [
-          l.member_code || "", l.user_name || "",
-          l.monthly_purchase, l.points, ls.point_value, l.reward,
+          l.member_code || "", l.user_name || "", l.tier_label || "Leader",
+          l.monthly_purchase, l.points, l.point_value ?? ls.point_value, l.reward,
         ]),
         [],
-        ["TOTAL", "", ls.lines.reduce((s, l) => s + (l.monthly_purchase || 0), 0), ls.total_points, "", ls.total_reward_distributed],
+        ["TOTAL", "", "", ls.lines.reduce((s, l) => s + (l.monthly_purchase || 0), 0), ls.total_points, "", ls.total_reward_distributed],
       ];
       const s3 = XLSX.utils.aoa_to_sheet(leaderRows);
-      s3["!cols"] = [{ wch: 15 }, { wch: 30 }, { wch: 22 }, { wch: 12 }, { wch: 18 }, { wch: 15 }];
+      s3["!cols"] = [{ wch: 15 }, { wch: 30 }, { wch: 16 }, { wch: 22 }, { wch: 12 }, { wch: 18 }, { wch: 15 }];
       XLSX.utils.book_append_sheet(wb, s3, "Leader Payouts");
     }
 
@@ -344,6 +344,44 @@ export default function MonthlySettlementPage() {
               <p className="font-display font-black text-xl">{inr(ls.total_reward_distributed)}</p>
             </div>
           </div>
+          {ls.tiers && (
+            <div className="mt-4 rounded-xl border border-amber-200 bg-amber-50/50 p-4" data-testid="leader-tier-breakdown">
+              <p className="text-[11px] uppercase tracking-widest text-amber-800 font-semibold">50 / 30 / 20 Tier Split Breakdown</p>
+              {ls.tier_eligibility && (
+                <p className="text-xs text-amber-900 mt-1">
+                  Eligibility mapping: Leader ({ls.tier_eligibility.leader || "starter,bronze"}) · Elite ({ls.tier_eligibility.elite_leader || "silver,gold"}) · Crown ({ls.tier_eligibility.crown_leader || "diamond"})
+                </p>
+              )}
+              <div className="mt-3 overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead className="bg-amber-100/70">
+                    <tr>
+                      <th className="text-left px-3 py-2 font-semibold text-amber-900">Tier</th>
+                      <th className="text-right px-3 py-2 font-semibold text-amber-900">Pool %</th>
+                      <th className="text-right px-3 py-2 font-semibold text-amber-900">Pool Amount</th>
+                      <th className="text-right px-3 py-2 font-semibold text-amber-900">Points</th>
+                      <th className="text-right px-3 py-2 font-semibold text-amber-900">Point Value</th>
+                      <th className="text-right px-3 py-2 font-semibold text-amber-900">Qualified</th>
+                      <th className="text-right px-3 py-2 font-semibold text-amber-900">Reward</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-amber-200/70">
+                    {Object.entries(ls.tiers).map(([key, tier]) => (
+                      <tr key={key}>
+                        <td className="px-3 py-2 font-semibold text-emerald-950">{tier.label}</td>
+                        <td className="text-right px-3 py-2">{Number(tier.pool_percent || 0).toFixed(2)}%</td>
+                        <td className="text-right px-3 py-2">{inr(tier.pool_amount)}</td>
+                        <td className="text-right px-3 py-2 font-mono">{Number(tier.total_points || 0).toLocaleString("en-IN")}</td>
+                        <td className="text-right px-3 py-2 font-semibold text-amber-800">₹{Number(tier.point_value || 0).toFixed(2)}</td>
+                        <td className="text-right px-3 py-2">{Number(tier.qualified_count || 0)}</td>
+                        <td className="text-right px-3 py-2 font-bold text-emerald-800">{inr(tier.total_reward_distributed)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
           {ls.lines.length === 0 && (
             <p className="mt-4 text-sm text-muted-foreground italic">No leaders qualified this period based on current Admin rules.</p>
           )}

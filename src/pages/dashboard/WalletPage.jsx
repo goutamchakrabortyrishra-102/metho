@@ -200,6 +200,17 @@ export default function WalletPage() {
             <p className="text-[10px] uppercase tracking-widest text-slate-500 font-semibold mt-3">Leader Reward Settled</p>
             <p className="font-display font-black text-2xl text-emerald-950 mt-1">₹{Number(wallet.leader_reward_credited || 0).toLocaleString("en-IN")}</p>
             <p className="text-xs text-muted-foreground mt-1">Qualified leader bonuses</p>
+            <div className="mt-3 rounded-lg border border-amber-200 bg-amber-50/60 p-2.5 text-[11px] text-amber-900 space-y-1" data-testid="wallet-leader-tier-breakdown">
+              <p className="font-semibold">
+                Split: {Number(wallet.leader_tier_split?.leader || 50)}% / {Number(wallet.leader_tier_split?.elite_leader || 30)}% / {Number(wallet.leader_tier_split?.crown_leader || 20)}%
+              </p>
+              <p className="text-amber-800/90">
+                Eligibility: L({wallet.leader_tier_eligibility?.leader || "starter,bronze"}) · E({wallet.leader_tier_eligibility?.elite_leader || "silver,gold"}) · C({wallet.leader_tier_eligibility?.crown_leader || "diamond"})
+              </p>
+              <p>Leader: ₹{Number(wallet.leader_reward_credited_leader || 0).toLocaleString("en-IN")}</p>
+              <p>Elite: ₹{Number(wallet.leader_reward_credited_elite || 0).toLocaleString("en-IN")}</p>
+              <p>Crown: ₹{Number(wallet.leader_reward_credited_crown || 0).toLocaleString("en-IN")}</p>
+            </div>
           </div>
           <div className="bg-white rounded-xl border border-border p-5" data-testid="wallet-mps-payout">
             <div className="w-9 h-9 rounded-lg bg-slate-100 flex items-center justify-center"><Shield className="w-4.5 h-4.5 text-slate-800" /></div>

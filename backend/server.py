@@ -429,6 +429,9 @@ class SettingsUpdate(BaseModel):
     leader_min_personal_monthly_purchase: Optional[float] = None
     leader_min_team_monthly_purchase: Optional[float] = None
     leader_min_active_days: Optional[int] = None
+    leader_tier_leader_ranks: Optional[str] = None
+    leader_tier_elite_ranks: Optional[str] = None
+    leader_tier_crown_ranks: Optional[str] = None
     # === MPS Fund Rules (fully admin-defined) ===
     mps_min_active_months: Optional[int] = None
     mps_min_monthly_purchase: Optional[float] = None
@@ -562,6 +565,9 @@ DEFAULT_SETTINGS = {
     "leader_min_personal_monthly_purchase": 5000.0,
     "leader_min_team_monthly_purchase": 50000.0,
     "leader_min_active_days": 30,
+    "leader_tier_leader_ranks": "starter,bronze",
+    "leader_tier_elite_ranks": "silver,gold",
+    "leader_tier_crown_ranks": "diamond",
     # === MPS Fund Rules (all admin-configurable) ===
     "mps_min_active_months": 6,
     "mps_min_monthly_purchase": 1000.0,
@@ -971,6 +977,10 @@ async def register(req: RegisterRequest):
         "total_withdrawn": 0.0,
         "member_value_points": 0.0,
         "elite_leader_points": 0.0,
+        "leader_reward_credited": 0.0,
+        "leader_reward_credited_leader": 0.0,
+        "leader_reward_credited_elite": 0.0,
+        "leader_reward_credited_crown": 0.0,
         "mps_shield_balance": 0.0,
         "created_at": now_iso(),
     })
@@ -1315,15 +1325,32 @@ async def approve_kyc(user_id: str, admin: dict = Depends(require_role("super_ad
 # ===================== WALLET =====================
 @api_router.get("/wallet")
 async def get_wallet(user: dict = Depends(get_current_user)):
+    settings = await get_settings()
     w = await db.wallets.find_one({"user_id": user["id"]}, {"_id": 0})
     if not w:
         w = {"id": str(uuid.uuid4()), "user_id": user["id"], "balance": 0, "total_income": 0, "total_bonus": 0, "total_withdrawn": 0,
-             "member_value_points": 0, "elite_leader_points": 0, "mps_shield_balance": 0}
+             "member_value_points": 0, "elite_leader_points": 0, "mps_shield_balance": 0,
+             "leader_reward_credited": 0, "leader_reward_credited_leader": 0,
+             "leader_reward_credited_elite": 0, "leader_reward_credited_crown": 0}
         await db.wallets.insert_one({**w, "created_at": now_iso()})
     # Ensure all reward fields exist for legacy wallets
-    for k in ("member_value_points", "elite_leader_points", "mps_shield_balance"):
+    for k in (
+        "member_value_points", "elite_leader_points", "mps_shield_balance",
+        "leader_reward_credited", "leader_reward_credited_leader",
+        "leader_reward_credited_elite", "leader_reward_credited_crown",
+    ):
         if k not in w or w[k] is None:
             w[k] = 0.0
+    w["leader_tier_split"] = {
+        "leader": LEADER_TIER_SPLIT_PERCENT["leader"],
+        "elite_leader": LEADER_TIER_SPLIT_PERCENT["elite_leader"],
+        "crown_leader": LEADER_TIER_SPLIT_PERCENT["crown_leader"],
+    }
+    w["leader_tier_eligibility"] = {
+        "leader": settings.get("leader_tier_leader_ranks") or "starter,bronze",
+        "elite_leader": settings.get("leader_tier_elite_ranks") or "silver,gold",
+        "crown_leader": settings.get("leader_tier_crown_ranks") or "diamond",
+    }
     return w
 
 @api_router.get("/wallet/transactions")
@@ -1688,7 +1715,12 @@ async def create_partner(req: AssociatePartnerRequest, admin: dict = Depends(req
             # Wallet init (partners have wallets to accumulate commission owed)
             await db.wallets.insert_one({
                 "user_id": partner_user_id, "balance": 0, "total_income": 0,
-                "total_bonus": 0, "total_withdrawn": 0, "created_at": now_iso(),
+                "total_bonus": 0, "total_withdrawn": 0,
+                "leader_reward_credited": 0,
+                "leader_reward_credited_leader": 0,
+                "leader_reward_credited_elite": 0,
+                "leader_reward_credited_crown": 0,
+                "created_at": now_iso(),
             })
 
     partner = {
@@ -4192,6 +4224,10 @@ async def _seed_admin():
         "total_withdrawn": 0,
         "member_value_points": 0,
         "elite_leader_points": 0,
+        "leader_reward_credited": 0,
+        "leader_reward_credited_leader": 0,
+        "leader_reward_credited_elite": 0,
+        "leader_reward_credited_crown": 0,
         "mps_shield_balance": 0,
         "created_at": now_iso(),
     })
@@ -4263,17 +4299,23 @@ LEADER_TIER_SPLIT_PERCENT = {
 }
 
 
-def _leader_tier_from_user(user_doc: dict | None) -> tuple[str, str]:
-    """Map current user rank into settlement leader tier buckets.
-    - Crown Leader: Diamond
-    - Elite Leader: Gold, Silver
-    - Leader: others (including Bronze/Starter/unknown)
-    """
+def _normalized_rank_set(raw: str | None) -> set[str]:
+    text = str(raw or "").replace("|", ",").replace(";", ",")
+    return {part.strip().lower() for part in text.split(",") if part.strip()}
+
+
+def _leader_tier_from_user(user_doc: dict | None, settings: dict | None = None) -> tuple[str, str]:
+    """Map current user rank into settlement leader tier buckets from admin settings."""
     rank = str((user_doc or {}).get("rank") or "").strip().lower()
-    if rank == "diamond":
+    leader_ranks = _normalized_rank_set((settings or {}).get("leader_tier_leader_ranks")) or {"starter", "bronze"}
+    elite_ranks = _normalized_rank_set((settings or {}).get("leader_tier_elite_ranks")) or {"silver", "gold"}
+    crown_ranks = _normalized_rank_set((settings or {}).get("leader_tier_crown_ranks")) or {"diamond"}
+    if rank in crown_ranks:
         return "crown_leader", "Crown Leader"
-    if rank in {"gold", "silver"}:
+    if rank in elite_ranks:
         return "elite_leader", "Elite Leader"
+    if rank in leader_ranks:
+        return "leader", "Leader"
     return "leader", "Leader"
 
 async def _compute_settlement(period: str, settings: dict) -> dict:
@@ -4314,7 +4356,7 @@ async def _compute_settlement(period: str, settings: dict) -> dict:
         if not elig["qualified"]:
             continue
         user_doc = await db.users.find_one({"id": p["user_id"]}, {"_id": 0, "rank": 1, "role": 1}) or {}
-        tier_key, tier_label = _leader_tier_from_user(user_doc)
+        tier_key, tier_label = _leader_tier_from_user(user_doc, settings=settings)
         points = round(float(p["amount"]) / 100.0, 4)
         line = {
             "user_id": p["user_id"], "user_name": p.get("user_name"), "member_code": p.get("member_code"),
@@ -4352,6 +4394,11 @@ async def _compute_settlement(period: str, settings: dict) -> dict:
         }
         for key, tier in tier_buckets.items()
     }
+    leader_tier_config = {
+        "leader": settings.get("leader_tier_leader_ranks") or "starter,bronze",
+        "elite_leader": settings.get("leader_tier_elite_ranks") or "silver,gold",
+        "crown_leader": settings.get("leader_tier_crown_ranks") or "diamond",
+    }
 
     return {
         "period": period,
@@ -4374,6 +4421,8 @@ async def _compute_settlement(period: str, settings: dict) -> dict:
             "point_value": effective_leader_point_value,
             "total_reward_distributed": total_leader_reward_distributed,
             "qualified_count": len(leader_lines),
+            "split_percent": LEADER_TIER_SPLIT_PERCENT,
+            "tier_eligibility": leader_tier_config,
             "tiers": leader_tier_summary,
             "lines": leader_lines,
         },
@@ -4438,6 +4487,12 @@ async def settlement_execute(
     for line in result["leader_settlement"]["lines"]:
         if line["reward"] <= 0:
             continue
+        tier_key = str(line.get("tier") or "leader")
+        tier_credit_key = {
+            "leader": "leader_reward_credited_leader",
+            "elite_leader": "leader_reward_credited_elite",
+            "crown_leader": "leader_reward_credited_crown",
+        }.get(tier_key, "leader_reward_credited_leader")
         await db.wallets.update_one(
             {"user_id": line["user_id"]},
             {"$inc": {
@@ -4445,6 +4500,7 @@ async def settlement_execute(
                 "total_income": line["reward"],
                 "total_bonus": line["reward"],
                 "leader_reward_credited": line["reward"],
+                tier_credit_key: line["reward"],
             }},
         )
         await db.wallet_transactions.insert_one({
@@ -4478,6 +4534,7 @@ async def settlement_execute(
             "leader_min_personal_product_sales",
             "leader_min_personal_monthly_purchase", "leader_min_team_monthly_purchase",
             "leader_min_active_days",
+            "leader_tier_leader_ranks", "leader_tier_elite_ranks", "leader_tier_crown_ranks",
         ]},
     }
     await db.monthly_settlements.insert_one(settlement_doc.copy())

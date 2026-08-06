@@ -703,6 +703,9 @@ export default function SettingsPage() {
     leader_min_personal_monthly_purchase: Number(source.leader_min_personal_monthly_purchase) || 0,
     leader_min_team_monthly_purchase: Number(source.leader_min_team_monthly_purchase) || 0,
     leader_min_active_days: Number(source.leader_min_active_days) || 0,
+    leader_tier_leader_ranks: source.leader_tier_leader_ranks || "",
+    leader_tier_elite_ranks: source.leader_tier_elite_ranks || "",
+    leader_tier_crown_ranks: source.leader_tier_crown_ranks || "",
     mps_min_active_months: Number(source.mps_min_active_months) || 0,
     mps_min_monthly_purchase: Number(source.mps_min_monthly_purchase) || 0,
     mps_max_claim_amount: Number(source.mps_max_claim_amount) || 0,
@@ -1020,6 +1023,30 @@ export default function SettingsPage() {
             <Field label="Min Personal Monthly Purchase" testId="settings-leader-personal" value={form.leader_min_personal_monthly_purchase} onChange={setF("leader_min_personal_monthly_purchase")} suffix={form.currency_symbol || "₹"} hint="নিজের এই মাসের কেনাকাটা।" />
             <Field label="Min Team Monthly Purchase" testId="settings-leader-team" value={form.leader_min_team_monthly_purchase} onChange={setF("leader_min_team_monthly_purchase")} suffix={form.currency_symbol || "₹"} hint="সমস্ত direct downlines-এর এই মাসের যোগফল।" />
             <Field label="Min Account Age" testId="settings-leader-days" value={form.leader_min_active_days} onChange={setF("leader_min_active_days")} suffix="days" step="1" hint="Account activation থেকে দিন সংখ্যা।" />
+            <Field
+              label="Leader Tier Ranks"
+              testId="settings-tier-leader-ranks"
+              value={form.leader_tier_leader_ranks ?? ""}
+              onChange={setF("leader_tier_leader_ranks")}
+              type="text"
+              hint="Comma-separated rank names. Example: starter,bronze"
+            />
+            <Field
+              label="Elite Tier Ranks"
+              testId="settings-tier-elite-ranks"
+              value={form.leader_tier_elite_ranks ?? ""}
+              onChange={setF("leader_tier_elite_ranks")}
+              type="text"
+              hint="Comma-separated rank names. Example: silver,gold"
+            />
+            <Field
+              label="Crown Tier Ranks"
+              testId="settings-tier-crown-ranks"
+              value={form.leader_tier_crown_ranks ?? ""}
+              onChange={setF("leader_tier_crown_ranks")}
+              type="text"
+              hint="Comma-separated rank names. Example: diamond"
+            />
           </Section>
 
           <Section
