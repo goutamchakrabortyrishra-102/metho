@@ -76,17 +76,21 @@ def _resolve_user_by_identifier(db: Session, identifier: str) -> User | None:
     return None
 
 
-def _resolve_default_admin_sponsor(db: Session) -> User | None:
-    preferred = _resolve_user_by_identifier(db, DEFAULT_ADMIN_SPONSOR_ID)
-    if preferred and preferred.role in ADMIN_ROLES:
-        return preferred
-
+def _resolve_primary_admin_user(db: Session) -> User | None:
     return (
         db.query(User)
         .filter(User.role.in_(list(ADMIN_ROLES)))
         .order_by(User.created_at.asc())
         .first()
     )
+
+
+def _resolve_default_admin_sponsor(db: Session) -> User | None:
+    preferred = _resolve_user_by_identifier(db, DEFAULT_ADMIN_SPONSOR_ID)
+    if preferred:
+        return preferred
+
+    return _resolve_primary_admin_user(db)
 
 
 def _resolve_login_user(db: Session, identifier: str, admin_mode: bool = False) -> User | None:
@@ -103,7 +107,7 @@ def _resolve_login_user(db: Session, identifier: str, admin_mode: bool = False) 
         str(ADMIN_LOGIN_ID or "").strip().upper().replace(" ", ""),
     }
     if admin_mode and compact in {alias for alias in admin_aliases if alias}:
-        admin_user = _resolve_default_admin_sponsor(db)
+        admin_user = _resolve_primary_admin_user(db)
         if admin_user:
             return admin_user
 
