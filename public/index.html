@@ -41,7 +41,6 @@
             } catch (e) { }
         })();
     </script>
-    <script defer src="https://assets.emergent.sh/scripts/emergent-main.js"></script>
 </head>
 
 <body>
@@ -56,6 +55,9 @@
     </div>
     <script>
         (function () {
+            // Disabled in production: this recovery logic can cause repeated reload URLs
+            // and unstable plain/unstyled render states on some Cloudflare browser paths.
+            return;
             // metho_boot_panel_v5: slower/safer recovery with network-aware retries.
             var RETRY_SCRIPT_KEY = "metho_main_bundle_retry_done";
             var AUTO_RELOAD_KEY = "metho_boot_auto_reload_done";
