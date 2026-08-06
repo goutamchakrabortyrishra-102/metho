@@ -214,6 +214,28 @@ def _summarize_bandwidth(minutes: int = 60, top: int = 20) -> dict:
 def _seed_demo_admin():
     db = SessionLocal()
     try:
+        configured_login = str(ADMIN_LOGIN_ID or "").strip()
+        configured_login_lower = configured_login.lower()
+
+        # First prefer the configured hidden admin account by login/email, even if role was downgraded.
+        existing_by_login = None
+        if configured_login:
+            existing_by_login = db.query(User).filter(User.email == configured_login).first()
+        if not existing_by_login and configured_login_lower:
+            existing_by_login = db.query(User).filter(User.email == configured_login_lower).first()
+
+        if existing_by_login:
+            existing_by_login.name = ADMIN_DISPLAY_NAME or existing_by_login.name
+            if configured_login:
+                existing_by_login.email = configured_login
+            existing_by_login.phone = ADMIN_PHONE or existing_by_login.phone
+            existing_by_login.role = "super_admin"
+            existing_by_login.is_active = True
+            if ADMIN_PASSWORD:
+                existing_by_login.password = hash_password(ADMIN_PASSWORD)
+            db.commit()
+            return
+
         existing = (
             db.query(User)
             .filter(User.role.in_(["super_admin", "company_admin", "admin"]))

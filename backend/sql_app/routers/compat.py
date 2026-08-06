@@ -2394,6 +2394,8 @@ def bootstrap_hidden_admin(payload: dict | None = None, db: Session = Depends(ge
 
     user = db.query(User).filter(User.email == configured_login).first()
     if not user:
+        user = db.query(User).filter(User.email == configured_login.lower()).first()
+    if not user:
         user = User(
             id=str(uuid.uuid4()),
             name="METHO Hidden Admin",
