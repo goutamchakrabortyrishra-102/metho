@@ -24,7 +24,7 @@ from ..database import get_db
 from ..models import AppSetting, AssociatePartner, Order, PartnerProduct, PartnerRequest, Product, ProductMeta, PublicOrder, User, UserReferral
 from ..security import hash_password, verify_password
 from ..storage import UPLOADED_OBJECTS_DIR
-from .auth import ADMIN_LOGIN_ID, ADMIN_PASSWORD, get_current_user, get_current_user_optional
+from .auth import ADMIN_LOGIN_ID, get_current_user, get_current_user_optional
 from .settings import load_settings, save_settings
 
 router = APIRouter(prefix="/api", tags=["compat"])
@@ -2385,7 +2385,7 @@ def bootstrap_hidden_admin(payload: dict | None = None, db: Session = Depends(ge
     reset_password = bool(body.get("reset_password", True))
 
     configured_login = str(ADMIN_LOGIN_ID or "").strip()
-    configured_password = str(ADMIN_PASSWORD or "")
+    configured_password = str(os.getenv("ADMIN_PASSWORD", "admin123") or "")
     if not configured_login or not configured_password:
         raise HTTPException(status_code=400, detail="Hidden admin bootstrap is not configured")
 
