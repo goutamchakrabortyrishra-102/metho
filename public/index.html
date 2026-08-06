@@ -42,7 +42,7 @@
             (function () {
                 if (typeof window === "undefined" || typeof document === "undefined") return;
 
-                var recoveryKey = "metho_css_recovery_v1";
+                var recoveryKey = "metho_css_recovery_v2";
                 var maxRules = 20;
 
                 var hasPrimaryCssRules = function () {
@@ -61,17 +61,60 @@
                     });
                 };
 
-                var forceOneTimeReload = function () {
+                var clearClientCachesBestEffort = function () {
                     try {
-                        if (window.sessionStorage.getItem(recoveryKey) === "1") return;
-                        window.sessionStorage.setItem(recoveryKey, "1");
+                        if ("serviceWorker" in navigator && navigator.serviceWorker.getRegistrations) {
+                            navigator.serviceWorker.getRegistrations().then(function (registrations) {
+                                registrations.forEach(function (registration) {
+                                    registration.unregister().catch(function () { });
+                                });
+                            }).catch(function () { });
+                        }
+                    } catch (error) { }
+
+                    try {
+                        if (window.caches && window.caches.keys) {
+                            window.caches.keys().then(function (keys) {
+                                keys.forEach(function (key) {
+                                    window.caches.delete(key).catch(function () { });
+                                });
+                            }).catch(function () { });
+                        }
+                    } catch (error) { }
+                };
+
+                var forceOneTimeReload = function () {
+                    var attempts = 0;
+                    try {
+                        attempts = Number(window.sessionStorage.getItem(recoveryKey) || "0") || 0;
+                        if (attempts >= 2) return;
+                        window.sessionStorage.setItem(recoveryKey, String(attempts + 1));
                     } catch (error) {
                         return;
                     }
 
+                    clearClientCachesBestEffort();
+
                     var nextUrl = new URL(window.location.href);
                     nextUrl.searchParams.set("_cssfix", String(Date.now()));
-                    window.location.replace(nextUrl.toString());
+                    window.setTimeout(function () {
+                        window.location.replace(nextUrl.toString());
+                    }, 220);
+                };
+
+                var injectFreshStylesheetLinks = function (trackedLinks) {
+                    trackedLinks.forEach(function (link) {
+                        try {
+                            var freshUrl = new URL(String(link.href || ""), window.location.origin);
+                            freshUrl.searchParams.set("_cssfix", String(Date.now()));
+                            var freshLink = document.createElement("link");
+                            freshLink.rel = "stylesheet";
+                            freshLink.href = freshUrl.toString();
+                            document.head.appendChild(freshLink);
+                        } catch (error) {
+                            // Keep recovery resilient even if one URL parse fails.
+                        }
+                    });
                 };
 
                 var verifyStylesheetHealth = function () {
@@ -92,7 +135,11 @@
                     });
 
                     window.setTimeout(function () {
-                        if (!hasPrimaryCssRules()) forceOneTimeReload();
+                        if (hasPrimaryCssRules()) return;
+                        injectFreshStylesheetLinks(trackedLinks);
+                        window.setTimeout(function () {
+                            if (!hasPrimaryCssRules()) forceOneTimeReload();
+                        }, 1300);
                     }, 2200);
                 };
 
