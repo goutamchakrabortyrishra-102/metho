@@ -70,10 +70,6 @@ ADMIN_LOGIN_ID = str(os.getenv("ADMIN_LOGIN_ID", "MTH-ADMIN") or "MTH-ADMIN").st
 ADMIN_PASSWORD = str(os.getenv("ADMIN_PASSWORD", "admin123") or "admin123")
 ADMIN_DISPLAY_NAME = str(os.getenv("ADMIN_DISPLAY_NAME", "METHO Admin") or "METHO Admin").strip()
 ADMIN_PHONE = str(os.getenv("ADMIN_PHONE", "9999999999") or "9999999999").strip()
-ADMIN_MEMBER_ID = str(os.getenv("ADMIN_MEMBER_ID", "MAU00001") or "MAU00001").strip().upper()
-ADMIN_MEMBER_PASSWORD = str(os.getenv("ADMIN_MEMBER_PASSWORD", "member123") or "member123")
-ADMIN_MEMBER_NAME = str(os.getenv("ADMIN_MEMBER_NAME", "METHO Admin Member") or "METHO Admin Member").strip()
-ADMIN_MEMBER_PHONE = str(os.getenv("ADMIN_MEMBER_PHONE", "9000000001") or "9000000001").strip()
 
 SENSITIVE_RATE_LIMITS: list[tuple[str, int]] = [
     ("/api/login", RATE_LIMIT_LOGIN),
@@ -247,36 +243,6 @@ def _seed_demo_admin():
         db.close()
 
 
-def _seed_admin_member():
-    db = SessionLocal()
-    try:
-        existing = db.query(User).filter(User.id == ADMIN_MEMBER_ID).first()
-        if existing:
-            existing.name = ADMIN_MEMBER_NAME or existing.name
-            existing.email = ADMIN_MEMBER_ID or existing.email
-            existing.phone = ADMIN_MEMBER_PHONE or existing.phone
-            existing.role = "member"
-            existing.is_active = True
-            if ADMIN_MEMBER_PASSWORD:
-                existing.password = hash_password(ADMIN_MEMBER_PASSWORD)
-            db.commit()
-            return
-
-        user = User(
-            id=ADMIN_MEMBER_ID,
-            name=ADMIN_MEMBER_NAME,
-            email=ADMIN_MEMBER_ID,
-            phone=ADMIN_MEMBER_PHONE,
-            password=hash_password(ADMIN_MEMBER_PASSWORD),
-            role="member",
-            is_active=True,
-        )
-        db.add(user)
-        db.commit()
-    finally:
-        db.close()
-
-
 def _seed_demo_directory_data():
     db = SessionLocal()
     try:
@@ -337,7 +303,6 @@ def _initialize_database_with_retry(max_attempts: int = 8, delay_seconds: int = 
         try:
             Base.metadata.create_all(bind=engine)
             _seed_demo_admin()
-            _seed_admin_member()
             _seed_demo_directory_data()
             logger.info("SQL starter DB initialization complete")
             return True
