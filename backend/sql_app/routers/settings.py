@@ -18,6 +18,20 @@ PUBLIC_SETTINGS_EXCLUDE_KEYS = {
 
 DATA_URL_MAX_LEN = 4096  # unused, kept for reference
 
+PUBLIC_BRANDING_DATA_KEYS = {
+    "site_logo_url",
+    "landing_hero_image_url",
+    "directory_hero_image_url",
+    "product_placeholder_image_url",
+    "social_share_image_url",
+    "top_leader_1_image_url",
+    "top_leader_2_image_url",
+    "top_leader_3_image_url",
+    "top_leader_4_image_url",
+    "top_leader_5_image_url",
+    "top_leader_6_image_url",
+}
+
 
 DEFAULT_SETTINGS = {
     "site_title": "METHO AAY-UPAY",
@@ -175,6 +189,11 @@ def _sanitize_public_settings(payload: dict) -> dict:
     for key, value in (payload or {}).items():
         if key in PUBLIC_SETTINGS_EXCLUDE_KEYS:
             continue
+        if key in PUBLIC_BRANDING_DATA_KEYS:
+            text = str(value or "").strip()
+            if text.startswith("data:") and len(text) > DATA_URL_MAX_LEN:
+                safe[key] = ""
+                continue
         safe[key] = value
     return safe
 
