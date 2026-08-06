@@ -2118,10 +2118,23 @@ async def partner_directory(
     if business_type:
         query["business_type"] = business_type
     if q:
-        query["$or"] = [
-            {"business_name": {"$regex": q, "$options": "i"}},
-            {"contact_person": {"$regex": q, "$options": "i"}},
-        ]
+        tokens = [token for token in str(q or "").lower().replace(",", " ").split() if token]
+        if tokens:
+            query["$and"] = [
+                {
+                    "$or": [
+                        {"business_name": {"$regex": token, "$options": "i"}},
+                        {"contact_person": {"$regex": token, "$options": "i"}},
+                        {"business_type": {"$regex": token, "$options": "i"}},
+                        {"city": {"$regex": token, "$options": "i"}},
+                        {"state": {"$regex": token, "$options": "i"}},
+                        {"address": {"$regex": token, "$options": "i"}},
+                        {"pincode": {"$regex": token, "$options": "i"}},
+                        {"partner_code": {"$regex": token, "$options": "i"}},
+                    ]
+                }
+                for token in tokens
+            ]
     # Category filter — find partners that have at least one product in that category
     if category:
         pids = await db.products.distinct("partner_id", {"category": category, "product_type": "associate_partner"})
@@ -4243,6 +4256,26 @@ async def root():
 #
 # All percentages, thresholds, and rules are read from Settings — NOTHING is hardcoded.
 
+LEADER_TIER_SPLIT_PERCENT = {
+    "leader": 50.0,
+    "elite_leader": 30.0,
+    "crown_leader": 20.0,
+}
+
+
+def _leader_tier_from_user(user_doc: dict | None) -> tuple[str, str]:
+    """Map current user rank into settlement leader tier buckets.
+    - Crown Leader: Diamond
+    - Elite Leader: Gold, Silver
+    - Leader: others (including Bronze/Starter/unknown)
+    """
+    rank = str((user_doc or {}).get("rank") or "").strip().lower()
+    if rank == "diamond":
+        return "crown_leader", "Crown Leader"
+    if rank in {"gold", "silver"}:
+        return "elite_leader", "Elite Leader"
+    return "leader", "Leader"
+
 async def _compute_settlement(period: str, settings: dict) -> dict:
     """Pure calculation — used by both preview & execute. Does NOT credit wallets."""
     pool_doc = await db.monthly_pools.find_one({"period": period}, {"_id": 0}) or {}
@@ -4270,21 +4303,55 @@ async def _compute_settlement(period: str, settings: dict) -> dict:
 
     # === Leader points (eligibility gate applied via Admin rules) ===
     leader_lines = []
+    tier_buckets = {
+        "leader": {"label": "Leader", "pool_percent": LEADER_TIER_SPLIT_PERCENT["leader"], "pool_amount": 0.0, "total_points": 0.0, "point_value": 0.0, "lines": []},
+        "elite_leader": {"label": "Elite Leader", "pool_percent": LEADER_TIER_SPLIT_PERCENT["elite_leader"], "pool_amount": 0.0, "total_points": 0.0, "point_value": 0.0, "lines": []},
+        "crown_leader": {"label": "Crown Leader", "pool_percent": LEADER_TIER_SPLIT_PERCENT["crown_leader"], "pool_amount": 0.0, "total_points": 0.0, "point_value": 0.0, "lines": []},
+    }
     total_leader_points = 0.0
     for p in purchases:
         elig = await check_leader_eligibility(p["user_id"], period, settings=settings)
         if not elig["qualified"]:
             continue
+        user_doc = await db.users.find_one({"id": p["user_id"]}, {"_id": 0, "rank": 1, "role": 1}) or {}
+        tier_key, tier_label = _leader_tier_from_user(user_doc)
         points = round(float(p["amount"]) / 100.0, 4)
-        leader_lines.append({
+        line = {
             "user_id": p["user_id"], "user_name": p.get("user_name"), "member_code": p.get("member_code"),
             "monthly_purchase": float(p["amount"]), "points": points,
             "eligibility": elig["checks"],
-        })
+            "tier": tier_key,
+            "tier_label": tier_label,
+        }
+        leader_lines.append(line)
+        tier_buckets[tier_key]["lines"].append(line)
+        tier_buckets[tier_key]["total_points"] += points
         total_leader_points += points
-    leader_point_value = round(leader_pool / total_leader_points, 4) if total_leader_points > 0 else 0.0
-    for l in leader_lines:
-        l["reward"] = round(l["points"] * leader_point_value, 2)
+
+    for tier_key, tier in tier_buckets.items():
+        tier_pool_amount = round(leader_pool * (tier["pool_percent"] / 100.0), 2)
+        tier_points = float(tier["total_points"])
+        tier_point_value = round(tier_pool_amount / tier_points, 4) if tier_points > 0 else 0.0
+        tier["pool_amount"] = tier_pool_amount
+        tier["point_value"] = tier_point_value
+        for l in tier["lines"]:
+            l["point_value"] = tier_point_value
+            l["reward"] = round(l["points"] * tier_point_value, 2)
+
+    total_leader_reward_distributed = round(sum(l.get("reward", 0) for l in leader_lines), 2)
+    effective_leader_point_value = round(total_leader_reward_distributed / total_leader_points, 4) if total_leader_points > 0 else 0.0
+    leader_tier_summary = {
+        key: {
+            "label": tier["label"],
+            "pool_percent": tier["pool_percent"],
+            "pool_amount": tier["pool_amount"],
+            "total_points": round(float(tier["total_points"]), 4),
+            "point_value": tier["point_value"],
+            "qualified_count": len(tier["lines"]),
+            "total_reward_distributed": round(sum(line.get("reward", 0) for line in tier["lines"]), 2),
+        }
+        for key, tier in tier_buckets.items()
+    }
 
     return {
         "period": period,
@@ -4304,9 +4371,10 @@ async def _compute_settlement(period: str, settings: dict) -> dict:
         },
         "leader_settlement": {
             "total_points": round(total_leader_points, 4),
-            "point_value": leader_point_value,
-            "total_reward_distributed": round(sum(l["reward"] for l in leader_lines), 2),
+            "point_value": effective_leader_point_value,
+            "total_reward_distributed": total_leader_reward_distributed,
             "qualified_count": len(leader_lines),
+            "tiers": leader_tier_summary,
             "lines": leader_lines,
         },
     }
@@ -4384,7 +4452,7 @@ async def settlement_execute(
             "user_id": line["user_id"],
             "type": "leader_reward_settlement",
             "amount": line["reward"],
-            "description": f"Monthly Leader Reward · {period} · {line['points']} points × ₹{result['leader_settlement']['point_value']}",
+            "description": f"Monthly {line.get('tier_label', 'Leader')} Reward · {period} · {line['points']} points × ₹{line.get('point_value', result['leader_settlement']['point_value'])}",
             "period": period,
             "created_at": now_iso(),
         })
