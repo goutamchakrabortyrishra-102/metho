@@ -6,13 +6,24 @@ const DEFAULT_LOGO_URL = "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/
 const LOGO_LOGISTICS_URL = "https://customer-assets-lxgj4vgw.emergentagent.net/job_metho-aay-upay/artifacts/o5mnsf6a_metho-logistics.png";
 const LOGO_TAP_COUNT_KEY = "metho_logo_tap_count";
 const LOGO_TAP_TS_KEY = "metho_logo_tap_ts";
+const MAX_INLINE_LOGO_LENGTH = 40000;
+
+const getSafeCustomLogoSrc = (value) => {
+  const normalized = String(value || "").trim();
+  if (!normalized) return "";
+  if (normalized.startsWith("data:") && normalized.length > MAX_INLINE_LOGO_LENGTH) {
+    return "";
+  }
+  return normalized;
+};
 
 export const Logo = ({ className = "", showTagline = false, variant = "store", size = "md" }) => {
   const nav = useNavigate();
   const { settings } = useSettings();
-  const hasCustomLogo = Boolean(settings?.site_logo_url_full);
-  const fallbackSrc = variant === "logistics" ? LOGO_LOGISTICS_URL : DEFAULT_LOGO_URL;
-  const requestedSrc = settings?.site_logo_url_full || fallbackSrc;
+  const safeCustomLogoSrc = getSafeCustomLogoSrc(settings?.site_logo_url_full);
+  const fallbackSrc = safeCustomLogoSrc ? LOGO_LOGISTICS_URL : variant === "logistics" ? LOGO_LOGISTICS_URL : DEFAULT_LOGO_URL;
+  const hasCustomLogo = Boolean(safeCustomLogoSrc);
+  const requestedSrc = safeCustomLogoSrc || fallbackSrc;
   const [imgSrc, setImgSrc] = React.useState(requestedSrc);
   const [retriedCustom, setRetriedCustom] = React.useState(false);
 
