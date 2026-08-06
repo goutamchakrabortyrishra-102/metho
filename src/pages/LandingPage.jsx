@@ -129,9 +129,26 @@ const loadLandingProducts = async () => {
 
 const Nav = () => (
   <header className="fixed top-0 left-0 right-0 z-50 glass" data-testid="landing-nav">
-    <div className="max-w-7xl mx-auto px-4 md:px-6 py-3.5 flex items-center justify-between gap-3">
-      <div className="hidden sm:block"><Logo showTagline /></div>
-      <div className="sm:hidden"><Logo /></div>
+    <div className="max-w-7xl mx-auto px-4 md:px-6 py-3.5 flex flex-col gap-2">
+      <div className="flex items-center justify-between gap-3">
+        <div className="hidden sm:block"><Logo showTagline /></div>
+        <div className="sm:hidden"><Logo /></div>
+        <div className="flex items-center gap-2 shrink-0">
+          <Link to="/login" data-testid="nav-login-link"><Button variant="ghost" size="sm" className="px-3 md:px-4 hover:bg-emerald-50 hover:text-emerald-900">Login</Button></Link>
+          <Link to="/register" data-testid="nav-register-link">
+            <Button size="sm" className="bg-emerald-900 hover:bg-emerald-950 text-white rounded-full px-4 md:px-5">Join Now <ArrowRight className="ml-1 w-4 h-4" /></Button>
+          </Link>
+        </div>
+      </div>
+
+      <nav className="flex items-center gap-2 overflow-x-auto pb-1 -mx-4 px-4 text-xs font-body xl:hidden" aria-label="Primary mobile navigation">
+        <a href="#features" className="shrink-0 rounded-full border border-emerald-900/10 bg-white/90 px-3 py-1.5 text-slate-700 hover:text-emerald-900">Features</a>
+        <a href="#plan" className="shrink-0 rounded-full border border-emerald-900/10 bg-white/90 px-3 py-1.5 text-slate-700 hover:text-emerald-900">Growth Plan</a>
+        <a href="#partner-finder" className="shrink-0 rounded-full border border-emerald-900/10 bg-white/90 px-3 py-1.5 text-slate-700 hover:text-emerald-900">Partner Finder</a>
+        <a href="#products" className="shrink-0 rounded-full border border-emerald-900/10 bg-white/90 px-3 py-1.5 text-slate-700 hover:text-emerald-900">Products</a>
+        <a href="#return-policy" className="shrink-0 rounded-full border border-emerald-900/10 bg-white/90 px-3 py-1.5 text-slate-700 hover:text-emerald-900">Return Policy</a>
+      </nav>
+
       <nav className="hidden xl:flex items-center gap-6 font-body text-sm">
         <a href="#features" className="text-slate-700 hover:text-emerald-900 transition-colors">Features</a>
         <a href="#plan" className="text-slate-700 hover:text-emerald-900 transition-colors">Growth Plan</a>
@@ -139,25 +156,21 @@ const Nav = () => (
         <a href="#products" className="text-slate-700 hover:text-emerald-900 transition-colors">Products</a>
         <a href="#return-policy" className="text-slate-700 hover:text-emerald-900 transition-colors">Return Policy</a>
       </nav>
-      <div className="flex items-center gap-2 shrink-0">
-        <Link to="/partner-register" className="hidden lg:inline-flex" data-testid="nav-partner-register-link">
+      <div className="hidden lg:flex items-center gap-2 shrink-0">
+        <Link to="/partner-register" className="inline-flex" data-testid="nav-partner-register-link">
           <Button variant="ghost" className="hover:bg-emerald-50 hover:text-emerald-900">Partner Register</Button>
         </Link>
-        <Link to="/directory" className="hidden lg:inline-flex" data-testid="nav-partner-shop-link">
+        <Link to="/directory" className="inline-flex" data-testid="nav-partner-shop-link">
           <Button variant="ghost" className="hover:bg-emerald-50 hover:text-emerald-900">Partner Shop</Button>
         </Link>
-        <Link to="/metho-store" className="hidden md:inline-flex" data-testid="nav-metho-store-link">
+        <Link to="/metho-store" className="md:inline-flex" data-testid="nav-metho-store-link">
           <Button variant="ghost" className="hover:bg-emerald-50 hover:text-emerald-900">View Metho Store</Button>
         </Link>
-        <Link to="/login" className="hidden lg:inline-flex" data-testid="nav-partner-login-link">
+        <Link to="/login" className="inline-flex" data-testid="nav-partner-login-link">
           <Button variant="ghost" className="hover:bg-emerald-50 hover:text-emerald-900">Partner Login</Button>
         </Link>
-        <Link to="/login?next=/app/metho-store-owner" className="hidden lg:inline-flex" data-testid="nav-store-login-link">
+        <Link to="/login?next=/app/metho-store-owner" className="inline-flex" data-testid="nav-store-login-link">
           <Button variant="ghost" className="hover:bg-emerald-50 hover:text-emerald-900">Store Login</Button>
-        </Link>
-        <Link to="/login" data-testid="nav-login-link"><Button variant="ghost" size="sm" className="px-3 md:px-4 hover:bg-emerald-50 hover:text-emerald-900">Login</Button></Link>
-        <Link to="/register" data-testid="nav-register-link">
-          <Button size="sm" className="bg-emerald-900 hover:bg-emerald-950 text-white rounded-full px-4 md:px-5">Join Now <ArrowRight className="ml-1 w-4 h-4" /></Button>
         </Link>
       </div>
     </div>

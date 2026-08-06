@@ -11,6 +11,9 @@
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
     <meta name="apple-mobile-web-app-title" content="METHO AAY-UPAY" />
     <meta name="mobile-web-app-capable" content="yes" />
+    <meta http-equiv="Cache-Control" content="no-store, no-cache, must-revalidate" />
+    <meta http-equiv="Pragma" content="no-cache" />
+    <meta http-equiv="Expires" content="0" />
     <link rel="manifest" href="/manifest.json" />
     <link rel="icon" type="image/svg+xml" sizes="192x192" href="/icons/icon-192.svg" />
     <link rel="apple-touch-icon" href="/icons/icon-192.svg" />
@@ -24,7 +27,17 @@
 
 <body>
     <noscript>You need to enable JavaScript to run this app.</noscript>
-    <div id="root"></div>
+    <div id="root">
+        <div style="min-height:100vh;display:flex;align-items:center;justify-content:center;background:radial-gradient(circle at top, rgba(5,150,105,0.08), transparent 34%),linear-gradient(180deg,#fffefb 0%,#f8faf8 100%);padding:24px;font-family:Outfit,Hind Siliguri,Arial,sans-serif;">
+            <div style="max-width:520px;width:100%;background:rgba(255,255,255,0.92);border:1px solid rgba(6,78,59,0.12);border-radius:24px;padding:24px;box-shadow:0 16px 40px rgba(15,23,42,0.08);backdrop-filter:blur(12px);">
+                <div style="display:inline-flex;align-items:center;gap:10px;padding:8px 14px;border-radius:999px;background:rgba(6,78,59,0.06);color:#065f46;font-size:12px;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;">
+                    METHO AAY-UPAY
+                </div>
+                <h1 style="margin:16px 0 8px 0;color:#064e3b;font-size:28px;line-height:1.05;font-weight:900;letter-spacing:-0.03em;">Loading METHO landing page</h1>
+                <p style="margin:0;color:#475569;font-size:14px;line-height:1.6;">If the full page takes a moment on mobile, stay on this screen. The business dashboard and storefront are loading in the background.</p>
+            </div>
+        </div>
+    </div>
     <!--
       This HTML file is a template.
       If you open it directly in the browser, you will see an empty page.
