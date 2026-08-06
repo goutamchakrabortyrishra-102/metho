@@ -20,12 +20,14 @@ const getSafeCustomLogoSrc = (value) => {
 export const Logo = ({ className = "", showTagline = false, variant = "store", size = "md" }) => {
   const nav = useNavigate();
   const { settings } = useSettings();
+  const settingsLoaded = settings !== null;
   const rawCustomLogoSrc = String(settings?.site_logo_url_full || "").trim();
   const safeCustomLogoSrc = getSafeCustomLogoSrc(rawCustomLogoSrc);
   const rejectedOversizedInlineLogo = Boolean(rawCustomLogoSrc) && !safeCustomLogoSrc;
   const fallbackSrc = rejectedOversizedInlineLogo || variant === "logistics" ? LOGO_LOGISTICS_URL : DEFAULT_LOGO_URL;
+  const startupSrc = variant === "logistics" ? LOGO_LOGISTICS_URL : LOGO_LOGISTICS_URL;
   const hasCustomLogo = Boolean(safeCustomLogoSrc);
-  const requestedSrc = safeCustomLogoSrc || fallbackSrc;
+  const requestedSrc = safeCustomLogoSrc || (settingsLoaded ? fallbackSrc : startupSrc);
   const [imgSrc, setImgSrc] = React.useState(requestedSrc);
   const [retriedCustom, setRetriedCustom] = React.useState(false);
 
