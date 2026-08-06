@@ -129,7 +129,7 @@ const loadLandingProducts = async () => {
 
 const Nav = () => (
   <header className="fixed top-0 left-0 right-0 z-50 glass" data-testid="landing-nav">
-    <div className="max-w-7xl mx-auto px-4 md:px-6 py-3 flex items-center justify-between gap-3">
+    <div className="max-w-7xl mx-auto px-4 md:px-6 py-3.5 flex items-center justify-between gap-3">
       <div className="hidden sm:block"><Logo showTagline /></div>
       <div className="sm:hidden"><Logo /></div>
       <nav className="hidden xl:flex items-center gap-6 font-body text-sm">
@@ -139,7 +139,7 @@ const Nav = () => (
         <a href="#products" className="text-slate-700 hover:text-emerald-900 transition-colors">Products</a>
         <a href="#return-policy" className="text-slate-700 hover:text-emerald-900 transition-colors">Return Policy</a>
       </nav>
-      <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
+      <div className="flex items-center gap-2 shrink-0">
         <Link to="/partner-register" className="hidden lg:inline-flex" data-testid="nav-partner-register-link">
           <Button variant="ghost" className="hover:bg-emerald-50 hover:text-emerald-900">Partner Register</Button>
         </Link>
@@ -224,7 +224,7 @@ const Hero = () => {
   };
 
   return (
-  <section className="relative pt-32 pb-20 overflow-hidden bg-[radial-gradient(circle_at_top,rgba(245,158,11,0.14),transparent_28%),linear-gradient(180deg,#fffdf8_0%,#fbfaf6_46%,#f5f8f7_100%)]">
+  <section className="relative pt-36 pb-20 overflow-hidden bg-[radial-gradient(circle_at_top,rgba(245,158,11,0.14),transparent_28%),linear-gradient(180deg,#fffdf8_0%,#fbfaf6_46%,#f5f8f7_100%)]">
     <div className="absolute inset-0 grain" />
     <div className="absolute top-0 inset-x-0 h-1 bg-gradient-to-r from-[#ff9933] via-white to-[#138808] opacity-80" />
     <div className="absolute -top-16 left-1/2 -translate-x-1/2 w-[28rem] h-[28rem] bg-amber-300/15 rounded-full blur-3xl" />
@@ -240,9 +240,9 @@ const Hero = () => {
               {tagline}
             </h1>
           ) : (
-            <h1 className="mt-6 font-display font-black text-5xl md:text-6xl lg:text-7xl tracking-tighter leading-none text-emerald-950">
+            <h1 className="mt-6 max-w-4xl font-display font-black text-5xl md:text-6xl lg:text-7xl tracking-tighter leading-none text-emerald-950">
               Build daily demand.
-              <span className="text-amber-500 italic">Grow reliable income.</span>
+              <span className="block text-amber-500 italic">Grow reliable income.</span>
               <br />
               <span className="text-3xl md:text-4xl lg:text-5xl font-bold text-slate-800">One product ecosystem for members and partners.</span>
             </h1>
