@@ -140,13 +140,16 @@ const Nav = () => (
         <a href="#return-policy" className="text-slate-700 hover:text-emerald-900 transition-colors">Return Policy</a>
       </nav>
       <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
-        <Link to="/partner-register" className="hidden xl:inline-flex" data-testid="nav-partner-register-link">
+        <Link to="/partner-register" className="hidden lg:inline-flex" data-testid="nav-partner-register-link">
           <Button variant="ghost" className="hover:bg-emerald-50 hover:text-emerald-900">Partner Register</Button>
+        </Link>
+        <Link to="/directory" className="hidden lg:inline-flex" data-testid="nav-partner-shop-link">
+          <Button variant="ghost" className="hover:bg-emerald-50 hover:text-emerald-900">Partner Shop</Button>
         </Link>
         <Link to="/metho-store" className="hidden md:inline-flex" data-testid="nav-metho-store-link">
           <Button variant="ghost" className="hover:bg-emerald-50 hover:text-emerald-900">View Metho Store</Button>
         </Link>
-        <Link to="/login" className="hidden xl:inline-flex" data-testid="nav-partner-login-link">
+        <Link to="/login" className="hidden lg:inline-flex" data-testid="nav-partner-login-link">
           <Button variant="ghost" className="hover:bg-emerald-50 hover:text-emerald-900">Partner Login</Button>
         </Link>
         <Link to="/login?next=/app/metho-store-owner" className="hidden lg:inline-flex" data-testid="nav-store-login-link">
@@ -612,15 +615,11 @@ const Features = () => {
                     <div className="aspect-[4/3] bg-slate-100 overflow-hidden">
                       {store.banner_url || store.logo_url ? (
                         <img
-                          src={store.banner_url || store.logo_url}
+                          src={resolveAssetUrl(store.banner_url || store.logo_url) || FALLBACK_PRODUCT_IMG}
                           alt={store.store_name || store.business_name || "METHO Store"}
                           className="w-full h-full object-cover group-hover:scale-[1.03] transition-transform duration-300"
                           loading="lazy"
-                          onError={(e) => {
-                            if (e.currentTarget.src !== FALLBACK_PRODUCT_IMG) {
-                              e.currentTarget.src = FALLBACK_PRODUCT_IMG;
-                            }
-                          }}
+                          onError={(e) => { applyLandingImageFallback(e, [resolveAssetUrl(store.logo_url)]); }}
                         />
                       ) : (
                         <div className="h-full w-full flex items-center justify-center bg-emerald-50 text-emerald-800">
@@ -1029,8 +1028,8 @@ const TopLeaders = () => {
         </div>
         <div className="mt-8 grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-4">
           {leaders.map((leader, i) => (
-            <div key={i} className="bg-white rounded-2xl border border-emerald-900/10 overflow-hidden shadow-sm hover:shadow-md transition-shadow" data-testid={`top-leader-card-${i + 1}`}>
-              <div className="aspect-square overflow-hidden bg-secondary">
+            <div key={i} className="mx-auto w-full max-w-[220px] bg-white rounded-2xl border border-emerald-900/10 overflow-hidden shadow-sm hover:shadow-md transition-shadow" data-testid={`top-leader-card-${i + 1}`}>
+              <div className="aspect-[4/3] overflow-hidden bg-secondary">
                 <img
                   src={leader.image || FALLBACK_LEADER_IMG}
                   alt={leader.name}
