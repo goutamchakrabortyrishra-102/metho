@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { Store, Send, CheckCircle2, Loader2, ArrowLeft } from "lucide-react";
 import { toast } from "sonner";
@@ -95,9 +95,9 @@ const DEFAULT_TERMS = [
   "9. Any dispute arising from the Partner's business operations shall be handled directly by the Partner, subject to applicable Indian law. METHO shall not be liable for such disputes except to the extent required by law.",
 ].join("\n");
 
-const normalizeAddressForSearch = ({ address, city, state, pincode }) => {
+const normalizeAddressForSearch = ({ address, city, district, state, pincode }) => {
   const base = String(address || "").trim();
-  const tail = [city, state, pincode]
+  const tail = [city, district, state, pincode]
     .map((v) => String(v || "").trim())
     .filter(Boolean);
   if (!tail.length) return base;
@@ -109,17 +109,21 @@ const normalizeAddressForSearch = ({ address, city, state, pincode }) => {
   return `${base}, ${missingTail.join(", ")}`;
 };
 
+const uniqueSorted = (items) => Array.from(new Set(items.map((value) => String(value || "").trim()).filter(Boolean))).sort((a, b) => a.localeCompare(b));
+
 export default function PartnerRegisterPage() {
   const nav = useNavigate();
   const [form, setForm] = useState({
     business_name: "", business_type: "Shop",
     contact_person: "", phone: "", dob: "", email: "", password: "", whatsapp_no: "",
-    address: "", city: "", state: "", pincode: "",
+    address: "", city: "", district: "", state: "", pincode: "",
     gst_no: "", pan_no: "", aadhaar_no: "", upi_id: "", website: "", social_link: "",
     business_description: "", commission_percent_ask: "", service_sector: "", service_category: "", shop_sector: "", shop_category: "",
   });
   const [busy, setBusy] = useState(false);
   const [pincodeBusy, setPincodeBusy] = useState(false);
+  const [cityOptions, setCityOptions] = useState([]);
+  const [districtOptions, setDistrictOptions] = useState([]);
   const lastLookupPinRef = useRef("");
   const [done, setDone] = useState(null);
   const [termsOpen, setTermsOpen] = useState(false);
@@ -132,8 +136,25 @@ export default function PartnerRegisterPage() {
   const suggestedShopTemplates = isShop
     ? (SHOP_TEMPLATE_OPTIONS_BY_SECTOR[form.shop_sector] || ALL_SHOP_TEMPLATE_OPTIONS)
     : [];
+  const selectedCityOptions = useMemo(() => uniqueSorted([...(cityOptions || []), form.city]), [cityOptions, form.city]);
+  const selectedDistrictOptions = useMemo(() => uniqueSorted([...(districtOptions || []), form.district]), [districtOptions, form.district]);
 
   const upd = (k) => (e) => setForm({ ...form, [k]: e.target.value });
+
+  useEffect(() => {
+    let cancelled = false;
+    api.get("/directory/cities")
+      .then((r) => {
+        if (cancelled) return;
+        setCityOptions(Array.isArray(r.data) ? r.data : []);
+      })
+      .catch(() => {
+        if (!cancelled) setCityOptions([]);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   useEffect(() => {
     const pin = normalizePincode(form.pincode);
@@ -147,18 +168,22 @@ export default function PartnerRegisterPage() {
       .then((r) => {
         if (cancelled) return;
         const city = String(r?.data?.city || "").trim();
+        const cityOptionsFromPin = Array.isArray(r?.data?.city_options) ? r.data.city_options : [];
         const state = String(r?.data?.state || "").trim();
+        setDistrictOptions(cityOptionsFromPin);
         setForm((prev) => ({
           ...prev,
           pincode: pin,
           city: city || prev.city,
+          district: cityOptionsFromPin[0] || prev.district,
           state: state || prev.state,
         }));
         lastLookupPinRef.current = pin;
       })
       .catch(() => {
         if (!cancelled) {
-          toast.error("Pincode থেকে city খুঁজে পাওয়া যায়নি");
+          setDistrictOptions([]);
+          toast.error("Pincode থেকে location খুঁজে পাওয়া যায়নি");
         }
       })
       .finally(() => {
@@ -202,6 +227,7 @@ export default function PartnerRegisterPage() {
         address: normalizeAddressForSearch({
           address: form.address,
           city: form.city,
+          district: form.district,
           state: form.state,
           pincode: form.pincode,
         }),
@@ -477,14 +503,24 @@ export default function PartnerRegisterPage() {
               </div>
               <div>
                 <Label>City *</Label>
-                <Input required value={form.city} onChange={upd("city")} placeholder="Kolkata" className="mt-1.5 h-11" data-testid="reg-city" />
+                <select required value={form.city} onChange={upd("city")} className="mt-1.5 h-11 w-full rounded-md border border-input bg-white px-3 text-sm" data-testid="reg-city">
+                  <option value="">Select city</option>
+                  {selectedCityOptions.map((city) => <option key={city} value={city}>{city}</option>)}
+                </select>
               </div>
               <div>
                 <Label>State *</Label>
-                <Input required list="state-options-register" value={form.state} onChange={upd("state")} placeholder="Select or type state" className="mt-1.5 h-11" data-testid="reg-state" />
-                <datalist id="state-options-register">
-                  {INDIAN_STATES.map((state) => <option key={state} value={state} />)}
-                </datalist>
+                <select required value={form.state} onChange={upd("state")} className="mt-1.5 h-11 w-full rounded-md border border-input bg-white px-3 text-sm" data-testid="reg-state">
+                  <option value="">Select state</option>
+                  {INDIAN_STATES.map((state) => <option key={state} value={state}>{state}</option>)}
+                </select>
+              </div>
+              <div>
+                <Label>District</Label>
+                <select value={form.district} onChange={upd("district")} className="mt-1.5 h-11 w-full rounded-md border border-input bg-white px-3 text-sm" data-testid="reg-district">
+                  <option value="">Select district</option>
+                  {selectedDistrictOptions.map((district) => <option key={district} value={district}>{district}</option>)}
+                </select>
               </div>
               <div>
                 <Label>Pincode</Label>
@@ -496,7 +532,7 @@ export default function PartnerRegisterPage() {
                   className="mt-1.5 h-11 font-mono"
                   data-testid="reg-pincode"
                 />
-                {pincodeBusy ? <p className="text-[11px] text-muted-foreground mt-1">Pincode থেকে city আনা হচ্ছে...</p> : null}
+                {pincodeBusy ? <p className="text-[11px] text-muted-foreground mt-1">Pincode থেকে city/district আনা হচ্ছে...</p> : null}
               </div>
             </div>
           </section>
