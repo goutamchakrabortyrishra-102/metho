@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { motion } from "framer-motion";
-import { ArrowRight, TrendingUp, Users, Wallet, Shield, Award, Sparkles, Check, ChevronRight, Star, Building2, Zap, Globe, MapPin, Store, Search } from "lucide-react";
+import { ArrowRight, TrendingUp, Users, Wallet, Shield, Award, Sparkles, Check, ChevronRight, Star, Building2, Zap, Globe, MapPin, Store, Search, Phone } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Logo } from "@/components/Logo";
@@ -411,7 +411,7 @@ const Hero = () => {
             <div className="absolute -bottom-4 -right-4 w-40 h-40 bg-emerald-500/15 rounded-full blur-3xl" />
             <div className="absolute -left-3 top-10 bottom-10 w-1.5 rounded-full bg-gradient-to-b from-[#ff9933] via-white to-[#138808]" />
             <div className="relative rounded-[28px] overflow-hidden shadow-2xl border border-emerald-900/10 bg-white p-3">
-              <div className="relative h-[430px] md:h-[450px] rounded-[22px] overflow-hidden bg-emerald-950">
+              <div className="relative min-h-[500px] md:min-h-[470px] rounded-[22px] overflow-hidden bg-emerald-950">
                 <img src={NETWORK_IMG} alt="Associate partner network" className="absolute inset-0 w-full h-full object-cover opacity-12" />
                 <div className="absolute inset-0 bg-gradient-to-br from-emerald-950 via-emerald-900 to-emerald-950" />
 
@@ -419,7 +419,7 @@ const Hero = () => {
                   <div className="flex items-start justify-between gap-3">
                     <div className="max-w-[78%]">
                       <p className="text-[9px] uppercase tracking-[0.3em] text-amber-300 font-bold">METHO Corporate Access</p>
-                      <h3 className="mt-2 font-display font-black text-[1.35rem] md:text-[1.7rem] text-white leading-[1.08] tracking-tight">
+                      <h3 className="mt-2 font-display font-black text-[1.2rem] md:text-[1.62rem] text-white leading-[1.1] tracking-tight">
                         One gateway for member growth and partner commerce.
                       </h3>
                       <p className="mt-2 text-[11px] md:text-xs text-emerald-100/80 leading-relaxed">
@@ -431,7 +431,7 @@ const Hero = () => {
                     </div>
                   </div>
 
-                  <div className="mt-4 grid gap-2.5">
+                  <div className="mt-4 grid gap-2">
                     {[
                       {
                         title: "Member Registration",
@@ -465,7 +465,7 @@ const Hero = () => {
                       <Link
                         key={item.title}
                         to={item.href}
-                        className="group rounded-2xl bg-emerald-950/78 border border-emerald-100/30 backdrop-blur px-4 py-3 text-white shadow-[0_14px_30px_rgba(0,0,0,0.35)] hover:bg-emerald-950/86 hover:border-amber-200/50 transition-colors"
+                        className="group rounded-2xl bg-emerald-950/78 border border-emerald-100/30 backdrop-blur px-4 py-2.5 text-white shadow-[0_14px_30px_rgba(0,0,0,0.35)] hover:bg-emerald-950/86 hover:border-amber-200/50 transition-colors"
                         data-testid={`landing-corporate-access-${item.title.toLowerCase().replace(/[^a-z0-9]+/g, "-")}`}
                       >
                         <div className="flex items-center justify-between gap-3">
@@ -486,7 +486,7 @@ const Hero = () => {
                     ))}
                   </div>
 
-                  <div className="mt-auto rounded-xl border border-white/15 bg-white/10 px-4 py-3 backdrop-blur">
+                  <div className="mt-3 rounded-xl border border-white/15 bg-white/10 px-4 py-3 backdrop-blur">
                     <p className="text-[10px] uppercase tracking-[0.24em] text-emerald-100/90 font-semibold">Business Ready Platform</p>
                     <div className="mt-2 flex items-center justify-between gap-3 text-white">
                       <p className="text-sm md:text-[15px] font-semibold leading-tight">Registration, commerce, and partner discovery aligned in one workflow.</p>
@@ -1296,6 +1296,9 @@ const Footer = () => (
         <p className="mt-4 max-w-sm text-sm font-body">India's most powerful business platform. Built by Metho Logistics Private Limited for the growing Partner community.</p>
         <div className="mt-4 flex items-center gap-3 text-xs">
           <Building2 className="w-4 h-4" /> Metho Logistics Private Limited
+        </div>
+        <div className="mt-3 inline-flex items-center gap-2 rounded-full border border-emerald-700 bg-emerald-900/45 px-3 py-1.5 text-sm text-emerald-100">
+          <Phone className="w-4 h-4 text-amber-300" /> Contact: +91 7003805387
         </div>
       </div>
       <div>
