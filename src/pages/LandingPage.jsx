@@ -171,6 +171,12 @@ const Hero = () => {
   const [bestProducts, setBestProducts] = useState([]);
   const hasBestProducts = bestProducts.length > 0;
   const LANDING_TOP_PRODUCTS_LIMIT = 10;
+  const flowStats = [
+    { label: "Live Partner Network", value: "Pan-India" },
+    { label: "Member Onboarding", value: "60 Sec" },
+    { label: "Store + Directory", value: "Unified" },
+    { label: "Operations", value: "Real-Time" },
+  ];
   const selectedTopProductIds = useMemo(() => {
     const raw = settings?.landing_top_product_ids;
     if (!Array.isArray(raw)) return [];
@@ -224,7 +230,7 @@ const Hero = () => {
   };
 
   return (
-  <section className="relative pt-36 pb-14 overflow-hidden bg-[radial-gradient(circle_at_top,rgba(245,158,11,0.14),transparent_28%),linear-gradient(180deg,#fffdf8_0%,#fbfaf6_46%,#f5f8f7_100%)]">
+  <section className="relative pt-32 pb-12 overflow-hidden bg-[radial-gradient(circle_at_top,rgba(245,158,11,0.12),transparent_30%),linear-gradient(180deg,#fffefb_0%,#fbfbf8_46%,#f4f8f6_100%)]">
     <div className="absolute inset-0 grain" />
     <div className="absolute top-0 inset-x-0 h-1 bg-gradient-to-r from-[#ff9933] via-white to-[#138808] opacity-80" />
     <div className="absolute -top-16 left-1/2 -translate-x-1/2 w-[28rem] h-[28rem] bg-amber-300/15 rounded-full blur-3xl" />
@@ -236,33 +242,32 @@ const Hero = () => {
             <Sparkles className="w-3.5 h-3.5" /> Powered By Metho Logistics Private Limited
           </div>
           {tagline ? (
-            <h1 className="mt-6 font-display font-black text-5xl md:text-6xl lg:text-7xl tracking-tighter leading-none text-emerald-950">
+            <h1 className="mt-6 font-display font-black text-4xl md:text-5xl lg:text-6xl tracking-tight leading-[0.97] text-emerald-950">
               {tagline}
             </h1>
           ) : (
-            <h1 className="mt-6 max-w-4xl font-display font-black text-5xl md:text-6xl lg:text-7xl tracking-tighter leading-none text-emerald-950">
+            <h1 className="mt-6 max-w-4xl font-display font-black text-4xl md:text-5xl lg:text-6xl tracking-tight leading-[0.97] text-emerald-950">
               Build daily demand.
-              <span className="block text-amber-500 italic">Grow reliable income.</span>
-              <br />
-              <span className="text-3xl md:text-4xl lg:text-5xl font-bold text-slate-800">One product ecosystem for members and partners.</span>
+              <span className="block text-amber-500 italic">Scale reliable income.</span>
+              <span className="mt-4 block text-xl md:text-2xl lg:text-[2rem] font-bold text-slate-800 leading-tight">Corporate commerce system for members, partners, and management.</span>
             </h1>
           )}
           {subheading ? (
-            <p className="mt-6 max-w-xl text-lg text-slate-600 font-body leading-relaxed">{subheading}</p>
+            <p className="mt-5 max-w-2xl text-base md:text-lg text-slate-600 font-body leading-relaxed">{subheading}</p>
           ) : (
-            <p className="mt-6 max-w-2xl text-lg text-slate-600 font-body leading-relaxed">
-              METHO brings product commerce, partner distribution and reward automation into one clean operating system.
-              <br />
-              <span className="text-slate-500 text-base">Launch faster, sell smarter and track growth without manual complexity.</span>
+            <p className="mt-5 max-w-2xl text-base md:text-lg text-slate-600 font-body leading-relaxed">
+              METHO unifies registration, product sales, partner directory, and earnings operations in one business workflow.
+              <span className="block mt-1 text-slate-500">Designed for disciplined execution, transparent growth, and scale-ready field teams.</span>
             </p>
           )}
-          <div className="mt-6 grid gap-3 sm:grid-cols-3 max-w-2xl">
+          <div className="mt-6 grid gap-2.5 sm:grid-cols-2 lg:grid-cols-4 max-w-3xl">
             {[
-              "Fast onboarding for field teams",
-              "India-ready payout controls",
-              "Smart growth and reward tracking",
+              "Member and partner onboarding",
+              "METHO Store and partner shop flow",
+              "Smart earnings and payout control",
+              "Leadership-ready reporting lens",
             ].map((item) => (
-              <div key={item} className="rounded-xl border border-emerald-900/10 bg-white/80 backdrop-blur px-4 py-3 text-sm font-medium text-slate-700 shadow-sm">
+              <div key={item} className="rounded-xl border border-emerald-900/10 bg-white/85 backdrop-blur px-4 py-3 text-[13px] font-semibold text-slate-700 shadow-sm">
                 {item}
               </div>
             ))}
@@ -270,7 +275,7 @@ const Hero = () => {
           <div className="mt-8 flex flex-wrap items-center gap-3 rounded-[1.75rem] border border-emerald-900/10 bg-gradient-to-r from-white/95 via-emerald-50/75 to-white/95 p-2.5 shadow-sm">
             <Link to="/register" className="w-full sm:w-auto" data-testid="hero-cta-register">
               <Button size="lg" className="bg-gradient-to-r from-emerald-900 to-emerald-800 hover:from-emerald-950 hover:to-emerald-900 text-white rounded-full px-7 h-12 text-base font-semibold w-full sm:w-auto shadow-lg shadow-emerald-900/20">
-                Register Free — in 60 seconds <ArrowRight className="ml-2 w-4 h-4" />
+                Member Registration <ArrowRight className="ml-2 w-4 h-4" />
               </Button>
             </Link>
             <Link to="/partner-register" className="hidden sm:inline-flex" data-testid="hero-cta-partner-register">
@@ -285,7 +290,7 @@ const Hero = () => {
             </Link>
             <Link to="/shop" className="w-full sm:w-auto" data-testid="hero-cta-shop">
               <Button size="lg" variant="outline" className="rounded-full px-7 h-12 text-base border-emerald-900/20 bg-white/95 shadow-sm hover:bg-emerald-50 hover:text-emerald-900 w-full sm:w-auto">
-                Browse Products <ChevronRight className="ml-1 w-4 h-4" />
+                Browse METHO Products <ChevronRight className="ml-1 w-4 h-4" />
               </Button>
             </Link>
             <div className="w-full sm:w-auto flex items-center gap-2" data-testid="hero-shop-search-wrap">
@@ -372,9 +377,13 @@ const Hero = () => {
               </div>
             </div>
           </div>
-          <div className="mt-10 flex items-center gap-1 text-amber-500" data-testid="hero-rating-stars">
-            {[1, 2, 3, 4, 5].map((i) => <Star key={i} className="w-4 h-4 fill-current" />)}
-            <p className="ml-2 text-xs text-slate-500 font-body">Trusted by growing partner offices across India</p>
+          <div className="mt-8 grid grid-cols-2 sm:grid-cols-4 gap-2.5" data-testid="hero-rating-stars">
+            {flowStats.map((item) => (
+              <div key={item.label} className="rounded-xl border border-emerald-900/10 bg-white/80 px-3 py-2.5 shadow-sm">
+                <p className="text-[10px] uppercase tracking-widest text-slate-500 font-semibold">{item.label}</p>
+                <p className="mt-1 text-sm font-bold text-emerald-950">{item.value}</p>
+              </div>
+            ))}
           </div>
         </motion.div>
 
@@ -384,7 +393,7 @@ const Hero = () => {
             <div className="absolute -bottom-4 -right-4 w-40 h-40 bg-emerald-500/15 rounded-full blur-3xl" />
             <div className="absolute -left-3 top-10 bottom-10 w-1.5 rounded-full bg-gradient-to-b from-[#ff9933] via-white to-[#138808]" />
             <div className="relative rounded-[28px] overflow-hidden shadow-2xl border border-emerald-900/10 bg-white p-3">
-              <div className="relative h-[480px] rounded-[22px] overflow-hidden bg-emerald-950">
+              <div className="relative h-[430px] md:h-[450px] rounded-[22px] overflow-hidden bg-emerald-950">
                 <img src={NETWORK_IMG} alt="Associate partner network" className="absolute inset-0 w-full h-full object-cover opacity-12" />
                 <div className="absolute inset-0 bg-gradient-to-br from-emerald-950 via-emerald-900 to-emerald-950" />
 
@@ -655,29 +664,47 @@ const BusinessPlan = () => {
   const { settings } = useSettings();
   const mission = (settings?.mission_statement || "").trim() || DEFAULT_POLICY.mission_statement;
   const vision = (settings?.vision_statement || "").trim() || DEFAULT_POLICY.vision_statement;
+  const managementDirection = "Management operates a compliance-first, product-first execution model with unified onboarding, partner governance, and accountable payout operations.";
 
   return (
-    <section id="plan" className="py-24 bg-gradient-to-b from-emerald-950 to-emerald-900 text-white relative overflow-hidden">
+    <section id="plan" className="py-20 bg-gradient-to-b from-emerald-950 to-emerald-900 text-white relative overflow-hidden">
       <div className="absolute inset-0 grain opacity-30" />
       <div className="max-w-7xl mx-auto px-6 relative">
         <div className="max-w-3xl mx-auto text-center">
-          <p className="text-xs uppercase tracking-[0.25em] text-amber-400 font-semibold">Our Foundation</p>
+          <p className="text-xs uppercase tracking-[0.25em] text-amber-400 font-semibold">Corporate Foundation</p>
           <h2 className="mt-3 font-display font-black text-4xl md:text-5xl tracking-tight">
-            Mission and Vision
+            Mission, Vision & Management
             <br />
-            <span className="text-amber-400">that drive METHO.</span>
+            <span className="text-amber-400">direction for METHO growth.</span>
           </h2>
         </div>
 
-        <div className="mt-10 grid md:grid-cols-2 gap-5">
-            <div className="rounded-2xl border border-white/15 bg-white/10 backdrop-blur p-6">
-              <p className="text-[10px] uppercase tracking-[0.24em] text-amber-300 font-semibold">Mission</p>
-              <p className="mt-3 text-sm md:text-base text-emerald-100/90 whitespace-pre-line font-body leading-relaxed">{mission}</p>
+        <div className="mt-10 grid md:grid-cols-3 gap-4">
+          <div className="rounded-2xl border border-white/15 bg-white/10 backdrop-blur p-5">
+            <p className="text-[10px] uppercase tracking-[0.24em] text-amber-300 font-semibold">Mission</p>
+            <p className="mt-3 text-sm text-emerald-100/90 whitespace-pre-line font-body leading-relaxed">{mission}</p>
+          </div>
+          <div className="rounded-2xl border border-white/15 bg-white/10 backdrop-blur p-5">
+            <p className="text-[10px] uppercase tracking-[0.24em] text-amber-300 font-semibold">Vision</p>
+            <p className="mt-3 text-sm text-emerald-100/90 whitespace-pre-line font-body leading-relaxed">{vision}</p>
+          </div>
+          <div className="rounded-2xl border border-white/15 bg-white/10 backdrop-blur p-5">
+            <p className="text-[10px] uppercase tracking-[0.24em] text-amber-300 font-semibold">Management</p>
+            <p className="mt-3 text-sm text-emerald-100/90 font-body leading-relaxed">{managementDirection}</p>
+          </div>
+        </div>
+
+        <div className="mt-6 grid sm:grid-cols-2 lg:grid-cols-4 gap-3">
+          {[
+            "1. Member registration and KYC onboarding",
+            "2. Partner and store activation",
+            "3. Product commerce and order execution",
+            "4. Smart income tracking and payout",
+          ].map((step) => (
+            <div key={step} className="rounded-xl border border-white/15 bg-emerald-950/35 px-4 py-3 text-sm text-emerald-100/95 font-medium">
+              {step}
             </div>
-            <div className="rounded-2xl border border-white/15 bg-white/10 backdrop-blur p-6">
-              <p className="text-[10px] uppercase tracking-[0.24em] text-amber-300 font-semibold">Vision</p>
-              <p className="mt-3 text-sm md:text-base text-emerald-100/90 whitespace-pre-line font-body leading-relaxed">{vision}</p>
-            </div>
+          ))}
         </div>
       </div>
     </section>
@@ -1020,16 +1047,17 @@ const TopLeaders = () => {
   ];
 
   return (
-    <section className="py-16 bg-gradient-to-b from-white to-amber-50/45" data-testid="top-leaders-section">
+    <section className="py-16 bg-gradient-to-b from-white to-amber-50/40" data-testid="top-leaders-section">
       <div className="max-w-7xl mx-auto px-6">
         <div className="max-w-3xl">
-          <p className="text-xs uppercase tracking-[0.25em] text-emerald-800 font-semibold">Top Leaders</p>
-          <h2 className="mt-2 font-display font-black text-3xl md:text-4xl tracking-tight text-emerald-950">Leadership Team</h2>
+          <p className="text-xs uppercase tracking-[0.25em] text-emerald-800 font-semibold">Management Board</p>
+          <h2 className="mt-2 font-display font-black text-3xl md:text-4xl tracking-tight text-emerald-950">Top Leaders of METHO</h2>
+          <p className="mt-3 text-sm text-slate-600 max-w-2xl">Leadership profiles are managed from admin settings and presented here for corporate trust visibility.</p>
         </div>
         <div className="mt-8 grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-4">
           {leaders.map((leader, i) => (
             <div key={i} className="mx-auto w-full max-w-[220px] bg-white rounded-2xl border border-emerald-900/10 overflow-hidden shadow-sm hover:shadow-md transition-shadow" data-testid={`top-leader-card-${i + 1}`}>
-              <div className="aspect-[4/3] overflow-hidden bg-secondary">
+              <div className="aspect-[3/4] overflow-hidden bg-secondary">
                 <img
                   src={leader.image || FALLBACK_LEADER_IMG}
                   alt={leader.name}
@@ -1061,7 +1089,7 @@ const TopLeaders = () => {
                   }}
                 />
               </div>
-              <div className="p-3 bg-emerald-50/45 border-t border-emerald-100">
+              <div className="p-3.5 bg-emerald-50/45 border-t border-emerald-100">
                 <p className="font-display font-bold text-sm text-emerald-950 truncate" title={leader.name}>{leader.name}</p>
                 <p className="mt-0.5 text-[11px] text-amber-700 font-semibold tracking-wide uppercase truncate" title={leader.title}>{leader.title}</p>
               </div>
@@ -1103,27 +1131,46 @@ const MissionVisionPolicy = () => {
 
 const ReturnPolicyBox = () => {
   const { settings } = useSettings();
-  const mission = (settings?.mission_statement || "").trim() || DEFAULT_POLICY.mission_statement;
-  const vision = (settings?.vision_statement || "").trim() || DEFAULT_POLICY.vision_statement;
   const returnPolicy = (settings?.return_policy || "").trim() || DEFAULT_POLICY.return_policy;
+  const policyLines = returnPolicy
+    .split("\n")
+    .map((line) => line.trim())
+    .filter(Boolean)
+    .slice(0, 6);
 
   return (
     <section id="return-policy" className="py-10 bg-white" data-testid="landing-return-policy-box">
       <div className="max-w-6xl mx-auto px-6">
         <div className="rounded-2xl border border-emerald-900/10 bg-gradient-to-br from-white to-emerald-50/40 p-6 md:p-7 shadow-sm">
-          <p className="text-xs uppercase tracking-[0.25em] text-emerald-800 font-semibold">Mission, Vision & Return Policy</p>
+          <p className="text-xs uppercase tracking-[0.25em] text-emerald-800 font-semibold">Customer Protection</p>
+          <div className="mt-2 flex flex-wrap items-end justify-between gap-3">
+            <h3 className="font-display font-black text-2xl md:text-3xl tracking-tight text-emerald-950">Return Policy Snapshot</h3>
+            <Link to="/shop" data-testid="landing-return-policy-open-shop">
+              <Button variant="outline" className="rounded-full border-emerald-900/20 bg-white hover:bg-emerald-50 hover:text-emerald-900">
+                Open Product Catalog <ChevronRight className="ml-1 w-4 h-4" />
+              </Button>
+            </Link>
+          </div>
           <div className="mt-4 grid md:grid-cols-3 gap-4">
-            <div className="rounded-xl border border-emerald-100 bg-white/85 p-4">
-              <p className="text-[10px] uppercase tracking-widest text-emerald-800 font-semibold">Mission</p>
-              <p className="mt-2 text-sm text-slate-700 whitespace-pre-line font-body leading-relaxed">{mission}</p>
+            <div className="md:col-span-2 rounded-xl border border-emerald-100 bg-white/90 p-4">
+              <p className="text-[10px] uppercase tracking-widest text-emerald-800 font-semibold">Policy Highlights</p>
+              <div className="mt-2 space-y-2">
+                {policyLines.map((line, idx) => (
+                  <p key={`${line}-${idx}`} className="text-sm text-slate-700 font-body leading-relaxed">{line}</p>
+                ))}
+              </div>
             </div>
-            <div className="rounded-xl border border-emerald-100 bg-white/85 p-4">
-              <p className="text-[10px] uppercase tracking-widest text-emerald-800 font-semibold">Vision</p>
-              <p className="mt-2 text-sm text-slate-700 whitespace-pre-line font-body leading-relaxed">{vision}</p>
-            </div>
-            <div className="rounded-xl border border-emerald-100 bg-white/85 p-4">
-              <p className="text-[10px] uppercase tracking-widest text-emerald-800 font-semibold">Return Policy</p>
-              <p className="mt-2 text-sm text-slate-700 whitespace-pre-line font-body leading-relaxed">{returnPolicy}</p>
+            <div className="rounded-xl border border-emerald-100 bg-emerald-50/70 p-4">
+              <p className="text-[10px] uppercase tracking-widest text-emerald-800 font-semibold">Need Assistance?</p>
+              <p className="mt-2 text-sm text-slate-700 font-body leading-relaxed">Contact support with order details for faster review and resolution.</p>
+              <div className="mt-4 grid gap-2">
+                <Link to="/login" data-testid="landing-return-policy-login">
+                  <Button variant="outline" className="w-full rounded-full border-emerald-900/20 bg-white hover:bg-emerald-50 hover:text-emerald-900">Member Login</Button>
+                </Link>
+                <Link to="/partner-register" data-testid="landing-return-policy-partner-register">
+                  <Button className="w-full rounded-full bg-emerald-900 hover:bg-emerald-950 text-white">Partner Registration</Button>
+                </Link>
+              </div>
             </div>
           </div>
         </div>
