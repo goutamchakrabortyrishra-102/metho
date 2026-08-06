@@ -563,7 +563,8 @@ def _save_admin_accounts_ledger(db: Session, payload: dict) -> dict:
 
 
 def _accounts_auto_summary(db: Session) -> dict:
-    income_rows = db.query(PublicOrder).all()
+    # Only approved/settled orders should contribute to system income.
+    income_rows = db.query(PublicOrder).filter(PublicOrder.status == "paid").all()
     income_total = 0.0
     income_items = []
     for order in income_rows:
