@@ -29,6 +29,8 @@ SMTP_FROM_NAME = os.getenv("SMTP_FROM_NAME", "METHO AAY-UPAY")
 SMTP_USE_TLS = str(os.getenv("SMTP_USE_TLS", "true")).lower() in {"1", "true", "yes", "y"}
 MEMBER_ID_PREFIX = "MAU"
 DEFAULT_ADMIN_SPONSOR_ID = os.getenv("DEFAULT_ADMIN_SPONSOR_ID", "MAU00001").strip().upper()
+ADMIN_ROLES = {"super_admin", "company_admin", "admin"}
+ADMIN_LOGIN_ID = str(os.getenv("ADMIN_LOGIN_ID", "MTH-ADMIN") or "MTH-ADMIN").strip()
 
 
 def member_code_for_user(user_id: str) -> str:
@@ -76,15 +78,77 @@ def _resolve_user_by_identifier(db: Session, identifier: str) -> User | None:
 
 def _resolve_default_admin_sponsor(db: Session) -> User | None:
     preferred = _resolve_user_by_identifier(db, DEFAULT_ADMIN_SPONSOR_ID)
-    if preferred and preferred.role in {"super_admin", "company_admin", "admin"}:
+    if preferred and preferred.role in ADMIN_ROLES:
         return preferred
 
     return (
         db.query(User)
-        .filter(User.role.in_(["super_admin", "company_admin", "admin"]))
+        .filter(User.role.in_(list(ADMIN_ROLES)))
         .order_by(User.created_at.asc())
         .first()
     )
+
+
+def _resolve_login_user(db: Session, identifier: str, admin_mode: bool = False) -> User | None:
+    raw = str(identifier or "").strip()
+    if not raw:
+        return None
+
+    normalized = raw.upper()
+    compact = normalized.replace(" ", "")
+    admin_aliases = {
+        "ADMIN",
+        "MTHADMIN",
+        "MTH-ADMIN",
+        str(ADMIN_LOGIN_ID or "").strip().upper().replace(" ", ""),
+    }
+    if admin_mode and compact in {alias for alias in admin_aliases if alias}:
+        admin_user = _resolve_default_admin_sponsor(db)
+        if admin_user:
+            return admin_user
+
+    direct = _resolve_user_by_identifier(db, normalized)
+    if direct:
+        return direct
+
+    return (
+        db.query(User)
+        .filter((User.email == raw) | (User.phone == raw))
+        .first()
+    )
+
+
+def _build_login_response(user: User) -> dict:
+    token = create_token(user.id, user.role)
+    return {
+        "token": token,
+        "user": {
+            "id": user.id,
+            "name": user.name,
+            "email": user.email,
+            "phone": user.phone,
+            "role": user.role,
+            "member_code": member_code_for_user(user.id),
+        },
+    }
+
+
+def _login_user(payload: LoginRequest, db: Session, admin_mode: bool = False) -> dict:
+    identifier = str(payload.email or "").strip()
+    if not identifier:
+        raise HTTPException(status_code=400, detail="Login ID is required")
+
+    user = _resolve_login_user(db, identifier, admin_mode=admin_mode)
+    if not user or not verify_password(payload.password, user.password):
+        raise HTTPException(status_code=401, detail="Invalid login ID or password")
+
+    is_admin = user.role in ADMIN_ROLES
+    if admin_mode and not is_admin:
+        raise HTTPException(status_code=403, detail="Admin credentials required")
+    if not admin_mode and is_admin:
+        raise HTTPException(status_code=403, detail="Admin users must sign in from hidden admin login")
+
+    return _build_login_response(user)
 
 
 def build_welcome_pdf(user: User) -> str:
@@ -229,35 +293,22 @@ def register_alias(payload: RegisterRequest, db: Session = Depends(get_db)):
 
 @router.post("/login")
 def login(payload: LoginRequest, db: Session = Depends(get_db)):
-    identifier = str(payload.email or "").strip()
-    if not identifier:
-        raise HTTPException(status_code=400, detail="Login ID is required")
-
-    user = (
-        db.query(User)
-        .filter((User.email == identifier) | (User.phone == identifier))
-        .first()
-    )
-    if not user or not verify_password(payload.password, user.password):
-        raise HTTPException(status_code=401, detail="Invalid login ID or password")
-
-    token = create_token(user.id, user.role)
-    return {
-        "token": token,
-        "user": {
-            "id": user.id,
-            "name": user.name,
-            "email": user.email,
-            "phone": user.phone,
-            "role": user.role,
-            "member_code": member_code_for_user(user.id),
-        },
-    }
+    return _login_user(payload, db, admin_mode=False)
 
 
 @router.post("/auth/login")
 def login_alias(payload: LoginRequest, db: Session = Depends(get_db)):
-    return login(payload, db)
+    return _login_user(payload, db, admin_mode=False)
+
+
+@router.post("/auth/admin/login")
+def admin_login(payload: LoginRequest, db: Session = Depends(get_db)):
+    return _login_user(payload, db, admin_mode=True)
+
+
+@router.post("/admin/login")
+def admin_login_alias(payload: LoginRequest, db: Session = Depends(get_db)):
+    return _login_user(payload, db, admin_mode=True)
 
 
 @router.get("/me")

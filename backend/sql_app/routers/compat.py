@@ -650,6 +650,36 @@ def _accounts_auto_summary(db: Session) -> dict:
         "expense_total": round(expenses_total, 2),
         "expense_items": sorted(withdrawals + mps_claims, key=lambda item: str(item.get("created_at") or ""), reverse=True)[:200],
     }
+
+
+def _clear_current_admin_transaction_data(db: Session) -> dict:
+    owner_ids = [str((owner or {}).get("id") or "").strip() for owner in _store_owner_docs(db) if isinstance(owner, dict)]
+    owner_ids = [owner_id for owner_id in owner_ids if owner_id]
+
+    deleted_public_orders = db.query(PublicOrder).delete(synchronize_session=False)
+    cleared_admin_ledger = db.query(AppSetting).filter(AppSetting.key == ADMIN_ACCOUNTS_LEDGER_KEY).delete(synchronize_session=False)
+    cleared_partner_topups = db.query(AppSetting).filter(AppSetting.key.like("partner_topup:%")).delete(synchronize_session=False)
+    cleared_transport_bookings = db.query(AppSetting).filter(AppSetting.key.like("transport_trip:%")).delete(synchronize_session=False)
+
+    cleared_store_invoices = 0
+    for owner_id in owner_ids:
+        cleared_store_invoices += db.query(AppSetting).filter(AppSetting.key == _store_key(f"invoices:{owner_id}")).delete(synchronize_session=False)
+
+    withdrawal_count = len(WITHDRAWALS)
+    mps_claim_count = len(MPS_CLAIMS)
+    WITHDRAWALS.clear()
+    MPS_CLAIMS.clear()
+
+    db.commit()
+    return {
+        "deleted_public_orders": int(deleted_public_orders or 0),
+        "cleared_admin_ledger": int(cleared_admin_ledger or 0),
+        "cleared_partner_topups": int(cleared_partner_topups or 0),
+        "cleared_transport_bookings": int(cleared_transport_bookings or 0),
+        "cleared_store_invoice_sets": int(cleared_store_invoices or 0),
+        "cleared_withdrawals": int(withdrawal_count or 0),
+        "cleared_mps_claims": int(mps_claim_count or 0),
+    }
     return payload
 
 
@@ -5078,6 +5108,17 @@ def admin_accounts(current_user=Depends(get_current_user), db: Session = Depends
         "manual_entries": entries,
         "category_totals": bucket_totals,
         "last_updated": str(manual.get("updated_at") or now_iso()),
+    }
+
+
+@router.post("/admin/reset-current-data")
+def admin_reset_current_data(current_user=Depends(get_current_user), db: Session = Depends(get_db)):
+    _require_admin_user(current_user)
+    result = _clear_current_admin_transaction_data(db)
+    return {
+        "ok": True,
+        "message": "Current admin-side transaction data cleared. Fresh start ready.",
+        "result": result,
     }
 
 

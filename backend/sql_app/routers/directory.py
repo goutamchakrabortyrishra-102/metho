@@ -11,6 +11,10 @@ from ..models import AppSetting, AssociatePartner, PartnerProduct
 from ..storage import UPLOADED_OBJECTS_DIR
 
 
+def _search_tokens(value: str | None) -> list[str]:
+    return [token for token in str(value or "").lower().replace(",", " ").split() if token]
+
+
 def _featured_url_alive(url: str) -> bool:
     """data URLs always alive; file paths alive only if file exists on disk."""
     raw = str(url or "").strip()
@@ -160,13 +164,20 @@ def partner_directory(
     if business_type:
         query = query.filter(AssociatePartner.business_type == business_type)
     if q:
-        like_q = f"%{q}%"
-        query = query.filter(
-            AssociatePartner.business_name.ilike(like_q)
-            | AssociatePartner.contact_person.ilike(like_q)
-            | AssociatePartner.city.ilike(like_q)
-            | AssociatePartner.pincode.ilike(like_q)
-        )
+        tokens = _search_tokens(q)
+        search_fields = [
+            AssociatePartner.business_name,
+            AssociatePartner.contact_person,
+            AssociatePartner.business_type,
+            AssociatePartner.city,
+            AssociatePartner.state,
+            AssociatePartner.address,
+            AssociatePartner.pincode,
+            AssociatePartner.partner_code,
+        ]
+        for token in tokens:
+            like_q = f"%{token}%"
+            query = query.filter(or_(*[field.ilike(like_q) for field in search_fields]))
     if category:
         partner_ids = [
             row[0]

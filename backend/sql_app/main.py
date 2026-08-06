@@ -66,6 +66,10 @@ ENABLE_BANDWIDTH_METRICS = str(os.getenv("ENABLE_BANDWIDTH_METRICS", "1") or "1"
 BANDWIDTH_METRICS_WINDOW_MINUTES = _int_env("BANDWIDTH_METRICS_WINDOW_MINUTES", 240)
 BANDWIDTH_METRICS_MAX_EVENTS = max(1000, _int_env("BANDWIDTH_METRICS_MAX_EVENTS", 50000))
 METRICS_API_KEY = str(os.getenv("METRICS_API_KEY", "") or "").strip()
+ADMIN_LOGIN_ID = str(os.getenv("ADMIN_LOGIN_ID", "MTH-ADMIN") or "MTH-ADMIN").strip()
+ADMIN_PASSWORD = str(os.getenv("ADMIN_PASSWORD", "admin123") or "admin123")
+ADMIN_DISPLAY_NAME = str(os.getenv("ADMIN_DISPLAY_NAME", "METHO Admin") or "METHO Admin").strip()
+ADMIN_PHONE = str(os.getenv("ADMIN_PHONE", "9999999999") or "9999999999").strip()
 
 SENSITIVE_RATE_LIMITS: list[tuple[str, int]] = [
     ("/api/login", RATE_LIMIT_LOGIN),
@@ -210,18 +214,26 @@ def _summarize_bandwidth(minutes: int = 60, top: int = 20) -> dict:
 def _seed_demo_admin():
     db = SessionLocal()
     try:
-        existing = db.query(User).filter(User.email == "admin@metho.com").first()
+        existing = (
+            db.query(User)
+            .filter(User.role.in_(["super_admin", "company_admin", "admin"]))
+            .order_by(User.created_at.asc())
+            .first()
+        )
         if existing:
-            # Preserve custom names; only upgrade legacy seeded label.
-            if existing.name == "Demo Admin":
-                existing.name = "METHO Admin"
-                db.commit()
+            existing.name = ADMIN_DISPLAY_NAME or existing.name
+            existing.email = ADMIN_LOGIN_ID or existing.email
+            existing.phone = ADMIN_PHONE or existing.phone
+            existing.role = existing.role or "super_admin"
+            if ADMIN_PASSWORD:
+                existing.password = hash_password(ADMIN_PASSWORD)
+            db.commit()
             return
         admin = User(
-            name="METHO Admin",
-            email="admin@metho.com",
-            phone="9999999999",
-            password=hash_password("admin123"),
+            name=ADMIN_DISPLAY_NAME,
+            email=ADMIN_LOGIN_ID,
+            phone=ADMIN_PHONE,
+            password=hash_password(ADMIN_PASSWORD),
             role="super_admin",
             is_active=True,
         )

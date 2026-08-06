@@ -11,7 +11,9 @@ const RegisterPage = lazy(() => import("@/pages/RegisterPage"));
 const ForgotPasswordPage = lazy(() => import("@/pages/ForgotPasswordPage"));
 const ResetPasswordPage = lazy(() => import("@/pages/ResetPasswordPage"));
 const DashboardLayout = lazy(() => import("@/layouts/DashboardLayout"));
+const AdminLayout = lazy(() => import("@/layouts/AdminLayout"));
 const DashboardHome = lazy(() => import("@/pages/dashboard/DashboardHome"));
+const AdminHomePage = lazy(() => import("@/pages/dashboard/AdminHomePage"));
 const WalletPage = lazy(() => import("@/pages/dashboard/WalletPage"));
 const MembersPage = lazy(() => import("@/pages/dashboard/MembersPage"));
 const GenealogyPage = lazy(() => import("@/pages/dashboard/GenealogyPage"));
@@ -75,6 +77,7 @@ const MemberRoute = ({ children }) => {
   const { user, loading } = useAuth();
   if (loading) return <div className="min-h-screen flex items-center justify-center">Loading...</div>;
   if (!user) return <Navigate to="/login" replace />;
+  if (["super_admin", "company_admin", "admin"].includes(user?.role)) return <Navigate to="/admin" replace />;
   if (user?.role === "partner") return <Navigate to="/partner" replace />;
   return children;
 };
@@ -196,6 +199,30 @@ function App() {
                 <Route path="owner-guide" element={<AdminRoute><OwnerGuidePage /></AdminRoute>} />
                 <Route path="withdrawals" element={<AdminRoute><WithdrawalsPage /></AdminRoute>} />
                 <Route path="leaderboard" element={<LeaderboardPage />} />
+              </Route>
+              <Route
+                path="/admin"
+                element={
+                  <AdminRoute>
+                    <AdminLayout />
+                  </AdminRoute>
+                }
+              >
+                <Route index element={<AdminHomePage />} />
+                <Route path="product-upload" element={<ProductsPage />} />
+                <Route path="pending-payments" element={<PendingPaymentsPage />} />
+                <Route path="accounts" element={<AccountsPage />} />
+                <Route path="settlement" element={<MonthlySettlementPage />} />
+                <Route path="mps-claims" element={<MPSClaimsPage />} />
+                <Route path="partners" element={<PartnersPage />} />
+                <Route path="metho-store-admin" element={<MethoStoreAdminPage />} />
+                <Route path="partner-approvals" element={<PartnerApprovalsPage />} />
+                <Route path="product-approvals" element={<ProductApprovalsPage />} />
+                <Route path="ai-upgrade" element={<AIUpgradePage />} />
+                <Route path="audit-log" element={<AuditLogPage />} />
+                <Route path="system-health" element={<SystemHealthPage />} />
+                <Route path="owner-guide" element={<OwnerGuidePage />} />
+                <Route path="withdrawals" element={<WithdrawalsPage />} />
               </Route>
               <Route path="*" element={<Navigate to="/" replace />} />
             </Routes>

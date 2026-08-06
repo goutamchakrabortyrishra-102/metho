@@ -8,6 +8,7 @@ import { Logo } from "@/components/Logo";
 import { useAuth } from "@/contexts/AuthContext";
 import { useSettings } from "@/contexts/SettingsContext";
 import { resolveAssetUrl } from "@/lib/utils";
+import { matchesSearch } from "@/lib/search";
 import { isCompletePincode, normalizePincode } from "@/lib/indiaLocation";
 
 const TYPES = ["All", "Retail Shop", "Super Market", "Pharmacy", "Restaurant", "Service Provider", "Distributor", "Wholesaler", "Online Seller"];
@@ -87,6 +88,7 @@ export default function DirectoryPage() {
 
   useEffect(() => {
     setLoading(true);
+    const searchValue = [q, category, shopSector].filter(Boolean).join(" ").trim();
     const params = new URLSearchParams();
     if (city) params.set("city", city);
     if (pincode) params.set("pincode", pincode);
@@ -95,7 +97,22 @@ export default function DirectoryPage() {
     if (shopSector) params.set("shop_sector", shopSector);
     if (q) params.set("q", q);
     api.get(`/directory/partners?${params.toString()}`)
-      .then(r => setPartners(r.data))
+      .then((r) => {
+        const rows = Array.isArray(r.data) ? r.data : [];
+        const practicalRows = rows.filter((p) => matchesSearch([
+          p?.business_name,
+          p?.contact_person,
+          p?.partner_code,
+          p?.business_type,
+          p?.category,
+          p?.city,
+          p?.state,
+          p?.address,
+          p?.pincode,
+          p?.service_template_key,
+        ], searchValue || q));
+        setPartners(searchValue || q ? practicalRows : rows);
+      })
       .catch(() => setPartners([]))
       .finally(() => setLoading(false));
   }, [city, pincode, type, category, shopSector, q]);

@@ -13,6 +13,7 @@ import UpiPaymentDialog from "@/components/UpiPaymentDialog";
 import { useAuth } from "@/contexts/AuthContext";
 import { resolveAssetUrl, getAssetImageFallbackCandidates } from "@/lib/utils";
 import { Input } from "@/components/ui/input";
+import { matchesSearch } from "@/lib/search";
 import { inferPartnerPrimarySector, getPartnerVisibleSectors, PARTNER_SECTOR_KEYS } from "@/lib/partnerSector";
 
 const FALLBACK = "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 400 400'><rect width='400' height='400' fill='%23e2e8f0'/><text x='50%25' y='50%25' dominant-baseline='middle' text-anchor='middle' fill='%23475569' font-size='20' font-family='Arial'>No Image</text></svg>";
@@ -434,14 +435,18 @@ export default function PartnerGalleryPage() {
   const getStock = (product) => Math.max(0, Number(product?.stock ?? 0));
   const visibleProducts = useMemo(() => {
     const source = gallerySearch ? activeListings.filter((p) => {
-      const q = gallerySearch.toLowerCase();
-      const haystack = [p?.name, p?.category, p?.description]
-        .map((v) => String(v || "").toLowerCase())
-        .join(" ");
-      return haystack.includes(q);
+      return matchesSearch([
+        partner?.business_name,
+        p?.name,
+        p?.category,
+        p?.description,
+        p?.service_template_key,
+        p?.keywords,
+        p?.tags,
+      ], gallerySearch);
     }) : activeListings;
     return source;
-  }, [activeListings, gallerySearch]);
+  }, [activeListings, gallerySearch, partner?.business_name]);
   const canDownloadPdf = ["partner", "admin", "super_admin", "company_admin"].includes(String(user?.role || "").toLowerCase());
   const guestServiceHintRef = useRef(false);
 

@@ -5,6 +5,7 @@ import api from "@/services/api";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/contexts/AuthContext";
+import { matchesSearch } from "@/lib/search";
 import { useNavigate } from "react-router-dom";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
@@ -93,9 +94,18 @@ export default function MembersPage() {
   const filtered = useMemo(
     () =>
       scopedMembers.filter((m) =>
-        [m.name, m.member_code, m.id, m.email, m.phone, m.pan_no]
-          .filter(Boolean)
-          .some((v) => String(v).toLowerCase().includes(q.toLowerCase()))
+        matchesSearch([
+          m.name,
+          m.member_code,
+          m.id,
+          m.email,
+          m.phone,
+          m.pan_no,
+          m.username,
+          m.city,
+          m.state,
+          m.address,
+        ], q)
       ),
     [scopedMembers, q]
   );

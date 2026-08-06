@@ -91,7 +91,7 @@ export const AuthProvider = ({ children }) => {
     const payloads = buildLoginPayloads(identifier, password);
 
     const endpoints = adminMode
-      ? ["/auth/login", "/auth/admin/login", "/admin/login"]
+      ? ["/auth/admin/login", "/admin/login", "/auth/login"]
       : ["/auth/login"];
 
     let lastError = null;

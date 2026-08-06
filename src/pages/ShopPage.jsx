@@ -7,6 +7,7 @@ import api from "@/services/api";
 import { Logo } from "@/components/Logo";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { matchesSearch } from "@/lib/search";
 import UpiPaymentDialog from "@/components/UpiPaymentDialog";
 import { useAuth } from "@/contexts/AuthContext";
 import { useSettings } from "@/contexts/SettingsContext";
@@ -199,14 +200,16 @@ export default function ShopPage() {
   }, [products]);
 
   const visibleProducts = useMemo(() => {
-    const q = String(query || "").trim().toLowerCase();
-    if (!q) return methoProducts;
-    return methoProducts.filter((p) => {
-      const text = [p?.name, p?.category, p?.description]
-        .map((v) => String(v || "").toLowerCase())
-        .join(" ");
-      return text.includes(q);
-    });
+    if (!String(query || "").trim()) return methoProducts;
+    return methoProducts.filter((p) => matchesSearch([
+      p?.name,
+      p?.category,
+      p?.description,
+      p?.sku,
+      p?.brand,
+      p?.tags,
+      p?.keywords,
+    ], query));
   }, [methoProducts, query]);
 
   const items = useMemo(

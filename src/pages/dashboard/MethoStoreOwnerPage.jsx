@@ -3,6 +3,7 @@ import { ClipboardPlus, Warehouse } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { matchesSearch } from "@/lib/search";
 import { methoStoreApi, normalizeCollection, getErrorText } from "@/services/methoStore";
 import api from "@/services/api";
 
@@ -38,23 +39,19 @@ export default function MethoStoreOwnerPage() {
 
   const inventoryRows = useMemo(() => normalizeCollection(inventory), [inventory]);
   const filteredInventoryRows = useMemo(() => {
-    const q = String(productQuery || "").trim().toLowerCase();
-    if (!q) return inventoryRows;
-    return inventoryRows.filter((row) => {
-      const text = [
-        row?.name,
-        row?.item_name,
-        row?.sku,
-        row?.catalog_item_id,
-        row?.id,
-        row?.note,
-        row?.status,
-      ]
-        .filter(Boolean)
-        .join(" ")
-        .toLowerCase();
-      return text.includes(q);
-    });
+    if (!String(productQuery || "").trim()) return inventoryRows;
+    return inventoryRows.filter((row) => matchesSearch([
+      row?.name,
+      row?.item_name,
+      row?.sku,
+      row?.catalog_item_id,
+      row?.id,
+      row?.note,
+      row?.status,
+      row?.category,
+      row?.brand,
+      row?.tags,
+    ], productQuery));
   }, [inventoryRows, productQuery]);
   const selectedInventoryItem = useMemo(
     () => inventoryRows.find((row) => getInventoryId(row) === String(invoiceForm.catalog_item_id).trim()),
