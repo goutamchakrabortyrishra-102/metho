@@ -23,9 +23,8 @@ export const Logo = ({ className = "", showTagline = false, variant = "store", s
   const settingsLoaded = settings !== null;
   const rawCustomLogoSrc = String(settings?.site_logo_url_full || "").trim();
   const safeCustomLogoSrc = getSafeCustomLogoSrc(rawCustomLogoSrc);
-  const rejectedOversizedInlineLogo = Boolean(rawCustomLogoSrc) && !safeCustomLogoSrc;
-  const fallbackSrc = rejectedOversizedInlineLogo || variant === "logistics" ? LOGO_LOGISTICS_URL : DEFAULT_LOGO_URL;
-  const startupSrc = variant === "logistics" ? LOGO_LOGISTICS_URL : LOGO_LOGISTICS_URL;
+  const fallbackSrc = variant === "logistics" ? LOGO_LOGISTICS_URL : DEFAULT_LOGO_URL;
+  const startupSrc = fallbackSrc;
   const hasCustomLogo = Boolean(safeCustomLogoSrc);
   const requestedSrc = safeCustomLogoSrc || (settingsLoaded ? fallbackSrc : startupSrc);
   const [imgSrc, setImgSrc] = React.useState(requestedSrc);
