@@ -2711,6 +2711,7 @@ ALLOWED_IMAGE_EXTS = {"jpg", "jpeg", "png", "webp", "gif"}
 MIME_BY_EXT = {"jpg": "image/jpeg", "jpeg": "image/jpeg", "png": "image/png", "webp": "image/webp", "gif": "image/gif"}
 MAX_UPLOAD_BYTES = 200 * 1024  # 200 KB
 MAX_UPLOAD_LABEL = "200KB"
+BRANDING_IMAGE_MAX_UPLOAD_BYTES = 2 * 1024 * 1024
 UPI_UPLOAD_MAX_BYTES = 5 * 1024 * 1024
 UPI_UPLOAD_MAX_LABEL = "5MB"
 PRODUCT_IMAGE_MAX_UPLOAD_BYTES = 5 * 1024 * 1024
@@ -2827,8 +2828,8 @@ async def upload_image(
     if ext not in ALLOWED_IMAGE_EXTS:
         raise HTTPException(status_code=400, detail=f"Only {', '.join(ALLOWED_IMAGE_EXTS)} allowed")
     data = await file.read()
-    if len(data) > MAX_UPLOAD_BYTES:
-        raise HTTPException(status_code=400, detail=f"File too large (max {MAX_UPLOAD_LABEL})")
+    if len(data) > BRANDING_IMAGE_MAX_UPLOAD_BYTES:
+        raise HTTPException(status_code=400, detail="File too large (max 2MB)")
     content_type = MIME_BY_EXT.get(ext, file.content_type or "application/octet-stream")
     file_uuid = str(uuid.uuid4())
     storage_path = f"{APP_NAME}/images/{file_uuid}.{ext}"

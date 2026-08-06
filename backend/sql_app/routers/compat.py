@@ -36,7 +36,7 @@ UPI_QR_UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
 BRANDING_UPLOAD_DIR = UPLOADED_OBJECTS_DIR / "branding_images"
 BRANDING_UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
 PARTNER_IMAGE_MAX_UPLOAD_BYTES = 200 * 1024
-GLOBAL_IMAGE_MAX_UPLOAD_BYTES = 200 * 1024
+GLOBAL_IMAGE_MAX_UPLOAD_BYTES = 2 * 1024 * 1024
 UPI_PROOF_MAX_UPLOAD_BYTES = 5 * 1024 * 1024
 PARTNER_PRODUCT_GALLERY_MAX_UPLOAD_BYTES = 5 * 1024 * 1024
 PRODUCT_IMAGE_MAX_UPLOAD_BYTES = 5 * 1024 * 1024
@@ -5301,21 +5301,19 @@ async def upload_branding_image(purpose: str, file: UploadFile = File(...), curr
     safe_purpose = safe_purpose or "branding"
     if safe_purpose not in allowed_purposes:
         raise HTTPException(status_code=400, detail=f"purpose must be one of {sorted(allowed_purposes)}")
-    ext, content, mime = _read_validated_image_upload(file, GLOBAL_IMAGE_MAX_UPLOAD_BYTES)
+    ext, content, _mime = _read_validated_image_upload(file, GLOBAL_IMAGE_MAX_UPLOAD_BYTES)
     name = f"{safe_purpose}-{uuid.uuid4().hex}{ext}"
     (BRANDING_UPLOAD_DIR / name).write_bytes(content)
-    data_url = f"data:{mime};base64,{base64.b64encode(content).decode('ascii')}"
-    return {"ok": True, "purpose": safe_purpose, "url": data_url}
+    return {"ok": True, "purpose": safe_purpose, "url": f"/api/files/branding_images/{name}"}
 
 
 @router.post("/admin/upload/site-logo")
 async def upload_site_logo_image(file: UploadFile = File(...), current_user=Depends(get_current_user)):
     _require_admin_user(current_user)
-    ext, content, mime = _read_validated_image_upload(file, GLOBAL_IMAGE_MAX_UPLOAD_BYTES)
+    ext, content, _mime = _read_validated_image_upload(file, GLOBAL_IMAGE_MAX_UPLOAD_BYTES)
     name = f"site_logo-{uuid.uuid4().hex}{ext}"
     (BRANDING_UPLOAD_DIR / name).write_bytes(content)
-    data_url = f"data:{mime};base64,{base64.b64encode(content).decode('ascii')}"
-    return {"ok": True, "purpose": "site_logo", "url": data_url}
+    return {"ok": True, "purpose": "site_logo", "url": f"/api/files/branding_images/{name}"}
 
 
 @router.post("/admin/upload/top-leader-image")
@@ -5323,11 +5321,10 @@ async def upload_top_leader_image(slot: int, file: UploadFile = File(...), curre
     _require_admin_user(current_user)
     if slot not in {1, 2, 3, 4, 5, 6}:
         raise HTTPException(status_code=400, detail="slot must be 1 to 6")
-    ext, content, mime = _read_validated_image_upload(file, GLOBAL_IMAGE_MAX_UPLOAD_BYTES)
+    ext, content, _mime = _read_validated_image_upload(file, GLOBAL_IMAGE_MAX_UPLOAD_BYTES)
     name = f"top_leader_{slot}-{uuid.uuid4().hex}{ext}"
     (BRANDING_UPLOAD_DIR / name).write_bytes(content)
-    data_url = f"data:{mime};base64,{base64.b64encode(content).decode('ascii')}"
-    return {"ok": True, "purpose": f"top_leader_{slot}", "url": data_url}
+    return {"ok": True, "purpose": f"top_leader_{slot}", "url": f"/api/files/branding_images/{name}"}
 
 
 @router.put("/settings")

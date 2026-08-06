@@ -11,6 +11,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { resolveAssetUrl } from "@/lib/utils";
 
 const isAdmin = (u) => u && (u.role === "super_admin" || u.role === "company_admin");
+const BRANDING_IMAGE_MAX_UPLOAD_BYTES = 2 * 1024 * 1024;
 
 const normalizeIdList = (value, maxItems) => {
   if (!Array.isArray(value)) return [];
@@ -497,8 +498,8 @@ function BrandingImageUpload({ purpose, label, hint, value, onChange, onPersist,
   const upload = async (e) => {
     const f = e.target.files?.[0];
     if (!f) return;
-    if (f.size > 200 * 1024) {
-      toast.error("Image too large for reliable save (max 200KB)");
+    if (f.size > BRANDING_IMAGE_MAX_UPLOAD_BYTES) {
+      toast.error("Image too large for branding upload (max 2MB)");
       if (inputRef.current) inputRef.current.value = "";
       return;
     }
