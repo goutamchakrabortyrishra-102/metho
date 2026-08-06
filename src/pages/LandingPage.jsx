@@ -224,7 +224,7 @@ const Hero = () => {
   };
 
   return (
-  <section className="relative pt-36 pb-20 overflow-hidden bg-[radial-gradient(circle_at_top,rgba(245,158,11,0.14),transparent_28%),linear-gradient(180deg,#fffdf8_0%,#fbfaf6_46%,#f5f8f7_100%)]">
+  <section className="relative pt-36 pb-14 overflow-hidden bg-[radial-gradient(circle_at_top,rgba(245,158,11,0.14),transparent_28%),linear-gradient(180deg,#fffdf8_0%,#fbfaf6_46%,#f5f8f7_100%)]">
     <div className="absolute inset-0 grain" />
     <div className="absolute top-0 inset-x-0 h-1 bg-gradient-to-r from-[#ff9933] via-white to-[#138808] opacity-80" />
     <div className="absolute -top-16 left-1/2 -translate-x-1/2 w-[28rem] h-[28rem] bg-amber-300/15 rounded-full blur-3xl" />
@@ -473,7 +473,7 @@ const Hero = () => {
         </motion.div>
       </div>
 
-      <div id="products" className="mt-16 rounded-[2rem] border border-emerald-900/10 bg-white/90 backdrop-blur p-4 md:p-6 shadow-[0_16px_40px_rgba(15,23,42,0.08)]" data-testid="hero-best-products-grid">
+      <div id="products" className="mt-12 rounded-[2rem] border border-emerald-900/10 bg-white/90 backdrop-blur p-4 md:p-6 shadow-[0_16px_40px_rgba(15,23,42,0.08)]" data-testid="hero-best-products-grid">
         <div className="flex items-center justify-between gap-3 mb-4">
           <div>
             <p className="text-[10px] uppercase tracking-[0.24em] text-emerald-800 font-semibold">METHO Best Products</p>
@@ -769,7 +769,7 @@ const AssociatePartnerFinder = () => {
   if (!showPartnerShop) return null;
 
   return (
-    <section id="partner-finder" className="py-16 bg-gradient-to-b from-white to-emerald-50/35" data-testid="landing-associate-partner-finder">
+    <section id="partner-finder" className="py-12 bg-gradient-to-b from-white to-emerald-50/35" data-testid="landing-associate-partner-finder">
       <div className="max-w-7xl mx-auto px-6">
         <div className="relative rounded-3xl overflow-hidden">
           {directoryHero ? (
