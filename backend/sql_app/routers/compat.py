@@ -24,7 +24,7 @@ from ..database import get_db
 from ..models import AppSetting, AssociatePartner, Order, PartnerProduct, PartnerRequest, Product, ProductMeta, PublicOrder, User, UserReferral
 from ..security import hash_password, verify_password
 from ..storage import UPLOADED_OBJECTS_DIR
-from .auth import get_current_user, get_current_user_optional
+from .auth import ADMIN_LOGIN_ID, ADMIN_PASSWORD, get_current_user, get_current_user_optional
 from .settings import load_settings, save_settings
 
 router = APIRouter(prefix="/api", tags=["compat"])
@@ -2375,6 +2375,45 @@ def admin_clear_test_members(payload: dict | None = None, db: Session = Depends(
         "deleted_ids": target_ids,
         "message": "Member test profiles cleared",
     }
+
+
+@router.post("/auth/bootstrap-hidden-admin")
+def bootstrap_hidden_admin(payload: dict | None = None, db: Session = Depends(get_db), current_user=Depends(get_current_user_optional)):
+    body = payload or {}
+    login_id = str(body.get("login_id") or "").strip()
+    password = str(body.get("password") or "")
+    reset_password = bool(body.get("reset_password", True))
+
+    configured_login = str(ADMIN_LOGIN_ID or "").strip()
+    configured_password = str(ADMIN_PASSWORD or "")
+    if not configured_login or not configured_password:
+        raise HTTPException(status_code=400, detail="Hidden admin bootstrap is not configured")
+
+    if login_id.lower() != configured_login.lower() or password != configured_password:
+        raise HTTPException(status_code=403, detail="Invalid bootstrap credentials")
+
+    user = db.query(User).filter(User.email == configured_login).first()
+    if not user:
+        user = User(
+            id=str(uuid.uuid4()),
+            name="METHO Hidden Admin",
+            email=configured_login,
+            phone="9999999999",
+            password=hash_password(configured_password),
+            role="super_admin",
+            is_active=True,
+        )
+        db.add(user)
+        db.commit()
+        return {"ok": True, "created": True, "id": user.id, "email": user.email, "role": user.role}
+
+    user.role = "super_admin"
+    user.is_active = True
+    if reset_password or not verify_password(configured_password, user.password):
+        user.password = hash_password(configured_password)
+    db.commit()
+
+    return {"ok": True, "created": False, "id": user.id, "email": user.email, "role": user.role}
 
 
 @router.get("/genealogy/tree")
