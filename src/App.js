@@ -77,7 +77,6 @@ const MemberRoute = ({ children }) => {
   const { user, loading } = useAuth();
   if (loading) return <div className="min-h-screen flex items-center justify-center">Loading...</div>;
   if (!user) return <Navigate to="/login" replace />;
-  if (["super_admin", "company_admin", "admin"].includes(user?.role)) return <Navigate to="/admin" replace />;
   if (user?.role === "partner") return <Navigate to="/partner" replace />;
   return children;
 };

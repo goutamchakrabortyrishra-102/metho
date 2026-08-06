@@ -131,7 +131,7 @@ export default function LoginPage({ adminOnly = false }) {
       toast.success("Welcome back!");
       // Partners land on their own portal (unless next=... overrides)
       if (nextUrl) nav(nextUrl);
-      else if (isAdminUser) nav("/admin");
+      else if (isAdminUser) nav("/app");
       else if (result?.role === "partner") nav("/partner");
       else if (ownerRoles.includes(result?.role)) nav("/app/metho-store-owner");
       else nav("/app");
