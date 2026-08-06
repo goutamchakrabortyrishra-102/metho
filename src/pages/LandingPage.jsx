@@ -10,7 +10,6 @@ import { methoStoreApi, normalizeCollection } from "@/services/methoStore";
 import { useSettings } from "@/contexts/SettingsContext";
 import { resolveAssetUrl, getAssetImageFallbackCandidates } from "@/lib/utils";
 import { isCompletePincode, normalizePincode } from "@/lib/indiaLocation";
-import { matchesSearch } from "@/lib/search";
 
 function ReferralEntryStrip() {
   const [params] = useSearchParams();
@@ -743,29 +742,15 @@ const AssociatePartnerFinder = () => {
     api.get(`/directory/partners?${params.toString()}`)
       .then((r) => {
         const rows = Array.isArray(r.data) ? r.data : [];
-        const searchValue = q || [businessType, category].filter(Boolean).join(" ").trim();
-        const practicalRows = rows.filter((item) => matchesSearch([
-          item?.business_name,
-          item?.contact_person,
-          item?.partner_code,
-          item?.business_type,
-          item?.category,
-          item?.city,
-          item?.state,
-          item?.address,
-          item?.pincode,
-          item?.description,
-        ], searchValue));
-        const nextRows = searchValue ? practicalRows : rows;
         const hasSearchFilters = Boolean(q || city || pincode || (businessType && businessType !== "All") || category);
         if (hasSearchFilters) {
-          setResults(nextRows.slice(0, 6));
+          setResults(rows.slice(0, 6));
           return;
         }
         const keyOf = (item) => String(item?.id || item?.partner_code || "").trim();
-        const byId = new Map(nextRows.map((item) => [keyOf(item), item]));
+        const byId = new Map(rows.map((item) => [keyOf(item), item]));
         const selected = featuredPartnerIds.map((id) => byId.get(id)).filter(Boolean);
-        setResults((selected.length > 0 ? selected : nextRows).slice(0, 4));
+        setResults((selected.length > 0 ? selected : rows).slice(0, 4));
       })
       .catch(() => setResults([]))
       .finally(() => setLoading(false));

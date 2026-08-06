@@ -10,7 +10,6 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useSettings } from "@/contexts/SettingsContext";
 import UpiPaymentDialog from "@/components/UpiPaymentDialog";
 import { resolveAssetUrl, getAssetImageFallbackCandidates } from "@/lib/utils";
-import { matchesSearch } from "@/lib/search";
 import { inferPartnerPrimarySector, getPartnerVisibleSectors, PARTNER_SECTOR_KEYS } from "@/lib/partnerSector";
 
 const mapsUrl = (p) => {
@@ -402,50 +401,44 @@ export default function PartnerShopPage() {
   const isBookNowRole = !user || isMemberOrCustomer;
   const canAccessProductPdf = ["partner", "admin", "super_admin", "company_admin"].includes(String(user?.role || "").toLowerCase());
   const filteredHospitality = useMemo(() => {
-    if (!hospitalitySearch.trim()) return hospitalityListings;
-    return hospitalityListings.filter((p) => matchesSearch([
-      data?.partner?.business_name,
-      data?.partner?.city,
-      p?.name,
-      p?.category,
-      p?.description,
-      p?.service_template_key,
-    ], hospitalitySearch));
+    const q = hospitalitySearch.trim().toLowerCase();
+    if (!q) return hospitalityListings;
+    return hospitalityListings.filter((p) => {
+      const haystack = [data?.partner?.business_name, p?.name, p?.category, p?.description]
+        .map((v) => String(v || "").toLowerCase())
+        .join(" ");
+      return haystack.includes(q);
+    });
   }, [data?.partner?.business_name, hospitalityListings, hospitalitySearch]);
   const filteredDoorstep = useMemo(() => {
-    if (!doorstepSearch.trim()) return doorstepListings;
-    return doorstepListings.filter((p) => matchesSearch([
-      data?.partner?.business_name,
-      data?.partner?.city,
-      p?.name,
-      p?.category,
-      p?.description,
-      p?.service_template_key,
-    ], doorstepSearch));
+    const q = doorstepSearch.trim().toLowerCase();
+    if (!q) return doorstepListings;
+    return doorstepListings.filter((p) => {
+      const haystack = [data?.partner?.business_name, p?.name, p?.category, p?.description]
+        .map((v) => String(v || "").toLowerCase())
+        .join(" ");
+      return haystack.includes(q);
+    });
   }, [data?.partner?.business_name, doorstepListings, doorstepSearch]);
   const filteredServices = useMemo(() => {
-    if (!serviceSearch.trim()) return regularServiceListings;
-    return regularServiceListings.filter((p) => matchesSearch([
-      data?.partner?.business_name,
-      data?.partner?.city,
-      p?.name,
-      p?.category,
-      p?.description,
-      p?.service_template_key,
-    ], serviceSearch));
+    const q = serviceSearch.trim().toLowerCase();
+    if (!q) return regularServiceListings;
+    return regularServiceListings.filter((p) => {
+      const haystack = [data?.partner?.business_name, p?.name, p?.category, p?.description]
+        .map((v) => String(v || "").toLowerCase())
+        .join(" ");
+      return haystack.includes(q);
+    });
   }, [data?.partner?.business_name, regularServiceListings, serviceSearch]);
   const filteredTransport = useMemo(() => {
-    if (!transportSearch.trim()) return transportListings;
-    return transportListings.filter((p) => matchesSearch([
-      data?.partner?.business_name,
-      data?.partner?.city,
-      p?.name,
-      p?.category,
-      p?.description,
-      p?.service_template_key,
-      p?.pickup,
-      p?.destination,
-    ], transportSearch));
+    const q = transportSearch.trim().toLowerCase();
+    if (!q) return transportListings;
+    return transportListings.filter((p) => {
+      const haystack = [data?.partner?.business_name, p?.name, p?.category, p?.description, p?.service_template_key]
+        .map((v) => String(v || "").toLowerCase())
+        .join(" ");
+      return haystack.includes(q);
+    });
   }, [data?.partner?.business_name, transportListings, transportSearch]);
   const hasHospitalityListings = hospitalityListings.length > 0;
   const hasDoorstepListings = doorstepListings.length > 0;

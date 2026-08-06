@@ -8,7 +8,6 @@ import { useSettings } from "@/contexts/SettingsContext";
 import { methoStoreApi, normalizeCollection } from "@/services/methoStore";
 import api from "@/services/api";
 import { resolveAssetUrl, getAssetImageFallbackCandidates } from "@/lib/utils";
-import { matchesSearch } from "@/lib/search";
 import { isCompletePincode, normalizePincode } from "@/lib/indiaLocation";
 
 const FALLBACK_STORE_IMG = "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 600 420'><defs><linearGradient id='gs' x1='0' y1='0' x2='1' y2='1'><stop offset='0%25' stop-color='%23ecfdf5'/><stop offset='100%25' stop-color='%23e2e8f0'/></linearGradient></defs><rect width='600' height='420' fill='url(%23gs)'/><circle cx='300' cy='145' r='62' fill='%23059669' opacity='0.16'/><text x='300' y='154' text-anchor='middle' fill='%230f766e' font-size='40' font-family='Arial' font-weight='700'>M</text><text x='300' y='252' text-anchor='middle' fill='%230f172a' font-size='24' font-family='Arial' font-weight='700'>METHO Store</text></svg>";
@@ -61,18 +60,7 @@ export default function MethoStorePage() {
         const rows = normalizeCollection(data);
         const next = rows.filter((item) => {
           const active = (item?.is_active ?? item?.active ?? item?.approved ?? true) !== false;
-          const matchesQ = matchesSearch([
-            item?.store_name,
-            item?.business_name,
-            item?.owner_code,
-            item?.code,
-            item?.contact_person,
-            item?.city,
-            item?.state,
-            item?.address,
-            item?.pincode,
-            item?.category,
-          ], q);
+          const matchesQ = !q || [item?.store_name, item?.business_name, item?.owner_code, item?.code].filter(Boolean).join(" ").toLowerCase().includes(q.toLowerCase());
           const matchesCity = !city || String(item?.city || "").toLowerCase() === String(city || "").toLowerCase();
           const matchesPincode = !pincode || String(item?.pincode || "").trim() === String(pincode).trim();
           return active && matchesQ && matchesCity && matchesPincode;
