@@ -23,7 +23,7 @@ const clearLegacyPwaState = async () => {
 
 const maybeClearLegacyPwaStateOnce = () => {
   if (typeof window === "undefined") return;
-  const cleanupKey = "metho_legacy_pwa_cleanup_v1";
+  const cleanupKey = "metho_legacy_pwa_cleanup_v2";
   try {
     if (window.localStorage.getItem(cleanupKey) === "1") return;
     window.localStorage.setItem(cleanupKey, "1");
