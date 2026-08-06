@@ -60,11 +60,13 @@ RATE_LIMIT_LOGIN = _int_env("RATE_LIMIT_LOGIN", 20)
 RATE_LIMIT_REGISTER = _int_env("RATE_LIMIT_REGISTER", 10)
 RATE_LIMIT_PASSWORD = _int_env("RATE_LIMIT_PASSWORD", 8)
 RATE_LIMIT_UPLOAD = _int_env("RATE_LIMIT_UPLOAD", 30)
+RATE_LIMIT_STORE_MAX_KEYS = max(1000, _int_env("RATE_LIMIT_STORE_MAX_KEYS", 20000))
+RATE_LIMIT_CLEANUP_INTERVAL_SECONDS = _int_env("RATE_LIMIT_CLEANUP_INTERVAL_SECONDS", 300)
 GZIP_MINIMUM_SIZE = _int_env("GZIP_MINIMUM_SIZE", 1024)
 GZIP_COMPRESS_LEVEL = max(1, min(9, _int_env("GZIP_COMPRESS_LEVEL", 6)))
 ENABLE_BANDWIDTH_METRICS = str(os.getenv("ENABLE_BANDWIDTH_METRICS", "1") or "1").strip().lower() not in {"0", "false", "off", "no"}
 BANDWIDTH_METRICS_WINDOW_MINUTES = _int_env("BANDWIDTH_METRICS_WINDOW_MINUTES", 240)
-BANDWIDTH_METRICS_MAX_EVENTS = max(1000, _int_env("BANDWIDTH_METRICS_MAX_EVENTS", 50000))
+BANDWIDTH_METRICS_MAX_EVENTS = max(1000, _int_env("BANDWIDTH_METRICS_MAX_EVENTS", 5000))
 METRICS_API_KEY = str(os.getenv("METRICS_API_KEY", "") or "").strip()
 ADMIN_LOGIN_ID = str(os.getenv("ADMIN_LOGIN_ID", "admin@metho.com") or "admin@metho.com").strip()
 ADMIN_PASSWORD = str(os.getenv("ADMIN_PASSWORD", "admin123") or "admin123")
@@ -85,6 +87,7 @@ SENSITIVE_RATE_LIMITS: list[tuple[str, int]] = [
 
 _rate_limit_store: dict[str, deque[float]] = defaultdict(deque)
 _rate_limit_lock = Lock()
+_rate_limit_last_cleanup = 0.0
 _bandwidth_events: deque[dict] = deque(maxlen=BANDWIDTH_METRICS_MAX_EVENTS)
 _bandwidth_lock = Lock()
 
@@ -96,6 +99,45 @@ PUBLIC_RESOURCE_PATH_PREFIXES = (
 
 def _rate_limit_key(client_ip: str, path: str) -> str:
     return f"{client_ip}:{path}"
+
+
+def _cleanup_rate_limit_store(now_ts: float) -> None:
+    global _rate_limit_last_cleanup
+
+    interval = max(30, int(RATE_LIMIT_CLEANUP_INTERVAL_SECONDS or 300))
+    if (now_ts - _rate_limit_last_cleanup) < interval:
+        return
+
+    window_start = now_ts - RATE_LIMIT_WINDOW_SECONDS
+    keys = list(_rate_limit_store.keys())
+    removed = 0
+
+    for key in keys:
+        bucket = _rate_limit_store.get(key)
+        if not bucket:
+            _rate_limit_store.pop(key, None)
+            removed += 1
+            continue
+        while bucket and bucket[0] < window_start:
+            bucket.popleft()
+        if not bucket:
+            _rate_limit_store.pop(key, None)
+            removed += 1
+
+    # Safety valve for traffic spikes with massive unique IP churn.
+    if len(_rate_limit_store) > RATE_LIMIT_STORE_MAX_KEYS:
+        sorted_keys = sorted(
+            _rate_limit_store.keys(),
+            key=lambda k: _rate_limit_store[k][-1] if _rate_limit_store.get(k) else 0,
+        )
+        excess = len(_rate_limit_store) - RATE_LIMIT_STORE_MAX_KEYS
+        for key in sorted_keys[:excess]:
+            _rate_limit_store.pop(key, None)
+            removed += 1
+
+    _rate_limit_last_cleanup = now_ts
+    if removed:
+        logger.info("Rate-limit store cleanup removed %s stale keys", removed)
 
 
 def _match_rate_limit(path: str) -> tuple[str, int] | None:
@@ -114,6 +156,7 @@ def _is_rate_limited(client_ip: str, path: str, now_ts: float) -> tuple[bool, in
     window_start = now_ts - RATE_LIMIT_WINDOW_SECONDS
 
     with _rate_limit_lock:
+        _cleanup_rate_limit_store(now_ts)
         bucket = _rate_limit_store[key]
         while bucket and bucket[0] < window_start:
             bucket.popleft()

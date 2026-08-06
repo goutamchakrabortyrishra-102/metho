@@ -38,6 +38,71 @@
             </div>
         </div>
     </div>
+        <script>
+            (function () {
+                if (typeof window === "undefined" || typeof document === "undefined") return;
+
+                var recoveryKey = "metho_css_recovery_v1";
+                var maxRules = 20;
+
+                var hasPrimaryCssRules = function () {
+                    var sheets = Array.from(document.styleSheets || []);
+                    return sheets.some(function (sheet) {
+                        try {
+                            return (
+                                typeof sheet.href === "string" &&
+                                sheet.href.indexOf("/static/css/") !== -1 &&
+                                sheet.cssRules &&
+                                sheet.cssRules.length > maxRules
+                            );
+                        } catch (error) {
+                            return false;
+                        }
+                    });
+                };
+
+                var forceOneTimeReload = function () {
+                    try {
+                        if (window.sessionStorage.getItem(recoveryKey) === "1") return;
+                        window.sessionStorage.setItem(recoveryKey, "1");
+                    } catch (error) {
+                        return;
+                    }
+
+                    var nextUrl = new URL(window.location.href);
+                    nextUrl.searchParams.set("_cssfix", String(Date.now()));
+                    window.location.replace(nextUrl.toString());
+                };
+
+                var verifyStylesheetHealth = function () {
+                    var trackedLinks = Array.from(document.querySelectorAll('link[rel="stylesheet"]')).filter(function (link) {
+                        return String(link.href || "").indexOf("/static/css/") !== -1;
+                    });
+
+                    if (!trackedLinks.length) return;
+
+                    trackedLinks.forEach(function (link) {
+                        link.addEventListener(
+                            "error",
+                            function () {
+                                forceOneTimeReload();
+                            },
+                            { once: true }
+                        );
+                    });
+
+                    window.setTimeout(function () {
+                        if (!hasPrimaryCssRules()) forceOneTimeReload();
+                    }, 2200);
+                };
+
+                if (document.readyState === "loading") {
+                    document.addEventListener("DOMContentLoaded", verifyStylesheetHealth, { once: true });
+                } else {
+                    verifyStylesheetHealth();
+                }
+            })();
+        </script>
     <!--
       This HTML file is a template.
       If you open it directly in the browser, you will see an empty page.
