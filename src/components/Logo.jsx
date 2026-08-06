@@ -64,10 +64,13 @@ export const Logo = ({ className = "", showTagline = false, variant = "store", s
 
   return (
     <Link to="/" onClick={onLogoClick} className={`flex items-center gap-3 ${className}`} data-testid="brand-logo">
-      <span className={`${dim} inline-flex items-center justify-center ${badgeRadius} bg-red-600 p-1.5 shadow-md ring-2 ring-white overflow-hidden shrink-0`}>
+      <span className={`${dim} inline-flex items-center justify-center ${badgeRadius} bg-white p-1.5 shadow-md ring-2 ring-white overflow-hidden shrink-0`}>
         <img
           src={imgSrc}
           alt={brandName}
+          fetchPriority="high"
+          loading="eager"
+          decoding="async"
           className={`h-full w-full ${innerRadius} object-contain bg-transparent`}
           onError={() => {
             if (hasCustomLogo && !retriedCustom) {
