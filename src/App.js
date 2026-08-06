@@ -11,9 +11,7 @@ const RegisterPage = lazy(() => import("@/pages/RegisterPage"));
 const ForgotPasswordPage = lazy(() => import("@/pages/ForgotPasswordPage"));
 const ResetPasswordPage = lazy(() => import("@/pages/ResetPasswordPage"));
 const DashboardLayout = lazy(() => import("@/layouts/DashboardLayout"));
-const AdminLayout = lazy(() => import("@/layouts/AdminLayout"));
 const DashboardHome = lazy(() => import("@/pages/dashboard/DashboardHome"));
-const AdminHomePage = lazy(() => import("@/pages/dashboard/AdminHomePage"));
 const WalletPage = lazy(() => import("@/pages/dashboard/WalletPage"));
 const MembersPage = lazy(() => import("@/pages/dashboard/MembersPage"));
 const GenealogyPage = lazy(() => import("@/pages/dashboard/GenealogyPage"));
@@ -137,6 +135,19 @@ const RuntimeMetaBindings = () => {
   return null;
 };
 
+const AdminLegacyRedirect = () => {
+  const location = useLocation();
+  const legacyPath = String(location.pathname || "").replace(/^\/admin\/?/, "");
+
+  // Keep old /admin links working while rendering the unified full-control dashboard under /app.
+  if (!legacyPath) return <Navigate to="/app" replace />;
+  if (legacyPath === "product-upload") return <Navigate to="/app/products?upload=1" replace />;
+
+  const nextPath = `/app/${legacyPath}`;
+  const nextWithQuery = `${nextPath}${location.search || ""}`;
+  return <Navigate to={nextWithQuery} replace />;
+};
+
 function App() {
   return (
     <AuthProvider>
@@ -200,29 +211,13 @@ function App() {
                 <Route path="leaderboard" element={<LeaderboardPage />} />
               </Route>
               <Route
-                path="/admin"
+                path="/admin/*"
                 element={
                   <AdminRoute>
-                    <AdminLayout />
+                    <AdminLegacyRedirect />
                   </AdminRoute>
                 }
-              >
-                <Route index element={<AdminHomePage />} />
-                <Route path="product-upload" element={<ProductsPage />} />
-                <Route path="pending-payments" element={<PendingPaymentsPage />} />
-                <Route path="accounts" element={<AccountsPage />} />
-                <Route path="settlement" element={<MonthlySettlementPage />} />
-                <Route path="mps-claims" element={<MPSClaimsPage />} />
-                <Route path="partners" element={<PartnersPage />} />
-                <Route path="metho-store-admin" element={<MethoStoreAdminPage />} />
-                <Route path="partner-approvals" element={<PartnerApprovalsPage />} />
-                <Route path="product-approvals" element={<ProductApprovalsPage />} />
-                <Route path="ai-upgrade" element={<AIUpgradePage />} />
-                <Route path="audit-log" element={<AuditLogPage />} />
-                <Route path="system-health" element={<SystemHealthPage />} />
-                <Route path="owner-guide" element={<OwnerGuidePage />} />
-                <Route path="withdrawals" element={<WithdrawalsPage />} />
-              </Route>
+              />
               <Route path="*" element={<Navigate to="/" replace />} />
             </Routes>
           </Suspense>
