@@ -29,10 +29,12 @@ export const Logo = ({ className = "", showTagline = false, variant = "store", s
   const requestedSrc = safeCustomLogoSrc || (settingsLoaded ? fallbackSrc : startupSrc);
   const [imgSrc, setImgSrc] = React.useState(requestedSrc);
   const [retriedCustom, setRetriedCustom] = React.useState(false);
+  const [imageReady, setImageReady] = React.useState(false);
 
   React.useEffect(() => {
     setImgSrc(requestedSrc);
     setRetriedCustom(false);
+    setImageReady(false);
   }, [requestedSrc]);
   const dim = size === "lg" ? "w-16 h-16" : size === "sm" ? "w-10 h-10" : "w-12 h-12";
   const badgeRadius = size === "lg" ? "rounded-[1.35rem]" : size === "sm" ? "rounded-[0.95rem]" : "rounded-[1.05rem]";
@@ -71,8 +73,10 @@ export const Logo = ({ className = "", showTagline = false, variant = "store", s
           fetchPriority="high"
           loading="eager"
           decoding="async"
-          className={`h-full w-full ${innerRadius} object-contain bg-transparent`}
+          className={`h-full w-full ${innerRadius} object-contain bg-transparent transition-opacity duration-150 ${imageReady ? "opacity-100" : "opacity-0"}`}
+          onLoad={() => setImageReady(true)}
           onError={() => {
+            setImageReady(false);
             if (hasCustomLogo && !retriedCustom) {
               setRetriedCustom(true);
               const isRetriableUrl =

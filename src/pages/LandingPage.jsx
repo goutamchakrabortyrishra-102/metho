@@ -147,6 +147,11 @@ const Nav = () => (
         <a href="#partner-finder" className="shrink-0 rounded-full border border-emerald-900/10 bg-white/90 px-3 py-1.5 text-slate-700 hover:text-emerald-900">Partner Finder</a>
         <a href="#products" className="shrink-0 rounded-full border border-emerald-900/10 bg-white/90 px-3 py-1.5 text-slate-700 hover:text-emerald-900">Products</a>
         <a href="#return-policy" className="shrink-0 rounded-full border border-emerald-900/10 bg-white/90 px-3 py-1.5 text-slate-700 hover:text-emerald-900">Return Policy</a>
+        <Link to="/partner-register" className="shrink-0 rounded-full border border-emerald-900/10 bg-white/90 px-3 py-1.5 text-slate-700 hover:text-emerald-900">Partner Register</Link>
+        <Link to="/directory" className="shrink-0 rounded-full border border-emerald-900/10 bg-white/90 px-3 py-1.5 text-slate-700 hover:text-emerald-900">Partner Shop</Link>
+        <Link to="/metho-store" className="shrink-0 rounded-full border border-emerald-900/10 bg-white/90 px-3 py-1.5 text-slate-700 hover:text-emerald-900">View Metho Store</Link>
+        <Link to="/login" className="shrink-0 rounded-full border border-emerald-900/10 bg-white/90 px-3 py-1.5 text-slate-700 hover:text-emerald-900">Partner Login</Link>
+        <Link to="/login?next=/app/metho-store-owner" className="shrink-0 rounded-full border border-emerald-900/10 bg-white/90 px-3 py-1.5 text-slate-700 hover:text-emerald-900">Store Login</Link>
       </nav>
 
       <nav className="hidden xl:flex items-center gap-6 font-body text-sm">
