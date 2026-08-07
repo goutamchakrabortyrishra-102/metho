@@ -758,6 +758,41 @@ export default function PartnersPage() {
     }
   };
 
+  const exportExternalLeadsCsv = () => {
+    if (!nearbyLeads.length) {
+      toast.error("Export করার মতো lead নেই");
+      return;
+    }
+
+    const headers = ["Business Name", "Type", "City", "Address", "Phone", "Distance (km)", "Map URL"];
+    const escapeCsv = (value) => `"${String(value ?? "").replace(/"/g, '""')}"`;
+    const rows = nearbyLeads.map((lead) => {
+      const mapUrl = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(`${lead.business_name} ${lead.address || ""}`)}`;
+      return [
+        lead.business_name,
+        lead.business_type,
+        lead.city,
+        lead.address,
+        lead.phone,
+        Number(lead.distance_km || 0).toFixed(2),
+        mapUrl,
+      ].map(escapeCsv).join(",");
+    });
+
+    const csv = [headers.map(escapeCsv).join(","), ...rows].join("\n");
+    const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    const ts = new Date().toISOString().replace(/[:.]/g, "-");
+    a.href = url;
+    a.download = `external-offline-leads-${ts}.csv`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+    toast.success("CSV downloaded");
+  };
+
   useEffect(() => { if (isAdmin) load(); /* eslint-disable-next-line */ }, [isAdmin]);
   useEffect(() => {
     if (!isAdmin) return;
@@ -1196,6 +1231,16 @@ export default function PartnersPage() {
             data-testid="nearby-search-external"
           >
             {nearbySearchBusy ? "Searching..." : "Search External Leads"}
+          </Button>
+          <Button
+            type="button"
+            variant="outline"
+            onClick={exportExternalLeadsCsv}
+            disabled={!nearbyLeads.length}
+            className="rounded-full"
+            data-testid="nearby-export-csv"
+          >
+            Export CSV
           </Button>
           {nearbyLocationLabel ? <p className="text-xs text-slate-600">Search center: {nearbyLocationLabel}</p> : null}
         </div>
