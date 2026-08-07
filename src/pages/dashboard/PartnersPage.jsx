@@ -87,6 +87,10 @@ const DEFAULT_PARTNER_MESSAGE_TEMPLATES = [
   "Hi {contact_person}, your current partner city/category: {city} / {business_type}. - METHO Admin",
 ];
 
+const LS_BUSINESS_TYPES_KEY = "metho_admin_business_categories_v1";
+const LS_CITIES_KEY = "metho_admin_cities_v1";
+const LS_MESSAGE_TEMPLATES_KEY = "metho_admin_partner_message_templates_v1";
+
 const LEAD_FOLLOWUP_STATUSES = ["New", "Attempted", "Connected", "Interested", "Not Interested", "Converted"];
 
 const normalizeLeadName = (v) => String(v || "")
@@ -200,6 +204,25 @@ export default function PartnersPage() {
     return status ? `${raw} (${status})` : raw;
   };
 
+  const readLocalArray = (key, fallback = []) => {
+    try {
+      const raw = window.localStorage.getItem(key);
+      if (!raw) return fallback;
+      const parsed = JSON.parse(raw);
+      return Array.isArray(parsed) ? parsed : fallback;
+    } catch {
+      return fallback;
+    }
+  };
+
+  const writeLocalArray = (key, items) => {
+    try {
+      window.localStorage.setItem(key, JSON.stringify(Array.isArray(items) ? items : []));
+    } catch {
+      // ignore local storage write errors
+    }
+  };
+
   const tryRequests = async (requests) => {
     let lastErr = null;
     for (const run of requests) {
@@ -289,10 +312,17 @@ export default function PartnersPage() {
     setMetaBusy(true);
     try {
       const { data } = await api.put("/admin/business-categories", { items: businessTypes });
-      setBusinessTypes(Array.isArray(data?.items) ? data.items : businessTypes);
+      const items = Array.isArray(data?.items) ? data.items : businessTypes;
+      setBusinessTypes(items);
+      writeLocalArray(LS_BUSINESS_TYPES_KEY, items);
       toast.success("Business/Services categories saved");
     } catch (err) {
-      toast.error(err?.response?.data?.detail || "Failed to save categories");
+      if (err?.response?.status === 404) {
+        writeLocalArray(LS_BUSINESS_TYPES_KEY, businessTypes);
+        toast.success("Categories locally saved");
+      } else {
+        toast.error(err?.response?.data?.detail || "Failed to save categories");
+      }
     } finally {
       setMetaBusy(false);
     }
@@ -302,10 +332,17 @@ export default function PartnersPage() {
     setMetaBusy(true);
     try {
       const { data } = await api.put("/admin/cities", { items: cities });
-      setCities(Array.isArray(data?.items) ? data.items : cities);
+      const items = Array.isArray(data?.items) ? data.items : cities;
+      setCities(items);
+      writeLocalArray(LS_CITIES_KEY, items);
       toast.success("Cities saved");
     } catch (err) {
-      toast.error(err?.response?.data?.detail || "Failed to save cities");
+      if (err?.response?.status === 404) {
+        writeLocalArray(LS_CITIES_KEY, cities);
+        toast.success("Cities locally saved");
+      } else {
+        toast.error(err?.response?.data?.detail || "Failed to save cities");
+      }
     } finally {
       setMetaBusy(false);
     }
@@ -332,9 +369,15 @@ export default function PartnersPage() {
       const { data } = await api.put("/admin/partner-message-templates", { items: messageTemplates });
       const items = Array.isArray(data?.items) && data.items.length ? data.items : DEFAULT_PARTNER_MESSAGE_TEMPLATES;
       setMessageTemplates(items);
+      writeLocalArray(LS_MESSAGE_TEMPLATES_KEY, items);
       toast.success("Partner message templates saved");
     } catch (err) {
-      toast.error(err?.response?.data?.detail || "Failed to save message templates");
+      if (err?.response?.status === 404) {
+        writeLocalArray(LS_MESSAGE_TEMPLATES_KEY, messageTemplates);
+        toast.success("Message templates locally saved");
+      } else {
+        toast.error(err?.response?.data?.detail || "Failed to save message templates");
+      }
     } finally {
       setTemplateBusy(false);
     }
@@ -900,22 +943,49 @@ export default function PartnersPage() {
     api.get("/admin/business-categories")
       .then((r) => {
         const items = Array.isArray(r.data?.items) ? r.data.items : [];
-        if (items.length) setBusinessTypes(items);
+        if (items.length) {
+          setBusinessTypes(items);
+          writeLocalArray(LS_BUSINESS_TYPES_KEY, items);
+          return;
+        }
+        const cached = readLocalArray(LS_BUSINESS_TYPES_KEY, []);
+        if (cached.length) setBusinessTypes(cached);
       })
-      .catch(() => {});
+      .catch(() => {
+        const cached = readLocalArray(LS_BUSINESS_TYPES_KEY, []);
+        if (cached.length) setBusinessTypes(cached);
+      });
     api.get("/admin/cities")
       .then((r) => {
         const items = Array.isArray(r.data?.items) ? r.data.items : [];
-        setCities(items);
+        if (items.length) {
+          setCities(items);
+          writeLocalArray(LS_CITIES_KEY, items);
+          return;
+        }
+        const cached = readLocalArray(LS_CITIES_KEY, []);
+        setCities(cached);
       })
-      .catch(() => {});
+      .catch(() => {
+        const cached = readLocalArray(LS_CITIES_KEY, []);
+        setCities(cached);
+      });
 
     api.get("/admin/partner-message-templates")
       .then((r) => {
         const items = Array.isArray(r.data?.items) ? r.data.items : [];
-        if (items.length) setMessageTemplates(items);
+        if (items.length) {
+          setMessageTemplates(items);
+          writeLocalArray(LS_MESSAGE_TEMPLATES_KEY, items);
+          return;
+        }
+        const cached = readLocalArray(LS_MESSAGE_TEMPLATES_KEY, []);
+        if (cached.length) setMessageTemplates(cached);
       })
-      .catch(() => {});
+      .catch(() => {
+        const cached = readLocalArray(LS_MESSAGE_TEMPLATES_KEY, []);
+        if (cached.length) setMessageTemplates(cached);
+      });
   }, [isAdmin]);
 
   useEffect(() => {
