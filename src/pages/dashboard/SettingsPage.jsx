@@ -535,13 +535,11 @@ function BrandingImageUpload({ purpose, label, hint, value, onChange, onPersist,
         }
         nextUrl = String(data?.url || "").trim();
         if (!nextUrl) throw new Error("Upload response missing url");
-        // Prevent dead URL persistence: if uploaded URL is not actually loadable, keep a local embedded copy for critical branding.
+        // Keep the stable server URL even if the hosted image is briefly unreachable right after upload.
         const resolved = resolveAssetUrl(nextUrl);
         const reachable = await canLoadImage(resolved);
         if (!reachable) {
-          if (shouldFallbackToEmbeddedForCriticalBranding) {
-            nextUrl = await readAsDataUrl(f);
-          } else {
+          if (!shouldFallbackToEmbeddedForCriticalBranding) {
             throw new Error("Uploaded image URL is not reachable");
           }
         }
