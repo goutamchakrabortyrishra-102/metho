@@ -4,8 +4,8 @@ import { BrowserRouter, Routes, Route, Navigate, Link, useLocation } from "react
 import { AuthProvider, useAuth } from "@/contexts/AuthContext";
 import { SettingsProvider, useSettings } from "@/contexts/SettingsContext";
 import { Toaster } from "sonner";
-import LandingPage from "@/pages/LandingPage";
 
+const LandingPage = lazy(() => import("@/pages/LandingPage"));
 const LoginPage = lazy(() => import("@/pages/LoginPage"));
 const RegisterPage = lazy(() => import("@/pages/RegisterPage"));
 const ForgotPasswordPage = lazy(() => import("@/pages/ForgotPasswordPage"));

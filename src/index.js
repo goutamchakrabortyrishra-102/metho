@@ -25,10 +25,17 @@ const maybeClearLegacyPwaStateOnce = () => {
   if (typeof window === "undefined") return;
   const host = String(window.location.hostname || "").toLowerCase();
   const isHostedFrontend = host === "methoaayupay.com" || host === "www.methoaayupay.com" || host.endsWith(".pages.dev");
-  const cleanupKey = "metho_legacy_pwa_cleanup_v3";
+  const cleanupKey = "metho_legacy_pwa_cleanup_v4";
 
-  // On hosted environments, always run best-effort cleanup to evict stale service worker/cache states.
+  // Hosted environments only need this cache eviction once per cleanup version.
   if (isHostedFrontend) {
+    try {
+      if (window.localStorage.getItem(cleanupKey) === "1") return;
+      window.localStorage.setItem(cleanupKey, "1");
+    } catch {
+      // If localStorage fails, skip repeating the cleanup on every page load.
+      return;
+    }
     void clearLegacyPwaState();
     return;
   }
