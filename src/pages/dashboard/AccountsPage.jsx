@@ -13,6 +13,16 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
 const inr = (value) => `₹${Number(value || 0).toLocaleString("en-IN", { maximumFractionDigits: 2 })}`;
+const percent = (value) => `${Number(value || 0).toFixed(1)}%`;
+const round2 = (value) => Math.round(Number(value || 0) * 100) / 100;
+const EMPTY_AUTO = { income_items: [], expense_items: [] };
+const EMPTY_MANUAL = [];
+
+const parseDate = (value) => {
+  if (!value) return null;
+  const dt = new Date(value);
+  return Number.isNaN(dt.getTime()) ? null : dt;
+};
 
 const COST_CATEGORIES = [
   "Staff Salary",
@@ -57,6 +67,7 @@ export default function AccountsPage() {
   const [entryDate, setEntryDate] = useState(today);
   const [description, setDescription] = useState("");
   const [reference, setReference] = useState("");
+  const [period, setPeriod] = useState("this_month");
 
   const load = useCallback(async () => {
     if (!isAdmin) return;
@@ -73,12 +84,151 @@ export default function AccountsPage() {
 
   useEffect(() => { load(); }, [load]);
 
+  const summary = data?.summary || {};
+  const auto = useMemo(() => data?.auto || EMPTY_AUTO, [data]);
+  const manualEntries = useMemo(() => data?.manual_entries || EMPTY_MANUAL, [data]);
+
+  const allTransactions = useMemo(() => {
+    const incomeRows = (auto.income_items || []).map((item) => ({
+      id: `auto-income-${item.id || item.created_at || Math.random()}`,
+      type: "auto",
+      direction: "income",
+      amount: Number(item.amount || 0),
+      category: item.category || "Income",
+      label: item.label || "Auto income",
+      source: item.source || "system",
+      timestamp: parseDate(item.created_at),
+    }));
+
+    const expenseRows = (auto.expense_items || []).map((item) => ({
+      id: `auto-expense-${item.id || item.created_at || Math.random()}`,
+      type: "auto",
+      direction: "expense",
+      amount: Math.abs(Number(item.amount || 0)),
+      category: item.category || "Expense",
+      label: item.label || "Auto expense",
+      source: item.source || "system",
+      timestamp: parseDate(item.created_at),
+    }));
+
+    const manualRows = manualEntries.map((entry) => ({
+      id: `manual-${entry.id || entry.created_at || Math.random()}`,
+      type: "manual",
+      direction: String(entry.direction || "expense").toLowerCase() === "income" ? "income" : "expense",
+      amount: Math.abs(Number(entry.amount || 0)),
+      category: entry.category || "Miscellaneous",
+      label: entry.description || entry.category || "Manual entry",
+      source: "manual",
+      timestamp: parseDate(entry.date || entry.created_at),
+    }));
+
+    return [...incomeRows, ...expenseRows, ...manualRows];
+  }, [auto.expense_items, auto.income_items, manualEntries]);
+
+  const periodLabel = useMemo(() => {
+    if (period === "this_month") return "This Month";
+    if (period === "last_30_days") return "Last 30 Days";
+    return "All Time";
+  }, [period]);
+
+  const filteredTransactions = useMemo(() => {
+    if (period === "all_time") return allTransactions;
+    const now = new Date();
+    const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    const periodStart = period === "this_month"
+      ? new Date(now.getFullYear(), now.getMonth(), 1)
+      : new Date(startOfToday.getTime() - (29 * 24 * 60 * 60 * 1000));
+    return allTransactions.filter((tx) => {
+      if (!tx.timestamp) return false;
+      return tx.timestamp >= periodStart && tx.timestamp <= now;
+    });
+  }, [allTransactions, period]);
+
+  const periodSummary = useMemo(() => {
+    const totals = {
+      income_total: 0,
+      expense_total: 0,
+      net_balance: 0,
+      auto_income_total: 0,
+      auto_expense_total: 0,
+      manual_income_total: 0,
+      manual_expense_total: 0,
+    };
+    filteredTransactions.forEach((tx) => {
+      if (tx.direction === "income") {
+        totals.income_total += tx.amount;
+        if (tx.type === "auto") totals.auto_income_total += tx.amount;
+        else totals.manual_income_total += tx.amount;
+      } else {
+        totals.expense_total += tx.amount;
+        if (tx.type === "auto") totals.auto_expense_total += tx.amount;
+        else totals.manual_expense_total += tx.amount;
+      }
+    });
+    totals.net_balance = totals.income_total - totals.expense_total;
+    Object.keys(totals).forEach((k) => {
+      totals[k] = round2(totals[k]);
+    });
+    return totals;
+  }, [filteredTransactions]);
+
   const categoryRows = useMemo(() => {
-    const map = data?.category_totals || {};
-    return Object.entries(map)
-      .map(([name, totals]) => ({ name, income: Number(totals?.income || 0), expense: Number(totals?.expense || 0), net: Number(totals?.income || 0) - Number(totals?.expense || 0) }))
+    const bucket = {};
+    filteredTransactions.forEach((tx) => {
+      const key = String(tx.category || "Miscellaneous").trim() || "Miscellaneous";
+      if (!bucket[key]) {
+        bucket[key] = { income: 0, expense: 0 };
+      }
+      if (tx.direction === "income") bucket[key].income += tx.amount;
+      else bucket[key].expense += tx.amount;
+    });
+    return Object.entries(bucket)
+      .map(([name, totals]) => ({
+        name,
+        income: round2(totals.income),
+        expense: round2(totals.expense),
+        net: round2(totals.income - totals.expense),
+      }))
       .sort((a, b) => Math.abs(b.net) - Math.abs(a.net));
-  }, [data]);
+  }, [filteredTransactions]);
+
+  const autoIncomeFiltered = useMemo(() => filteredTransactions
+    .filter((tx) => tx.type === "auto" && tx.direction === "income")
+    .map((tx) => ({ id: tx.id, label: tx.label, category: tx.category, source: tx.source, amount: tx.amount })), [filteredTransactions]);
+
+  const autoExpenseFiltered = useMemo(() => filteredTransactions
+    .filter((tx) => tx.type === "auto" && tx.direction === "expense")
+    .map((tx) => ({ id: tx.id, label: tx.label, category: tx.category, source: tx.source, amount: tx.amount })), [filteredTransactions]);
+
+  const manualEntriesFiltered = useMemo(() => {
+    if (period === "all_time") return manualEntries;
+    const now = new Date();
+    const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    const periodStart = period === "this_month"
+      ? new Date(now.getFullYear(), now.getMonth(), 1)
+      : new Date(startOfToday.getTime() - (29 * 24 * 60 * 60 * 1000));
+    return manualEntries.filter((entry) => {
+      const dt = parseDate(entry.date || entry.created_at);
+      if (!dt) return false;
+      return dt >= periodStart && dt <= now;
+    });
+  }, [manualEntries, period]);
+
+  const netMarginPct = useMemo(() => {
+    if (!periodSummary.income_total) return 0;
+    return (periodSummary.net_balance / periodSummary.income_total) * 100;
+  }, [periodSummary.income_total, periodSummary.net_balance]);
+
+  const expenseRatioPct = useMemo(() => {
+    if (!periodSummary.income_total) return 0;
+    return (periodSummary.expense_total / periodSummary.income_total) * 100;
+  }, [periodSummary.expense_total, periodSummary.income_total]);
+
+  const manualSharePct = useMemo(() => {
+    const total = periodSummary.income_total + periodSummary.expense_total;
+    if (!total) return 0;
+    return ((periodSummary.manual_income_total + periodSummary.manual_expense_total) / total) * 100;
+  }, [periodSummary.expense_total, periodSummary.income_total, periodSummary.manual_expense_total, periodSummary.manual_income_total]);
 
   const exportExcel = () => {
     if (!data) {
@@ -90,13 +240,16 @@ export default function AccountsPage() {
     const summaryRows = [
       ["METHO AAY-UPAY Accounts", ""],
       ["Generated At", new Date().toLocaleString()],
-      ["Income Total", summary.income_total || 0],
-      ["Expense Total", summary.expense_total || 0],
-      ["Net Balance", summary.net_balance || 0],
-      ["Auto Income", summary.auto_income_total || 0],
-      ["Auto Expense", summary.auto_expense_total || 0],
-      ["Manual Income", summary.manual_income_total || 0],
-      ["Manual Expense", summary.manual_expense_total || 0],
+      ["Period", periodLabel],
+      ["Income Total", periodSummary.income_total || 0],
+      ["Expense Total", periodSummary.expense_total || 0],
+      ["Net Balance", periodSummary.net_balance || 0],
+      ["Auto Income", periodSummary.auto_income_total || 0],
+      ["Auto Expense", periodSummary.auto_expense_total || 0],
+      ["Manual Income", periodSummary.manual_income_total || 0],
+      ["Manual Expense", periodSummary.manual_expense_total || 0],
+      ["Expense Ratio", percent(expenseRatioPct)],
+      ["Net Margin", percent(netMarginPct)],
     ];
     const summarySheet = XLSX.utils.aoa_to_sheet(summaryRows);
     summarySheet["!cols"] = [{ wch: 24 }, { wch: 18 }];
@@ -109,19 +262,19 @@ export default function AccountsPage() {
     XLSX.utils.book_append_sheet(wb, bucketSheet, "Buckets");
 
     const incomeRows = [["Label", "Category", "Source", "Amount", "Created At"]];
-    (auto.income_items || []).forEach((item) => incomeRows.push([item.label || "", item.category || "", item.source || "", item.amount || 0, item.created_at || ""]));
+    autoIncomeFiltered.forEach((item) => incomeRows.push([item.label || "", item.category || "", item.source || "", item.amount || 0, item.created_at || ""]));
     const incomeSheet = XLSX.utils.aoa_to_sheet(incomeRows);
     incomeSheet["!cols"] = [{ wch: 30 }, { wch: 24 }, { wch: 18 }, { wch: 14 }, { wch: 22 }];
     XLSX.utils.book_append_sheet(wb, incomeSheet, "Income");
 
     const expenseRows = [["Label", "Category", "Source", "Amount", "Created At"]];
-    (auto.expense_items || []).forEach((item) => expenseRows.push([item.label || "", item.category || "", item.source || "", item.amount || 0, item.created_at || ""]));
+    autoExpenseFiltered.forEach((item) => expenseRows.push([item.label || "", item.category || "", item.source || "", item.amount || 0, item.created_at || ""]));
     const expenseSheet = XLSX.utils.aoa_to_sheet(expenseRows);
     expenseSheet["!cols"] = [{ wch: 30 }, { wch: 24 }, { wch: 18 }, { wch: 14 }, { wch: 22 }];
     XLSX.utils.book_append_sheet(wb, expenseSheet, "Expenses");
 
     const manualRows = [["Category", "Direction", "Amount", "Description", "Reference", "Date"]];
-    manualEntries.forEach((entry) => manualRows.push([entry.category || "", entry.direction || "", entry.amount || 0, entry.description || "", entry.reference || "", entry.date || ""]));
+    manualEntriesFiltered.forEach((entry) => manualRows.push([entry.category || "", entry.direction || "", entry.amount || 0, entry.description || "", entry.reference || "", entry.date || ""]));
     const manualSheet = XLSX.utils.aoa_to_sheet(manualRows);
     manualSheet["!cols"] = [{ wch: 28 }, { wch: 14 }, { wch: 14 }, { wch: 28 }, { wch: 20 }, { wch: 14 }];
     XLSX.utils.book_append_sheet(wb, manualSheet, "Manual Ledger");
@@ -165,18 +318,20 @@ export default function AccountsPage() {
     cursorY += 6;
 
     section("Summary");
-    line(`Income Total: ${inr(summary.income_total)}`);
-    line(`Expense Total: ${inr(summary.expense_total)}`);
-    line(`Net Balance: ${inr(summary.net_balance)}`);
-    line(`Auto Income: ${inr(summary.auto_income_total)} | Manual Income: ${inr(summary.manual_income_total)}`);
-    line(`Auto Expense: ${inr(summary.auto_expense_total)} | Manual Expense: ${inr(summary.manual_expense_total)}`);
+    line(`Period: ${periodLabel}`);
+    line(`Income Total: ${inr(periodSummary.income_total)}`);
+    line(`Expense Total: ${inr(periodSummary.expense_total)}`);
+    line(`Net Balance: ${inr(periodSummary.net_balance)}`);
+    line(`Auto Income: ${inr(periodSummary.auto_income_total)} | Manual Income: ${inr(periodSummary.manual_income_total)}`);
+    line(`Auto Expense: ${inr(periodSummary.auto_expense_total)} | Manual Expense: ${inr(periodSummary.manual_expense_total)}`);
+    line(`Expense Ratio: ${percent(expenseRatioPct)} | Net Margin: ${percent(netMarginPct)}`);
 
     section("Top Cost Buckets");
     categoryRows.slice(0, 8).forEach((row) => {
       line(`${row.name}: Income ${inr(row.income)} | Expense ${inr(row.expense)} | Net ${inr(row.net)}`, { size: 10 });
     });
 
-    const topIncome = (auto.income_items || []).slice(0, 8);
+    const topIncome = autoIncomeFiltered.slice(0, 8);
     if (topIncome.length) {
       section("Recent Auto Income");
       topIncome.forEach((item) => {
@@ -184,7 +339,7 @@ export default function AccountsPage() {
       });
     }
 
-    const topExpense = (auto.expense_items || []).slice(0, 8);
+    const topExpense = autoExpenseFiltered.slice(0, 8);
     if (topExpense.length) {
       section("Recent Auto Expenses");
       topExpense.forEach((item) => {
@@ -192,9 +347,9 @@ export default function AccountsPage() {
       });
     }
 
-    if (manualEntries.length) {
+    if (manualEntriesFiltered.length) {
       section("Manual Ledger");
-      manualEntries.slice(0, 10).forEach((entry) => {
+      manualEntriesFiltered.slice(0, 10).forEach((entry) => {
         line(`${entry.category} | ${entry.direction} | ${inr(entry.amount)} | ${entry.description || ""}`, { size: 10 });
       });
     }
@@ -233,10 +388,6 @@ export default function AccountsPage() {
     }
   };
 
-  const summary = data?.summary || {};
-  const auto = data?.auto || { income_items: [], expense_items: [] };
-  const manualEntries = data?.manual_entries || [];
-
   return (
     <div className="space-y-6" data-testid="accounts-page">
       <div className="flex flex-wrap items-end justify-between gap-4">
@@ -246,6 +397,16 @@ export default function AccountsPage() {
           <p className="text-sm text-muted-foreground font-body mt-1">Auto-pulled income and expense summary with manual categorized cost tracking.</p>
         </div>
         <div className="flex flex-wrap gap-2">
+          <Select value={period} onValueChange={setPeriod}>
+            <SelectTrigger className="w-[170px]" data-testid="accounts-period-select">
+              <SelectValue placeholder="Select period" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="this_month">This Month</SelectItem>
+              <SelectItem value="last_30_days">Last 30 Days</SelectItem>
+              <SelectItem value="all_time">All Time</SelectItem>
+            </SelectContent>
+          </Select>
           <Button variant="outline" onClick={exportExcel} disabled={!data} className="rounded-full border-emerald-800 text-emerald-900 hover:bg-emerald-50" data-testid="accounts-export-excel-button">
             Excel
           </Button>
@@ -259,10 +420,10 @@ export default function AccountsPage() {
       </div>
 
       <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-        <SummaryCard icon={TrendingUp} label="Total Income" value={inr(summary.income_total)} hint={`Auto ${inr(summary.auto_income_total)} + manual ${inr(summary.manual_income_total)}`} tone="emerald" />
-        <SummaryCard icon={TrendingDown} label="Total Expense" value={inr(summary.expense_total)} hint={`Auto ${inr(summary.auto_expense_total)} + manual ${inr(summary.manual_expense_total)}`} tone="red" />
-        <SummaryCard icon={Landmark} label="Net Balance" value={inr(summary.net_balance)} hint="Income minus expense" tone="amber" />
-        <SummaryCard icon={BadgeIndianRupee} label="Tracked Entries" value={(manualEntries.length || 0).toLocaleString("en-IN")} hint="Manual income and cost rows" tone="emerald" />
+        <SummaryCard icon={TrendingUp} label={`${periodLabel} Income`} value={inr(periodSummary.income_total)} hint={`Auto ${inr(periodSummary.auto_income_total)} + manual ${inr(periodSummary.manual_income_total)}`} tone="emerald" />
+        <SummaryCard icon={TrendingDown} label={`${periodLabel} Expense`} value={inr(periodSummary.expense_total)} hint={`Auto ${inr(periodSummary.auto_expense_total)} + manual ${inr(periodSummary.manual_expense_total)}`} tone="red" />
+        <SummaryCard icon={Landmark} label="Net Cashflow" value={inr(periodSummary.net_balance)} hint={`Net margin ${percent(netMarginPct)}`} tone="amber" />
+        <SummaryCard icon={BadgeIndianRupee} label="Manual Share" value={percent(manualSharePct)} hint={`Expense ratio ${percent(expenseRatioPct)} · ${manualEntriesFiltered.length.toLocaleString("en-IN")} manual rows`} tone="emerald" />
       </div>
 
       <div className="grid lg:grid-cols-[1.2fr_0.8fr] gap-4">
@@ -270,7 +431,7 @@ export default function AccountsPage() {
           <div className="flex items-center justify-between gap-3 mb-4">
             <div>
               <h2 className="font-display font-bold text-emerald-950 text-xl">Cost Buckets</h2>
-              <p className="text-xs text-muted-foreground mt-1">Salary, transport, onboarding commission, damage, advertisement, misc and more.</p>
+              <p className="text-xs text-muted-foreground mt-1">{periodLabel} categorized movement from both auto + manual rows.</p>
             </div>
             <div className="text-xs bg-emerald-50 text-emerald-800 px-2 py-1 rounded-full font-semibold">Auto + Manual</div>
           </div>
@@ -357,15 +518,15 @@ export default function AccountsPage() {
           <div className="flex items-center justify-between gap-3 mb-4">
             <div>
               <h2 className="font-display font-bold text-emerald-950 text-xl">Auto-Pulled Income</h2>
-              <p className="text-xs text-muted-foreground mt-1">Orders and approved top-ups captured from live backend sources.</p>
+              <p className="text-xs text-muted-foreground mt-1">{periodLabel} orders and approved top-ups captured from live backend sources.</p>
             </div>
             <FileClock className="w-5 h-5 text-emerald-700" />
           </div>
           <div className="divide-y divide-border max-h-[26rem] overflow-y-auto">
-            {auto.income_items.length === 0 ? (
+            {autoIncomeFiltered.length === 0 ? (
               <p className="text-sm text-muted-foreground py-4">No auto income rows found.</p>
             ) : (
-              auto.income_items.map((item) => (
+              autoIncomeFiltered.map((item) => (
                 <div key={item.id} className="py-3 flex items-start justify-between gap-4">
                   <div>
                     <p className="font-semibold text-emerald-950 text-sm">{item.label}</p>
@@ -382,15 +543,15 @@ export default function AccountsPage() {
           <div className="flex items-center justify-between gap-3 mb-4">
             <div>
               <h2 className="font-display font-bold text-emerald-950 text-xl">Auto-Pulled Expenses</h2>
-              <p className="text-xs text-muted-foreground mt-1">Withdrawals and approved MPS claims captured automatically.</p>
+              <p className="text-xs text-muted-foreground mt-1">{periodLabel} withdrawals and approved MPS claims captured automatically.</p>
             </div>
             <Calculator className="w-5 h-5 text-red-700" />
           </div>
           <div className="divide-y divide-border max-h-[26rem] overflow-y-auto">
-            {auto.expense_items.length === 0 ? (
+            {autoExpenseFiltered.length === 0 ? (
               <p className="text-sm text-muted-foreground py-4">No auto expense rows found.</p>
             ) : (
-              auto.expense_items.map((item) => (
+              autoExpenseFiltered.map((item) => (
                 <div key={item.id} className="py-3 flex items-start justify-between gap-4">
                   <div>
                     <p className="font-semibold text-emerald-950 text-sm">{item.label}</p>
@@ -408,15 +569,15 @@ export default function AccountsPage() {
         <div className="flex items-center justify-between gap-3 mb-4">
           <div>
             <h2 className="font-display font-bold text-emerald-950 text-xl">Manual Ledger</h2>
-            <p className="text-xs text-muted-foreground mt-1">Custom income/expense rows saved by admin.</p>
+            <p className="text-xs text-muted-foreground mt-1">Custom income/expense rows saved by admin ({periodLabel}).</p>
           </div>
-          <div className="text-xs bg-slate-100 text-slate-700 px-2 py-1 rounded-full font-semibold">{manualEntries.length} rows</div>
+          <div className="text-xs bg-slate-100 text-slate-700 px-2 py-1 rounded-full font-semibold">{manualEntriesFiltered.length} rows</div>
         </div>
         <div className="divide-y divide-border">
-          {manualEntries.length === 0 ? (
+          {manualEntriesFiltered.length === 0 ? (
             <p className="text-sm text-muted-foreground py-4">No manual entries yet.</p>
           ) : (
-            manualEntries.map((entry) => (
+            manualEntriesFiltered.map((entry) => (
               <div key={entry.id} className="py-3 flex flex-wrap items-center justify-between gap-3">
                 <div>
                   <p className="font-semibold text-emerald-950 text-sm">{entry.category}</p>
