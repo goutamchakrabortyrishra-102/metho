@@ -316,6 +316,9 @@ export default function UpiPaymentDialog({
   const razorpayEnabled = paymentConfig
     ? !!paymentConfig.razorpay_enabled && !!settings?.razorpay_enabled && !!settings?.razorpay_key_id
     : !!settings?.razorpay_enabled && !!settings?.razorpay_key_id;
+  const goBackToCart = () => {
+    onOpenChange?.(false);
+  };
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-3xl max-h-[92vh] overflow-y-auto">
@@ -622,6 +625,15 @@ export default function UpiPaymentDialog({
 
           <DialogFooter className={manualUpiEnabled ? "md:col-span-2" : ""}>
             <div className="w-full space-y-2">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={goBackToCart}
+                className="w-full h-11 rounded-full border-emerald-300 text-emerald-900 hover:bg-emerald-50"
+                data-testid="upi-back-to-cart-button"
+              >
+                Back to Cart
+              </Button>
               {razorpayEnabled && !forceManualUpiFlow ? (
                 <Button
                   type="button"
