@@ -758,15 +758,19 @@ export default function PartnersPage() {
     }
   };
 
-  const exportExternalLeadsCsv = () => {
-    if (!nearbyLeads.length) {
+  const exportExternalLeadsCsv = (onlyWithPhone = false) => {
+    const source = onlyWithPhone
+      ? nearbyLeads.filter((lead) => String(lead?.phone || "").trim())
+      : nearbyLeads;
+
+    if (!source.length) {
       toast.error("Export করার মতো lead নেই");
       return;
     }
 
     const headers = ["Business Name", "Type", "City", "Address", "Phone", "Distance (km)", "Map URL"];
     const escapeCsv = (value) => `"${String(value ?? "").replace(/"/g, '""')}"`;
-    const rows = nearbyLeads.map((lead) => {
+    const rows = source.map((lead) => {
       const mapUrl = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(`${lead.business_name} ${lead.address || ""}`)}`;
       return [
         lead.business_name,
@@ -785,7 +789,7 @@ export default function PartnersPage() {
     const a = document.createElement("a");
     const ts = new Date().toISOString().replace(/[:.]/g, "-");
     a.href = url;
-    a.download = `external-offline-leads-${ts}.csv`;
+    a.download = `${onlyWithPhone ? "external-offline-leads-phone-only" : "external-offline-leads"}-${ts}.csv`;
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
@@ -1241,6 +1245,16 @@ export default function PartnersPage() {
             data-testid="nearby-export-csv"
           >
             Export CSV
+          </Button>
+          <Button
+            type="button"
+            variant="outline"
+            onClick={() => exportExternalLeadsCsv(true)}
+            disabled={!nearbyLeads.some((lead) => String(lead?.phone || "").trim())}
+            className="rounded-full"
+            data-testid="nearby-export-csv-phone-only"
+          >
+            Export Phone Leads Only
           </Button>
           {nearbyLocationLabel ? <p className="text-xs text-slate-600">Search center: {nearbyLocationLabel}</p> : null}
         </div>
