@@ -668,16 +668,13 @@ export default function PartnerProductForm({
       if (localPreviewUrl) URL.revokeObjectURL(localPreviewUrl);
       setLocalPreviewUrl(preview);
 
-      const pdfBlob = await imageToPdfBlob(file);
-      const pdfFile = new File([pdfBlob], `${Date.now()}-catalog.pdf`, { type: "application/pdf" });
-
-      let uploaded = null;
-      const endpoints = ["/partner/upload/product-pdf", "/admin/upload/product-pdf"];
-      for (const endpoint of endpoints) {
+      let imageUpload = null;
+      const imageEndpoints = ["/partner/upload/product-image", "/admin/upload/product-image"];
+      for (const endpoint of imageEndpoints) {
         try {
-          const fd = new FormData();
-          fd.append("file", pdfFile);
-          uploaded = await api.post(endpoint, fd, {
+          const imageFd = new FormData();
+          imageFd.append("file", file);
+          imageUpload = await api.post(endpoint, imageFd, {
             headers: { "Content-Type": "multipart/form-data" },
           });
           break;
@@ -687,16 +684,38 @@ export default function PartnerProductForm({
         }
       }
 
-      const data = uploaded?.data || {};
-      const pdfUrl = resolveImageUrl(data?.pdf_url || data?.url || data?.file_url || data?.link || "");
+      const pdfBlob = await imageToPdfBlob(file);
+      const pdfFile = new File([pdfBlob], `${Date.now()}-catalog.pdf`, { type: "application/pdf" });
+
+      let pdfUpload = null;
+      const endpoints = ["/partner/upload/product-pdf", "/admin/upload/product-pdf"];
+      for (const endpoint of endpoints) {
+        try {
+          const fd = new FormData();
+          fd.append("file", pdfFile);
+          pdfUpload = await api.post(endpoint, fd, {
+            headers: { "Content-Type": "multipart/form-data" },
+          });
+          break;
+        } catch (uploadErr) {
+          const status = Number(uploadErr?.response?.status || 0);
+          if (status !== 401 && status !== 403 && status !== 404) throw uploadErr;
+        }
+      }
+
+      const imageData = imageUpload?.data || {};
+      const pdfData = pdfUpload?.data || {};
+      const imageUrl = resolveImageUrl(imageData?.image_url || imageData?.url || imageData?.file_url || imageData?.link || "");
+      const pdfUrl = resolveImageUrl(pdfData?.pdf_url || pdfData?.url || pdfData?.file_url || pdfData?.link || "");
       setForm((prev) => ({
         ...prev,
-        // Persist only PDF link for all listing types to keep gallery storage minimal.
-        image_url: "",
+        image_url: imageUrl || prev.image_url || "",
         pdf_url: pdfUrl || prev.pdf_url || "",
       }));
-      if (pdfUrl) toast.success("Image converted and PDF link saved");
-      else toast.success("Image uploaded. PDF link was not returned by server.");
+      if (imageUrl && pdfUrl) toast.success("Image and PDF saved");
+      else if (imageUrl) toast.success("Image saved");
+      else if (pdfUrl) toast.success("PDF link saved");
+      else toast.success("Upload completed");
     } catch (err) {
       toast.error(err?.response?.data?.detail || err?.message || "Image/PDF upload failed.");
     } finally {
@@ -892,12 +911,12 @@ export default function PartnerProductForm({
                 </div>
               )}
             </div>
-            <p className="text-[11px] text-muted-foreground mt-1">JPG/PNG/WebP/GIF/SVG, max 5MB. Upload থেকে শুধু PDF link server-এ save হবে; raw image file listing payload-এ রাখা হবে না.</p>
+            <p className="text-[11px] text-muted-foreground mt-1">JPG/PNG/WebP/GIF/SVG, max 5MB. Upload করলে gallery-র জন্য image URL আর catalog preview-র জন্য PDF link দুটোই save হবে.</p>
             {form.pdf_url ? (
               <p className="text-[11px] text-emerald-700 mt-1 break-all">PDF: {form.pdf_url}</p>
             ) : null}
             {product?.id ? (
-              <p className="text-[11px] text-emerald-700 mt-1">If you upload a new image, only the regenerated PDF link will be saved.</p>
+              <p className="text-[11px] text-emerald-700 mt-1">If you upload a new image, the gallery image and regenerated PDF link will both update.</p>
             ) : null}
           </div>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">

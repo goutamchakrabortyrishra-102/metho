@@ -369,15 +369,6 @@ export default function PartnerShopPage() {
       ? "stay-dining"
       : (canShowDoorstep ? "doorstep" : (canShowOtherServices ? "other-services" : "products")));
   const featuredImages = useMemo(() => normalizeFeaturedImages(data?.featured_images), [data?.featured_images]);
-  const featuredProductFallbacks = useMemo(() => {
-    const list = [];
-    for (const item of productListings) {
-      const src = getDisplayImage(item, placeholder) || getProductImageUrl(item) || resolveAssetUrl(item?.fallback_image_url || "");
-      if (src && !list.includes(src)) list.push(src);
-      if (list.length >= 5) break;
-    }
-    return list;
-  }, [productListings, placeholder]);
   const featuredDisplayImages = useMemo(
     () => [0, 1, 2, 3, 4].map((slot) => featuredImages[slot] || ""),
     [featuredImages]
@@ -816,7 +807,7 @@ export default function PartnerShopPage() {
                       onError={(e) => {
                         applyImageFallback(
                           e,
-                          featuredProductFallbacks[slot] || heroBannerSrc || p?.logo_url || "",
+                          heroBannerSrc || p?.logo_url || "",
                           placeholder || PRODUCT_FALLBACK
                         );
                       }}
@@ -1646,6 +1637,7 @@ export default function PartnerShopPage() {
         onMemberRefChange={setGuestMemberRef}
         onOrderPlaced={() => {
           setGuestMemberRef("");
+          setCart({});
           setOpen(false);
           toast.success("Order placed successfully");
           if (user) setTimeout(() => nav("/app/orders"), 400);

@@ -143,7 +143,7 @@ const normalizePartnerPayload = (payload) => {
       const fallbackImage = fallbackPool[index % Math.max(1, fallbackPool.length)] || "";
       return {
         ...item,
-        image_url: resolvedImage || fallbackImage,
+        image_url: resolvedImage || "",
         fallback_image_url: fallbackImage,
         pdf_url: getPdfUrl(item),
       };
@@ -233,11 +233,63 @@ const formatQtyWithUnit = (qty, item) => {
   return `${value} ${unit}`;
 };
 
-function ProductModal({ product, onClose, onAdd, onDec, qty, galleryUrl, isBookNowRole, onBookNow, canAccessProductPdf, onCheckout }) {
+const getSelectableMeasureUnits = (item) => {
+  const unit = getUnitType(item);
+  if (unit === "kg") return ["kg", "gram"];
+  if (unit === "gram") return ["gram", "kg"];
+  if (unit === "litre") return ["litre", "ml"];
+  if (unit === "ml") return ["ml", "litre"];
+  return [unit];
+};
+
+const convertQtyBetweenUnits = (qty, fromUnit, toUnit) => {
+  const amount = Number(qty || 0);
+  if (!Number.isFinite(amount) || amount <= 0) return 0;
+  if (fromUnit === toUnit) return amount;
+  if (fromUnit === "kg" && toUnit === "gram") return amount * 1000;
+  if (fromUnit === "gram" && toUnit === "kg") return amount / 1000;
+  if (fromUnit === "litre" && toUnit === "ml") return amount * 1000;
+  if (fromUnit === "ml" && toUnit === "litre") return amount / 1000;
+  return amount;
+};
+
+const resolveMeasureUnit = (item, preferredUnit = "") => {
+  const options = getSelectableMeasureUnits(item);
+  return options.includes(preferredUnit) ? preferredUnit : options[0];
+};
+
+const formatQtyForMeasureUnit = (qty, item, measureUnit = "") => {
+  const baseUnit = getUnitType(item);
+  const unit = resolveMeasureUnit(item, measureUnit);
+  const converted = convertQtyBetweenUnits(qty, baseUnit, unit);
+  const value = formatQty(converted);
+  if (unit === "piece") return value;
+  return `${value} ${unit}`;
+};
+
+const formatPriceForMeasureUnit = (price, item, measureUnit = "") => {
+  const amount = Number(price || 0);
+  const baseUnit = getUnitType(item);
+  const unit = resolveMeasureUnit(item, measureUnit);
+  if (baseUnit === unit || unit === "piece") return `₹${amount} / ${unit}`;
+  let convertedPrice = amount;
+  if (baseUnit === "kg" && unit === "gram") convertedPrice = amount / 1000;
+  else if (baseUnit === "gram" && unit === "kg") convertedPrice = amount * 1000;
+  else if (baseUnit === "litre" && unit === "ml") convertedPrice = amount / 1000;
+  else if (baseUnit === "ml" && unit === "litre") convertedPrice = amount * 1000;
+  return `₹${Number(convertedPrice.toFixed(2))} / ${unit}`;
+};
+
+const subtotalForQuantity = (qty, item) => Number(((Number(item?.price || 0) * Number(qty || 0))).toFixed(2));
+
+function ProductModal({ product, onClose, onAdd, onDec, qty, galleryUrl, isBookNowRole, onBookNow, canAccessProductPdf, onCheckout, measureUnit, onMeasureUnitChange }) {
   if (!product) return null;
   const productUrl = `${galleryUrl}?p=${product.id}`;
   const pdfUrl = getPdfUrl(product);
   const isService = isServiceListing(product);
+  const selectableUnits = getSelectableMeasureUnits(product);
+  const activeMeasureUnit = resolveMeasureUnit(product, measureUnit);
+  const subtotal = subtotalForQuantity(qty, product);
   // WhatsApp message: include image URL so WA shows image preview
   const mediaLine = product.image_url || pdfUrl;
   const waMsg = mediaLine
@@ -282,10 +334,24 @@ function ProductModal({ product, onClose, onAdd, onDec, qty, galleryUrl, isBookN
           <h3 className="font-display font-black text-emerald-950 text-xl mt-1">{product.name}</h3>
           {product.description && <p className="text-sm text-slate-600 mt-2 font-body">{product.description}</p>}
           <div className="mt-3 flex items-center justify-between">
-            <span className="font-display font-black text-3xl text-emerald-950">₹{product.price}</span>
+            <div>
+              <span className="font-display font-black text-3xl text-emerald-950">₹{product.price}</span>
+              {!isService ? <p className="text-xs text-slate-500 mt-1">{formatPriceForMeasureUnit(product.price, product, activeMeasureUnit)}</p> : null}
+            </div>
             <span className="text-sm text-slate-500">{isService ? "Service" : `Stock: ${product.stock ?? 0}`}</span>
           </div>
           <div className="mt-4 space-y-2">
+            {!isService && selectableUnits.length > 1 ? (
+              <select
+                value={activeMeasureUnit}
+                onChange={(e) => onMeasureUnitChange?.(product.id, e.target.value)}
+                className="h-10 w-full rounded-full border border-input bg-white px-4 text-sm"
+              >
+                {selectableUnits.map((unit) => (
+                  <option key={unit} value={unit}>{unit}</option>
+                ))}
+              </select>
+            ) : null}
             {product.stock <= 0 && !isService ? (
               <Button disabled className="w-full rounded-full">Unavailable</Button>
             ) : isService && isBookNowRole ? (
@@ -298,11 +364,12 @@ function ProductModal({ product, onClose, onAdd, onDec, qty, galleryUrl, isBookN
                   <button onClick={() => onDec(product.id)} className="w-9 h-9 rounded-full bg-white flex items-center justify-center hover:bg-emerald-100">
                     <Minus className="w-4 h-4" />
                   </button>
-                  <span className="font-black text-emerald-950 text-lg">{formatQty(qty)}</span>
+                  <span className="font-black text-emerald-950 text-lg">{formatQtyForMeasureUnit(qty, product, activeMeasureUnit)}</span>
                   <button onClick={() => onAdd(product.id)} className="w-9 h-9 rounded-full bg-white flex items-center justify-center hover:bg-emerald-100">
                     <Plus className="w-4 h-4" />
                   </button>
                 </div>
+                <p className="text-sm font-semibold text-emerald-900 text-center">Subtotal: ₹{subtotal.toLocaleString("en-IN", { maximumFractionDigits: 2 })}</p>
                 <Button onClick={() => onCheckout?.()} className="w-full bg-amber-500 hover:bg-amber-600 text-emerald-950 rounded-full text-base h-11 font-bold">
                   <ShoppingCart className="w-4 h-4 mr-2" /> Checkout Now
                 </Button>
@@ -341,6 +408,7 @@ export default function PartnerGalleryPage() {
   const [paymentProfile, setPaymentProfile] = useState(null);
   const [err, setErr] = useState(null);
   const [cart, setCart] = useState({});
+  const [cartUnits, setCartUnits] = useState({});
   const [selected, setSelected] = useState(null); // product for modal
   const [checkoutOpen, setCheckoutOpen] = useState(false);
   const [guestMemberRef, setGuestMemberRef] = useState("");
@@ -435,7 +503,19 @@ export default function PartnerGalleryPage() {
   const canDownloadPdf = ["partner", "admin", "super_admin", "company_admin"].includes(String(user?.role || "").toLowerCase());
   const guestServiceHintRef = useRef(false);
 
-  const addToCart = (productOrId) => {
+  const getCartMeasureUnit = (product, preferredUnit = "") => {
+    const productId = String(product?.id || "");
+    return resolveMeasureUnit(product, preferredUnit || cartUnits[productId] || "");
+  };
+
+  const updateCartMeasureUnit = (productId, nextUnit) => {
+    const product = products.find((item) => String(item?.id) === String(productId));
+    if (!product) return;
+    const resolved = resolveMeasureUnit(product, nextUnit);
+    setCartUnits((prev) => ({ ...prev, [productId]: resolved }));
+  };
+
+  const addToCart = (productOrId, preferredUnit = "") => {
     const product = typeof productOrId === "object"
       ? productOrId
       : products.find((x) => String(x.id) === String(productOrId));
@@ -452,6 +532,7 @@ export default function PartnerGalleryPage() {
     }
 
     const stock = getStock(product);
+    const activeMeasureUnit = getCartMeasureUnit(product, preferredUnit);
     const step = getQtyStep(product);
     if (stock <= 0) {
       toast.error(`${product?.name || "Product"}: out of stock`);
@@ -467,8 +548,9 @@ export default function PartnerGalleryPage() {
       }
       return { ...c, [id]: nextQty };
     });
+    setCartUnits((prev) => ({ ...prev, [id]: activeMeasureUnit }));
   };
-  const decCart = (productOrId) => {
+  const decCart = (productOrId, preferredUnit = "") => {
     const product = typeof productOrId === "object"
       ? productOrId
       : products.find((x) => String(x.id) === String(productOrId));
@@ -478,6 +560,7 @@ export default function PartnerGalleryPage() {
       setCart((c) => ({ ...c, [id]: Math.max(0, (c[id] || 0) - 1) }));
       return;
     }
+    const activeMeasureUnit = getCartMeasureUnit(product, preferredUnit);
     const step = getQtyStep(product);
     setCart((c) => {
       const current = Number(c[id] || 0);
@@ -501,6 +584,15 @@ export default function PartnerGalleryPage() {
         const stock = getStock(product);
         const normalized = Math.min(normalizeQtyByUnit(qty, product), stock);
         if (normalized > 0) next[id] = normalized;
+      });
+      return next;
+    });
+    setCartUnits((prev) => {
+      const next = {};
+      Object.entries(prev).forEach(([id, unit]) => {
+        const product = products.find((x) => String(x.id) === String(id));
+        if (!product) return;
+        next[id] = resolveMeasureUnit(product, unit);
       });
       return next;
     });
@@ -878,9 +970,12 @@ export default function PartnerGalleryPage() {
           <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
             {visibleProducts.map(p => {
               const qty = cart[p.id] || 0;
+              const activeMeasureUnit = getCartMeasureUnit(p);
               const isService = isServiceListing(p);
               const isTransport = isTransportServiceListing(p);
               const outOfStock = !isService && (p.stock ?? 0) <= 0;
+              const subtotal = subtotalForQuantity(qty, p);
+              const selectableUnits = getSelectableMeasureUnits(p);
               return (
                 <div
                   key={p.id}
@@ -903,7 +998,7 @@ export default function PartnerGalleryPage() {
                     )}
                     {qty > 0 && (
                       <div className="absolute top-2 right-2 w-6 h-6 rounded-full bg-emerald-600 text-white flex items-center justify-center text-xs font-black shadow">
-                        {formatQty(qty)}
+                        {formatQty(convertQtyBetweenUnits(qty, getUnitType(p), activeMeasureUnit))}
                       </div>
                     )}
                   </div>
@@ -912,8 +1007,26 @@ export default function PartnerGalleryPage() {
                     <p className={`text-[10px] uppercase tracking-widest font-semibold truncate ${isTransport ? "text-sky-700" : "text-emerald-800"}`}>{p.category}</p>
                     <p className="font-display font-bold text-emerald-950 text-sm line-clamp-1 mt-0.5">{p.name}</p>
                     <div className="mt-1.5 flex items-center justify-between">
-                      <span className="font-display font-black text-base text-emerald-950">₹{p.price}</span>
+                      <div>
+                        <span className="font-display font-black text-base text-emerald-950">₹{p.price}</span>
+                        {!isService ? <p className="text-[11px] text-slate-500">{formatPriceForMeasureUnit(p.price, p, activeMeasureUnit)}</p> : null}
+                      </div>
                     </div>
+                    {!isService && selectableUnits.length > 1 ? (
+                      <select
+                        value={activeMeasureUnit}
+                        onChange={(e) => {
+                          e.stopPropagation();
+                          updateCartMeasureUnit(p.id, e.target.value);
+                        }}
+                        onClick={(e) => e.stopPropagation()}
+                        className="mt-2 h-9 w-full rounded-full border border-input bg-white px-3 text-xs"
+                      >
+                        {selectableUnits.map((unit) => (
+                          <option key={unit} value={unit}>{unit}</option>
+                        ))}
+                      </select>
+                    ) : null}
                     {outOfStock ? (
                       <Button disabled className="w-full mt-2 rounded-full h-9">Out of Stock</Button>
                     ) : isService ? (
@@ -929,45 +1042,47 @@ export default function PartnerGalleryPage() {
                         Book Now
                       </Button>
                     ) : qty > 0 ? (
-                      <div
-                        className="mt-2 flex items-center justify-between bg-emerald-50 rounded-full px-2 py-1"
-                        onClick={(e) => e.stopPropagation()}
-                        data-testid={`quick-stepper-${p.id}`}
-                      >
-                        <button
-                          type="button"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            decCart(p.id);
-                          }}
-                          className="w-8 h-8 rounded-full bg-white flex items-center justify-center hover:bg-emerald-100"
-                          data-testid={`quick-dec-${p.id}`}
-                          aria-label={`Decrease ${p.name}`}
+                      <div className="mt-2 space-y-2" onClick={(e) => e.stopPropagation()}>
+                        <div
+                          className="flex items-center justify-between bg-emerald-50 rounded-full px-2 py-1"
+                          data-testid={`quick-stepper-${p.id}`}
                         >
-                          <Minus className="w-4 h-4" />
-                        </button>
-                        <span className="font-bold text-emerald-950 text-sm" data-testid={`quick-qty-${p.id}`}>
-                          {formatQtyWithUnit(qty, p)}
-                        </span>
-                        <button
-                          type="button"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            addToCart(p.id);
-                          }}
-                          className="w-8 h-8 rounded-full bg-white flex items-center justify-center hover:bg-emerald-100"
-                          data-testid={`quick-inc-${p.id}`}
-                          aria-label={`Increase ${p.name}`}
-                        >
-                          <Plus className="w-4 h-4" />
-                        </button>
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              decCart(p.id, activeMeasureUnit);
+                            }}
+                            className="w-8 h-8 rounded-full bg-white flex items-center justify-center hover:bg-emerald-100"
+                            data-testid={`quick-dec-${p.id}`}
+                            aria-label={`Decrease ${p.name}`}
+                          >
+                            <Minus className="w-4 h-4" />
+                          </button>
+                          <span className="font-bold text-emerald-950 text-sm" data-testid={`quick-qty-${p.id}`}>
+                            {formatQtyForMeasureUnit(qty, p, activeMeasureUnit)}
+                          </span>
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              addToCart(p.id, activeMeasureUnit);
+                            }}
+                            className="w-8 h-8 rounded-full bg-white flex items-center justify-center hover:bg-emerald-100"
+                            data-testid={`quick-inc-${p.id}`}
+                            aria-label={`Increase ${p.name}`}
+                          >
+                            <Plus className="w-4 h-4" />
+                          </button>
+                        </div>
+                        <p className="text-[11px] font-semibold text-emerald-900 text-center">₹{subtotal.toLocaleString("en-IN", { maximumFractionDigits: 2 })}</p>
                       </div>
                     ) : (
                       <Button
                         type="button"
                         onClick={e => {
                           e.stopPropagation();
-                          addToCart(p.id);
+                          addToCart(p.id, activeMeasureUnit);
                           toast.success(`${p.name} added`);
                         }}
                         className={`w-full mt-2 rounded-full h-9 text-white ${isTransport ? "bg-sky-700 hover:bg-sky-800" : "bg-emerald-900 hover:bg-emerald-950"}`}
@@ -989,14 +1104,16 @@ export default function PartnerGalleryPage() {
         <ProductModal
           product={selected}
           qty={cart[selected.id] || 0}
+          measureUnit={getCartMeasureUnit(selected)}
+          onMeasureUnitChange={updateCartMeasureUnit}
           galleryUrl={galleryUrl}
           isBookNowRole={isBookNowRole}
           onBookNow={handleBookNow}
           canAccessProductPdf={canAccessProductPdf}
           onCheckout={() => { setSelected(null); setCheckoutOpen(true); }}
           onClose={() => setSelected(null)}
-          onAdd={id => { addToCart(id); }}
-          onDec={id => { decCart(id); if ((cart[id] || 0) <= 1) setSelected(null); }}
+          onAdd={id => { addToCart(id, getCartMeasureUnit(selected)); }}
+          onDec={id => { decCart(id, getCartMeasureUnit(selected)); if ((cart[id] || 0) <= 1) setSelected(null); }}
         />
       )}
 
@@ -1009,7 +1126,7 @@ export default function PartnerGalleryPage() {
                 <ShoppingCart className="w-3.5 h-3.5" /> {items.length} item(s)
               </p>
               <p className="text-[11px] text-slate-500 mt-0.5">
-                {items.map(i => `${i.name} ×${formatQtyWithUnit(i.quantity, i)}`).join(", ")}
+                {items.map(i => `${i.name} ×${formatQtyForMeasureUnit(i.quantity, i, getCartMeasureUnit(i))}`).join(", ")}
               </p>
             </div>
             <Button
@@ -1040,7 +1157,13 @@ export default function PartnerGalleryPage() {
         isGuest={!user}
         memberRef={guestMemberRef}
         onMemberRefChange={setGuestMemberRef}
-        onOrderPlaced={() => { setCheckoutOpen(false); setGuestMemberRef(""); }}
+        onOrderPlaced={() => {
+          setCheckoutOpen(false);
+          setGuestMemberRef("");
+          setCart({});
+          setCartUnits({});
+          setSelected(null);
+        }}
       />
     </div>
   );
