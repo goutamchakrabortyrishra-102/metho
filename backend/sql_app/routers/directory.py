@@ -54,7 +54,17 @@ def _unit_info_for_product(unit_map: dict[str, dict], product_id: str) -> dict:
     unit_type = str((meta or {}).get("unit_type") or "piece").strip().lower() or "piece"
     if unit_type not in {"piece", "kg", "gram", "litre", "ml"}:
         unit_type = "piece"
-    step = float((meta or {}).get("quantity_step") or (1.0 if unit_type == "piece" else 0.25 if unit_type in {"kg", "litre"} else 50.0))
+    default_step = 1.0 if unit_type == "piece" else 0.1 if unit_type in {"kg", "litre"} else 100.0
+    try:
+        step = float((meta or {}).get("quantity_step") or 0)
+    except Exception:
+        step = 0.0
+    if step <= 0:
+        step = default_step
+    elif unit_type in {"kg", "litre"} and abs(step - 0.25) < 0.0001:
+        step = default_step
+    elif unit_type in {"gram", "ml"} and abs(step - 50.0) < 0.0001:
+        step = default_step
     return {
         "unit_type": unit_type,
         "unit_label": unit_type,
