@@ -9,6 +9,16 @@
 
 যদি আপনি একদম নতুন হন, তাহলে এই file থেকে শুরু করুন।
 
+## 0. Latest Git Sync Update (2026-08-07)
+
+`main` branch দেখে verify করা সাম্প্রতিক বড় update:
+
+1. `src/pages/PartnerRegisterPage.jsx`: registration form-এ city dropdown fallback cache যোগ হয়েছে (API fail হলেও usable থাকবে)।
+2. `src/pages/dashboard/AccountsPage.jsx`: accounts page-এ realistic period analytics (This Month, Last 30 Days, All Time) যোগ হয়েছে।
+3. `src/pages/dashboard/PartnersPage.jsx`: admin lead flow এখন external business lead generation focus, সাথে CSV export, phone-only export, lead scoring, dedupe, follow-up, hot-only filter।
+
+এই update-এর commit-wise snapshot: `LATEST_GIT_SYNC_2026-08-07.md`
+
 ## 1. এই project আসলে কী?
 
 এই system একসাথে কয়েকটা জিনিস চালায়:
@@ -415,3 +425,16 @@ backend hosted behavior recent work-এ Render-এর দিকে ছিল।
 ## 18. এক লাইনের summary
 
 METHO হলো এমন একটি React + FastAPI system যেখানে public shopping, partner commerce, member dashboard, admin control, store owner flow, image/PDF/media handling, এবং reward logic একসাথে কাজ করে।
+
+## 19. একদম নতুন মানুষের কাজ শুরু SOP
+
+যদি কেউ একেবারে ankora হয়, এই ধাপ মেনে চলুন:
+
+1. `git pull origin main` করে latest code নিন।
+2. `README.md` + `SYSTEM_GUIDE.md` + এই file পড়ুন।
+3. নিজের task route `src/App.js` থেকে identify করুন।
+4. page থেকে API call trace করে `src/services/api.js` দেখুন।
+5. backend route `backend/sql_app/routers/`-এ মিলিয়ে দেখুন।
+6. change করার আগে existing flow একবার local-এ চালান।
+7. change শেষে `npm run build` pass করান।
+8. behavior change হলে docs update দিন (handover/QA/system guide)।

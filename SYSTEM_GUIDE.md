@@ -9,6 +9,16 @@ Use it when you need to answer four questions quickly:
 3. If something breaks, where should I look first?
 4. If I need to change a feature, which layer should I edit?
 
+## 0. Latest Git-Synced Update (2026-08-07)
+
+These are the most recent high-impact updates verified from `main`:
+
+1. `src/pages/PartnerRegisterPage.jsx`: registration city dropdown now has local fallback cache when city API data is unavailable.
+2. `src/pages/dashboard/AccountsPage.jsx`: accounts analytics now supports This Month, Last 30 Days, and All Time with realistic ratios.
+3. `src/pages/dashboard/PartnersPage.jsx`: admin lead flow now focuses on external business discovery, plus CSV exports, lead scoring, dedupe, follow-up status, and hot-only filtering.
+
+If you are onboarding now, read this guide together with `LATEST_GIT_SYNC_2026-08-07.md`.
+
 ## 1. What This Repository Contains
 
 This workspace contains two main parts:
@@ -343,3 +353,16 @@ Read in this order:
 If you need one-sentence understanding of the whole system:
 
 METHO is a React + FastAPI commerce and rewards platform where public users browse products and partner shops, members use a protected dashboard, partners manage their own gallery and wallet flows, admins control approvals/settings/store ownership, and uploaded media is served through backend file endpoints.
+
+## 15. Newcomer Execution Checklist (Read-Code-Then-Work)
+
+Use this when a brand-new developer needs to start safely:
+
+1. Pull latest code (`git pull origin main`).
+2. Read `README.md` and this file once without editing.
+3. Open `src/App.js` and list which route family your task belongs to.
+4. Trace the API call from the page to `src/services/api.js`.
+5. Find the backend handler in `backend/sql_app/routers/`.
+6. Validate one full flow locally before changing code.
+7. After edits, run `npm run build`.
+8. Update docs if behavior changed (especially handover or QA docs).

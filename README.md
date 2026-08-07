@@ -2,6 +2,21 @@
 
 This repository contains the METHO frontend and the active FastAPI backend used by the frontend in the same workspace.
 
+## Git-Synced Update Snapshot (2026-08-07)
+
+Latest verified changes from `main` (newest first):
+
+1. `cd2c1e1a`: Partner registration city dropdown fallback cache in `src/pages/PartnerRegisterPage.jsx`
+2. `a6b54215`: Admin accounts page made period-based and realistic in `src/pages/dashboard/AccountsPage.jsx`
+3. `0c24cbfe`: Hot-only quick filter for external leads in `src/pages/dashboard/PartnersPage.jsx`
+4. `8ac0eaf8`: Lead scoring, dedupe, and follow-up tracker in `src/pages/dashboard/PartnersPage.jsx`
+5. `0b7163ff`: Phone-only CSV export for external leads in `src/pages/dashboard/PartnersPage.jsx`
+6. `08534c2d`: CSV export for external leads in `src/pages/dashboard/PartnersPage.jsx`
+7. `fdd14230`: Switched nearby search to external business lead generation in `src/pages/dashboard/PartnersPage.jsx`
+8. `40f8e23a`: Added admin nearby offline lead finder in `src/pages/dashboard/PartnersPage.jsx`
+
+Detailed note: `LATEST_GIT_SYNC_2026-08-07.md`
+
 If you are opening this project for the first time, do not start by guessing files. Start here:
 
 1. Read `SYSTEM_GUIDE.md`
@@ -39,6 +54,26 @@ METHO combines:
 ### Backend
 
 Use the SQL backend in `backend/sql_app/` as the main reference point for current hosted behavior.
+
+## New Developer Zero-Confusion Workflow
+
+If someone is completely new to this codebase, follow this exact sequence:
+
+1. Read `SYSTEM_GUIDE.md`
+2. Read `SYSTEM_GUIDE_BN.md` (Bangla-first map)
+3. Read `README_HANDOVER_BN.md`
+4. Open route map in `src/App.js`
+5. Open API client in `src/services/api.js`
+6. Open backend boot in `backend/sql_app/main.py`
+7. Run frontend locally (`npm start`)
+8. Build once (`npm run build`) before any handoff
+
+For syncing with latest upstream changes before work:
+
+1. `git fetch origin`
+2. `git pull origin main`
+3. `git log --oneline -n 10`
+4. `git status --short`
 
 ## Best Starting Files
 
