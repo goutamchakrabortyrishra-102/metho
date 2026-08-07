@@ -17,6 +17,11 @@ import { inferPartnerPrimarySector, getPartnerVisibleSectors, PARTNER_SECTOR_KEY
 
 const FALLBACK = "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 400 400'><rect width='400' height='400' fill='%23e2e8f0'/><text x='50%25' y='50%25' dominant-baseline='middle' text-anchor='middle' fill='%23475569' font-size='20' font-family='Arial'>No Image</text></svg>";
 const PDF_PREVIEW = "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 400 400'><rect width='400' height='400' fill='%23f1f5f9'/><rect x='80' y='50' width='240' height='300' rx='14' fill='%23ffffff' stroke='%2394a3b8' stroke-width='4'/><text x='200' y='190' text-anchor='middle' fill='%23dc2626' font-size='46' font-family='Arial' font-weight='bold'>PDF</text><text x='200' y='228' text-anchor='middle' fill='%23334155' font-size='16' font-family='Arial'>Tap to Open</text></svg>";
+const cleanPhone = (v) => (v || "").replace(/[^\d]/g, "");
+const ownerChatUrl = (partner) => {
+  const n = cleanPhone(partner?.whatsapp_no || partner?.phone);
+  return n ? `https://wa.me/${n}?text=${encodeURIComponent(`Hi ${partner?.business_name || "Owner"}, I found your shop on METHOO STORE`)}` : "";
+};
 
 const isLikelyAssetRef = (value) => {
   const s = String(value || "").trim();
@@ -535,6 +540,7 @@ export default function PartnerGalleryPage() {
   const total = items.reduce((s, i) => s + i.subtotal, 0);
 
   const galleryUrl = `${window.location.origin}/gallery/${partnerCode}`;
+  const partnerChatUrl = ownerChatUrl(partner);
 
   const handleBookNow = (listing) => {
     if (!listing?.id) return;
@@ -772,6 +778,17 @@ export default function PartnerGalleryPage() {
             <p className="text-[10px] text-amber-400 uppercase font-bold">{activeTab === "transport" ? "Transport" : (activeTab === "stay-dining" ? "Stay & Dining" : (activeTab === "doorstep" ? "Doorstep" : (activeTab === "other-services" ? "Other Services" : "Products")))}</p>
             <p className="font-display font-black text-3xl">{activeListings.length}</p>
           </div>
+          {partnerChatUrl ? (
+            <a
+              href={partnerChatUrl}
+              target="_blank"
+              rel="noreferrer"
+              className="inline-flex items-center gap-2 rounded-full bg-green-500 px-4 py-2 text-xs font-bold text-white hover:bg-green-600"
+              data-testid="gallery-chat-owner"
+            >
+              <MessageCircle className="w-3.5 h-3.5" /> Chat with Owner
+            </a>
+          ) : null}
         </div>
       </div>
 

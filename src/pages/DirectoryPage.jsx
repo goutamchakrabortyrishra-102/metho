@@ -345,7 +345,7 @@ function PartnerCard({ p }) {
             className="flex flex-col items-center gap-1 text-[10px] font-semibold text-green-700 hover:bg-green-50 rounded-lg py-2 transition"
             data-testid={`partner-wa-${p.partner_code}`}
           >
-            <MessageCircle className="w-4 h-4" /> WhatsApp
+            <MessageCircle className="w-4 h-4" /> Chat Owner
           </a>
         ) : <div />}
         <a

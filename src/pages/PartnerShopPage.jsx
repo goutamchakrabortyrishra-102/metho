@@ -733,7 +733,7 @@ export default function PartnerShopPage() {
                 className="inline-flex items-center gap-1.5 bg-green-500 hover:bg-green-600 text-white border border-green-400 rounded-full text-xs font-bold px-4 py-2 transition"
                 data-testid="shop-whatsapp"
               >
-                <MessageCircle className="w-3.5 h-3.5" /> WhatsApp
+                <MessageCircle className="w-3.5 h-3.5" /> Chat with Owner
               </a>
             )}
             <a
