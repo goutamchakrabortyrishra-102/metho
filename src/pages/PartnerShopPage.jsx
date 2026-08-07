@@ -269,6 +269,7 @@ export default function PartnerShopPage() {
   const [transportFarePresets, setTransportFarePresets] = useState([]);
   const [selectedFarePresetId, setSelectedFarePresetId] = useState("");
   const [transportActiveTab, setTransportActiveTab] = useState("services");
+  const [transportServiceSearch, setTransportServiceSearch] = useState("");
   const [transportForm, setTransportForm] = useState({
     customer_name: "",
     customer_phone: "",
@@ -425,10 +426,36 @@ export default function PartnerShopPage() {
       return haystack.includes(q);
     });
   }, [data?.partner?.business_name, transportListings, transportSearch]);
+  const filteredTransportServiceOptions = useMemo(() => {
+    const q = String(transportServiceSearch || "").trim().toLowerCase();
+    if (!q) return transportListings.slice(0, 8);
+    return transportListings.filter((item) => {
+      const haystack = [item?.name, item?.category, item?.description, item?.service_template_key]
+        .map((value) => String(value || "").toLowerCase())
+        .join(" ");
+      return haystack.includes(q);
+    }).slice(0, 8);
+  }, [transportListings, transportServiceSearch]);
   const hasHospitalityListings = hospitalityListings.length > 0;
   const hasDoorstepListings = doorstepListings.length > 0;
   const hasServiceListings = regularServiceListings.length > 0;
   const hasTransportListings = transportListings.length > 0;
+
+  const selectTransportBookingService = (nextService) => {
+    setTransportService(nextService || null);
+    setTransportServiceSearch(nextService ? `${nextService?.name || ""}${nextService?.category ? ` (${nextService.category})` : ""}`.trim() : "");
+    setSelectedFarePresetId("");
+    setTransportFarePresets([]);
+    setTransportBooking(null);
+    setTransportForm((prev) => ({
+      ...prev,
+      pickup: "",
+      destination: "",
+      travel_date: "",
+      notes: "",
+    }));
+    if (nextService?.id) void loadTransportFarePresets(nextService.id);
+  };
 
   const inc = (product) => {
     const id = product?.id;
@@ -510,6 +537,7 @@ export default function PartnerShopPage() {
   const openTransportBookingDesk = (service) => {
     if (!service?.id) return;
     setTransportService(service);
+    setTransportServiceSearch(`${service?.name || ""}${service?.category ? ` (${service.category})` : ""}`.trim());
     setTransportForm({
       customer_name: isMemberOrCustomer ? (user?.name || "") : "",
       customer_phone: isMemberOrCustomer ? (user?.phone || "") : "",
@@ -961,31 +989,36 @@ export default function PartnerShopPage() {
                 <div className="mt-5 space-y-3">
                   <div>
                     <p className="text-[11px] text-slate-600 mb-1">Select transport service</p>
-                    <select
-                      value={String(transportService?.id || "")}
-                      onChange={(e) => {
-                        const nextService = transportListings.find((item) => String(item?.id || "") === String(e.target.value || ""));
-                        setTransportService(nextService || null);
-                        setSelectedFarePresetId("");
-                        setTransportFarePresets([]);
-                        setTransportBooking(null);
-                        setTransportForm((prev) => ({
-                          ...prev,
-                          pickup: "",
-                          destination: "",
-                          travel_date: "",
-                          notes: "",
-                        }));
-                        if (nextService?.id) void loadTransportFarePresets(nextService.id);
-                      }}
-                      className="h-11 w-full rounded-xl border border-emerald-200 bg-white px-3 text-sm outline-none focus:ring-2 focus:ring-emerald-300"
-                      data-testid="transport-booking-service-select"
-                    >
-                      <option value="">Select cab / car rental / bike rental</option>
-                      {transportListings.map((service) => (
-                        <option key={service.id} value={service.id}>{service.name} ({service.category || "Transport"})</option>
-                      ))}
-                    </select>
+                    <div className="rounded-xl border border-emerald-200 bg-white p-2">
+                      <Input
+                        value={transportServiceSearch}
+                        onChange={(e) => {
+                          setTransportServiceSearch(e.target.value);
+                          if (transportService?.id) setTransportService(null);
+                        }}
+                        placeholder="Type cab / car rental / bike rental"
+                        className="h-10 border-0 px-2 shadow-none focus-visible:ring-0"
+                        data-testid="transport-booking-service-select"
+                      />
+                      <div className="max-h-40 overflow-y-auto border-t border-emerald-100 pt-2">
+                        {filteredTransportServiceOptions.length ? filteredTransportServiceOptions.map((service) => (
+                          <button
+                            key={service.id}
+                            type="button"
+                            onClick={() => selectTransportBookingService(service)}
+                            className={`flex w-full items-start justify-between gap-3 rounded-lg px-3 py-2 text-left text-sm transition-colors ${String(transportService?.id || "") === String(service.id) ? "bg-emerald-50 text-emerald-950" : "hover:bg-slate-50 text-slate-700"}`}
+                          >
+                            <span className="min-w-0">
+                              <span className="block font-semibold line-clamp-1">{service.name}</span>
+                              <span className="block text-xs text-slate-500 line-clamp-1">{service.category || "Transport"}</span>
+                            </span>
+                            <span className="shrink-0 text-xs font-semibold text-emerald-800">₹{Number(service?.price || 0).toLocaleString("en-IN")}</span>
+                          </button>
+                        )) : (
+                          <p className="px-3 py-2 text-sm text-slate-500">No transport service found for this search.</p>
+                        )}
+                      </div>
+                    </div>
                   </div>
 
                   {transportService ? (
