@@ -27,6 +27,29 @@ def _featured_url_alive(url: str) -> bool:
             return (UPLOADED_OBJECTS_DIR / raw[len(prefix):]).exists()
     return True
 
+
+def _lookup_pincode_geo(pin: str, city: str, state: str) -> tuple[float | None, float | None]:
+    # Best-effort geocode for admin nearby filtering. Failures should not break pincode lookup.
+    query = ", ".join([part for part in [pin, city, state, "India"] if str(part or "").strip()])
+    if not query:
+        return (None, None)
+    endpoint = f"https://nominatim.openstreetmap.org/search?format=json&limit=1&q={urlparse.quote(query)}"
+    req = urlrequest.Request(endpoint, headers={"User-Agent": "metho-directory/1.0"})
+    try:
+        with urlrequest.urlopen(req, timeout=8) as response:
+            payload = json.loads(response.read().decode("utf-8"))
+    except Exception:
+        return (None, None)
+    if not isinstance(payload, list) or not payload:
+        return (None, None)
+    top = payload[0] if isinstance(payload[0], dict) else {}
+    try:
+        lat = float(top.get("lat"))
+        lng = float(top.get("lon"))
+        return (lat, lng)
+    except Exception:
+        return (None, None)
+
 router = APIRouter(prefix="/api", tags=["directory"])
 PARTNER_PRODUCT_UNITS_KEY = "partner_product_units"
 PARTNER_PRODUCT_META_KEY = "partner_product_meta"
@@ -307,11 +330,15 @@ def pincode_lookup(pincode: str):
     if not city_options:
         raise HTTPException(status_code=404, detail="City not found for this pincode")
 
+    latitude, longitude = _lookup_pincode_geo(pin, city_options[0], state)
+
     return {
         "pincode": pin,
         "city": city_options[0],
         "city_options": city_options,
         "state": state,
+        "latitude": latitude,
+        "longitude": longitude,
     }
 
 

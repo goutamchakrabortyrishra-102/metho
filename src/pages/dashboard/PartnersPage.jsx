@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
-import { Store, Plus, Pencil, Trash2, TrendingUp, Percent, Building, FileSpreadsheet, FileDown, ScrollText, Star, MessageCircle, Images, Upload, CheckCircle2, XCircle, ChevronDown, Search, Eye, Network, Package } from "lucide-react";
+import { Store, Plus, Pencil, Trash2, TrendingUp, Percent, Building, FileSpreadsheet, FileDown, ScrollText, Star, MessageCircle, Images, Upload, CheckCircle2, XCircle, ChevronDown, Search, Eye, Network, Package, LocateFixed, Globe, PhoneCall } from "lucide-react";
 import { Navigate, Link, useLocation, useNavigate } from "react-router-dom";
 import * as XLSX from "xlsx";
 import { jsPDF } from "jspdf";
@@ -20,6 +20,31 @@ const inr = (v) => `₹${(Number(v) || 0).toLocaleString("en-IN", { maximumFract
 const mapsUrl = (p) => {
   const q = [p.business_name, p.address, p.city, p.state, p.pincode].filter(Boolean).join(", ");
   return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(q)}`;
+};
+
+const haversineKm = (lat1, lon1, lat2, lon2) => {
+  const toRad = (v) => (Number(v) * Math.PI) / 180;
+  const dLat = toRad(Number(lat2) - Number(lat1));
+  const dLon = toRad(Number(lon2) - Number(lon1));
+  const a = Math.sin(dLat / 2) * Math.sin(dLat / 2)
+    + Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLon / 2) * Math.sin(dLon / 2);
+  return 6371 * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+};
+
+const hasOnlinePresence = (partner) => {
+  const text = [partner?.email, partner?.upi_id, partner?.notes]
+    .map((v) => String(v || "").trim().toLowerCase())
+    .join(" ");
+  return text.includes("http://")
+    || text.includes("https://")
+    || text.includes("www.")
+    || text.includes(".com")
+    || text.includes("facebook")
+    || text.includes("instagram")
+    || text.includes("youtube")
+    || text.includes("linkedin")
+    || text.includes("google map")
+    || text.includes("online");
 };
 
 const normalizeAddressForSearch = ({ address, city, state, pincode }) => {
@@ -95,6 +120,12 @@ export default function PartnersPage() {
   const [loadError, setLoadError] = useState("");
   const [showOfflineBilling, setShowOfflineBilling] = useState(false);
   const [selectedPartnerId, setSelectedPartnerId] = useState("");
+  const [nearbyCity, setNearbyCity] = useState("");
+  const [nearbyType, setNearbyType] = useState("");
+  const [nearbyRadiusKm, setNearbyRadiusKm] = useState(15);
+  const [nearbyLocation, setNearbyLocation] = useState(null);
+  const [nearbyGeoBusy, setNearbyGeoBusy] = useState(false);
+  const [pincodeGeoMap, setPincodeGeoMap] = useState({});
   const lastFormPinRef = useRef("");
   const lastEditPinRef = useRef("");
 
@@ -431,6 +462,33 @@ export default function PartnersPage() {
     [partners, selectedPartnerId]
   );
 
+  const nearbyLeads = useMemo(() => {
+    if (!nearbyLocation) return [];
+    const radius = Math.max(1, Number(nearbyRadiusKm) || 15);
+    const cityNeedle = String(nearbyCity || "").trim().toLowerCase();
+    const typeNeedle = String(nearbyType || "").trim().toLowerCase();
+
+    return partners
+      .filter((p) => {
+        if (!String(p?.pincode || "").trim()) return false;
+        if (!pincodeGeoMap[String(p.pincode).trim()]) return false;
+        if (cityNeedle && String(p.city || "").trim().toLowerCase() !== cityNeedle) return false;
+        if (typeNeedle && !String(p.business_type || "").trim().toLowerCase().includes(typeNeedle)) return false;
+        if (hasOnlinePresence(p)) return false;
+        return true;
+      })
+      .map((p) => {
+        const geo = pincodeGeoMap[String(p.pincode).trim()];
+        const distanceKm = haversineKm(nearbyLocation.lat, nearbyLocation.lng, geo.latitude, geo.longitude);
+        return {
+          ...p,
+          distance_km: distanceKm,
+        };
+      })
+      .filter((p) => Number.isFinite(p.distance_km) && p.distance_km <= radius)
+      .sort((a, b) => a.distance_km - b.distance_km);
+  }, [partners, nearbyLocation, nearbyRadiusKm, nearbyCity, nearbyType, pincodeGeoMap]);
+
   const exportLedgerExcel = () => {
     if (!ledger) return;
     const wb = XLSX.utils.book_new();
@@ -560,6 +618,43 @@ export default function PartnersPage() {
         toast.error(msg);
       }
     });
+
+  const resolvePincodeGeo = async (pin) => {
+    const normalized = normalizePincode(pin);
+    if (!isCompletePincode(normalized)) return null;
+    if (pincodeGeoMap[normalized]) return pincodeGeoMap[normalized];
+    try {
+      const { data } = await api.get(`/directory/pincode-lookup?pincode=${encodeURIComponent(normalized)}`);
+      const lat = Number(data?.latitude);
+      const lng = Number(data?.longitude);
+      if (!Number.isFinite(lat) || !Number.isFinite(lng)) return null;
+      const next = { latitude: lat, longitude: lng };
+      setPincodeGeoMap((prev) => ({ ...prev, [normalized]: next }));
+      return next;
+    } catch {
+      return null;
+    }
+  };
+
+  const detectCurrentLocation = async () => {
+    if (!navigator?.geolocation) {
+      toast.error("Browser geolocation support পাওয়া যায়নি");
+      return;
+    }
+    setNearbyGeoBusy(true);
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        setNearbyLocation({ lat: Number(pos.coords.latitude), lng: Number(pos.coords.longitude) });
+        setNearbyGeoBusy(false);
+        toast.success("Current location detected");
+      },
+      () => {
+        setNearbyGeoBusy(false);
+        toast.error("Current location detect করা যায়নি");
+      },
+      { enableHighAccuracy: true, timeout: 12000, maximumAge: 0 }
+    );
+  };
   useEffect(() => { if (isAdmin) load(); /* eslint-disable-next-line */ }, [isAdmin]);
   useEffect(() => {
     if (!isAdmin) return;
@@ -593,6 +688,23 @@ export default function PartnersPage() {
       setSelectedPartnerId(String(partners[0].id));
     }
   }, [partners, selectedPartnerId]);
+
+  useEffect(() => {
+    const uniquePins = Array.from(new Set((partners || []).map((p) => normalizePincode(p?.pincode || "")).filter((pin) => isCompletePincode(pin))));
+    const missing = uniquePins.filter((pin) => !pincodeGeoMap[pin]).slice(0, 40);
+    if (!missing.length) return;
+    let cancelled = false;
+    (async () => {
+      for (const pin of missing) {
+        if (cancelled) return;
+        await resolvePincodeGeo(pin);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [partners]);
 
   useEffect(() => {
     if (!isAdmin) return;
@@ -914,6 +1026,110 @@ export default function PartnersPage() {
             </DropdownMenu>
           </div>
         </div>
+      </div>
+
+      <div className="bg-white rounded-xl border border-border p-4" data-testid="partner-nearby-offline-leads">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <div>
+            <p className="text-xs uppercase tracking-widest text-emerald-800 font-semibold">Nearby Offline Leads</p>
+            <p className="text-xs text-muted-foreground mt-1">City + current location থেকে website/online presence না থাকা business/service/shop list দেখুন।</p>
+          </div>
+          <Button
+            type="button"
+            onClick={detectCurrentLocation}
+            disabled={nearbyGeoBusy}
+            className="rounded-full bg-emerald-900 hover:bg-emerald-950 text-white"
+            data-testid="nearby-detect-location"
+          >
+            <LocateFixed className="w-4 h-4 mr-2" /> {nearbyGeoBusy ? "Detecting..." : "Use Current Location"}
+          </Button>
+        </div>
+
+        <div className="mt-3 grid grid-cols-1 md:grid-cols-4 gap-2">
+          <Input
+            value={nearbyCity}
+            onChange={(e) => setNearbyCity(e.target.value)}
+            list="partner-city-list"
+            placeholder="City"
+            data-testid="nearby-city-filter"
+          />
+          <Input
+            value={nearbyType}
+            onChange={(e) => setNearbyType(e.target.value)}
+            list="partner-business-types-list"
+            placeholder="Business/Service type"
+            data-testid="nearby-type-filter"
+          />
+          <Input
+            type="number"
+            min={1}
+            max={200}
+            value={nearbyRadiusKm}
+            onChange={(e) => setNearbyRadiusKm(e.target.value)}
+            placeholder="Radius (km)"
+            data-testid="nearby-radius-km"
+          />
+          <Button
+            type="button"
+            variant="outline"
+            className="rounded-full"
+            onClick={() => { setNearbyCity(""); setNearbyType(""); setNearbyRadiusKm(15); }}
+            data-testid="nearby-clear-filters"
+          >
+            Clear
+          </Button>
+        </div>
+
+        {!nearbyLocation ? (
+          <p className="text-xs text-amber-700 mt-3">Current location না দিলে nearby filtering চালু হবে না।</p>
+        ) : (
+          <>
+            <p className="text-xs text-slate-600 mt-3">
+              Found <span className="font-semibold text-emerald-900">{nearbyLeads.length}</span> offline/website-missing leads within {Math.max(1, Number(nearbyRadiusKm) || 15)} km
+            </p>
+            {nearbyLeads.length === 0 ? (
+              <p className="text-xs text-muted-foreground mt-2">No matching leads in selected radius/filter.</p>
+            ) : (
+              <div className="mt-3 overflow-x-auto">
+                <table className="min-w-full text-xs border border-border rounded-lg overflow-hidden" data-testid="nearby-leads-table">
+                  <thead className="bg-slate-50 text-slate-700">
+                    <tr>
+                      <th className="text-left px-3 py-2">Shop</th>
+                      <th className="text-left px-3 py-2">Type</th>
+                      <th className="text-left px-3 py-2">City</th>
+                      <th className="text-left px-3 py-2">Distance</th>
+                      <th className="text-left px-3 py-2">Contact</th>
+                      <th className="text-left px-3 py-2">Status</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {nearbyLeads.slice(0, 200).map((p) => (
+                      <tr key={`offline-lead-${p.id}`} className="border-t border-border">
+                        <td className="px-3 py-2">
+                          <p className="font-semibold text-emerald-950">{p.business_name}</p>
+                          <p className="text-[11px] text-slate-500">{p.address || "-"}</p>
+                        </td>
+                        <td className="px-3 py-2">{p.business_type || "-"}</td>
+                        <td className="px-3 py-2">{p.city || "-"}</td>
+                        <td className="px-3 py-2">{Number(p.distance_km || 0).toFixed(1)} km</td>
+                        <td className="px-3 py-2">
+                          <a href={`tel:${p.phone || ""}`} className="inline-flex items-center gap-1 text-emerald-800 hover:underline">
+                            <PhoneCall className="w-3.5 h-3.5" /> {p.phone || p.whatsapp_no || "No phone"}
+                          </a>
+                        </td>
+                        <td className="px-3 py-2">
+                          <span className="inline-flex items-center gap-1 rounded-full bg-amber-100 text-amber-800 px-2 py-0.5 font-semibold">
+                            <Globe className="w-3 h-3" /> Website/Online Missing
+                          </span>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </>
+        )}
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4" data-testid="partner-meta-admin-tools">
