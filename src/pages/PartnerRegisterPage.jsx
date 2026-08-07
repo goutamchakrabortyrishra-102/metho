@@ -11,6 +11,7 @@ import { Logo } from "@/components/Logo";
 import { INDIAN_STATES, isCompletePincode, normalizePincode } from "@/lib/indiaLocation";
 
 const BUSINESS_TYPES = ["Shop", "Service"];
+const LOCAL_CITIES_KEY = "metho_admin_cities_v1";
 
 const SERVICE_CATEGORY_OPTIONS = [
   "Hotel",
@@ -111,6 +112,25 @@ const normalizeAddressForSearch = ({ address, city, district, state, pincode }) 
 
 const uniqueSorted = (items) => Array.from(new Set(items.map((value) => String(value || "").trim()).filter(Boolean))).sort((a, b) => a.localeCompare(b));
 
+const readLocalArray = (key, fallback = []) => {
+  try {
+    const raw = window.localStorage.getItem(key);
+    if (!raw) return fallback;
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? parsed : fallback;
+  } catch {
+    return fallback;
+  }
+};
+
+const writeLocalArray = (key, items) => {
+  try {
+    window.localStorage.setItem(key, JSON.stringify(Array.isArray(items) ? items : []));
+  } catch {
+    // ignore local storage failures
+  }
+};
+
 export default function PartnerRegisterPage() {
   const nav = useNavigate();
   const [form, setForm] = useState({
@@ -146,10 +166,24 @@ export default function PartnerRegisterPage() {
     api.get("/directory/cities")
       .then((r) => {
         if (cancelled) return;
-        setCityOptions(Array.isArray(r.data) ? r.data : []);
+        const apiCities = Array.isArray(r.data) ? r.data : [];
+        if (apiCities.length) {
+          setCityOptions(apiCities);
+          writeLocalArray(LOCAL_CITIES_KEY, apiCities);
+          return;
+        }
+
+        const cached = readLocalArray(LOCAL_CITIES_KEY, []);
+        if (cached.length) setCityOptions(cached);
       })
       .catch(() => {
-        if (!cancelled) setCityOptions([]);
+        if (cancelled) return;
+        const cached = readLocalArray(LOCAL_CITIES_KEY, []);
+        if (cached.length) {
+          setCityOptions(cached);
+          return;
+        }
+        setCityOptions([]);
       });
     return () => {
       cancelled = true;
@@ -171,6 +205,13 @@ export default function PartnerRegisterPage() {
         const cityOptionsFromPin = Array.isArray(r?.data?.city_options) ? r.data.city_options : [];
         const state = String(r?.data?.state || "").trim();
         setDistrictOptions(cityOptionsFromPin);
+        if (cityOptionsFromPin.length || city) {
+          setCityOptions((prev) => {
+            const merged = uniqueSorted([...(prev || []), ...cityOptionsFromPin, city]);
+            writeLocalArray(LOCAL_CITIES_KEY, merged);
+            return merged;
+          });
+        }
         setForm((prev) => ({
           ...prev,
           pincode: pin,
