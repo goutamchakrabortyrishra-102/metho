@@ -142,6 +142,12 @@ export default function PartnerRegisterPage() {
   });
   const [busy, setBusy] = useState(false);
   const [pincodeBusy, setPincodeBusy] = useState(false);
+  const [locationMetaBusy, setLocationMetaBusy] = useState(false);
+  const [indiaLocationMeta, setIndiaLocationMeta] = useState({
+    states: [],
+    districtsByState: {},
+    citiesByStateDistrict: {},
+  });
   const [cityOptions, setCityOptions] = useState([]);
   const [districtOptions, setDistrictOptions] = useState([]);
   const lastLookupPinRef = useRef("");
@@ -156,8 +162,20 @@ export default function PartnerRegisterPage() {
   const suggestedShopTemplates = isShop
     ? (SHOP_TEMPLATE_OPTIONS_BY_SECTOR[form.shop_sector] || ALL_SHOP_TEMPLATE_OPTIONS)
     : [];
-  const selectedCityOptions = useMemo(() => uniqueSorted([...(cityOptions || []), form.city]), [cityOptions, form.city]);
-  const selectedDistrictOptions = useMemo(() => uniqueSorted([...(districtOptions || []), form.district]), [districtOptions, form.district]);
+  const selectedDistrictOptions = useMemo(() => {
+    const fromPin = districtOptions || [];
+    const fromMeta = form.state ? (indiaLocationMeta.districtsByState?.[form.state] || []) : [];
+    return uniqueSorted([...(fromPin || []), ...(fromMeta || []), form.district]);
+  }, [districtOptions, form.district, form.state, indiaLocationMeta.districtsByState]);
+
+  const selectedCityOptions = useMemo(() => {
+    if (!form.state || !form.district) {
+      return uniqueSorted([...(cityOptions || []), form.city]);
+    }
+    const key = `${String(form.state || "").toLowerCase()}||${String(form.district || "").toLowerCase()}`;
+    const fromMeta = indiaLocationMeta.citiesByStateDistrict?.[key] || [];
+    return uniqueSorted([...(cityOptions || []), ...(fromMeta || []), form.city]);
+  }, [cityOptions, form.city, form.state, form.district, indiaLocationMeta.citiesByStateDistrict]);
 
   const upd = (k) => (e) => setForm({ ...form, [k]: e.target.value });
 
@@ -185,6 +203,58 @@ export default function PartnerRegisterPage() {
         }
         setCityOptions([]);
       });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+    setLocationMetaBusy(true);
+    import("indian-pincodes")
+      .then((mod) => {
+        if (cancelled) return;
+        const pkg = mod?.default || mod;
+        const allRows = typeof pkg?.getAllPincodes === "function" ? pkg.getAllPincodes() : [];
+        const rows = Array.isArray(allRows) ? allRows : [];
+        const statesSet = new Set();
+        const districtsMap = {};
+        const citiesMap = {};
+
+        rows.forEach((row) => {
+          const state = String(row?.state || "").trim();
+          const district = String(row?.district || "").trim();
+          const city = String(row?.name || "").trim();
+          if (!state || !district) return;
+          statesSet.add(state);
+          if (!districtsMap[state]) districtsMap[state] = new Set();
+          districtsMap[state].add(district);
+          if (city) {
+            const key = `${state.toLowerCase()}||${district.toLowerCase()}`;
+            if (!citiesMap[key]) citiesMap[key] = new Set();
+            citiesMap[key].add(city);
+          }
+        });
+
+        const states = Array.from(statesSet).sort((a, b) => a.localeCompare(b));
+        const districtsByState = Object.fromEntries(
+          Object.entries(districtsMap).map(([state, districts]) => [state, Array.from(districts).sort((a, b) => a.localeCompare(b))])
+        );
+        const citiesByStateDistrict = Object.fromEntries(
+          Object.entries(citiesMap).map(([key, citySet]) => [key, Array.from(citySet).sort((a, b) => a.localeCompare(b))])
+        );
+
+        setIndiaLocationMeta({ states, districtsByState, citiesByStateDistrict });
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setIndiaLocationMeta({ states: [...INDIAN_STATES], districtsByState: {}, citiesByStateDistrict: {} });
+        }
+      })
+      .finally(() => {
+        if (!cancelled) setLocationMetaBusy(false);
+      });
+
     return () => {
       cancelled = true;
     };
@@ -543,24 +613,41 @@ export default function PartnerRegisterPage() {
                 <Textarea required rows={2} value={form.address} onChange={upd("address")} placeholder="Shop no, street, area" className="mt-1.5" data-testid="reg-address" />
               </div>
               <div>
-                <Label>City *</Label>
-                <select required value={form.city} onChange={upd("city")} className="mt-1.5 h-11 w-full rounded-md border border-input bg-white px-3 text-sm" data-testid="reg-city">
-                  <option value="">Select city</option>
-                  {selectedCityOptions.map((city) => <option key={city} value={city}>{city}</option>)}
-                </select>
-              </div>
-              <div>
                 <Label>State *</Label>
-                <select required value={form.state} onChange={upd("state")} className="mt-1.5 h-11 w-full rounded-md border border-input bg-white px-3 text-sm" data-testid="reg-state">
+                <select
+                  required
+                  value={form.state}
+                  onChange={(e) => setForm((prev) => ({ ...prev, state: e.target.value, district: "" }))}
+                  className="mt-1.5 h-11 w-full rounded-md border border-input bg-white px-3 text-sm"
+                  data-testid="reg-state"
+                >
                   <option value="">Select state</option>
-                  {INDIAN_STATES.map((state) => <option key={state} value={state}>{state}</option>)}
+                  {(indiaLocationMeta.states.length ? indiaLocationMeta.states : INDIAN_STATES).map((state) => <option key={state} value={state}>{state}</option>)}
                 </select>
               </div>
               <div>
                 <Label>District</Label>
-                <select value={form.district} onChange={upd("district")} className="mt-1.5 h-11 w-full rounded-md border border-input bg-white px-3 text-sm" data-testid="reg-district">
+                <select
+                  value={form.district}
+                  onChange={upd("district")}
+                  className="mt-1.5 h-11 w-full rounded-md border border-input bg-white px-3 text-sm"
+                  data-testid="reg-district"
+                >
                   <option value="">Select district</option>
                   {selectedDistrictOptions.map((district) => <option key={district} value={district}>{district}</option>)}
+                </select>
+              </div>
+              <div>
+                <Label>City *</Label>
+                <select
+                  required
+                  value={form.city}
+                  onChange={upd("city")}
+                  className="mt-1.5 h-11 w-full rounded-md border border-input bg-white px-3 text-sm"
+                  data-testid="reg-city"
+                >
+                  <option value="">Select city</option>
+                  {selectedCityOptions.map((city) => <option key={city} value={city}>{city}</option>)}
                 </select>
               </div>
               <div>
@@ -574,6 +661,7 @@ export default function PartnerRegisterPage() {
                   data-testid="reg-pincode"
                 />
                 {pincodeBusy ? <p className="text-[11px] text-muted-foreground mt-1">Pincode থেকে city/district আনা হচ্ছে...</p> : null}
+                {locationMetaBusy ? <p className="text-[11px] text-muted-foreground mt-1">State/district/city data loading...</p> : null}
               </div>
             </div>
           </section>
