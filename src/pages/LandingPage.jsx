@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { motion } from "framer-motion";
 import { ArrowRight, TrendingUp, Users, Wallet, Shield, Award, Sparkles, Check, ChevronRight, Star, Building2, Zap, Globe, MapPin, Store, Search, Phone } from "lucide-react";
@@ -97,8 +97,37 @@ const DEFAULT_POLICY = {
 
 let landingProductsPromise = null;
 
-const fetchPublicStartupProducts = async (limit = 200) => {
-  const safeLimit = Math.max(1, Math.min(Number(limit) || 200, 500));
+const useSectionActivation = (rootMargin = "240px 0px") => {
+  const sectionRef = useRef(null);
+  const [isActive, setIsActive] = useState(false);
+
+  useEffect(() => {
+    if (isActive) return;
+    const node = sectionRef.current;
+    if (!node || typeof IntersectionObserver === "undefined") {
+      setIsActive(true);
+      return;
+    }
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries.some((entry) => entry.isIntersecting)) {
+          setIsActive(true);
+          observer.disconnect();
+        }
+      },
+      { rootMargin }
+    );
+
+    observer.observe(node);
+    return () => observer.disconnect();
+  }, [isActive, rootMargin]);
+
+  return [sectionRef, isActive];
+};
+
+const fetchPublicStartupProducts = async (limit = 80) => {
+  const safeLimit = Math.max(1, Math.min(Number(limit) || 80, 120));
   const candidates = [
     `/products/public?limit=${safeLimit}`,
     `/products?limit=${safeLimit}&compact=1`,
@@ -119,7 +148,7 @@ const fetchPublicStartupProducts = async (limit = 200) => {
 
 const loadLandingProducts = async () => {
   if (!landingProductsPromise) {
-    landingProductsPromise = fetchPublicStartupProducts(200).catch((err) => {
+    landingProductsPromise = fetchPublicStartupProducts(80).catch((err) => {
       landingProductsPromise = null;
       throw err;
     });
@@ -585,6 +614,7 @@ const Hero = () => {
 
 const Features = () => {
   const { settings } = useSettings();
+  const [sectionRef, isSectionActive] = useSectionActivation();
   const showMethoStore = settings?.landing_show_metho_store !== false;
   const featuredStoreIds = useMemo(() => {
     const raw = settings?.landing_featured_store_ids;
@@ -601,6 +631,7 @@ const Features = () => {
   const [loadingStore, setLoadingStore] = React.useState(true);
 
   useEffect(() => {
+    if (!isSectionActive) return;
     let active = true;
     setLoadingStore(true);
 
@@ -626,12 +657,12 @@ const Features = () => {
     return () => {
       active = false;
     };
-  }, [featuredStoreIds]);
+  }, [featuredStoreIds, isSectionActive]);
 
   if (!showMethoStore) return null;
 
   return (
-    <section id="features" className="py-24 bg-[linear-gradient(180deg,#ffffff_0%,#f4faf7_100%)]">
+    <section ref={sectionRef} id="features" className="py-24 bg-[linear-gradient(180deg,#ffffff_0%,#f4faf7_100%)]">
       <div className="max-w-7xl mx-auto px-6">
         <div className="max-w-3xl">
           <p className="text-xs uppercase tracking-[0.25em] text-emerald-800 font-semibold">METHO Store</p>
@@ -778,6 +809,7 @@ const ASSOCIATE_TYPES = [
 
 const AssociatePartnerFinder = () => {
   const { settings } = useSettings();
+  const [sectionRef, isSectionActive] = useSectionActivation();
   const directoryHero = settings?.directory_hero_image_url_full || "";
   const showPartnerShop = settings?.landing_show_partner_shop !== false;
   const featuredPartnerIds = useMemo(() => {
@@ -804,11 +836,13 @@ const AssociatePartnerFinder = () => {
   const [category, setCategory] = React.useState("");
 
   useEffect(() => {
+    if (!isSectionActive) return;
     api.get("/directory/cities").then((r) => setCities(Array.isArray(r.data) ? r.data : [])).catch(() => setCities([]));
     api.get("/directory/categories").then((r) => setCategories(Array.isArray(r.data) ? r.data : [])).catch(() => setCategories([]));
-  }, []);
+  }, [isSectionActive]);
 
   useEffect(() => {
+    if (!isSectionActive) return;
     const params = new URLSearchParams();
     const q = [nameQuery, serviceQuery].map((v) => String(v || "").trim()).filter(Boolean).join(" ").trim();
     if (q) params.set("q", q);
@@ -833,9 +867,10 @@ const AssociatePartnerFinder = () => {
       })
       .catch(() => setResults([]))
       .finally(() => setLoading(false));
-  }, [nameQuery, city, pincode, businessType, serviceQuery, category, featuredPartnerIds]);
+  }, [nameQuery, city, pincode, businessType, serviceQuery, category, featuredPartnerIds, isSectionActive]);
 
   useEffect(() => {
+    if (!isSectionActive) return;
     const pin = normalizePincode(pincode);
     if (!isCompletePincode(pin)) return;
     api.get(`/directory/pincode-lookup?pincode=${encodeURIComponent(pin)}`)
@@ -844,12 +879,12 @@ const AssociatePartnerFinder = () => {
         if (nextCity) setCity(nextCity);
       })
       .catch(() => {});
-  }, [pincode]);
+  }, [pincode, isSectionActive]);
 
   if (!showPartnerShop) return null;
 
   return (
-    <section id="partner-finder" className="py-14 bg-[linear-gradient(180deg,#ffffff_0%,#f2f8f5_100%)]" data-testid="landing-associate-partner-finder">
+    <section ref={sectionRef} id="partner-finder" className="py-14 bg-[linear-gradient(180deg,#ffffff_0%,#f2f8f5_100%)]" data-testid="landing-associate-partner-finder">
       <div className="max-w-7xl mx-auto px-6">
         <div className="relative rounded-3xl overflow-hidden">
           {directoryHero ? (
@@ -988,16 +1023,18 @@ const AssociatePartnerFinder = () => {
 
 const Products = () => {
   const { settings } = useSettings();
+  const [sectionRef, isSectionActive] = useSectionActivation();
   const placeholder = settings?.product_placeholder_image_url_full || FALLBACK_PRODUCT_IMG;
   const [products, setProducts] = React.useState([]);
   useEffect(() => {
+    if (!isSectionActive) return;
     if (process.env.NODE_ENV !== "production") {
       api.post("/seed").catch(() => {});
     }
     loadLandingProducts().then((rows) => setProducts(rows.filter(isVisibleMethoProduct).slice(0, 4))).catch(() => {});
-  }, []);
+  }, [isSectionActive]);
   return (
-    <section id="products" className="relative py-24 overflow-hidden bg-[radial-gradient(circle_at_10%_20%,rgba(16,185,129,0.12),transparent_38%),radial-gradient(circle_at_90%_0%,rgba(245,158,11,0.14),transparent_42%),linear-gradient(180deg,#f8faf9_0%,#eef7f2_100%)]">
+    <section ref={sectionRef} id="products" className="relative py-24 overflow-hidden bg-[radial-gradient(circle_at_10%_20%,rgba(16,185,129,0.12),transparent_38%),radial-gradient(circle_at_90%_0%,rgba(245,158,11,0.14),transparent_42%),linear-gradient(180deg,#f8faf9_0%,#eef7f2_100%)]">
       <div className="absolute inset-0 grain opacity-20" />
       <div className="absolute left-6 top-8 md:left-14 md:top-12 rounded-2xl border border-emerald-900/10 bg-white/80 backdrop-blur px-3 py-2 shadow-sm">
         <p className="text-[10px] uppercase tracking-[0.24em] text-emerald-800 font-semibold">METHO Product Browser</p>
@@ -1038,6 +1075,8 @@ const Products = () => {
                   src={pickProductImageSrc(p) || placeholder}
                   alt={p.name}
                   className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                  loading="lazy"
+                  decoding="async"
                   onError={(e) => { applyLandingImageFallback(e, [pickProductImageSrc(p)], placeholder || FALLBACK_PRODUCT_IMG); }}
                 />
               </div>
@@ -1129,6 +1168,8 @@ const TopLeaders = () => {
                   data-original-src={leader.image || ""}
                   data-has-custom={leader.image ? "1" : "0"}
                   className="w-full h-full object-cover"
+                  loading="lazy"
+                  decoding="async"
                   onError={(e) => {
                     const img = e.currentTarget;
                     const hasCustom = img.dataset.hasCustom === "1";
