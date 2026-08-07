@@ -87,6 +87,34 @@ const DEFAULT_PARTNER_MESSAGE_TEMPLATES = [
   "Hi {contact_person}, your current partner city/category: {city} / {business_type}. - METHO Admin",
 ];
 
+const LEAD_FOLLOWUP_STATUSES = ["New", "Attempted", "Connected", "Interested", "Not Interested", "Converted"];
+
+const normalizeLeadName = (v) => String(v || "")
+  .toLowerCase()
+  .replace(/[^a-z0-9\s]/g, " ")
+  .replace(/\s+/g, " ")
+  .trim();
+
+const leadScoreDetails = (lead, selectedType = "") => {
+  let score = 0;
+  if (String(lead?.phone || "").trim()) score += 35;
+
+  const d = Number(lead?.distance_km || 9999);
+  if (d <= 2) score += 35;
+  else if (d <= 5) score += 25;
+  else if (d <= 10) score += 15;
+  else if (d <= 20) score += 8;
+  else score += 3;
+
+  if (String(lead?.address || "").trim()) score += 10;
+
+  const t = String(selectedType || "").trim().toLowerCase();
+  if (t && String(lead?.business_type || "").toLowerCase().includes(t)) score += 15;
+
+  const bucket = score >= 75 ? "Hot" : score >= 45 ? "Warm" : "Cold";
+  return { score, bucket };
+};
+
 export default function PartnersPage() {
   const { user } = useAuth();
   const nav = useNavigate();
@@ -139,6 +167,8 @@ export default function PartnersPage() {
   const [nearbySearchError, setNearbySearchError] = useState("");
   const [nearbySearched, setNearbySearched] = useState(false);
   const [nearbyLeads, setNearbyLeads] = useState([]);
+  const [leadFollowupMap, setLeadFollowupMap] = useState({});
+  const [dedupeEnabled, setDedupeEnabled] = useState(true);
   const lastFormPinRef = useRef("");
   const lastEditPinRef = useRef("");
 
@@ -759,16 +789,17 @@ export default function PartnersPage() {
   };
 
   const exportExternalLeadsCsv = (onlyWithPhone = false) => {
+    const sourceBase = dedupedRankedLeads;
     const source = onlyWithPhone
-      ? nearbyLeads.filter((lead) => String(lead?.phone || "").trim())
-      : nearbyLeads;
+      ? sourceBase.filter((lead) => String(lead?.phone || "").trim())
+      : sourceBase;
 
     if (!source.length) {
       toast.error("Export করার মতো lead নেই");
       return;
     }
 
-    const headers = ["Business Name", "Type", "City", "Address", "Phone", "Distance (km)", "Map URL"];
+    const headers = ["Business Name", "Type", "City", "Address", "Phone", "Distance (km)", "Score", "Priority", "Follow-up", "Map URL"];
     const escapeCsv = (value) => `"${String(value ?? "").replace(/"/g, '""')}"`;
     const rows = source.map((lead) => {
       const mapUrl = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(`${lead.business_name} ${lead.address || ""}`)}`;
@@ -779,6 +810,9 @@ export default function PartnersPage() {
         lead.address,
         lead.phone,
         Number(lead.distance_km || 0).toFixed(2),
+        Number(lead.lead_score || 0),
+        lead.priority_bucket || "Cold",
+        lead.follow_up_status || "New",
         mapUrl,
       ].map(escapeCsv).join(",");
     });
@@ -796,6 +830,63 @@ export default function PartnersPage() {
     URL.revokeObjectURL(url);
     toast.success("CSV downloaded");
   };
+
+  const updateLeadFollowup = (leadId, status) => {
+    setLeadFollowupMap((prev) => ({ ...prev, [leadId]: status }));
+  };
+
+  const dedupedRankedLeads = useMemo(() => {
+    const ranked = (nearbyLeads || []).map((lead) => {
+      const details = leadScoreDetails(lead, nearbyType);
+      const follow = leadFollowupMap[lead.id] || "New";
+      return {
+        ...lead,
+        lead_score: details.score,
+        priority_bucket: details.bucket,
+        follow_up_status: follow,
+      };
+    });
+
+    if (!dedupeEnabled) {
+      return ranked.sort((a, b) => (b.lead_score - a.lead_score) || (a.distance_km - b.distance_km));
+    }
+
+    const byKey = new Map();
+    ranked.forEach((lead) => {
+      const nameKey = normalizeLeadName(lead.business_name);
+      const phoneKey = String(lead.phone || "").trim();
+      const latBucket = Number.isFinite(Number(lead.lat)) ? Number(lead.lat).toFixed(3) : "0";
+      const lngBucket = Number.isFinite(Number(lead.lng)) ? Number(lead.lng).toFixed(3) : "0";
+      const cityKey = String(lead.city || "").trim().toLowerCase();
+      const key = phoneKey ? `${nameKey}|${phoneKey}` : `${nameKey}|${cityKey}|${latBucket}|${lngBucket}`;
+
+      const prev = byKey.get(key);
+      if (!prev) {
+        byKey.set(key, { ...lead, duplicate_count: 1 });
+        return;
+      }
+
+      const prevScore = Number(prev.lead_score || 0);
+      const curScore = Number(lead.lead_score || 0);
+      const keepCurrent = curScore > prevScore || (curScore === prevScore && Number(lead.distance_km || 9999) < Number(prev.distance_km || 9999));
+      if (keepCurrent) {
+        byKey.set(key, { ...lead, duplicate_count: Number(prev.duplicate_count || 1) + 1 });
+      } else {
+        byKey.set(key, { ...prev, duplicate_count: Number(prev.duplicate_count || 1) + 1 });
+      }
+    });
+
+    return Array.from(byKey.values())
+      .sort((a, b) => (b.lead_score - a.lead_score) || (a.distance_km - b.distance_km));
+  }, [nearbyLeads, nearbyType, leadFollowupMap, dedupeEnabled]);
+
+  const scoreSummary = useMemo(() => {
+    const total = dedupedRankedLeads.length;
+    const hot = dedupedRankedLeads.filter((x) => x.priority_bucket === "Hot").length;
+    const warm = dedupedRankedLeads.filter((x) => x.priority_bucket === "Warm").length;
+    const cold = total - hot - warm;
+    return { total, hot, warm, cold };
+  }, [dedupedRankedLeads]);
 
   useEffect(() => { if (isAdmin) load(); /* eslint-disable-next-line */ }, [isAdmin]);
   useEffect(() => {
@@ -927,6 +1018,27 @@ export default function PartnersPage() {
       nav({ pathname: location.pathname, search: next ? `?${next}` : "" }, { replace: true });
     }
   }, [search, cityFilter, typeFilter, nav, location.pathname, location.search]);
+
+  useEffect(() => {
+    try {
+      const raw = window.localStorage.getItem("metho_external_lead_followups_v1");
+      if (!raw) return;
+      const data = JSON.parse(raw);
+      if (data && typeof data === "object") {
+        setLeadFollowupMap(data);
+      }
+    } catch {
+      // Ignore localStorage parsing errors.
+    }
+  }, []);
+
+  useEffect(() => {
+    try {
+      window.localStorage.setItem("metho_external_lead_followups_v1", JSON.stringify(leadFollowupMap));
+    } catch {
+      // Ignore storage write errors.
+    }
+  }, [leadFollowupMap]);
 
   if (!isAdmin) return <Navigate to="/app" replace />;
 
@@ -1250,11 +1362,20 @@ export default function PartnersPage() {
             type="button"
             variant="outline"
             onClick={() => exportExternalLeadsCsv(true)}
-            disabled={!nearbyLeads.some((lead) => String(lead?.phone || "").trim())}
+            disabled={!dedupedRankedLeads.some((lead) => String(lead?.phone || "").trim())}
             className="rounded-full"
             data-testid="nearby-export-csv-phone-only"
           >
             Export Phone Leads Only
+          </Button>
+          <Button
+            type="button"
+            variant={dedupeEnabled ? "default" : "outline"}
+            onClick={() => setDedupeEnabled((v) => !v)}
+            className="rounded-full"
+            data-testid="nearby-dedupe-toggle"
+          >
+            {dedupeEnabled ? "Duplicate Cleaner: ON" : "Duplicate Cleaner: OFF"}
           </Button>
           {nearbyLocationLabel ? <p className="text-xs text-slate-600">Search center: {nearbyLocationLabel}</p> : null}
         </div>
@@ -1264,10 +1385,17 @@ export default function PartnersPage() {
         ) : (
           <>
             <p className="text-xs text-slate-600 mt-3">
-              Found <span className="font-semibold text-emerald-900">{nearbyLeads.length}</span> external offline/website-missing leads within {Math.max(1, Number(nearbyRadiusKm) || 15)} km
+              Found <span className="font-semibold text-emerald-900">{dedupedRankedLeads.length}</span> external offline/website-missing leads within {Math.max(1, Number(nearbyRadiusKm) || 15)} km
             </p>
+            {dedupedRankedLeads.length > 0 ? (
+              <div className="mt-2 flex flex-wrap gap-2 text-[11px]">
+                <span className="px-2 py-1 rounded-full bg-red-100 text-red-700 font-semibold">Hot: {scoreSummary.hot}</span>
+                <span className="px-2 py-1 rounded-full bg-amber-100 text-amber-800 font-semibold">Warm: {scoreSummary.warm}</span>
+                <span className="px-2 py-1 rounded-full bg-slate-100 text-slate-700 font-semibold">Cold: {scoreSummary.cold}</span>
+              </div>
+            ) : null}
             {nearbySearchError ? <p className="text-xs text-red-600 mt-2">{nearbySearchError}</p> : null}
-            {nearbySearched && nearbyLeads.length === 0 ? (
+            {nearbySearched && dedupedRankedLeads.length === 0 ? (
               <p className="text-xs text-muted-foreground mt-2">No matching leads in selected radius/filter.</p>
             ) : (
               <div className="mt-3 overflow-x-auto">
@@ -1278,20 +1406,33 @@ export default function PartnersPage() {
                       <th className="text-left px-3 py-2">Type</th>
                       <th className="text-left px-3 py-2">City</th>
                       <th className="text-left px-3 py-2">Distance</th>
+                      <th className="text-left px-3 py-2">Priority</th>
                       <th className="text-left px-3 py-2">Contact</th>
+                      <th className="text-left px-3 py-2">Follow-up</th>
                       <th className="text-left px-3 py-2">Status</th>
                     </tr>
                   </thead>
                   <tbody>
-                    {nearbyLeads.slice(0, 200).map((p) => (
+                    {dedupedRankedLeads.slice(0, 200).map((p) => (
                       <tr key={`external-lead-${p.id}`} className="border-t border-border">
                         <td className="px-3 py-2">
                           <p className="font-semibold text-emerald-950">{p.business_name}</p>
                           <p className="text-[11px] text-slate-500">{p.address || "-"}</p>
+                          {Number(p.duplicate_count || 1) > 1 ? (
+                            <p className="text-[10px] text-amber-700 font-semibold">Merged duplicates: {p.duplicate_count}</p>
+                          ) : null}
                         </td>
                         <td className="px-3 py-2">{p.business_type || "-"}</td>
                         <td className="px-3 py-2">{p.city || "-"}</td>
                         <td className="px-3 py-2">{Number(p.distance_km || 0).toFixed(1)} km</td>
+                        <td className="px-3 py-2">
+                          <div className="flex items-center gap-1">
+                            <span className={`px-2 py-0.5 rounded-full font-semibold ${p.priority_bucket === "Hot" ? "bg-red-100 text-red-700" : p.priority_bucket === "Warm" ? "bg-amber-100 text-amber-800" : "bg-slate-100 text-slate-700"}`}>
+                              {p.priority_bucket}
+                            </span>
+                            <span className="text-[11px] text-slate-600">{p.lead_score}</span>
+                          </div>
+                        </td>
                         <td className="px-3 py-2">
                           {p.phone ? (
                             <a href={`tel:${p.phone}`} className="inline-flex items-center gap-1 text-emerald-800 hover:underline">
@@ -1300,6 +1441,18 @@ export default function PartnersPage() {
                           ) : (
                             <span className="text-slate-500">No phone</span>
                           )}
+                        </td>
+                        <td className="px-3 py-2">
+                          <select
+                            value={p.follow_up_status || "New"}
+                            onChange={(e) => updateLeadFollowup(p.id, e.target.value)}
+                            className="h-8 rounded-md border border-input px-2 bg-white text-slate-900"
+                            data-testid={`lead-followup-${p.id}`}
+                          >
+                            {LEAD_FOLLOWUP_STATUSES.map((status) => (
+                              <option key={status} value={status}>{status}</option>
+                            ))}
+                          </select>
                         </td>
                         <td className="px-3 py-2">
                           <div className="flex flex-wrap items-center gap-2">
