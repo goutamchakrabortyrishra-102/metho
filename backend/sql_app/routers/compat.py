@@ -43,7 +43,7 @@ PRODUCT_IMAGE_MAX_UPLOAD_BYTES = 5 * 1024 * 1024
 PARTNER_PRODUCT_UNITS_KEY = "partner_product_units"
 PARTNER_UNIT_OPTIONS = {"piece", "kg", "gram", "litre", "ml"}
 PARTNER_PRODUCT_META_KEY = "partner_product_meta"
-TRANSPORT_SERVICE_TEMPLATE_KEYS = {"cab_airport_drop", "car_rental_daily", "bike_rental_daily"}
+TRANSPORT_SERVICE_TEMPLATE_KEYS = {"cab_airport_drop", "car_rental_daily", "bike_rental_daily", "cargo_transport"}
 ADMIN_ACCOUNTS_LEDGER_KEY = "admin_accounts_ledger"
 
 
@@ -494,9 +494,19 @@ def _is_transport_service_listing(item: PartnerProduct | None, meta_map: dict[st
         return True
     listing_type = str(meta.get("listing_type") or "").strip().lower()
     item_kind = str(meta.get("item_kind") or "").strip().lower()
-    if listing_type == "service" and any(k in str(item.category or "").lower() for k in ["transport", "cab", "bike", "rental", "taxi"]):
+    haystack = " ".join([
+        str(item.category or "").lower(),
+        str(item.name or "").lower(),
+        str(item.description or "").lower(),
+    ])
+    transport_keywords = [
+        "transport", "cab", "bike", "rental", "taxi", "cargo", "logistics", "carrier",
+        "goods carrier", "ride", "auto", "auto rental", "auto rickshaw", "autorickshaw",
+        "e-rickshaw", "erickshaw", "rickshaw", "truck", "pickup van", "van rental", "scooter rental",
+    ]
+    if listing_type == "service" and any(k in haystack for k in transport_keywords):
         return True
-    if item_kind == "service" and any(k in str(item.name or "").lower() for k in ["cab", "bike", "rental", "taxi", "ride"]):
+    if item_kind == "service" and any(k in haystack for k in transport_keywords):
         return True
     return False
 

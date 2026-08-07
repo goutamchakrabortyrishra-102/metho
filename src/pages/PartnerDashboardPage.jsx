@@ -28,11 +28,11 @@ const routeMapsUrl = (pickup, destination) => {
 };
 const isTransportServiceListing = (item) => {
   const key = String(item?.service_template_key || "").trim().toLowerCase();
-  if (["cab_airport_drop", "car_rental_daily", "bike_rental_daily"].includes(key)) return true;
+  if (["cab_airport_drop", "car_rental_daily", "bike_rental_daily", "cargo_transport"].includes(key)) return true;
   const haystack = [item?.category, item?.name, item?.description]
     .map((v) => String(v || "").toLowerCase())
     .join(" ");
-  return ["transport", "cab", "taxi", "bike rental", "car rental", "ride", "car service", "vehicle rental", "auto rental"].some((k) => haystack.includes(k));
+  return ["transport", "cab", "taxi", "bike rental", "car rental", "ride", "car service", "vehicle rental", "auto rental", "auto", "auto rickshaw", "autorickshaw", "e-rickshaw", "erickshaw", "rickshaw", "cargo", "carrier", "goods carrier", "logistics", "truck", "pickup van", "van rental", "scooter rental"].some((k) => haystack.includes(k));
 };
 const HOSPITALITY_SERVICE_SECTORS = ["Hotel", "Homestay", "Restaurant", "Cafe"];
 const DOORSTEP_SERVICE_SECTORS = ["Home Service", "Laundry", "Beauty at Home", "Cleaning", "Courier", "Tailoring"];
