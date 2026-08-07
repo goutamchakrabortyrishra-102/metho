@@ -2,6 +2,16 @@
 
 এই folder-এ backend code আছে। AI ছাড়া সাধারণ developer-ও VS Code খুলে কাজ করতে পারবে।
 
+## 0) Latest Backend Git Sync (2026-08-07)
+
+সাম্প্রতিক backend-impact update (main branch verified):
+
+1. External lead finder backend support যোগ হয়েছে (`sql_app/routers/compat.py`, `sql_app/routers/directory.py`)
+2. Directory type/category filtering-এ partial matching যোগ হয়েছে (`sql_app/routers/directory.py`)
+3. কিছু commerce validation update হয়েছে (quantity minimum related in `sql_app/routers/checkout.py` + compat/directory)
+
+Commit-wise summary file: `LATEST_BACKEND_GIT_SYNC_2026-08-07.md`
+
 ## 1) কি আছে
 - FastAPI backend (full + simple + sql mode)
 - Main files:
@@ -48,3 +58,30 @@
   - Commission split
   - Smart cycle
   - Monthly settlement
+
+## 8) একদম নতুন backend developer onboarding path
+
+এই order follow করুন:
+
+1. `README.md`
+2. `README_HANDOVER_BN.md` (এই file)
+3. `sql_app/main.py`
+4. `sql_app/routers/compat.py`
+5. `sql_app/routers/directory.py`
+6. `sql_app/routers/checkout.py`
+
+## 9) Git এর সাথে মিলিয়ে safe কাজের নিয়ম
+
+কাজ শুরুর আগে:
+
+1. `git fetch origin`
+2. `git pull origin main`
+3. `git status --short`
+4. `git log --oneline -n 10`
+
+কাজ শেষে:
+
+1. changed endpoint গুলো curl/Postman দিয়ে verify
+2. frontend side impact থাকলে route/API payload মিলিয়ে দেখুন
+3. relevant docs update করুন
+4. তারপর commit + push দিন
