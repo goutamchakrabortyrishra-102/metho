@@ -19,6 +19,11 @@ const toCount = (value) => {
 const normalizeBusinessType = (value) => String(value || "").trim().toLowerCase();
 
 const includesAny = (text, keywords) => keywords.some((k) => text.includes(k));
+const normalizeHintText = (parts) => parts.map((value) => normalizeBusinessType(value)).join(" ").trim();
+
+const TRANSPORT_TEMPLATE_KEYS = ["cab_airport_drop", "car_rental_daily", "bike_rental_daily", "cargo_transport"];
+const HOSPITALITY_TEMPLATE_KEYS = ["hotel_standard_room", "hotel_deluxe_room", "hotel_suite_room", "homestay_daily_stay", "homestay_weekend_package", "restaurant_table_booking", "banquet_slot", "restaurant_takeaway_slot", "cafe_table_reservation"];
+const DOORSTEP_TEMPLATE_KEYS = ["ac_service_visit", "plumbing_repair", "electrician_visit", "appliance_repair", "laundry_kg_service", "dry_clean_service", "tailoring_stitching", "beauty_home_service", "courier_pickup", "house_deep_clean", "office_cleaning", "pest_control_visit"];
 
 const TRANSPORT_HINTS = [
   "transport",
@@ -63,8 +68,33 @@ const HOSPITALITY_HINTS = [
   "banquet",
   "stay",
   "dining",
+  "takeaway",
+  "food",
+  "meal",
+  "lounge",
 ];
-const DOORSTEP_HINTS = ["doorstep", "home service", "cleaning", "laundry", "plumbing", "electrician", "repair"];
+const DOORSTEP_HINTS = ["doorstep", "home service", "cleaning", "laundry", "plumbing", "electrician", "repair", "tailoring", "beauty", "courier", "pest control", "appliance", "ac service", "home repair", "dry clean"];
+
+export const isTransportServiceLike = (item) => {
+  const key = normalizeBusinessType(item?.service_template_key);
+  if (TRANSPORT_TEMPLATE_KEYS.includes(key)) return true;
+  const haystack = normalizeHintText([item?.category, item?.name, item?.description]);
+  return includesAny(haystack, TRANSPORT_HINTS);
+};
+
+export const isHospitalityServiceLike = (item) => {
+  const key = normalizeBusinessType(item?.service_template_key);
+  if (HOSPITALITY_TEMPLATE_KEYS.includes(key)) return true;
+  const haystack = normalizeHintText([item?.category, item?.name, item?.description]);
+  return includesAny(haystack, HOSPITALITY_HINTS);
+};
+
+export const isDoorstepServiceLike = (item) => {
+  const key = normalizeBusinessType(item?.service_template_key);
+  if (DOORSTEP_TEMPLATE_KEYS.includes(key)) return true;
+  const haystack = normalizeHintText([item?.category, item?.name, item?.description]);
+  return includesAny(haystack, DOORSTEP_HINTS);
+};
 
 export const inferPartnerPrimarySector = ({ businessType, businessName, counts }) => {
   const normalizedType = normalizeBusinessType(businessType);

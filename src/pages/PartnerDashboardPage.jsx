@@ -12,7 +12,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { resolveAssetUrl } from "@/lib/utils";
-import { inferPartnerPrimarySector, getPartnerVisibleSectors, PARTNER_SECTOR_KEYS } from "@/lib/partnerSector";
+import { inferPartnerPrimarySector, getPartnerVisibleSectors, isDoorstepServiceLike, isHospitalityServiceLike, isTransportServiceLike, PARTNER_SECTOR_KEYS } from "@/lib/partnerSector";
 
 const inr = (v) => `₹${(Number(v) || 0).toLocaleString("en-IN", { maximumFractionDigits: 2 })}`;
 const withUnit = (price, unitType) => {
@@ -27,30 +27,15 @@ const routeMapsUrl = (pickup, destination) => {
   return `https://www.google.com/maps/dir/?api=1&origin=${encodeURIComponent(origin)}&destination=${encodeURIComponent(dest)}&travelmode=driving`;
 };
 const isTransportServiceListing = (item) => {
-  const key = String(item?.service_template_key || "").trim().toLowerCase();
-  if (["cab_airport_drop", "car_rental_daily", "bike_rental_daily", "cargo_transport"].includes(key)) return true;
-  const haystack = [item?.category, item?.name, item?.description]
-    .map((v) => String(v || "").toLowerCase())
-    .join(" ");
-  return ["transport", "cab", "taxi", "bike rental", "car rental", "ride", "car service", "vehicle rental", "auto rental", "auto", "auto rickshaw", "autorickshaw", "e-rickshaw", "erickshaw", "rickshaw", "cargo", "carrier", "goods carrier", "logistics", "truck", "pickup van", "van rental", "scooter rental"].some((k) => haystack.includes(k));
+  return isTransportServiceLike(item);
 };
 const HOSPITALITY_SERVICE_SECTORS = ["Hotel", "Homestay", "Restaurant", "Cafe"];
 const DOORSTEP_SERVICE_SECTORS = ["Home Service", "Laundry", "Beauty at Home", "Cleaning", "Courier", "Tailoring"];
 const isHospitalityServiceListing = (item) => {
-  const key = String(item?.service_template_key || "").trim().toLowerCase();
-  if (["hotel_standard_room", "hotel_deluxe_room", "hotel_suite_room", "homestay_daily_stay", "homestay_weekend_package", "restaurant_table_booking", "banquet_slot", "restaurant_takeaway_slot", "cafe_table_reservation"].includes(key)) return true;
-  const haystack = [item?.category, item?.name, item?.description]
-    .map((v) => String(v || "").toLowerCase())
-    .join(" ");
-  return ["hotel", "homestay", "restaurant", "banquet", "cafe", "room booking", "table booking", "takeaway", "daily stay", "weekend package"].some((k) => haystack.includes(k));
+  return isHospitalityServiceLike(item);
 };
 const isDoorstepServiceListing = (item) => {
-  const key = String(item?.service_template_key || "").trim().toLowerCase();
-  if (["ac_service_visit", "plumbing_repair", "electrician_visit", "appliance_repair", "laundry_kg_service", "dry_clean_service", "tailoring_stitching", "beauty_home_service", "courier_pickup", "house_deep_clean", "office_cleaning", "pest_control_visit"].includes(key)) return true;
-  const haystack = [item?.category, item?.name, item?.description]
-    .map((v) => String(v || "").toLowerCase())
-    .join(" ");
-  return ["home repair", "home service", "laundry", "dry clean", "tailoring", "beauty", "courier", "cleaning", "pest control", "electrician", "plumbing", "appliance repair"].some((k) => haystack.includes(k));
+  return isDoorstepServiceLike(item);
 };
 const TRANSPORT_STATUS_META = {
   booked: { label: "New Request", tone: "bg-sky-100 text-sky-800 border-sky-200" },
