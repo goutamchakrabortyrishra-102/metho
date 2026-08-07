@@ -31,20 +31,29 @@ const haversineKm = (lat1, lon1, lat2, lon2) => {
   return 6371 * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
 };
 
-const hasOnlinePresence = (partner) => {
-  const text = [partner?.email, partner?.upi_id, partner?.notes]
-    .map((v) => String(v || "").trim().toLowerCase())
-    .join(" ");
-  return text.includes("http://")
-    || text.includes("https://")
-    || text.includes("www.")
-    || text.includes(".com")
-    || text.includes("facebook")
-    || text.includes("instagram")
-    || text.includes("youtube")
-    || text.includes("linkedin")
-    || text.includes("google map")
-    || text.includes("online");
+const toOverpassRegex = (v) => String(v || "")
+  .trim()
+  .toLowerCase()
+  .replace(/[^a-z0-9\s-]/g, " ")
+  .split(/\s+/)
+  .filter(Boolean)
+  .slice(0, 6)
+  .join("|");
+
+const buildLeadAddress = (tags) => {
+  if (!tags || typeof tags !== "object") return "";
+  if (tags["addr:full"]) return String(tags["addr:full"]);
+  return [
+    tags["addr:housenumber"],
+    tags["addr:street"],
+    tags["addr:suburb"],
+    tags["addr:city"],
+    tags["addr:state"],
+    tags["addr:postcode"],
+  ]
+    .map((part) => String(part || "").trim())
+    .filter(Boolean)
+    .join(", ");
 };
 
 const normalizeAddressForSearch = ({ address, city, state, pincode }) => {
@@ -124,8 +133,12 @@ export default function PartnersPage() {
   const [nearbyType, setNearbyType] = useState("");
   const [nearbyRadiusKm, setNearbyRadiusKm] = useState(15);
   const [nearbyLocation, setNearbyLocation] = useState(null);
+  const [nearbyLocationLabel, setNearbyLocationLabel] = useState("");
   const [nearbyGeoBusy, setNearbyGeoBusy] = useState(false);
-  const [pincodeGeoMap, setPincodeGeoMap] = useState({});
+  const [nearbySearchBusy, setNearbySearchBusy] = useState(false);
+  const [nearbySearchError, setNearbySearchError] = useState("");
+  const [nearbySearched, setNearbySearched] = useState(false);
+  const [nearbyLeads, setNearbyLeads] = useState([]);
   const lastFormPinRef = useRef("");
   const lastEditPinRef = useRef("");
 
@@ -462,33 +475,6 @@ export default function PartnersPage() {
     [partners, selectedPartnerId]
   );
 
-  const nearbyLeads = useMemo(() => {
-    if (!nearbyLocation) return [];
-    const radius = Math.max(1, Number(nearbyRadiusKm) || 15);
-    const cityNeedle = String(nearbyCity || "").trim().toLowerCase();
-    const typeNeedle = String(nearbyType || "").trim().toLowerCase();
-
-    return partners
-      .filter((p) => {
-        if (!String(p?.pincode || "").trim()) return false;
-        if (!pincodeGeoMap[String(p.pincode).trim()]) return false;
-        if (cityNeedle && String(p.city || "").trim().toLowerCase() !== cityNeedle) return false;
-        if (typeNeedle && !String(p.business_type || "").trim().toLowerCase().includes(typeNeedle)) return false;
-        if (hasOnlinePresence(p)) return false;
-        return true;
-      })
-      .map((p) => {
-        const geo = pincodeGeoMap[String(p.pincode).trim()];
-        const distanceKm = haversineKm(nearbyLocation.lat, nearbyLocation.lng, geo.latitude, geo.longitude);
-        return {
-          ...p,
-          distance_km: distanceKm,
-        };
-      })
-      .filter((p) => Number.isFinite(p.distance_km) && p.distance_km <= radius)
-      .sort((a, b) => a.distance_km - b.distance_km);
-  }, [partners, nearbyLocation, nearbyRadiusKm, nearbyCity, nearbyType, pincodeGeoMap]);
-
   const exportLedgerExcel = () => {
     if (!ledger) return;
     const wb = XLSX.utils.book_new();
@@ -619,23 +605,6 @@ export default function PartnersPage() {
       }
     });
 
-  const resolvePincodeGeo = async (pin) => {
-    const normalized = normalizePincode(pin);
-    if (!isCompletePincode(normalized)) return null;
-    if (pincodeGeoMap[normalized]) return pincodeGeoMap[normalized];
-    try {
-      const { data } = await api.get(`/directory/pincode-lookup?pincode=${encodeURIComponent(normalized)}`);
-      const lat = Number(data?.latitude);
-      const lng = Number(data?.longitude);
-      if (!Number.isFinite(lat) || !Number.isFinite(lng)) return null;
-      const next = { latitude: lat, longitude: lng };
-      setPincodeGeoMap((prev) => ({ ...prev, [normalized]: next }));
-      return next;
-    } catch {
-      return null;
-    }
-  };
-
   const detectCurrentLocation = async () => {
     if (!navigator?.geolocation) {
       toast.error("Browser geolocation support পাওয়া যায়নি");
@@ -644,7 +613,10 @@ export default function PartnersPage() {
     setNearbyGeoBusy(true);
     navigator.geolocation.getCurrentPosition(
       (pos) => {
-        setNearbyLocation({ lat: Number(pos.coords.latitude), lng: Number(pos.coords.longitude) });
+        const lat = Number(pos.coords.latitude);
+        const lng = Number(pos.coords.longitude);
+        setNearbyLocation({ lat, lng });
+        setNearbyLocationLabel(`Lat ${lat.toFixed(5)}, Lng ${lng.toFixed(5)} (Current)`);
         setNearbyGeoBusy(false);
         toast.success("Current location detected");
       },
@@ -655,6 +627,137 @@ export default function PartnersPage() {
       { enableHighAccuracy: true, timeout: 12000, maximumAge: 0 }
     );
   };
+
+  const useCityCenter = async () => {
+    const city = String(nearbyCity || "").trim();
+    if (!city) {
+      toast.error("City দিন");
+      return;
+    }
+    setNearbyGeoBusy(true);
+    try {
+      const endpoint = `https://nominatim.openstreetmap.org/search?format=json&limit=1&q=${encodeURIComponent(`${city}, India`)}`;
+      const res = await fetch(endpoint);
+      if (!res.ok) throw new Error("geocode failed");
+      const rows = await res.json();
+      const first = Array.isArray(rows) ? rows[0] : null;
+      const lat = Number(first?.lat);
+      const lng = Number(first?.lon);
+      if (!Number.isFinite(lat) || !Number.isFinite(lng)) {
+        toast.error("City location পাওয়া যায়নি");
+        return;
+      }
+      setNearbyLocation({ lat, lng });
+      setNearbyLocationLabel(`${city} Center`);
+      toast.success("City center selected");
+    } catch {
+      toast.error("City location fetch করা যায়নি");
+    } finally {
+      setNearbyGeoBusy(false);
+    }
+  };
+
+  const searchExternalLeads = async () => {
+    if (!nearbyLocation) {
+      toast.error("আগে current location বা city center set করুন");
+      return;
+    }
+
+    const radiusKm = Math.max(1, Number(nearbyRadiusKm) || 15);
+    const radiusM = Math.max(1000, Math.round(radiusKm * 1000));
+    const regex = toOverpassRegex(nearbyType);
+
+    const genericSelectors = [
+      `node["shop"](around:${radiusM},${nearbyLocation.lat},${nearbyLocation.lng});`,
+      `way["shop"](around:${radiusM},${nearbyLocation.lat},${nearbyLocation.lng});`,
+      `node["amenity"](around:${radiusM},${nearbyLocation.lat},${nearbyLocation.lng});`,
+      `way["amenity"](around:${radiusM},${nearbyLocation.lat},${nearbyLocation.lng});`,
+      `node["office"](around:${radiusM},${nearbyLocation.lat},${nearbyLocation.lng});`,
+      `way["office"](around:${radiusM},${nearbyLocation.lat},${nearbyLocation.lng});`,
+    ];
+    const targetedSelectors = regex
+      ? [
+        `node["name"~"${regex}",i](around:${radiusM},${nearbyLocation.lat},${nearbyLocation.lng});`,
+        `way["name"~"${regex}",i](around:${radiusM},${nearbyLocation.lat},${nearbyLocation.lng});`,
+        `node["shop"~"${regex}",i](around:${radiusM},${nearbyLocation.lat},${nearbyLocation.lng});`,
+        `way["shop"~"${regex}",i](around:${radiusM},${nearbyLocation.lat},${nearbyLocation.lng});`,
+        `node["amenity"~"${regex}",i](around:${radiusM},${nearbyLocation.lat},${nearbyLocation.lng});`,
+        `way["amenity"~"${regex}",i](around:${radiusM},${nearbyLocation.lat},${nearbyLocation.lng});`,
+      ]
+      : [];
+
+    const overpassQuery = `[out:json][timeout:30];(\n${[...targetedSelectors, ...genericSelectors].join("\n")}\n);out center tags 800;`;
+
+    setNearbySearchBusy(true);
+    setNearbySearchError("");
+    try {
+      const resp = await fetch("https://overpass-api.de/api/interpreter", {
+        method: "POST",
+        body: overpassQuery,
+      });
+      if (!resp.ok) throw new Error("overpass failed");
+      const payload = await resp.json();
+      const items = Array.isArray(payload?.elements) ? payload.elements : [];
+      const cityNeedle = String(nearbyCity || "").trim().toLowerCase();
+
+      const mapped = items
+        .map((item, idx) => {
+          const tags = item?.tags || {};
+          const lat = Number(item?.lat ?? item?.center?.lat);
+          const lng = Number(item?.lon ?? item?.center?.lon);
+          if (!Number.isFinite(lat) || !Number.isFinite(lng)) return null;
+
+          const name = String(tags?.name || "").trim();
+          if (!name) return null;
+
+          const address = buildLeadAddress(tags);
+          const website = String(tags?.website || tags?.["contact:website"] || "").trim();
+          const social = String(tags?.facebook || tags?.instagram || tags?.["contact:facebook"] || tags?.["contact:instagram"] || "").trim();
+          const phone = cleanPhone(tags?.phone || tags?.mobile || tags?.["contact:phone"] || tags?.["contact:mobile"] || "");
+          const city = String(tags?.["addr:city"] || "").trim();
+          const hasOnline = !!website || !!social;
+          if (hasOnline) return null;
+
+          if (cityNeedle) {
+            const compare = `${city} ${address}`.toLowerCase();
+            if (!compare.includes(cityNeedle)) return null;
+          }
+
+          const distanceKm = haversineKm(nearbyLocation.lat, nearbyLocation.lng, lat, lng);
+          const leadType = String(tags?.shop || tags?.amenity || tags?.office || tags?.craft || tags?.tourism || "business").replace(/_/g, " ");
+          return {
+            id: `${item?.type || "lead"}-${item?.id || idx}`,
+            business_name: name,
+            business_type: leadType,
+            city,
+            address,
+            phone,
+            website,
+            distance_km: distanceKm,
+            lat,
+            lng,
+          };
+        })
+        .filter(Boolean)
+        .filter((lead) => Number.isFinite(lead.distance_km) && lead.distance_km <= radiusKm)
+        .sort((a, b) => a.distance_km - b.distance_km);
+
+      const dedupMap = new Map();
+      mapped.forEach((lead) => {
+        const key = `${lead.business_name.toLowerCase()}|${lead.phone}|${lead.lat.toFixed(4)}|${lead.lng.toFixed(4)}`;
+        if (!dedupMap.has(key)) dedupMap.set(key, lead);
+      });
+      setNearbyLeads(Array.from(dedupMap.values()).slice(0, 300));
+      setNearbySearched(true);
+    } catch {
+      setNearbyLeads([]);
+      setNearbySearched(true);
+      setNearbySearchError("External lead search failed. কিছুক্ষণ পরে আবার চেষ্টা করুন।");
+    } finally {
+      setNearbySearchBusy(false);
+    }
+  };
+
   useEffect(() => { if (isAdmin) load(); /* eslint-disable-next-line */ }, [isAdmin]);
   useEffect(() => {
     if (!isAdmin) return;
@@ -688,23 +791,6 @@ export default function PartnersPage() {
       setSelectedPartnerId(String(partners[0].id));
     }
   }, [partners, selectedPartnerId]);
-
-  useEffect(() => {
-    const uniquePins = Array.from(new Set((partners || []).map((p) => normalizePincode(p?.pincode || "")).filter((pin) => isCompletePincode(pin))));
-    const missing = uniquePins.filter((pin) => !pincodeGeoMap[pin]).slice(0, 40);
-    if (!missing.length) return;
-    let cancelled = false;
-    (async () => {
-      for (const pin of missing) {
-        if (cancelled) return;
-        await resolvePincodeGeo(pin);
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [partners]);
 
   useEffect(() => {
     if (!isAdmin) return;
@@ -1032,17 +1118,29 @@ export default function PartnersPage() {
         <div className="flex flex-wrap items-center justify-between gap-2">
           <div>
             <p className="text-xs uppercase tracking-widest text-emerald-800 font-semibold">Nearby Offline Leads</p>
-            <p className="text-xs text-muted-foreground mt-1">City + current location থেকে website/online presence না থাকা business/service/shop list দেখুন।</p>
+            <p className="text-xs text-muted-foreground mt-1">External business/service/shop lead search (not from your listed partners).</p>
           </div>
-          <Button
-            type="button"
-            onClick={detectCurrentLocation}
-            disabled={nearbyGeoBusy}
-            className="rounded-full bg-emerald-900 hover:bg-emerald-950 text-white"
-            data-testid="nearby-detect-location"
-          >
-            <LocateFixed className="w-4 h-4 mr-2" /> {nearbyGeoBusy ? "Detecting..." : "Use Current Location"}
-          </Button>
+          <div className="flex flex-wrap gap-2">
+            <Button
+              type="button"
+              onClick={useCityCenter}
+              disabled={nearbyGeoBusy || !String(nearbyCity || "").trim()}
+              variant="outline"
+              className="rounded-full"
+              data-testid="nearby-use-city-center"
+            >
+              {nearbyGeoBusy ? "Loading..." : "Use City Center"}
+            </Button>
+            <Button
+              type="button"
+              onClick={detectCurrentLocation}
+              disabled={nearbyGeoBusy}
+              className="rounded-full bg-emerald-900 hover:bg-emerald-950 text-white"
+              data-testid="nearby-detect-location"
+            >
+              <LocateFixed className="w-4 h-4 mr-2" /> {nearbyGeoBusy ? "Detecting..." : "Use Current Location"}
+            </Button>
+          </div>
         </div>
 
         <div className="mt-3 grid grid-cols-1 md:grid-cols-4 gap-2">
@@ -1073,21 +1171,44 @@ export default function PartnersPage() {
             type="button"
             variant="outline"
             className="rounded-full"
-            onClick={() => { setNearbyCity(""); setNearbyType(""); setNearbyRadiusKm(15); }}
+            onClick={() => {
+              setNearbyCity("");
+              setNearbyType("");
+              setNearbyRadiusKm(15);
+              setNearbyLocation(null);
+              setNearbyLocationLabel("");
+              setNearbyLeads([]);
+              setNearbySearched(false);
+              setNearbySearchError("");
+            }}
             data-testid="nearby-clear-filters"
           >
             Clear
           </Button>
         </div>
 
+        <div className="mt-3 flex flex-wrap items-center gap-2">
+          <Button
+            type="button"
+            onClick={searchExternalLeads}
+            disabled={nearbySearchBusy || !nearbyLocation}
+            className="rounded-full bg-amber-500 hover:bg-amber-600 text-emerald-950"
+            data-testid="nearby-search-external"
+          >
+            {nearbySearchBusy ? "Searching..." : "Search External Leads"}
+          </Button>
+          {nearbyLocationLabel ? <p className="text-xs text-slate-600">Search center: {nearbyLocationLabel}</p> : null}
+        </div>
+
         {!nearbyLocation ? (
-          <p className="text-xs text-amber-700 mt-3">Current location না দিলে nearby filtering চালু হবে না।</p>
+          <p className="text-xs text-amber-700 mt-3">আগে Current Location বা City Center set করুন।</p>
         ) : (
           <>
             <p className="text-xs text-slate-600 mt-3">
-              Found <span className="font-semibold text-emerald-900">{nearbyLeads.length}</span> offline/website-missing leads within {Math.max(1, Number(nearbyRadiusKm) || 15)} km
+              Found <span className="font-semibold text-emerald-900">{nearbyLeads.length}</span> external offline/website-missing leads within {Math.max(1, Number(nearbyRadiusKm) || 15)} km
             </p>
-            {nearbyLeads.length === 0 ? (
+            {nearbySearchError ? <p className="text-xs text-red-600 mt-2">{nearbySearchError}</p> : null}
+            {nearbySearched && nearbyLeads.length === 0 ? (
               <p className="text-xs text-muted-foreground mt-2">No matching leads in selected radius/filter.</p>
             ) : (
               <div className="mt-3 overflow-x-auto">
@@ -1104,7 +1225,7 @@ export default function PartnersPage() {
                   </thead>
                   <tbody>
                     {nearbyLeads.slice(0, 200).map((p) => (
-                      <tr key={`offline-lead-${p.id}`} className="border-t border-border">
+                      <tr key={`external-lead-${p.id}`} className="border-t border-border">
                         <td className="px-3 py-2">
                           <p className="font-semibold text-emerald-950">{p.business_name}</p>
                           <p className="text-[11px] text-slate-500">{p.address || "-"}</p>
@@ -1113,14 +1234,28 @@ export default function PartnersPage() {
                         <td className="px-3 py-2">{p.city || "-"}</td>
                         <td className="px-3 py-2">{Number(p.distance_km || 0).toFixed(1)} km</td>
                         <td className="px-3 py-2">
-                          <a href={`tel:${p.phone || ""}`} className="inline-flex items-center gap-1 text-emerald-800 hover:underline">
-                            <PhoneCall className="w-3.5 h-3.5" /> {p.phone || p.whatsapp_no || "No phone"}
-                          </a>
+                          {p.phone ? (
+                            <a href={`tel:${p.phone}`} className="inline-flex items-center gap-1 text-emerald-800 hover:underline">
+                              <PhoneCall className="w-3.5 h-3.5" /> {p.phone}
+                            </a>
+                          ) : (
+                            <span className="text-slate-500">No phone</span>
+                          )}
                         </td>
                         <td className="px-3 py-2">
-                          <span className="inline-flex items-center gap-1 rounded-full bg-amber-100 text-amber-800 px-2 py-0.5 font-semibold">
-                            <Globe className="w-3 h-3" /> Website/Online Missing
-                          </span>
+                          <div className="flex flex-wrap items-center gap-2">
+                            <span className="inline-flex items-center gap-1 rounded-full bg-amber-100 text-amber-800 px-2 py-0.5 font-semibold">
+                              <Globe className="w-3 h-3" /> Website/Online Missing
+                            </span>
+                            <a
+                              href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(`${p.business_name} ${p.address || ""}`)}`}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="text-emerald-800 hover:underline"
+                            >
+                              Open Map
+                            </a>
+                          </div>
                         </td>
                       </tr>
                     ))}
