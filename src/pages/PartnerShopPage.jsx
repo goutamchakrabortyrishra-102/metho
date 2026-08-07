@@ -278,12 +278,12 @@ export default function PartnerShopPage() {
   const [hospitalitySearch, setHospitalitySearch] = useState("");
   const [doorstepSearch, setDoorstepSearch] = useState("");
   const [serviceSearch, setServiceSearch] = useState("");
-  const [transportModalOpen, setTransportModalOpen] = useState(false);
   const [transportService, setTransportService] = useState(null);
   const [transportBusy, setTransportBusy] = useState(false);
   const [transportBooking, setTransportBooking] = useState(null);
   const [transportFarePresets, setTransportFarePresets] = useState([]);
   const [selectedFarePresetId, setSelectedFarePresetId] = useState("");
+  const [transportActiveTab, setTransportActiveTab] = useState("services");
   const [transportForm, setTransportForm] = useState({
     customer_name: "",
     customer_phone: "",
@@ -509,25 +509,44 @@ export default function PartnerShopPage() {
     nav(`/gallery/${partnerCode}${params.toString() ? `?${params.toString()}` : ""}`);
   };
 
+  const loadTransportFarePresets = async (serviceId) => {
+    if (!serviceId) {
+      setTransportFarePresets([]);
+      return;
+    }
+    try {
+      const { data } = await api.get(`/transport/fare-presets?partner_code=${encodeURIComponent(partnerCode)}&service_product_id=${encodeURIComponent(serviceId)}`);
+      setTransportFarePresets(Array.isArray(data?.items) ? data.items : []);
+    } catch {
+      setTransportFarePresets([]);
+    }
+  };
+
+  const openTransportBookingDesk = (service) => {
+    if (!service?.id) return;
+    setTransportService(service);
+    setTransportForm({
+      customer_name: isMemberOrCustomer ? (user?.name || "") : "",
+      customer_phone: isMemberOrCustomer ? (user?.phone || "") : "",
+      pickup: "",
+      destination: "",
+      travel_date: "",
+      notes: "",
+    });
+    setSelectedFarePresetId("");
+    setTransportFarePresets([]);
+    setTransportBooking(null);
+    setTransportActiveTab("booking");
+    void loadTransportFarePresets(service.id);
+    window.requestAnimationFrame(() => {
+      document.getElementById("transport-booking-desk")?.scrollIntoView({ behavior: "smooth", block: "start" });
+    });
+  };
+
   const bookServiceNow = (service) => {
     if (!service?.id) return;
     if (isTransportServiceListing(service)) {
-      setTransportService(service);
-      setTransportForm({
-        customer_name: isMemberOrCustomer ? (user?.name || "") : "",
-        customer_phone: isMemberOrCustomer ? (user?.phone || "") : "",
-        pickup: "",
-        destination: "",
-        travel_date: "",
-        notes: "",
-      });
-      setSelectedFarePresetId("");
-      setTransportFarePresets([]);
-      setTransportBooking(null);
-      setTransportModalOpen(true);
-      api.get(`/transport/fare-presets?partner_code=${encodeURIComponent(partnerCode)}&service_product_id=${encodeURIComponent(service.id)}`)
-        .then((r) => setTransportFarePresets(Array.isArray(r.data?.items) ? r.data.items : []))
-        .catch(() => setTransportFarePresets([]));
+      openTransportBookingDesk(service);
       return;
     }
     setCart((prev) => ({ ...prev, [service.id]: 1 }));
@@ -895,6 +914,27 @@ export default function PartnerShopPage() {
               </div>
               <h3 className="font-display font-bold text-emerald-950 text-lg mt-1">Book cab, car rental, bike rental easily</h3>
               <p className="text-sm text-slate-600 mt-3">Pickup আর destination দিয়ে ride request দিন। Partner final fare lock করার পর trip approved হবে.</p>
+              <div className="mt-5 flex flex-wrap gap-2" data-testid="partner-shop-transport-tabs">
+                <button
+                  type="button"
+                  onClick={() => setTransportActiveTab("services")}
+                  className={`rounded-full px-4 py-2 text-sm font-semibold border transition-colors ${transportActiveTab === "services" ? "bg-sky-700 text-white border-sky-700" : "bg-white text-sky-800 border-sky-200 hover:bg-sky-50"}`}
+                >
+                  Transport Services
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setTransportActiveTab("booking");
+                    window.requestAnimationFrame(() => {
+                      document.getElementById("transport-booking-desk")?.scrollIntoView({ behavior: "smooth", block: "start" });
+                    });
+                  }}
+                  className={`rounded-full px-4 py-2 text-sm font-semibold border transition-colors ${transportActiveTab === "booking" ? "bg-emerald-900 text-white border-emerald-900" : "bg-white text-emerald-900 border-emerald-200 hover:bg-emerald-50"}`}
+                >
+                  Booking Desk
+                </button>
+              </div>
               <div className="mt-6 flex flex-col lg:flex-row gap-3 lg:items-center">
                 <div className="flex flex-1 gap-2" data-testid="partner-shop-transport-search-panel">
                   <Input
@@ -916,6 +956,191 @@ export default function PartnerShopPage() {
               </div>
             </div>
           </div>
+
+          {transportActiveTab === "booking" ? (
+            <section id="transport-booking-desk" className="bg-white rounded-xl border border-emerald-200 p-6 mb-8" data-testid="transport-booking-desk">
+              <div className="flex flex-wrap items-start justify-between gap-3">
+                <div>
+                  <p className="text-[10px] uppercase tracking-widest text-emerald-800 font-semibold">Guest / Customer / Member Booking</p>
+                  <h3 className="font-display font-bold text-emerald-950 text-lg mt-1">Transport Booking Desk</h3>
+                  <p className="text-sm text-slate-600 mt-2">Service select করে pickup, destination, Google Maps route, date-time এবং note submit করুন। Booking partner dashboard-এ যাবে, তারপর fare final করে partner confirm করতে পারবে।</p>
+                </div>
+                <Button type="button" variant="outline" className="rounded-full" onClick={() => setTransportActiveTab("services")}>
+                  Back to Services
+                </Button>
+              </div>
+
+              {!user ? <p className="text-[11px] text-amber-700 mt-3">Guest mode active: Member ID/Code দিলে reward attribution হবে, না দিলে guest booking হবে।</p> : null}
+
+              {!transportBooking ? (
+                <div className="mt-5 space-y-3">
+                  <div>
+                    <p className="text-[11px] text-slate-600 mb-1">Select transport service</p>
+                    <select
+                      value={String(transportService?.id || "")}
+                      onChange={(e) => {
+                        const nextService = transportListings.find((item) => String(item?.id || "") === String(e.target.value || ""));
+                        setTransportService(nextService || null);
+                        setSelectedFarePresetId("");
+                        setTransportFarePresets([]);
+                        setTransportBooking(null);
+                        setTransportForm((prev) => ({
+                          ...prev,
+                          pickup: "",
+                          destination: "",
+                          travel_date: "",
+                          notes: "",
+                        }));
+                        if (nextService?.id) void loadTransportFarePresets(nextService.id);
+                      }}
+                      className="h-11 w-full rounded-xl border border-emerald-200 bg-white px-3 text-sm outline-none focus:ring-2 focus:ring-emerald-300"
+                      data-testid="transport-booking-service-select"
+                    >
+                      <option value="">Select cab / car rental / bike rental</option>
+                      {transportListings.map((service) => (
+                        <option key={service.id} value={service.id}>{service.name} ({service.category || "Transport"})</option>
+                      ))}
+                    </select>
+                  </div>
+
+                  {transportService ? (
+                    <div className="rounded-xl border border-sky-200 bg-sky-50/70 px-4 py-3">
+                      <div className="flex flex-wrap items-start justify-between gap-3">
+                        <div>
+                          <p className="text-[10px] uppercase tracking-widest text-sky-700 font-semibold">Selected Service</p>
+                          <p className="font-display font-bold text-emerald-950 mt-1">{transportService?.name}</p>
+                          <p className="text-xs text-slate-600 mt-1">{transportService?.category || "Transport"} · Base price ₹{Number(transportService?.price || 0).toLocaleString("en-IN")}</p>
+                        </div>
+                        <span className="rounded-full bg-white border border-sky-200 px-3 py-1 text-xs font-semibold text-sky-800">Partner will review and confirm</span>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="rounded-xl border border-dashed border-emerald-200 bg-emerald-50/60 px-4 py-5 text-sm text-slate-600">
+                      আগে transport service select করুন, তারপর booking details fill করুন।
+                    </div>
+                  )}
+
+                  {(transportFarePresets || []).length ? (
+                    <div className="rounded-lg border border-emerald-200 bg-emerald-50 p-3">
+                      <p className="text-xs font-semibold text-emerald-900">Common destination fare</p>
+                      <p className="text-[11px] text-slate-600 mt-0.5">Preset select করলে destination + fare route ready হয়ে যাবে।</p>
+                      <div className="mt-2 space-y-1.5">
+                        {(transportFarePresets || []).map((preset) => (
+                          <label key={preset.id} className="flex items-center gap-2 text-xs text-slate-700">
+                            <input
+                              type="radio"
+                              name="transport-fare-preset"
+                              checked={selectedFarePresetId === String(preset.id)}
+                              onChange={() => {
+                                setSelectedFarePresetId(String(preset.id));
+                                setTransportForm((prev) => ({
+                                  ...prev,
+                                  destination: String(preset.destination || ""),
+                                  notes: prev.notes || String(preset.notes || ""),
+                                }));
+                              }}
+                            />
+                            <span>{preset.destination} · ₹{Number(preset.fare || 0).toLocaleString("en-IN")}</span>
+                            {preset.pickup_hint ? <span className="text-[10px] text-slate-500">Pickup: {preset.pickup_hint}</span> : null}
+                          </label>
+                        ))}
+                        <button
+                          type="button"
+                          className="text-[11px] text-emerald-800 underline"
+                          onClick={() => setSelectedFarePresetId("")}
+                        >
+                          Use custom destination
+                        </button>
+                      </div>
+                    </div>
+                  ) : null}
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                    <Input value={transportForm.customer_name} onChange={(e) => setTransportForm((prev) => ({ ...prev, customer_name: e.target.value }))} placeholder="Customer name" className="h-10" />
+                    <Input value={transportForm.customer_phone} onChange={(e) => setTransportForm((prev) => ({ ...prev, customer_phone: e.target.value }))} placeholder="Mobile number" className="h-10" />
+                  </div>
+                  <Input value={guestMemberRef} onChange={(e) => setGuestMemberRef(e.target.value)} placeholder="Member ID/Code (optional for reward %)" className="h-10" />
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                    <Input value={transportForm.pickup} onChange={(e) => setTransportForm((prev) => ({ ...prev, pickup: e.target.value }))} placeholder="Pickup point" className="h-10" />
+                    <Input
+                      value={transportForm.destination}
+                      onChange={(e) => {
+                        setSelectedFarePresetId("");
+                        setTransportForm((prev) => ({ ...prev, destination: e.target.value }));
+                      }}
+                      placeholder="Destination"
+                      className="h-10"
+                    />
+                  </div>
+                  <div className="rounded-lg border border-sky-200 bg-sky-50 p-3">
+                    <p className="text-[11px] font-semibold text-sky-900">Default fare estimate (not final)</p>
+                    <p className="text-xs text-slate-700 mt-1">
+                      {selectedFarePresetId
+                        ? `Default fare shown: ₹${Number((transportFarePresets.find((p) => String(p.id) === selectedFarePresetId)?.fare) || 0).toLocaleString("en-IN")} (from selected preset)`
+                        : `Default fare shown: ₹${Number(transportService?.price || 0).toLocaleString("en-IN")} (from service listing)`}
+                    </p>
+                    <p className="text-[11px] text-slate-600 mt-1">This is not the final fare. The final amount can be confirmed after discussing and agreeing with the business owner.</p>
+                  </div>
+                  <div className="flex flex-wrap gap-2">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      className="rounded-full"
+                      onClick={() => {
+                        const url = routeMapsUrl(transportForm.pickup, transportForm.destination);
+                        if (!url) {
+                          toast.error("Pickup বা destination দিন");
+                          return;
+                        }
+                        window.open(url, "_blank", "noopener,noreferrer");
+                      }}
+                    >
+                      Open Route in Google Maps
+                    </Button>
+                  </div>
+                  <div>
+                    <p className="text-[11px] text-slate-600 mb-1">Travel date and time</p>
+                    <Input type="datetime-local" value={transportForm.travel_date} onChange={(e) => setTransportForm((prev) => ({ ...prev, travel_date: e.target.value }))} className="h-10" />
+                  </div>
+                  <Input value={transportForm.notes} onChange={(e) => setTransportForm((prev) => ({ ...prev, notes: e.target.value }))} placeholder="Notes (optional)" className="h-10" />
+                  <div className="flex flex-wrap gap-2 pt-1">
+                    <Button className="rounded-full bg-emerald-900 hover:bg-emerald-950 text-white" onClick={submitTransportBooking} disabled={transportBusy || !transportService?.id}>
+                      {transportBusy ? "Booking..." : "Submit Booking Request"}
+                    </Button>
+                    <Button variant="outline" className="rounded-full" onClick={() => setTransportActiveTab("services")}>View Services</Button>
+                  </div>
+                </div>
+              ) : (
+                <div className="mt-5 space-y-3">
+                  <div className="rounded-lg border border-emerald-200 bg-emerald-50 p-3">
+                    <p className="text-xs text-emerald-900 font-semibold">Booking ID: {transportBooking.trip_code || transportBooking.id}</p>
+                    <p className="text-xs text-slate-700 mt-1">Status: <span className="font-semibold uppercase">{transportBooking.status}</span></p>
+                    {transportBooking?.service_name ? <p className="text-xs text-slate-700">Service: {transportBooking.service_name}</p> : null}
+                    {transportBooking?.travel_date ? <p className="text-xs text-slate-700">Schedule: {formatTransportSchedule(transportBooking.travel_date)}</p> : null}
+                    <p className="text-xs text-slate-700">Quoted Fare: ₹{Number(transportBooking.fare_quote || 0).toLocaleString("en-IN")}</p>
+                    <p className="text-xs text-slate-700">Final Fare: {Number(transportBooking.fare_final || 0) > 0 ? `₹${transportBooking.fare_final}` : "Partner will set after review"}</p>
+                    <p className="text-xs text-slate-700">Route: {transportBooking.pickup} -> {transportBooking.destination}</p>
+                    {transportBooking?.response_note ? <p className="text-xs text-slate-700">Partner Note: {transportBooking.response_note}</p> : null}
+                    <button
+                      type="button"
+                      className="text-xs text-emerald-800 underline mt-1"
+                      onClick={() => {
+                        const url = routeMapsUrl(transportBooking.pickup, transportBooking.destination);
+                        if (url) window.open(url, "_blank", "noopener,noreferrer");
+                      }}
+                    >
+                      View route on Google Maps
+                    </button>
+                  </div>
+                  <p className="text-xs text-slate-600">Booking request partner queue-তে গেছে। Partner fare final করে accept/reject করবে; accept হলে trip execution flow এগোবে।</p>
+                  <div className="flex flex-wrap gap-2">
+                    <Button variant="outline" className="rounded-full" onClick={refreshTransportBooking}>Refresh Status</Button>
+                    <Button className="rounded-full bg-emerald-900 hover:bg-emerald-950 text-white" onClick={() => setTransportActiveTab("services")}>Done</Button>
+                  </div>
+                </div>
+              )}
+            </section>
+          ) : null}
 
           <section className="bg-white rounded-xl border border-sky-200 p-6 mb-8" data-testid="partner-shop-all-transport-box">
             <div className="flex flex-wrap items-center justify-between gap-3">
@@ -1380,142 +1605,6 @@ export default function PartnerShopPage() {
                 <span className="text-sm text-slate-500">{isServiceListing(previewItem) ? "Service" : `Stock: ${getStock(previewItem)}`}</span>
               </div>
             </div>
-          </div>
-        </div>
-      ) : null}
-
-      {transportModalOpen ? (
-        <div className="fixed inset-0 z-50 bg-black/55 backdrop-blur-sm flex items-end md:items-center justify-center p-4" onClick={() => setTransportModalOpen(false)}>
-          <div className="bg-white rounded-2xl w-full max-w-lg shadow-2xl" onClick={(e) => e.stopPropagation()} data-testid="transport-booking-modal">
-            <div className="px-5 pt-5 pb-3 border-b border-border flex items-start justify-between gap-3">
-              <div>
-                <p className="text-[10px] uppercase tracking-widest text-emerald-800 font-semibold">Transport Booking</p>
-                <h3 className="font-display font-bold text-emerald-950 text-lg mt-1">{transportService?.name || "Book Ride"}</h3>
-                <p className="text-xs text-slate-600 mt-1">Pickup + destination + date/time দিয়ে booking request পাঠান। Partner fare adjust করে accept/reject response দেবে।</p>
-                {!user ? <p className="text-[11px] text-amber-700 mt-1">Guest mode active: Member ID/Code দিলে reward attribution হবে, না দিলে guest booking হবে।</p> : null}
-              </div>
-              <button onClick={() => setTransportModalOpen(false)} className="w-8 h-8 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-700 flex items-center justify-center">
-                <X className="w-4 h-4" />
-              </button>
-            </div>
-
-            {!transportBooking ? (
-              <div className="p-5 space-y-3">
-                {(transportFarePresets || []).length ? (
-                  <div className="rounded-lg border border-emerald-200 bg-emerald-50 p-3">
-                    <p className="text-xs font-semibold text-emerald-900">Common destination fare</p>
-                    <p className="text-[11px] text-slate-600 mt-0.5">Preset select করলে destination + fare route ready হয়ে যাবে।</p>
-                    <div className="mt-2 space-y-1.5">
-                      {(transportFarePresets || []).map((preset) => (
-                        <label key={preset.id} className="flex items-center gap-2 text-xs text-slate-700">
-                          <input
-                            type="radio"
-                            name="transport-fare-preset"
-                            checked={selectedFarePresetId === String(preset.id)}
-                            onChange={() => {
-                              setSelectedFarePresetId(String(preset.id));
-                              setTransportForm((prev) => ({
-                                ...prev,
-                                destination: String(preset.destination || ""),
-                                notes: prev.notes || String(preset.notes || ""),
-                              }));
-                            }}
-                          />
-                          <span>{preset.destination} · ₹{Number(preset.fare || 0).toLocaleString("en-IN")}</span>
-                          {preset.pickup_hint ? <span className="text-[10px] text-slate-500">Pickup: {preset.pickup_hint}</span> : null}
-                        </label>
-                      ))}
-                      <button
-                        type="button"
-                        className="text-[11px] text-emerald-800 underline"
-                        onClick={() => setSelectedFarePresetId("")}
-                      >
-                        Use custom destination
-                      </button>
-                    </div>
-                  </div>
-                ) : null}
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                  <Input value={transportForm.customer_name} onChange={(e) => setTransportForm((prev) => ({ ...prev, customer_name: e.target.value }))} placeholder="Customer name" className="h-10" />
-                  <Input value={transportForm.customer_phone} onChange={(e) => setTransportForm((prev) => ({ ...prev, customer_phone: e.target.value }))} placeholder="Mobile number" className="h-10" />
-                </div>
-                <Input value={guestMemberRef} onChange={(e) => setGuestMemberRef(e.target.value)} placeholder="Member ID/Code (optional for reward %)" className="h-10" />
-                <Input value={transportForm.pickup} onChange={(e) => setTransportForm((prev) => ({ ...prev, pickup: e.target.value }))} placeholder="Pickup location" className="h-10" />
-                <Input
-                  value={transportForm.destination}
-                  onChange={(e) => {
-                    setSelectedFarePresetId("");
-                    setTransportForm((prev) => ({ ...prev, destination: e.target.value }));
-                  }}
-                  placeholder="Destination"
-                  className="h-10"
-                />
-                <div className="rounded-lg border border-sky-200 bg-sky-50 p-3">
-                  <p className="text-[11px] font-semibold text-sky-900">Default fare estimate (not final)</p>
-                  <p className="text-xs text-slate-700 mt-1">
-                    {selectedFarePresetId
-                      ? `Default fare shown: ₹${Number((transportFarePresets.find((p) => String(p.id) === selectedFarePresetId)?.fare) || 0).toLocaleString("en-IN")} (from selected preset)`
-                      : `Default fare shown: ₹${Number(transportService?.price || 0).toLocaleString("en-IN")} (from service listing)`}
-                  </p>
-                  <p className="text-[11px] text-slate-600 mt-1">This is not the final fare. The final amount can be confirmed after discussing and agreeing with the business owner.</p>
-                </div>
-                <div className="flex gap-2">
-                  <Button
-                    type="button"
-                    variant="outline"
-                    className="rounded-full"
-                    onClick={() => {
-                      const url = routeMapsUrl(transportForm.pickup, transportForm.destination);
-                      if (!url) {
-                        toast.error("Pickup বা destination দিন");
-                        return;
-                      }
-                      window.open(url, "_blank", "noopener,noreferrer");
-                    }}
-                  >
-                    Open Route in Google Maps
-                  </Button>
-                </div>
-                <div>
-                  <p className="text-[11px] text-slate-600 mb-1">Travel date and time</p>
-                  <Input type="datetime-local" value={transportForm.travel_date} onChange={(e) => setTransportForm((prev) => ({ ...prev, travel_date: e.target.value }))} className="h-10" />
-                </div>
-                <Input value={transportForm.notes} onChange={(e) => setTransportForm((prev) => ({ ...prev, notes: e.target.value }))} placeholder="Notes (optional)" className="h-10" />
-                <div className="flex gap-2 pt-1">
-                  <Button className="rounded-full bg-emerald-900 hover:bg-emerald-950 text-white" onClick={submitTransportBooking} disabled={transportBusy}>
-                    {transportBusy ? "Booking..." : "Confirm Booking"}
-                  </Button>
-                  <Button variant="outline" className="rounded-full" onClick={() => setTransportModalOpen(false)}>Close</Button>
-                </div>
-              </div>
-            ) : (
-              <div className="p-5 space-y-3">
-                <div className="rounded-lg border border-emerald-200 bg-emerald-50 p-3">
-                  <p className="text-xs text-emerald-900 font-semibold">Booking ID: {transportBooking.trip_code || transportBooking.id}</p>
-                  <p className="text-xs text-slate-700 mt-1">Status: <span className="font-semibold uppercase">{transportBooking.status}</span></p>
-                  {transportBooking?.travel_date ? <p className="text-xs text-slate-700">Schedule: {formatTransportSchedule(transportBooking.travel_date)}</p> : null}
-                  <p className="text-xs text-slate-700">Quoted Fare: ₹{Number(transportBooking.fare_quote || 0).toLocaleString("en-IN")}</p>
-                  <p className="text-xs text-slate-700">Final Fare: {Number(transportBooking.fare_final || 0) > 0 ? `₹${transportBooking.fare_final}` : "Partner will set after review"}</p>
-                  <p className="text-xs text-slate-700">Route: {transportBooking.pickup} -> {transportBooking.destination}</p>
-                  {transportBooking?.response_note ? <p className="text-xs text-slate-700">Partner Note: {transportBooking.response_note}</p> : null}
-                  <button
-                    type="button"
-                    className="text-xs text-emerald-800 underline mt-1"
-                    onClick={() => {
-                      const url = routeMapsUrl(transportBooking.pickup, transportBooking.destination);
-                      if (url) window.open(url, "_blank", "noopener,noreferrer");
-                    }}
-                  >
-                    View route on Google Maps
-                  </button>
-                </div>
-                <p className="text-xs text-slate-600">Booking request partner queue-তে গেছে। Partner fare final করে accept/reject করবে; accept হলে trip execution flow এগোবে।</p>
-                <div className="flex gap-2">
-                  <Button variant="outline" className="rounded-full" onClick={refreshTransportBooking}>Refresh Status</Button>
-                  <Button className="rounded-full bg-emerald-900 hover:bg-emerald-950 text-white" onClick={() => setTransportModalOpen(false)}>Done</Button>
-                </div>
-              </div>
-            )}
           </div>
         </div>
       ) : null}
