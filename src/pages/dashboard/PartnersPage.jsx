@@ -169,6 +169,7 @@ export default function PartnersPage() {
   const [nearbyLeads, setNearbyLeads] = useState([]);
   const [leadFollowupMap, setLeadFollowupMap] = useState({});
   const [dedupeEnabled, setDedupeEnabled] = useState(true);
+  const [hotOnly, setHotOnly] = useState(false);
   const lastFormPinRef = useRef("");
   const lastEditPinRef = useRef("");
 
@@ -888,6 +889,11 @@ export default function PartnersPage() {
     return { total, hot, warm, cold };
   }, [dedupedRankedLeads]);
 
+  const visibleLeads = useMemo(() => {
+    if (!hotOnly) return dedupedRankedLeads;
+    return dedupedRankedLeads.filter((lead) => lead.priority_bucket === "Hot");
+  }, [dedupedRankedLeads, hotOnly]);
+
   useEffect(() => { if (isAdmin) load(); /* eslint-disable-next-line */ }, [isAdmin]);
   useEffect(() => {
     if (!isAdmin) return;
@@ -1377,6 +1383,15 @@ export default function PartnersPage() {
           >
             {dedupeEnabled ? "Duplicate Cleaner: ON" : "Duplicate Cleaner: OFF"}
           </Button>
+          <Button
+            type="button"
+            variant={hotOnly ? "default" : "outline"}
+            onClick={() => setHotOnly((v) => !v)}
+            className="rounded-full"
+            data-testid="nearby-hot-only-toggle"
+          >
+            {hotOnly ? "Hot Leads: ON" : "Show Only Hot Leads"}
+          </Button>
           {nearbyLocationLabel ? <p className="text-xs text-slate-600">Search center: {nearbyLocationLabel}</p> : null}
         </div>
 
@@ -1385,7 +1400,7 @@ export default function PartnersPage() {
         ) : (
           <>
             <p className="text-xs text-slate-600 mt-3">
-              Found <span className="font-semibold text-emerald-900">{dedupedRankedLeads.length}</span> external offline/website-missing leads within {Math.max(1, Number(nearbyRadiusKm) || 15)} km
+              Found <span className="font-semibold text-emerald-900">{visibleLeads.length}</span> external offline/website-missing leads within {Math.max(1, Number(nearbyRadiusKm) || 15)} km
             </p>
             {dedupedRankedLeads.length > 0 ? (
               <div className="mt-2 flex flex-wrap gap-2 text-[11px]">
@@ -1395,7 +1410,7 @@ export default function PartnersPage() {
               </div>
             ) : null}
             {nearbySearchError ? <p className="text-xs text-red-600 mt-2">{nearbySearchError}</p> : null}
-            {nearbySearched && dedupedRankedLeads.length === 0 ? (
+            {nearbySearched && visibleLeads.length === 0 ? (
               <p className="text-xs text-muted-foreground mt-2">No matching leads in selected radius/filter.</p>
             ) : (
               <div className="mt-3 overflow-x-auto">
@@ -1413,7 +1428,7 @@ export default function PartnersPage() {
                     </tr>
                   </thead>
                   <tbody>
-                    {dedupedRankedLeads.slice(0, 200).map((p) => (
+                    {visibleLeads.slice(0, 200).map((p) => (
                       <tr key={`external-lead-${p.id}`} className="border-t border-border">
                         <td className="px-3 py-2">
                           <p className="font-semibold text-emerald-950">{p.business_name}</p>
