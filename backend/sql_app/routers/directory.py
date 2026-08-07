@@ -172,7 +172,10 @@ def partner_directory(
     if pincode:
         query = query.filter(AssociatePartner.pincode == str(pincode).strip())
     if business_type:
-        query = query.filter(AssociatePartner.business_type == business_type)
+        type_tokens = _search_tokens(business_type)
+        for token in type_tokens:
+            like_type = f"%{token}%"
+            query = query.filter(AssociatePartner.business_type.ilike(like_type))
     if q:
         tokens = _search_tokens(q)
         search_fields = [
@@ -189,10 +192,15 @@ def partner_directory(
             like_q = f"%{token}%"
             query = query.filter(or_(*[field.ilike(like_q) for field in search_fields]))
     if category:
+        category_tokens = _search_tokens(category)
+        category_filters = [PartnerProduct.active.is_(True)]
+        for token in category_tokens:
+            like_category = f"%{token}%"
+            category_filters.append(PartnerProduct.category.ilike(like_category))
         partner_ids = [
             row[0]
             for row in db.query(PartnerProduct.partner_id)
-            .filter(PartnerProduct.active.is_(True), PartnerProduct.category == category)
+            .filter(*category_filters)
             .distinct()
             .all()
         ]
