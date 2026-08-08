@@ -1985,9 +1985,20 @@ export default function PartnerDashboardPage() {
                     <div>
                       <p className="font-mono text-xs text-emerald-800">{o.order_no}</p>
                       <p className="text-xs text-muted-foreground">Status: {String(o?.status || "pending_approval").toUpperCase()}</p>
+                      <p className="text-xs text-slate-700 mt-0.5">Payment: {String(o.payment_method || "upi").toUpperCase()}</p>
                       <p className="text-xs text-slate-700 mt-1">Customer: {o.delivery_name || "Customer"}</p>
                       <p className="text-xs text-slate-700 mt-0.5">Phone: {o.delivery_phone || "Not available"}</p>
                       <p className="text-xs text-slate-700 mt-0.5 whitespace-pre-line">Address: {o.delivery_address || "Address not available"}</p>
+                      {Array.isArray(o.my_items) && o.my_items.length > 0 ? (
+                        <div className="mt-2 rounded-md border border-slate-200 bg-slate-50 px-2 py-1.5">
+                          {o.my_items.map((it, idx) => (
+                            <p key={`${o.id}-it-${idx}`} className="text-[11px] text-slate-700">
+                              {it.product_name || "Item"} x {Number(it.quantity || 0)}
+                            </p>
+                          ))}
+                          <p className="text-[11px] font-semibold text-emerald-800 mt-1">Partner Total: ₹{Number(o.my_sales || 0).toLocaleString("en-IN")}</p>
+                        </div>
+                      ) : null}
                     </div>
                     <div className="text-right">
                       {o.customer_whatsapp_invoice_url ? (

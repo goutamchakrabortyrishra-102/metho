@@ -1284,7 +1284,7 @@ def partner_orders(db: Session = Depends(get_db), current_user=Depends(get_curre
 
         customer_whatsapp_invoice_url = ""
         if customer_phone_digits:
-            invoice_link = f"https://methoaayupay.com/login?next=/invoice/{row.id}"
+            invoice_link = f"https://methoaayupay.com/invoice/{row.id}"
             msg = (
                 f"Invoice ready for Order ORD-{row.id[:8].upper()}\\n"
                 f"Customer: {delivery_name}\\n"
@@ -1336,17 +1336,17 @@ def partner_orders(db: Session = Depends(get_db), current_user=Depends(get_curre
                 "delivery_address": delivery_address,
                 "delivery_phone": customer_phone_digits,
                 "customer_whatsapp_invoice_url": customer_whatsapp_invoice_url,
-                "payment_method": "",
-                "my_sales": 0,
-                "my_commission": 0,
-                "my_items": [],
+                "payment_method": str(row.payment_method or "").strip().lower(),
+                "my_sales": my_sales,
+                "my_commission": my_commission,
+                "my_items": my_items,
                 "invoice_available": False,
                 "can_service_rate_edit": False,
                 "service_rate_locked": False,
                 "wallet_balance_snapshot": 0,
-                "commission_reserve_required": 0,
-                "blocked_by_wallet_reserve": False,
-                "invoice_locked_reason": "Order details এবং invoice partner view-এ disabled আছে।",
+                "commission_reserve_required": my_commission,
+                "blocked_by_wallet_reserve": blocked_by_wallet_reserve,
+                "invoice_locked_reason": invoice_locked_reason or "Invoice access partner view-এ disabled আছে।",
             }
         )
 
