@@ -42,6 +42,60 @@
             (function () {
                 if (typeof window === "undefined" || typeof document === "undefined") return;
 
+                var jsRecoveryKey = "metho_js_recovery_v1";
+
+                var hasRecoveredJs = function () {
+                    try {
+                        return window.sessionStorage.getItem(jsRecoveryKey) === "1";
+                    } catch (error) {
+                        return true;
+                    }
+                };
+
+                var triggerJsRecoveryReload = function () {
+                    if (hasRecoveredJs()) return;
+                    try {
+                        window.sessionStorage.setItem(jsRecoveryKey, "1");
+                    } catch (error) {
+                        return;
+                    }
+                    var nextUrl = new URL(window.location.href);
+                    nextUrl.searchParams.set("_jsfix", String(Date.now()));
+                    window.setTimeout(function () {
+                        window.location.replace(nextUrl.toString());
+                    }, 300);
+                };
+
+                var looksLikeScriptLoadFailure = function (rawMessage) {
+                    var msg = String(rawMessage || "").toLowerCase();
+                    return (
+                        msg.indexOf("mime type") !== -1 ||
+                        msg.indexOf("loading chunk") !== -1 ||
+                        msg.indexOf("chunkloaderror") !== -1 ||
+                        msg.indexOf("failed to fetch dynamically imported module") !== -1 ||
+                        msg.indexOf("importing a module script failed") !== -1
+                    );
+                };
+
+                window.addEventListener(
+                    "error",
+                    function (event) {
+                        var src = String((event && event.target && event.target.src) || "");
+                        if (looksLikeScriptLoadFailure(event && event.message) || src.indexOf("/static/js/") !== -1) {
+                            triggerJsRecoveryReload();
+                        }
+                    },
+                    true
+                );
+
+                window.addEventListener("unhandledrejection", function (event) {
+                    var reason = event && event.reason;
+                    var message = typeof reason === "string" ? reason : ((reason && reason.message) || "");
+                    if (looksLikeScriptLoadFailure(message)) {
+                        triggerJsRecoveryReload();
+                    }
+                });
+
                 var recoveryKey = "metho_css_recovery_v2";
                 var maxRules = 20;
 
