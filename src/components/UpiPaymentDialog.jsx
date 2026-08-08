@@ -73,7 +73,6 @@ export default function UpiPaymentDialog({
   const [copied, setCopied] = useState(false);
   const [forceManualUpiFlow, setForceManualUpiFlow] = useState(false);
   const [qrImageFailed, setQrImageFailed] = useState(false);
-  const [partnerWhatsappUrl, setPartnerWhatsappUrl] = useState("");
   const codEnabled = paymentConfig ? paymentConfig.cod_enabled !== false : true;
   const normalizedPayerPhone = String(payerPhone || "").replace(/\D/g, "");
   const normalizedUserPhone = String(user?.phone || "").replace(/\D/g, "");
@@ -98,7 +97,6 @@ export default function UpiPaymentDialog({
     if (open) return;
     setForceManualUpiFlow(false);
     setPaymentMode("upi");
-    setPartnerWhatsappUrl("");
   }, [open]);
 
   useEffect(() => {
@@ -215,10 +213,6 @@ export default function UpiPaymentDialog({
       }
       const endpoint = existingOrderId ? `/orders/${existingOrderId}/submit-payment` : "/orders";
       const { data } = await api.post(endpoint, payload);
-      const partnerWhatsappUrl = data?.partner_whatsapp_url || (Array.isArray(data?.partner_whatsapp_urls) ? data.partner_whatsapp_urls[0]?.url : "");
-      const customerWhatsappUrl = data?.member_whatsapp_share_url || "";
-      // Customer checkout should remain plain. Do not auto-open any WhatsApp/SMS composer.
-      setPartnerWhatsappUrl(customerWhatsappUrl || partnerWhatsappUrl || "");
       if (paymentMode === "cod") {
         toast.success("COD order placed. Delivery charges should be discussed and negotiated directly with the partner.", { duration: 5000 });
       } else {
@@ -330,10 +324,6 @@ export default function UpiPaymentDialog({
                 : (verified?.approval_reason || "Payment received. Admin approval pending."),
               { duration: 4500 }
             );
-            const verifiedWhatsappUrl = verified?.partner_whatsapp_url || (Array.isArray(verified?.partner_whatsapp_urls) ? verified.partner_whatsapp_urls[0]?.url : "");
-            const verifiedCustomerWhatsappUrl = verified?.member_whatsapp_share_url || "";
-            // Keep checkout plain for customer side: no auto WhatsApp redirect/open.
-            setPartnerWhatsappUrl(verifiedCustomerWhatsappUrl || verifiedWhatsappUrl || "");
             onOrderPlaced?.(verified);
             if (isGuest) {
               writeGuestCheckoutPrefs({
@@ -408,21 +398,6 @@ export default function UpiPaymentDialog({
               : "Complete payment using UPI QR/UPI proof flow."}
           </DialogDescription>
         </DialogHeader>
-
-        {partnerWhatsappUrl ? (
-          <div className="rounded-xl border border-green-200 bg-green-50 p-4 text-sm text-green-900">
-            <p className="font-semibold">WhatsApp notification link is ready.</p>
-            <p className="mt-1 text-xs text-green-800">If your browser blocked the popup, open it from here.</p>
-            <a
-              href={partnerWhatsappUrl}
-              target="_blank"
-              rel="noreferrer"
-              className="mt-3 inline-flex items-center justify-center rounded-full bg-green-600 px-4 py-2 text-white font-semibold hover:bg-green-700"
-            >
-              Open WhatsApp
-            </a>
-          </div>
-        ) : null}
 
         <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-xs text-red-900" data-testid="upi-otp-safety-notice">
           <p className="font-semibold">Security warning: METHO never asks for OTP, UPI PIN, ATM PIN, CVV, or full bank details.</p>
