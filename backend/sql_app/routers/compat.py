@@ -516,7 +516,7 @@ def _is_transport_service_listing(item: PartnerProduct | None, meta_map: dict[st
         str(item.description or "").lower(),
     ])
     transport_keywords = [
-        "transport", "cab", "bike", "rental", "taxi", "cargo", "logistics", "carrier",
+        "transport", "cab", "car", "car rental", "bike", "motorbike", "vehicle", "rental", "taxi", "cargo", "logistics", "carrier",
         "goods carrier", "ride", "auto", "auto rental", "auto rickshaw", "autorickshaw",
         "e-rickshaw", "erickshaw", "rickshaw", "truck", "pickup van", "van rental", "scooter rental",
     ]

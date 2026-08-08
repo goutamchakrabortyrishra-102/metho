@@ -714,7 +714,14 @@ export default function PartnerShopPage() {
   };
 
   const submitTransportBooking = async () => {
-    if (!transportService?.id) return;
+    const bookingService = transportService
+      || filteredTransportServiceOptions[0]
+      || transportListings[0]
+      || null;
+    if (!bookingService?.id) {
+      toast.error("Transport service select করুন অথবা service name লিখুন");
+      return;
+    }
     if (!transportForm.customer_name.trim()) {
       toast.error("Customer name দিন");
       return;
@@ -733,12 +740,17 @@ export default function PartnerShopPage() {
     }
     setTransportBusy(true);
     try {
+      if (!transportService?.id) {
+        setTransportService(bookingService);
+        setTransportServiceSearch(`${bookingService?.name || ""}${bookingService?.category ? ` (${bookingService.category})` : ""}`.trim());
+        void loadTransportFarePresets(bookingService.id);
+      }
       const manualMemberRef = String(guestMemberRef || "").trim();
       const autoMemberRef = normalizedRole === "member" ? String(user?.id || "").trim() : "";
       const { data } = await api.post("/transport/bookings", {
         partner_code: partnerCode,
-        service_product_id: transportService.id,
-        vehicle_type: String(transportService?.service_template_key || "cab").includes("bike") ? "bike_rental" : String(transportService?.service_template_key || "cab").includes("car") ? "car_rental" : "cab",
+        service_product_id: bookingService.id,
+        vehicle_type: String(bookingService?.service_template_key || "cab").includes("bike") ? "bike_rental" : String(bookingService?.service_template_key || "cab").includes("car") ? "car_rental" : "cab",
         customer_name: transportForm.customer_name,
         customer_phone: transportForm.customer_phone,
         pickup: transportForm.pickup,
@@ -1266,7 +1278,7 @@ export default function PartnerShopPage() {
                   </div>
                   <Input value={transportForm.notes} onChange={(e) => setTransportForm((prev) => ({ ...prev, notes: e.target.value }))} placeholder="Notes (optional)" className="h-10" />
                   <div className="flex flex-wrap gap-2 pt-1">
-                    <Button className="rounded-full bg-emerald-900 hover:bg-emerald-950 text-white" onClick={submitTransportBooking} disabled={transportBusy || !transportService?.id}>
+                    <Button className="rounded-full bg-emerald-900 hover:bg-emerald-950 text-white" onClick={submitTransportBooking} disabled={transportBusy || !(transportService?.id || filteredTransportServiceOptions[0]?.id || transportListings[0]?.id)}>
                       {transportBusy ? "Booking..." : "Submit Booking Request"}
                     </Button>
                     <Button variant="outline" className="rounded-full" onClick={() => setTransportActiveTab("services")}>View Services</Button>
