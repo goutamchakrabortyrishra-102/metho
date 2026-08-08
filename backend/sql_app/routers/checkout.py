@@ -579,7 +579,13 @@ def create_public_order(payload: dict, db: Session = Depends(get_db), authorizat
         try:
             token = auth_header.split(" ", 1)[1]
             claims = decode_token(token)
-            customer_user_id = str(claims.get("user_id") or "")
+            token_user_id = str(claims.get("user_id") or "").strip()
+            if token_user_id:
+                token_user = db.query(User).filter(User.id == token_user_id).first()
+                token_role = str(getattr(token_user, "role", "") or "").strip().lower()
+                # Public checkout should not auto-attach partner/admin/store-owner identities as invoice buyers.
+                if token_user and token_role not in {"partner", "store_owner", "metho_store_owner", "owner", "admin", "super_admin", "company_admin"}:
+                    customer_user_id = token_user_id
         except Exception:
             customer_user_id = ""
 

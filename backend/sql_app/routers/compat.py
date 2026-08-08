@@ -2968,7 +2968,68 @@ def _invoice_payload(db: Session, order_id: str, current_user: User):
             }
         )
 
+    seller_name = settings.get("site_title", "METHO AAY-UPAY")
+    seller_address = settings.get("company_address", "India")
+    seller_gst = settings.get("company_gst_no", "N/A")
+    seller_pan = settings.get("company_pan", "N/A")
+    seller_state = settings.get("company_state", "West Bengal")
+    seller_state_code = settings.get("company_state_code", "19")
+    seller_email = settings.get("company_email", "admin@metho.com")
+    seller_upi = settings.get("upi_id", "methopvtltd@paytm")
+
+    associate_partner_product_ids = [
+        str(item.get("product_id") or "").strip()
+        for item in items
+        if str(item.get("product_type") or "").strip().lower() == "associate_partner"
+    ]
+    if associate_partner_product_ids and len(associate_partner_product_ids) == len(items):
+        partner_products = (
+            db.query(PartnerProduct)
+            .filter(PartnerProduct.id.in_(associate_partner_product_ids))
+            .all()
+        )
+        partner_ids = {
+            str(pp.partner_id or "").strip()
+            for pp in partner_products
+            if str(pp.partner_id or "").strip()
+        }
+        if len(partner_ids) == 1:
+            partner = db.query(AssociatePartner).filter(AssociatePartner.id == next(iter(partner_ids))).first()
+            if partner:
+                seller_name = str(partner.business_name or seller_name).strip() or seller_name
+                seller_address = ", ".join(
+                    [
+                        str(partner.address or "").strip(),
+                        str(partner.city or "").strip(),
+                        str(partner.state or "").strip(),
+                        str(partner.pincode or "").strip(),
+                    ]
+                ).strip(", ") or seller_address
+                seller_gst = str(partner.gst_no or "").strip() or seller_gst
+                seller_state = str(partner.state or "").strip() or seller_state
+                seller_email = str(partner.email or "").strip() or seller_email
+                seller_upi = str(partner.upi_id or "").strip() or seller_upi
+
     buyer = db.query(User).filter(User.id == row.customer_user_id).first() if row.customer_user_id else None
+    buyer_role = str(getattr(buyer, "role", "") or "").strip().lower() if buyer else ""
+    buyer_is_member_identity = bool(
+        buyer and buyer_role not in {"partner", "store_owner", "metho_store_owner", "owner", "admin", "super_admin", "company_admin"}
+    )
+
+    buyer_name = str(row.payer_name or "").strip() or "Guest Customer"
+    buyer_email = ""
+    buyer_phone = ""
+    buyer_member_code = ""
+    if buyer_is_member_identity:
+        buyer_name = str(buyer.name or buyer_name).strip() or buyer_name
+        buyer_email = str(buyer.email or "").strip()
+        buyer_phone = str(buyer.phone or "").strip()
+        buyer_member_code = member_code_for_user(buyer.id)
+    else:
+        ref_text = str(row.member_ref or "").strip().upper()
+        if ref_text.startswith("MTH-"):
+            buyer_member_code = ref_text
+
     invoice = {
         "order_id": row.id,
         "order_no": f"ORD-{row.id[:8].upper()}",
@@ -2976,20 +3037,20 @@ def _invoice_payload(db: Session, order_id: str, current_user: User):
         "invoice_date": row.created_at.isoformat() if row.created_at else now_iso(),
         "status": ("paid" if row.status == "paid" else row.status),
         "seller": {
-            "name": settings.get("site_title", "METHO AAY-UPAY"),
-            "address": settings.get("company_address", "India"),
-            "gst_no": settings.get("company_gst_no", "N/A"),
-            "pan": settings.get("company_pan", "N/A"),
-            "state": settings.get("company_state", "West Bengal"),
-            "state_code": settings.get("company_state_code", "19"),
-            "email": settings.get("company_email", "admin@metho.com"),
-            "upi_id": settings.get("upi_id", "methopvtltd@paytm"),
+            "name": seller_name,
+            "address": seller_address,
+            "gst_no": seller_gst,
+            "pan": seller_pan,
+            "state": seller_state,
+            "state_code": seller_state_code,
+            "email": seller_email,
+            "upi_id": seller_upi,
         },
         "buyer": {
-            "name": (buyer.name if buyer else "Guest Customer"),
-            "email": (buyer.email if buyer else ""),
-            "phone": (buyer.phone if buyer else ""),
-            "member_code": (member_code_for_user(buyer.id) if buyer else row.member_ref),
+            "name": buyer_name,
+            "email": buyer_email,
+            "phone": buyer_phone,
+            "member_code": buyer_member_code,
             "shipping_address": row.shipping_address,
         },
         "payment": {
