@@ -654,6 +654,7 @@ def create_public_order(payload: dict, db: Session = Depends(get_db), authorizat
 
     member_ref = str(payload.get("member_code") or payload.get("member_id") or "").strip()
     customer_name = str(payload.get("payer_name") or "Customer").strip() or "Customer"
+    customer_phone = str(payload.get("customer_phone") or "").strip()
     row = PublicOrder(
         id=str(uuid.uuid4()),
         customer_user_id=customer_user_id,
@@ -701,11 +702,27 @@ def create_public_order(payload: dict, db: Session = Depends(get_db), authorizat
                 "url": whatsapp_url,
             })
 
+    member_whatsapp_share_url = ""
+    customer_phone_digits = "".join(ch for ch in customer_phone if ch.isdigit())
+    if customer_phone_digits:
+        order_link = f"https://metho.store/invoice/{row.id}"
+        payment_label = str(payload.get("payment_method") or "upi").strip().upper()
+        message = (
+            f"METHO order placed successfully.\n"
+            f"Order ID: ORD-{row.id[:8].upper()}\n"
+            f"Customer: {customer_name}\n"
+            f"Payment Mode: {payment_label}\n"
+            f"Total: ₹{float(row.total_amount or 0):.2f}\n"
+            f"Track order / invoice: {order_link}"
+        )
+        member_whatsapp_share_url = f"https://wa.me/{customer_phone_digits}?text={quote(message)}"
+
     return {
         "id": row.id,
         "status": row.status,
         "total_amount": row.total_amount,
         "items": normalized_items,
+        "member_whatsapp_share_url": member_whatsapp_share_url,
         "partner_whatsapp_url": (partner_whatsapp_urls[0]["url"] if partner_whatsapp_urls else ""),
         "partner_whatsapp_urls": partner_whatsapp_urls,
     }

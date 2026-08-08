@@ -212,9 +212,11 @@ export default function UpiPaymentDialog({
       }
       const endpoint = existingOrderId ? `/orders/${existingOrderId}/submit-payment` : "/orders";
       const { data } = await api.post(endpoint, payload);
-      const whatsappUrl = data?.partner_whatsapp_url || (Array.isArray(data?.partner_whatsapp_urls) ? data.partner_whatsapp_urls[0]?.url : "");
+      const partnerWhatsappUrl = data?.partner_whatsapp_url || (Array.isArray(data?.partner_whatsapp_urls) ? data.partner_whatsapp_urls[0]?.url : "");
+      const customerWhatsappUrl = data?.member_whatsapp_share_url || "";
+      const whatsappUrl = paymentMode === "cod" ? (customerWhatsappUrl || partnerWhatsappUrl) : partnerWhatsappUrl;
       if (whatsappUrl) {
-        setPartnerWhatsappUrl(whatsappUrl);
+        setPartnerWhatsappUrl(partnerWhatsappUrl || customerWhatsappUrl);
         if (whatsappPopup) {
           whatsappPopup.location.href = whatsappUrl;
         } else {
@@ -335,10 +337,12 @@ export default function UpiPaymentDialog({
               { duration: 4500 }
             );
             const verifiedWhatsappUrl = verified?.partner_whatsapp_url || (Array.isArray(verified?.partner_whatsapp_urls) ? verified.partner_whatsapp_urls[0]?.url : "");
-            if (verifiedWhatsappUrl) {
-              setPartnerWhatsappUrl(verifiedWhatsappUrl);
+            const verifiedCustomerWhatsappUrl = verified?.member_whatsapp_share_url || "";
+            const finalWhatsappUrl = verifiedCustomerWhatsappUrl || verifiedWhatsappUrl;
+            if (finalWhatsappUrl) {
+              setPartnerWhatsappUrl(verifiedWhatsappUrl || verifiedCustomerWhatsappUrl);
               if (whatsappPopup) {
-                whatsappPopup.location.href = verifiedWhatsappUrl;
+                whatsappPopup.location.href = finalWhatsappUrl;
               } else {
                 toast.info("WhatsApp link ready below if popup was blocked.");
               }
