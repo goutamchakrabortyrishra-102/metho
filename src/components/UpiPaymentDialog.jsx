@@ -218,9 +218,9 @@ export default function UpiPaymentDialog({
       const { data } = await api.post(endpoint, payload);
       const partnerWhatsappUrl = data?.partner_whatsapp_url || (Array.isArray(data?.partner_whatsapp_urls) ? data.partner_whatsapp_urls[0]?.url : "");
       const customerWhatsappUrl = data?.member_whatsapp_share_url || "";
-      const whatsappUrl = partnerWhatsappUrl || customerWhatsappUrl;
+      const whatsappUrl = customerWhatsappUrl;
       if (whatsappUrl) {
-        setPartnerWhatsappUrl(partnerWhatsappUrl || customerWhatsappUrl);
+        setPartnerWhatsappUrl(customerWhatsappUrl);
         if (whatsappPopup) {
           whatsappPopup.location.href = whatsappUrl;
         } else {
@@ -343,9 +343,9 @@ export default function UpiPaymentDialog({
             );
             const verifiedWhatsappUrl = verified?.partner_whatsapp_url || (Array.isArray(verified?.partner_whatsapp_urls) ? verified.partner_whatsapp_urls[0]?.url : "");
             const verifiedCustomerWhatsappUrl = verified?.member_whatsapp_share_url || "";
-            const finalWhatsappUrl = verifiedCustomerWhatsappUrl || verifiedWhatsappUrl;
+            const finalWhatsappUrl = verifiedCustomerWhatsappUrl;
             if (finalWhatsappUrl) {
-              setPartnerWhatsappUrl(verifiedWhatsappUrl || verifiedCustomerWhatsappUrl);
+              setPartnerWhatsappUrl(verifiedCustomerWhatsappUrl);
               if (whatsappPopup) {
                 whatsappPopup.location.href = finalWhatsappUrl;
               } else {

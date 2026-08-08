@@ -578,17 +578,6 @@ export default function PartnerDashboardPage() {
         ? response.data
         : new Blob([response?.data], { type: "application/pdf" });
       const fallbackName = `Invoice_${String(order?.order_no || order.id || "order").replace(/[^A-Za-z0-9_-]/g, "_")}.pdf`;
-      const file = new File([pdfBlob], fallbackName, { type: "application/pdf" });
-
-      if (navigator.share && navigator.canShare && navigator.canShare({ files: [file] })) {
-        await navigator.share({
-          title: `Invoice ${order?.order_no || ""}`,
-          text: `Invoice PDF for ${order?.order_no || "your order"}`,
-          files: [file],
-        });
-        toast.success("Invoice PDF shared");
-        return;
-      }
 
       const anchor = document.createElement("a");
       anchor.href = URL.createObjectURL(pdfBlob);
@@ -597,10 +586,17 @@ export default function PartnerDashboardPage() {
       anchor.click();
       anchor.remove();
 
-      const whatsappUrl = order?.customer_whatsapp_invoice_url
-        || `https://wa.me/?text=${encodeURIComponent(`Invoice PDF downloaded for ${order?.order_no || "order"}. Please attach the PDF and send.`)}`;
-      window.open(whatsappUrl, "_blank", "noopener,noreferrer");
-      toast.success("PDF downloaded. WhatsApp chat opened.");
+      const phoneDigits = String(order?.delivery_phone || "").replace(/\D/g, "");
+      const invoiceLink = `${window.location.origin}/invoice/${order.id}`;
+      const message = `Invoice ready for ${order?.order_no || "your order"}\nCustomer: ${order?.delivery_name || "Customer"}\nOpen invoice: ${invoiceLink}\nPDF downloaded. Please attach and send.`;
+
+      if (phoneDigits) {
+        const waWebUrl = `https://wa.me/${phoneDigits}?text=${encodeURIComponent(message)}`;
+        window.open(waWebUrl, "_blank", "noopener,noreferrer");
+      } else if (order?.customer_whatsapp_invoice_url) {
+        window.open(order.customer_whatsapp_invoice_url, "_blank", "noopener,noreferrer");
+      }
+      toast.success("PDF downloaded and WhatsApp chat opened.");
     } catch (err) {
       const detail = err?.response?.data?.detail;
       const msg = typeof detail === "string" && detail.trim()
