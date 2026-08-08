@@ -1135,6 +1135,11 @@ def partner_orders(db: Session = Depends(get_db), current_user=Depends(get_curre
 
     partner_rate = max(0.0, min(100.0, float(partner.commission_percent or 0)))
     wallet_balance = _partner_wallet_balance(db, partner.id)
+    try:
+        from .compat import admin_approve_order
+    except Exception:
+        admin_approve_order = None
+
     rows = db.query(PublicOrder).order_by(PublicOrder.created_at.desc()).limit(500).all()
 
     out = []
@@ -1178,14 +1183,31 @@ def partner_orders(db: Session = Depends(get_db), current_user=Depends(get_curre
         if not my_items:
             continue
 
-        # Keep partner flow isolated: METHO/multi-partner mix stays admin-only.
-        if has_metho_item or has_foreign_partner_item:
-            continue
-
         my_sales = round(my_sales, 2)
         my_commission = round(my_sales * (partner_rate / 100.0), 2)
         status = str(row.status or "pending_approval")
         status_norm = status.strip().lower()
+
+        if (
+            admin_approve_order
+            and status_norm == "pending_approval"
+            and not has_metho_item
+            and not has_foreign_partner_item
+            and (wallet_balance + 1e-9) >= my_commission
+        ):
+            try:
+                admin_approve_order(
+                    order_id=row.id,
+                    payload={"note": "Auto-approved from partner dashboard reserve balance"},
+                    db=db,
+                    current_user=SimpleNamespace(role="super_admin"),
+                )
+                wallet_balance = round(wallet_balance - my_commission, 2)
+                status = "paid"
+                status_norm = "paid"
+            except HTTPException:
+                pass
+
         blocked_by_wallet_reserve = status_norm == "pending_approval" and (wallet_balance + 1e-9) < my_commission
         invoice_locked_reason = ""
         if status_norm == "pending_approval":

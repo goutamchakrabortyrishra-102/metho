@@ -11,6 +11,27 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogD
 import { QRCodeCanvas } from "qrcode.react";
 import { resolveAssetUrl, buildUpiPaymentUri } from "@/lib/utils";
 
+const GUEST_CHECKOUT_PREFS_KEY = "metho_guest_checkout_prefs_v1";
+
+const readGuestCheckoutPrefs = () => {
+  try {
+    const raw = window.localStorage.getItem(GUEST_CHECKOUT_PREFS_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    return parsed && typeof parsed === "object" ? parsed : null;
+  } catch {
+    return null;
+  }
+};
+
+const writeGuestCheckoutPrefs = (prefs) => {
+  try {
+    window.localStorage.setItem(GUEST_CHECKOUT_PREFS_KEY, JSON.stringify(prefs || {}));
+  } catch {
+    // Ignore storage failures.
+  }
+};
+
 
 const loadRazorpayScript = () => new Promise((resolve) => {
   if (typeof window === "undefined") return resolve(false);
@@ -93,6 +114,31 @@ export default function UpiPaymentDialog({
       setPayerPhone(String(user.phone).trim());
     }
   }, [open, isGuest, normalizedUserRole, user?.name, user?.phone, payerName, payerPhone]);
+
+  useEffect(() => {
+    if (!open || !isGuest) return;
+    const saved = readGuestCheckoutPrefs();
+    if (!saved) return;
+
+    if (!String(payerPhone || "").trim() && String(saved.payer_phone || "").trim()) {
+      setPayerPhone(String(saved.payer_phone).trim());
+    }
+    if (!String(payerName || "").trim() && String(saved.payer_name || "").trim()) {
+      setPayerName(String(saved.payer_name).trim());
+    }
+    if (!String(address || "").trim() && String(saved.shipping_address || "").trim()) {
+      setAddress(String(saved.shipping_address).trim());
+    }
+  }, [open, isGuest, payerPhone, payerName, address]);
+
+  useEffect(() => {
+    if (!isGuest) return;
+    writeGuestCheckoutPrefs({
+      payer_phone: String(payerPhone || "").trim(),
+      payer_name: String(payerName || "").trim(),
+      shipping_address: String(address || "").trim(),
+    });
+  }, [isGuest, payerPhone, payerName, address]);
 
   const copyUpi = async () => {
     if (!settings?.upi_id) return;
@@ -180,6 +226,13 @@ export default function UpiPaymentDialog({
         );
       }
       onOrderPlaced?.(data);
+      if (isGuest) {
+        writeGuestCheckoutPrefs({
+          payer_phone: String(payerPhone || "").trim(),
+          payer_name: String(payerName || "").trim(),
+          shipping_address: String(address || "").trim(),
+        });
+      }
       // Reset
       setTxnId(""); setPayerName(""); setPayerPhone(""); setScreenshot(null); setAddress("");
       setPaymentMode("upi");
@@ -273,6 +326,13 @@ export default function UpiPaymentDialog({
               { duration: 4500 }
             );
             onOrderPlaced?.(verified);
+            if (isGuest) {
+              writeGuestCheckoutPrefs({
+                payer_phone: String(payerPhone || "").trim(),
+                payer_name: String(payerName || "").trim(),
+                shipping_address: String(address || "").trim(),
+              });
+            }
             setTxnId("");
             setPayerName("");
             setPayerPhone("");
