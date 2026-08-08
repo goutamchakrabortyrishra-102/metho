@@ -177,6 +177,8 @@ export default function UpiPaymentDialog({
     e.preventDefault();
     if (existingOrderId && paymentMode === "cod") return toast.error("COD is only available for new checkout");
     if (paymentMode === "cod" && !codEnabled) return toast.error("COD is not available for this partner");
+    if (paymentMode === "cod" && !resolvedCustomerPhone) return toast.error("COD order-এর জন্য Mobile Number দিন");
+    if (paymentMode === "cod" && !resolvedPayerName) return toast.error("COD order-এর জন্য Customer Name দিন");
     if (!existingOrderId && requiresShippingAddress && !address.trim()) return toast.error("Please enter shipping address");
     if (paymentMode === "upi") {
       if (!txnId.trim()) return toast.error("Please enter UPI Transaction ID");
