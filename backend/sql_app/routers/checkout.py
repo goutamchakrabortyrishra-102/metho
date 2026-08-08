@@ -16,7 +16,7 @@ from fastapi.responses import Response
 from sqlalchemy.orm import Session
 
 from ..database import get_db
-from ..models import AppSetting, AssociatePartner, PartnerProduct, Product, ProductMeta, PublicOrder
+from ..models import AppSetting, AssociatePartner, PartnerProduct, Product, ProductMeta, PublicOrder, User
 from ..security import decode_token
 from ..storage import UPLOADED_OBJECTS_DIR
 from .auth import get_current_user
@@ -29,6 +29,7 @@ UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
 PARTNER_PRODUCT_UNITS_KEY = "partner_product_units"
 PARTNER_PRODUCT_META_KEY = "partner_product_meta"
 PARTNER_UNIT_OPTIONS = {"piece", "kg", "gram", "litre", "ml"}
+ORDER_CONTACT_KEY_PREFIX = "order_contact:"
 
 
 def _build_partner_whatsapp_url(phone: str | None, message: str) -> str:
@@ -36,6 +37,40 @@ def _build_partner_whatsapp_url(phone: str | None, message: str) -> str:
     if not digits:
         return ""
     return f"https://wa.me/{digits}?text={quote(message)}"
+
+
+def _order_contact_key(order_id: str) -> str:
+    return f"{ORDER_CONTACT_KEY_PREFIX}{str(order_id or '').strip()}"
+
+
+def _save_order_contact_phone(db: Session, order_id: str, phone: str) -> None:
+    oid = str(order_id or "").strip()
+    digits = "".join(ch for ch in str(phone or "") if ch.isdigit())
+    if not oid or not digits:
+        return
+    row = db.query(AppSetting).filter(AppSetting.key == _order_contact_key(oid)).first()
+    payload = {"customer_phone": digits}
+    if not row:
+        row = AppSetting(key=_order_contact_key(oid), value_json=json.dumps(payload))
+        db.add(row)
+    else:
+        row.value_json = json.dumps(payload)
+    db.commit()
+
+
+def _load_order_contact_phone(db: Session, order_id: str) -> str:
+    oid = str(order_id or "").strip()
+    if not oid:
+        return ""
+    row = db.query(AppSetting).filter(AppSetting.key == _order_contact_key(oid)).first()
+    if not row:
+        return ""
+    try:
+        payload = json.loads(row.value_json or "{}")
+    except Exception:
+        return ""
+    digits = "".join(ch for ch in str(payload.get("customer_phone") or "") if ch.isdigit())
+    return digits
 
 
 def _normalize_partner_unit_type(value: str | None) -> str:
@@ -679,6 +714,7 @@ def create_public_order(payload: dict, db: Session = Depends(get_db), authorizat
     )
     db.add(row)
     db.commit()
+    _save_order_contact_phone(db, row.id, customer_phone)
 
     partner_whatsapp_urls = []
     partner_ids_seen = set()
@@ -1212,6 +1248,24 @@ def partner_orders(db: Session = Depends(get_db), current_user=Depends(get_curre
         my_commission = round(my_sales * (partner_rate / 100.0), 2)
         status = str(row.status or "pending_approval")
         status_norm = status.strip().lower()
+        delivery_name = str(row.payer_name or "Customer").strip() or "Customer"
+        delivery_address = str(row.shipping_address or "").strip()
+
+        customer_phone_digits = _load_order_contact_phone(db, row.id)
+        if not customer_phone_digits and str(row.customer_user_id or "").strip():
+            customer_user = db.query(User).filter(User.id == str(row.customer_user_id or "").strip()).first()
+            customer_phone_digits = "".join(ch for ch in str(getattr(customer_user, "phone", "") or "") if ch.isdigit())
+
+        customer_whatsapp_invoice_url = ""
+        if customer_phone_digits:
+            invoice_link = f"https://methoaayupay.com/login?next=/invoice/{row.id}"
+            msg = (
+                f"Invoice ready for Order ORD-{row.id[:8].upper()}\\n"
+                f"Customer: {delivery_name}\\n"
+                f"Amount: ₹{float(row.total_amount or 0):.2f}\\n"
+                f"Open invoice: {invoice_link}"
+            )
+            customer_whatsapp_invoice_url = f"https://wa.me/{customer_phone_digits}?text={quote(msg)}"
 
         if (
             admin_approve_order
@@ -1252,8 +1306,10 @@ def partner_orders(db: Session = Depends(get_db), current_user=Depends(get_curre
                 "created_at": row.created_at.isoformat() if row.created_at else None,
                 # Partner view stays restricted to delivery-relevant details only.
                 "restricted_order_view": True,
-                "delivery_name": str(row.payer_name or "Customer").strip() or "Customer",
-                "delivery_address": str(row.shipping_address or "").strip(),
+                "delivery_name": delivery_name,
+                "delivery_address": delivery_address,
+                "delivery_phone": customer_phone_digits,
+                "customer_whatsapp_invoice_url": customer_whatsapp_invoice_url,
                 "payment_method": "",
                 "my_sales": 0,
                 "my_commission": 0,

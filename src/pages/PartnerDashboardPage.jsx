@@ -1986,9 +1986,15 @@ export default function PartnerDashboardPage() {
                       <p className="font-mono text-xs text-emerald-800">{o.order_no}</p>
                       <p className="text-xs text-muted-foreground">Status: {String(o?.status || "pending_approval").toUpperCase()}</p>
                       <p className="text-xs text-slate-700 mt-1">Customer: {o.delivery_name || "Customer"}</p>
+                      <p className="text-xs text-slate-700 mt-0.5">Phone: {o.delivery_phone || "Not available"}</p>
                       <p className="text-xs text-slate-700 mt-0.5 whitespace-pre-line">Address: {o.delivery_address || "Address not available"}</p>
                     </div>
                     <div className="text-right">
+                      {o.customer_whatsapp_invoice_url ? (
+                        <a href={o.customer_whatsapp_invoice_url} target="_blank" rel="noreferrer" className="inline-flex items-center rounded-full bg-green-600 px-3 py-1.5 text-[11px] font-semibold text-white hover:bg-green-700">
+                          <MessageCircle className="w-3.5 h-3.5 mr-1" /> Send Invoice WhatsApp
+                        </a>
+                      ) : null}
                       <p className="text-[11px] text-amber-700 mt-1">Invoice, commission, and sales breakdown still hidden.</p>
                     </div>
                   </div>
