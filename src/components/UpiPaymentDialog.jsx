@@ -32,7 +32,6 @@ const writeGuestCheckoutPrefs = (prefs) => {
   }
 };
 
-
 const loadRazorpayScript = () => new Promise((resolve) => {
   if (typeof window === "undefined") return resolve(false);
   if (window.Razorpay) return resolve(true);
