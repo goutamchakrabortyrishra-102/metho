@@ -42,22 +42,36 @@
             (function () {
                 if (typeof window === "undefined" || typeof document === "undefined") return;
 
-                var jsRecoveryKey = "metho_js_recovery_v1";
+                var jsRecoveryKey = "metho_js_recovery_v2";
+                var jsRecoveryMaxAttempts = 3;
 
-                var hasRecoveredJs = function () {
+                var getAttemptCount = function (key) {
                     try {
-                        return window.sessionStorage.getItem(jsRecoveryKey) === "1";
+                        return Number(window.sessionStorage.getItem(key) || "0") || 0;
                     } catch (error) {
-                        return true;
+                        return -1;
                     }
                 };
 
-                var triggerJsRecoveryReload = function () {
-                    if (hasRecoveredJs()) return;
+                var incrementAttemptCount = function (key) {
+                    var attempts = getAttemptCount(key);
+                    if (attempts < 0) return -1;
+                    var next = attempts + 1;
                     try {
-                        window.sessionStorage.setItem(jsRecoveryKey, "1");
+                        window.sessionStorage.setItem(key, String(next));
                     } catch (error) {
-                        return;
+                        return -1;
+                    }
+                    return next;
+                };
+
+                var triggerJsRecoveryReload = function () {
+                    var nextAttempt = incrementAttemptCount(jsRecoveryKey);
+                    if (nextAttempt > jsRecoveryMaxAttempts) return;
+                    if (nextAttempt < 0) {
+                        // Fallback when sessionStorage is blocked: allow one URL-driven retry.
+                        var existing = String(new URL(window.location.href).searchParams.get("_jsfix") || "").trim();
+                        if (existing) return;
                     }
                     var nextUrl = new URL(window.location.href);
                     nextUrl.searchParams.set("_jsfix", String(Date.now()));
@@ -208,16 +222,48 @@
             (function () {
                 if (typeof window === "undefined" || typeof document === "undefined") return;
 
-                var bootRecoveryKey = "metho_boot_recovery_v1";
+                var bootRecoveryKey = "metho_boot_recovery_v2";
+                var bootRecoveryMaxAttempts = 3;
+
+                var clearClientCachesBestEffort = function () {
+                    try {
+                        if ("serviceWorker" in navigator && navigator.serviceWorker.getRegistrations) {
+                            navigator.serviceWorker.getRegistrations().then(function (registrations) {
+                                registrations.forEach(function (registration) {
+                                    registration.unregister().catch(function () { });
+                                });
+                            }).catch(function () { });
+                        }
+                    } catch (error) { }
+
+                    try {
+                        if (window.caches && window.caches.keys) {
+                            window.caches.keys().then(function (keys) {
+                                keys.forEach(function (key) {
+                                    window.caches.delete(key).catch(function () { });
+                                });
+                            }).catch(function () { });
+                        }
+                    } catch (error) { }
+                };
 
                 var tryOneReload = function () {
+                    var attempts = -1;
                     try {
-                        var attempts = Number(window.sessionStorage.getItem(bootRecoveryKey) || "0") || 0;
-                        if (attempts >= 1) return;
+                        attempts = Number(window.sessionStorage.getItem(bootRecoveryKey) || "0") || 0;
+                        if (attempts >= bootRecoveryMaxAttempts) return;
                         window.sessionStorage.setItem(bootRecoveryKey, String(attempts + 1));
                     } catch (error) {
-                        return;
+                        // When sessionStorage is unavailable, allow one query-driven retry only.
+                        attempts = -1;
                     }
+
+                    if (attempts < 0) {
+                        var existing = String(new URL(window.location.href).searchParams.get("_bootfix") || "").trim();
+                        if (existing) return;
+                    }
+
+                    clearClientCachesBestEffort();
 
                     var nextUrl = new URL(window.location.href);
                     nextUrl.searchParams.set("_bootfix", String(Date.now()));
@@ -229,7 +275,7 @@
                 window.setTimeout(function () {
                     if (window.__methoAppMounted) return;
                     tryOneReload();
-                }, 14000);
+                }, 9000);
             })();
         </script>
     <!--
