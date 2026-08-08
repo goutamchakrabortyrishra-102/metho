@@ -1282,6 +1282,20 @@ def partner_orders(db: Session = Depends(get_db), current_user=Depends(get_curre
             customer_user = db.query(User).filter(User.id == str(row.customer_user_id or "").strip()).first()
             customer_phone_digits = "".join(ch for ch in str(getattr(customer_user, "phone", "") or "") if ch.isdigit())
 
+        raw_payment_method = str(row.payment_method or "").strip().lower()
+        normalized_payment_method = raw_payment_method
+        if raw_payment_method in {"cash", "cod"}:
+            normalized_payment_method = "cod"
+        elif raw_payment_method in {"manual_upi", "upi"}:
+            normalized_payment_method = "upi"
+        elif raw_payment_method in {"online"}:
+            normalized_payment_method = "online"
+        elif raw_payment_method in {"razorpay"}:
+            normalized_payment_method = "razorpay"
+        elif not raw_payment_method and str(row.txn_id or "").strip().upper() == "COD":
+            # Backward compatibility for legacy COD rows where payment_method was empty.
+            normalized_payment_method = "cod"
+
         customer_whatsapp_invoice_url = ""
         if customer_phone_digits:
             invoice_link = f"https://methoaayupay.com/invoice/{row.id}"
@@ -1336,7 +1350,7 @@ def partner_orders(db: Session = Depends(get_db), current_user=Depends(get_curre
                 "delivery_address": delivery_address,
                 "delivery_phone": customer_phone_digits,
                 "customer_whatsapp_invoice_url": customer_whatsapp_invoice_url,
-                "payment_method": str(row.payment_method or "").strip().lower(),
+                "payment_method": normalized_payment_method,
                 "my_sales": my_sales,
                 "my_commission": my_commission,
                 "my_items": my_items,

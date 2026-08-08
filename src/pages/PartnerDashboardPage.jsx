@@ -19,6 +19,14 @@ const withUnit = (price, unitType) => {
   const unit = String(unitType || "piece").trim().toLowerCase() || "piece";
   return unit === "piece" ? inr(price) : `${inr(price)} / ${unit}`;
 };
+const paymentModeLabel = (mode) => {
+  const normalized = String(mode || "").trim().toLowerCase();
+  if (normalized === "cod" || normalized === "cash") return "COD";
+  if (normalized === "upi" || normalized === "manual_upi") return "UPI";
+  if (normalized === "razorpay" || normalized === "online") return "ONLINE";
+  if (!normalized) return "NOT SET";
+  return normalized.toUpperCase();
+};
 const routeMapsUrl = (pickup, destination) => {
   const origin = String(pickup || "").trim();
   const dest = String(destination || "").trim();
@@ -2025,7 +2033,7 @@ export default function PartnerDashboardPage() {
                     <div>
                       <p className="font-mono text-xs text-emerald-800">{o.order_no}</p>
                       <p className="text-xs text-muted-foreground">Status: {String(o?.status || "pending_approval").toUpperCase()}</p>
-                      <p className="text-xs text-slate-700 mt-0.5">Payment: {String(o.payment_method || "upi").toUpperCase()}</p>
+                      <p className="text-xs text-slate-700 mt-0.5">Payment: {paymentModeLabel(o.payment_method)}</p>
                       <p className="text-xs text-slate-700 mt-1">Customer: {o.delivery_name || "Customer"}</p>
                       <p className="text-xs text-slate-700 mt-0.5">Phone: {o.delivery_phone || "Not available"}</p>
                       <p className="text-xs text-slate-700 mt-0.5 whitespace-pre-line">Address: {o.delivery_address || "Address not available"}</p>
