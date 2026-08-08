@@ -163,6 +163,12 @@ export default function UpiPaymentDialog({
       }
       const endpoint = existingOrderId ? `/orders/${existingOrderId}/submit-payment` : "/orders";
       const { data } = await api.post(endpoint, payload);
+      const whatsappUrl = data?.partner_whatsapp_url || (Array.isArray(data?.partner_whatsapp_urls) ? data.partner_whatsapp_urls[0]?.url : "");
+      if (whatsappUrl) {
+        window.setTimeout(() => {
+          window.open(whatsappUrl, "_blank", "noopener,noreferrer");
+        }, 250);
+      }
       if (paymentMode === "cod") {
         toast.success("COD order placed. Delivery charges should be discussed and negotiated directly with the partner.", { duration: 5000 });
       } else {

@@ -21,23 +21,32 @@ def _delete_partner_request_artifacts(db: Session, request: PartnerRequest) -> N
 
 
 def _cleanup_orphaned_partner_registration(db: Session, login_id: str, phone: str, pan_no: str) -> None:
-    seen_request_ids = set()
-    stale_requests: list[PartnerRequest] = []
+    """Preserve existing partner registration records instead of deleting them during a fresh submission."""
     request_queries = []
     if login_id:
-        request_queries.append(db.query(PartnerRequest).filter(PartnerRequest.email == login_id, PartnerRequest.status.in_(["pending", "approved"])).all())
+        request_queries.append(
+            db.query(PartnerRequest)
+            .filter(PartnerRequest.email == login_id, PartnerRequest.status.in_(["pending", "approved"]))
+            .all()
+        )
     if phone:
-        request_queries.append(db.query(PartnerRequest).filter(PartnerRequest.phone == phone, PartnerRequest.status.in_(["pending", "approved"])).all())
+        request_queries.append(
+            db.query(PartnerRequest)
+            .filter(PartnerRequest.phone == phone, PartnerRequest.status.in_(["pending", "approved"]))
+            .all()
+        )
     if pan_no:
-        request_queries.append(db.query(PartnerRequest).filter(PartnerRequest.gst_no == pan_no, PartnerRequest.status.in_(["pending", "approved"])).all())
+        request_queries.append(
+            db.query(PartnerRequest)
+            .filter(PartnerRequest.gst_no == pan_no, PartnerRequest.status.in_(["pending", "approved"]))
+            .all()
+        )
 
     for request_rows in request_queries:
         for request in request_rows:
             request_id = str(getattr(request, "id", "") or "").strip()
-            if not request_id or request_id in seen_request_ids:
+            if not request_id:
                 continue
-            seen_request_ids.add(request_id)
-
             linked_partner = None
             req_email = str(getattr(request, "email", "") or "").strip()
             req_phone = str(getattr(request, "phone", "") or "").strip()
@@ -50,23 +59,16 @@ def _cleanup_orphaned_partner_registration(db: Session, login_id: str, phone: st
                 linked_partner = db.query(AssociatePartner).filter(AssociatePartner.gst_no == req_gst).first()
 
             if linked_partner is None:
-                stale_requests.append(request)
-
-    cleaned = False
-    for request in stale_requests:
-        _delete_partner_request_artifacts(db, request)
-        cleaned = True
+                continue
 
     if login_id:
         orphan_user = db.query(User).filter(User.email == login_id, User.role == "partner").first()
         linked_partner = db.query(AssociatePartner).filter(AssociatePartner.email == login_id).first() if login_id else None
         remaining_request = db.query(PartnerRequest).filter(PartnerRequest.email == login_id, PartnerRequest.status.in_(["pending", "approved"])).first()
         if orphan_user and linked_partner is None and remaining_request is None:
-            db.delete(orphan_user)
-            cleaned = True
+            return
 
-    if cleaned:
-        db.commit()
+    return
 
 
 def _normalize_partner_sector(value: str) -> str:

@@ -542,6 +542,13 @@ def _transport_partner_payment_profile(db: Session, partner: AssociatePartner, r
     }
 
 
+def _build_partner_whatsapp_url(phone: str | None, message: str) -> str:
+    digits = "".join(ch for ch in str(phone or "") if ch.isdigit())
+    if not digits:
+        return ""
+    return f"https://wa.me/{digits}?text={quote(message)}"
+
+
 def _save_transport_trip(db: Session, trip: dict) -> dict:
     trip_id = str((trip or {}).get("id") or "").strip()
     if not trip_id:
@@ -3692,12 +3699,22 @@ def create_transport_booking(payload: dict, request: Request, db: Session = Depe
         "created_at": now_iso(),
     }
     saved = _save_transport_trip(db, trip)
+    dashboard_url = f"https://metho.store/partner"
+    message = (
+        f"New transport booking request received on METHO.\n"
+        f"Booking ID: {saved.get('trip_code') or saved.get('id') or trip_id}\n"
+        f"Customer: {customer_name}\n"
+        f"Route: {pickup} -> {destination}\n"
+        f"Open your partner dashboard: {dashboard_url}"
+    )
+    whatsapp_url = _build_partner_whatsapp_url(partner.whatsapp_no or partner.phone, message)
     return {
         "ok": True,
         "booking": saved,
         "order": {"id": order_row.id, "order_no": f"ORD-{order_row.id[:8].upper()}", "status": order_row.status, "auto_approved": False},
         "next_step": "Booking created with route details. Partner will set final fare first; then commission will be credited and trip auto-approved on confirm.",
         "reward_note": member_ref and "Member reference captured for reward attribution." or "Guest booking created without member reward attribution.",
+        "partner_whatsapp_url": whatsapp_url,
     }
 
 

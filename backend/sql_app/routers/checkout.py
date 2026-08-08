@@ -8,6 +8,7 @@ from email.utils import formatdate
 from types import SimpleNamespace
 import urllib.error
 import urllib.request
+from urllib.parse import quote
 from pathlib import Path
 import os
 from fastapi import APIRouter, Depends, File, Header, HTTPException, Request, UploadFile
@@ -28,6 +29,13 @@ UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
 PARTNER_PRODUCT_UNITS_KEY = "partner_product_units"
 PARTNER_PRODUCT_META_KEY = "partner_product_meta"
 PARTNER_UNIT_OPTIONS = {"piece", "kg", "gram", "litre", "ml"}
+
+
+def _build_partner_whatsapp_url(phone: str | None, message: str) -> str:
+    digits = "".join(ch for ch in str(phone or "") if ch.isdigit())
+    if not digits:
+        return ""
+    return f"https://wa.me/{digits}?text={quote(message)}"
 
 
 def _normalize_partner_unit_type(value: str | None) -> str:
@@ -645,6 +653,7 @@ def create_public_order(payload: dict, db: Session = Depends(get_db), authorizat
         raise HTTPException(status_code=400, detail="No valid products found in order")
 
     member_ref = str(payload.get("member_code") or payload.get("member_id") or "").strip()
+    customer_name = str(payload.get("payer_name") or "Customer").strip() or "Customer"
     row = PublicOrder(
         id=str(uuid.uuid4()),
         customer_user_id=customer_user_id,
@@ -661,11 +670,44 @@ def create_public_order(payload: dict, db: Session = Depends(get_db), authorizat
     db.add(row)
     db.commit()
 
+    partner_whatsapp_urls = []
+    partner_ids_seen = set()
+    for item in normalized_items:
+        if str(item.get("product_type") or "").strip() != "associate_partner":
+            continue
+        pid = str(item.get("product_id") or "").strip()
+        if not pid or pid in partner_ids_seen:
+            continue
+        partner_product = db.query(PartnerProduct).filter(PartnerProduct.id == pid).first()
+        if not partner_product or not partner_product.partner_id:
+            continue
+        partner_ids_seen.add(pid)
+        partner = db.query(AssociatePartner).filter(AssociatePartner.id == partner_product.partner_id).first()
+        if not partner:
+            continue
+        dashboard_url = f"https://metho.store/partner"
+        message = (
+            f"New partner order request received on METHO.\n"
+            f"Order ID: ORD-{row.id[:8].upper()}\n"
+            f"Customer: {customer_name}\n"
+            f"Total: ₹{float(row.total_amount or 0):.2f}\n"
+            f"Open your partner dashboard: {dashboard_url}"
+        )
+        whatsapp_url = _build_partner_whatsapp_url(partner.whatsapp_no or partner.phone, message)
+        if whatsapp_url:
+            partner_whatsapp_urls.append({
+                "partner_id": partner.id,
+                "partner_code": partner.partner_code,
+                "url": whatsapp_url,
+            })
+
     return {
         "id": row.id,
         "status": row.status,
         "total_amount": row.total_amount,
         "items": normalized_items,
+        "partner_whatsapp_url": (partner_whatsapp_urls[0]["url"] if partner_whatsapp_urls else ""),
+        "partner_whatsapp_urls": partner_whatsapp_urls,
     }
 
 

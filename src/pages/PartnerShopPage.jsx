@@ -749,6 +749,11 @@ export default function PartnerShopPage() {
         member_ref: manualMemberRef || autoMemberRef,
       });
       setTransportBooking(data?.booking || null);
+      if (data?.partner_whatsapp_url) {
+        window.setTimeout(() => {
+          window.open(data.partner_whatsapp_url, "_blank", "noopener,noreferrer");
+        }, 250);
+      }
       toast.success("Transport booking submitted");
     } catch (err) {
       toast.error(err?.response?.data?.detail || "Transport booking failed");
