@@ -653,14 +653,23 @@ def create_public_order(payload: dict, db: Session = Depends(get_db), authorizat
         raise HTTPException(status_code=400, detail="No valid products found in order")
 
     member_ref = str(payload.get("member_code") or payload.get("member_id") or "").strip()
-    customer_name = str(payload.get("payer_name") or "Customer").strip() or "Customer"
+    payer_name_raw = str(payload.get("payer_name") or "").strip()
+    customer_name = payer_name_raw or "Customer"
     customer_phone = str(payload.get("customer_phone") or "").strip()
+    payment_method = str(payload.get("payment_method") or "upi").strip().lower()
+    customer_phone_digits = "".join(ch for ch in customer_phone if ch.isdigit())
+
+    if payment_method == "cod":
+        if not payer_name_raw:
+            raise HTTPException(status_code=400, detail="COD order requires customer name")
+        if not customer_phone_digits:
+            raise HTTPException(status_code=400, detail="COD order requires customer phone")
     row = PublicOrder(
         id=str(uuid.uuid4()),
         customer_user_id=customer_user_id,
         member_ref=member_ref,
         shipping_address=str(payload.get("shipping_address") or "").strip(),
-        payment_method=str(payload.get("payment_method") or "upi"),
+        payment_method=payment_method,
         txn_id=str(payload.get("txn_id") or "").strip(),
         payment_screenshot_url=str(payload.get("payment_screenshot_url") or "").strip(),
         payer_name=str(payload.get("payer_name") or "").strip(),
@@ -686,13 +695,13 @@ def create_public_order(payload: dict, db: Session = Depends(get_db), authorizat
         partner = db.query(AssociatePartner).filter(AssociatePartner.id == partner_product.partner_id).first()
         if not partner:
             continue
-        dashboard_url = f"https://metho.store/directory"
+        dashboard_url = "https://methoaayupay.com/login?next=/partner"
         message = (
             f"New offline partner/service order request received.\n"
             f"Order ID: ORD-{row.id[:8].upper()}\n"
             f"Customer: {customer_name}\n"
             f"Total: ₹{float(row.total_amount or 0):.2f}\n"
-            f"Open partner/service directory (all sectors): {dashboard_url}"
+            f"Open Partner Dashboard: {dashboard_url}"
         )
         whatsapp_url = _build_partner_whatsapp_url(partner.whatsapp_no or partner.phone, message)
         if whatsapp_url:
@@ -703,10 +712,9 @@ def create_public_order(payload: dict, db: Session = Depends(get_db), authorizat
             })
 
     member_whatsapp_share_url = ""
-    customer_phone_digits = "".join(ch for ch in customer_phone if ch.isdigit())
     if customer_phone_digits:
         order_link = f"https://metho.store/invoice/{row.id}"
-        payment_label = str(payload.get("payment_method") or "upi").strip().upper()
+        payment_label = payment_method.upper()
         message = (
             f"METHO order placed successfully.\n"
             f"Order ID: ORD-{row.id[:8].upper()}\n"
