@@ -1281,7 +1281,7 @@ export default function PartnerShopPage() {
                     {transportBooking?.travel_date ? <p className="text-xs text-slate-700">Schedule: {formatTransportSchedule(transportBooking.travel_date)}</p> : null}
                     <p className="text-xs text-slate-700">Quoted Fare: ₹{Number(transportBooking.fare_quote || 0).toLocaleString("en-IN")}</p>
                     <p className="text-xs text-slate-700">Final Fare: {Number(transportBooking.fare_final || 0) > 0 ? `₹${transportBooking.fare_final}` : "Partner will set after review"}</p>
-                    <p className="text-xs text-slate-700">Route: {transportBooking.pickup} -> {transportBooking.destination}</p>
+                    <p className="text-xs text-slate-700">Route: {transportBooking.pickup}{" -> "}{transportBooking.destination}</p>
                     {transportBooking?.response_note ? <p className="text-xs text-slate-700">Partner Note: {transportBooking.response_note}</p> : null}
                     <button
                       type="button"
