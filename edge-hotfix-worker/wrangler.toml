@@ -1,0 +1,11 @@
+name = "metho-legacy-main-alias"
+main = "src/index.js"
+compatibility_date = "2026-08-08"
+workers_dev = false
+
+routes = [
+  { pattern = "methoaayupay.com/static/js/main.520aeb0e.js", zone_name = "methoaayupay.com" },
+  { pattern = "methoaayupay.com/static/js/main.cc9e7425.js", zone_name = "methoaayupay.com" },
+  { pattern = "www.methoaayupay.com/static/js/main.520aeb0e.js", zone_name = "methoaayupay.com" },
+  { pattern = "www.methoaayupay.com/static/js/main.cc9e7425.js", zone_name = "methoaayupay.com" }
+]
