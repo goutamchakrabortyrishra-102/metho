@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import { useParams, Link, useNavigate } from "react-router-dom";
 import { Building2, MapPin, Phone, ArrowLeft, Store, ShoppingCart, Plus, Minus, Navigation, Share2, LogIn, MessageCircle, Gift, Star, Images, Search, FileText, CalendarCheck2, X } from "lucide-react";
 import { toast } from "sonner";
@@ -35,6 +35,70 @@ const formatTransportSchedule = (value) => {
     hour: "2-digit",
     minute: "2-digit",
   });
+};
+const haversineKm = (lat1, lon1, lat2, lon2) => {
+  const toRad = (value) => (value * Math.PI) / 180;
+  const earthRadiusKm = 6371;
+  const dLat = toRad(lat2 - lat1);
+  const dLon = toRad(lon2 - lon1);
+  const a = Math.sin(dLat / 2) ** 2 + Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLon / 2) ** 2;
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  return earthRadiusKm * c;
+};
+const getTransportRatePerKm = (service) => {
+  const candidates = [
+    service?.transport_rate_per_km,
+    service?.rate_per_km,
+    service?.per_km_rate,
+    service?.price_per_km,
+    service?.transport_rate,
+    service?.km_rate,
+  ];
+  for (const value of candidates) {
+    const parsed = Number(value);
+    if (Number.isFinite(parsed) && parsed > 0) return parsed;
+  }
+  return 20;
+};
+const geocodeAddress = async (address) => {
+  const query = String(address || "").trim();
+  if (!query) return null;
+  try {
+    const response = await fetch(`https://nominatim.openstreetmap.org/search?format=jsonv2&limit=1&q=${encodeURIComponent(query)}`, {
+      headers: { Accept: "application/json" },
+    });
+    if (!response.ok) return null;
+    const data = await response.json();
+    const first = Array.isArray(data) ? data[0] : null;
+    if (!first) return null;
+    const lat = Number(first.lat);
+    const lon = Number(first.lon);
+    if (!Number.isFinite(lat) || !Number.isFinite(lon)) return null;
+    return { lat, lon };
+  } catch {
+    return null;
+  }
+};
+const estimateTransportFareFromRoute = async (pickup, destination, service) => {
+  const origin = String(pickup || "").trim();
+  const dest = String(destination || "").trim();
+  if (!origin || !dest) return null;
+  try {
+    const [originCoords, destCoords] = await Promise.all([geocodeAddress(origin), geocodeAddress(dest)]);
+    if (!originCoords || !destCoords) return null;
+    const distanceKm = haversineKm(originCoords.lat, originCoords.lon, destCoords.lat, destCoords.lon);
+    if (!Number.isFinite(distanceKm) || distanceKm <= 0) return null;
+    const ratePerKm = getTransportRatePerKm(service);
+    const amount = Math.max(1, Math.round(distanceKm * ratePerKm));
+    return {
+      amount,
+      distanceKm,
+      ratePerKm,
+      source: "route",
+    };
+  } catch {
+    return null;
+  }
 };
 const PDF_PREVIEW = "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 400 400'><rect width='400' height='400' fill='%23f1f5f9'/><rect x='80' y='50' width='240' height='300' rx='14' fill='%23ffffff' stroke='%2394a3b8' stroke-width='4'/><text x='200' y='190' text-anchor='middle' fill='%23dc2626' font-size='46' font-family='Arial' font-weight='bold'>PDF</text><text x='200' y='228' text-anchor='middle' fill='%23334155' font-size='16' font-family='Arial'>Tap to Open</text></svg>";
 const PRODUCT_FALLBACK = "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 400 400'><defs><linearGradient id='g' x1='0' y1='0' x2='1' y2='1'><stop offset='0%25' stop-color='%23ecfeff'/><stop offset='100%25' stop-color='%23dcfce7'/></linearGradient></defs><rect width='400' height='400' fill='url(%23g)'/><circle cx='200' cy='150' r='72' fill='%23059669' opacity='0.12'/><text x='200' y='150' text-anchor='middle' dominant-baseline='middle' fill='%230f766e' font-size='46' font-family='Arial' font-weight='700'>M</text><text x='200' y='230' text-anchor='middle' fill='%230f172a' font-size='22' font-family='Arial' font-weight='700'>METHO Product</text></svg>";
@@ -278,6 +342,9 @@ export default function PartnerShopPage() {
     travel_date: "",
     notes: "",
   });
+  const [transportFareEstimate, setTransportFareEstimate] = useState(null);
+  const [transportFareEstimateLoading, setTransportFareEstimateLoading] = useState(false);
+  const transportEstimateRequestRef = useRef(0);
 
   useEffect(() => {
     api.get(`/directory/partner/${partnerCode}`)
@@ -329,6 +396,42 @@ export default function PartnerShopPage() {
 
   const p = data?.partner;
   const heroBannerSrc = data?.partner?.banner_url || "";
+  const selectedTransportPreset = useMemo(() => {
+    if (!Array.isArray(transportFarePresets) || !transportFarePresets.length) return null;
+    return transportFarePresets.find((preset) => String(preset.id) === String(selectedFarePresetId)) || null;
+  }, [selectedFarePresetId, transportFarePresets]);
+  const transportEstimateSummary = useMemo(() => {
+    if (transportFareEstimateLoading) {
+      return {
+        label: "Estimating route fare...",
+        detail: "Checking pickup and destination route.",
+      };
+    }
+    if (transportFareEstimate?.amount) {
+      const distanceText = Number.isFinite(transportFareEstimate.distanceKm) && transportFareEstimate.distanceKm > 0
+        ? ` · ${Number(transportFareEstimate.distanceKm).toFixed(1)} km route`
+        : "";
+      const rateText = Number.isFinite(transportFareEstimate.ratePerKm) && transportFareEstimate.ratePerKm > 0
+        ? ` · ₹${Number(transportFareEstimate.ratePerKm).toLocaleString("en-IN")}/km`
+        : "";
+      return {
+        label: `Estimated fare: ₹${Number(transportFareEstimate.amount).toLocaleString("en-IN")}${distanceText}${rateText}`,
+        detail: transportFareEstimate.source === "preset"
+          ? "Preset fare selected for this route."
+          : "Approximate fare from pickup and destination route.",
+      };
+    }
+    if (selectedTransportPreset?.fare > 0) {
+      return {
+        label: `Estimated fare: ₹${Number(selectedTransportPreset.fare).toLocaleString("en-IN")} (selected preset)`,
+        detail: "Preset fare available for this route.",
+      };
+    }
+    return {
+      label: `Estimated fare: ₹${Number(transportService?.price || 0).toLocaleString("en-IN")} (from service listing)`,
+      detail: "No preset fare or route estimate available yet.",
+    };
+  }, [selectedTransportPreset, transportFareEstimate, transportFareEstimateLoading, transportService?.price]);
   const products = useMemo(() => data?.products || [], [data?.products]);
   const productListings = useMemo(() => products.filter((item) => !isServiceListing(item)), [products]);
   const serviceListings = useMemo(() => products.filter((item) => isServiceListing(item)), [products]);
@@ -427,6 +530,55 @@ export default function PartnerShopPage() {
       return haystack.includes(q);
     }).slice(0, 8);
   }, [transportListings, transportServiceSearch]);
+
+  useEffect(() => {
+    if (!transportService?.id) {
+      setTransportFareEstimate(null);
+      setTransportFareEstimateLoading(false);
+      return;
+    }
+
+    const pickup = String(transportForm.pickup || "").trim();
+    const destination = String(transportForm.destination || "").trim();
+    const presetFare = Number(selectedTransportPreset?.fare || 0);
+
+    if (selectedFarePresetId && presetFare > 0) {
+      setTransportFareEstimate({ amount: presetFare, source: "preset", distanceKm: null, ratePerKm: null });
+      setTransportFareEstimateLoading(false);
+      return;
+    }
+
+    if (!pickup || !destination) {
+      setTransportFareEstimate(null);
+      setTransportFareEstimateLoading(false);
+      return;
+    }
+
+    const requestId = transportEstimateRequestRef.current + 1;
+    transportEstimateRequestRef.current = requestId;
+    setTransportFareEstimateLoading(true);
+
+    let cancelled = false;
+    void estimateTransportFareFromRoute(pickup, destination, transportService)
+      .then((estimate) => {
+        if (cancelled || requestId !== transportEstimateRequestRef.current) return;
+        setTransportFareEstimate(estimate || null);
+      })
+      .catch(() => {
+        if (!cancelled && requestId === transportEstimateRequestRef.current) {
+          setTransportFareEstimate(null);
+        }
+      })
+      .finally(() => {
+        if (!cancelled && requestId === transportEstimateRequestRef.current) {
+          setTransportFareEstimateLoading(false);
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [selectedFarePresetId, selectedTransportPreset, transportForm.destination, transportForm.pickup, transportService]);
   const hasHospitalityListings = hospitalityListings.length > 0;
   const hasDoorstepListings = doorstepListings.length > 0;
   const hasServiceListings = regularServiceListings.length > 0;
@@ -1082,13 +1234,9 @@ export default function PartnerShopPage() {
                     />
                   </div>
                   <div className="rounded-lg border border-sky-200 bg-sky-50 p-3">
-                    <p className="text-[11px] font-semibold text-sky-900">Default fare estimate (not final)</p>
-                    <p className="text-xs text-slate-700 mt-1">
-                      {selectedFarePresetId
-                        ? `Default fare shown: ₹${Number((transportFarePresets.find((p) => String(p.id) === selectedFarePresetId)?.fare) || 0).toLocaleString("en-IN")} (from selected preset)`
-                        : `Default fare shown: ₹${Number(transportService?.price || 0).toLocaleString("en-IN")} (from service listing)`}
-                    </p>
-                    <p className="text-[11px] text-slate-600 mt-1">This is not the final fare. The final amount can be confirmed after discussing and agreeing with the business owner.</p>
+                    <p className="text-[11px] font-semibold text-sky-900">Estimated fare (not final)</p>
+                    <p className="text-xs text-slate-700 mt-1">{transportEstimateSummary.label}</p>
+                    <p className="text-[11px] text-slate-600 mt-1">{transportEstimateSummary.detail} This is not the final fare. The final amount can be confirmed after discussing and agreeing with the business owner.</p>
                   </div>
                   <div className="flex flex-wrap gap-2">
                     <Button
