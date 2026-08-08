@@ -278,6 +278,128 @@
                 }, 9000);
             })();
         </script>
+        <script>
+            (function () {
+                if (typeof window === "undefined" || typeof document === "undefined") return;
+
+                var fallbackBootKey = "metho_template_bootstrap_v1";
+                var manifestCandidates = [
+                    "/asset-manifest.json",
+                    "/build/asset-manifest.json",
+                    "/frontend/build/asset-manifest.json"
+                ];
+
+                var hasMainScriptTag = function () {
+                    return !!document.querySelector('script[src*="/static/js/main."]');
+                };
+
+                var markAttempted = function () {
+                    try {
+                        window.sessionStorage.setItem(fallbackBootKey, "1");
+                    } catch (error) { }
+                };
+
+                var alreadyAttempted = function () {
+                    try {
+                        return window.sessionStorage.getItem(fallbackBootKey) === "1";
+                    } catch (error) {
+                        return false;
+                    }
+                };
+
+                var fetchJson = function (url) {
+                    return fetch(url, { cache: "no-store" }).then(function (response) {
+                        if (!response.ok) throw new Error("manifest fetch failed");
+                        return response.json();
+                    });
+                };
+
+                var findManifest = function () {
+                    var index = 0;
+                    var walk = function () {
+                        if (index >= manifestCandidates.length) return Promise.reject(new Error("manifest not found"));
+                        var nextUrl = manifestCandidates[index];
+                        index += 1;
+                        return fetchJson(nextUrl).then(function (doc) {
+                            return { url: nextUrl, doc: doc };
+                        }).catch(function () {
+                            return walk();
+                        });
+                    };
+                    return walk();
+                };
+
+                var manifestBasePrefix = function (manifestUrl) {
+                    if (manifestUrl.indexOf("/build/") === 0) return "/build";
+                    if (manifestUrl.indexOf("/frontend/build/") === 0) return "/frontend/build";
+                    return "";
+                };
+
+                var normalizeAssetUrl = function (path, basePrefix) {
+                    var raw = String(path || "").trim();
+                    if (!raw) return "";
+                    if (raw.indexOf("http://") === 0 || raw.indexOf("https://") === 0) return raw;
+                    if (raw.charAt(0) !== "/") raw = "/" + raw;
+                    if (basePrefix && raw.indexOf(basePrefix + "/") !== 0) {
+                        raw = basePrefix + raw;
+                    }
+                    return raw;
+                };
+
+                var injectCss = function (href) {
+                    if (!href || document.querySelector('link[data-metho-fallback-css="' + href + '"]')) return;
+                    var link = document.createElement("link");
+                    link.rel = "stylesheet";
+                    link.href = href;
+                    link.setAttribute("data-metho-fallback-css", href);
+                    document.head.appendChild(link);
+                };
+
+                var injectMainScript = function (src) {
+                    if (!src || document.querySelector('script[data-metho-fallback-main="1"]')) return;
+                    var script = document.createElement("script");
+                    script.defer = true;
+                    script.src = src;
+                    script.setAttribute("data-metho-fallback-main", "1");
+                    document.head.appendChild(script);
+                };
+
+                var tryManifestBootstrap = function () {
+                    if (window.__methoAppMounted || hasMainScriptTag() || alreadyAttempted()) return;
+                    markAttempted();
+                    findManifest().then(function (payload) {
+                        var doc = payload && payload.doc && typeof payload.doc === "object" ? payload.doc : {};
+                        var basePrefix = manifestBasePrefix(String(payload && payload.url || ""));
+                        var cssPath = "";
+                        var jsPath = "";
+
+                        if (Array.isArray(doc.entrypoints)) {
+                            doc.entrypoints.forEach(function (entry) {
+                                var normalized = String(entry || "");
+                                if (!cssPath && /\.css($|\?)/i.test(normalized)) cssPath = normalized;
+                                if (!jsPath && /main\..+\.js($|\?)/i.test(normalized)) jsPath = normalized;
+                            });
+                        }
+
+                        if (!cssPath && doc.files && typeof doc.files === "object") {
+                            cssPath = String(doc.files["main.css"] || "");
+                        }
+                        if (!jsPath && doc.files && typeof doc.files === "object") {
+                            jsPath = String(doc.files["main.js"] || "");
+                        }
+
+                        var cssUrl = normalizeAssetUrl(cssPath, basePrefix);
+                        var jsUrl = normalizeAssetUrl(jsPath, basePrefix);
+                        if (cssUrl) injectCss(cssUrl);
+                        if (jsUrl) injectMainScript(jsUrl);
+                    }).catch(function () {
+                        // Keep silent: existing recovery scripts will keep handling reload attempts.
+                    });
+                };
+
+                window.setTimeout(tryManifestBootstrap, 800);
+            })();
+        </script>
     <!--
       This HTML file is a template.
       If you open it directly in the browser, you will see an empty page.
