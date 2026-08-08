@@ -5,48 +5,141 @@ import { AuthProvider, useAuth } from "@/contexts/AuthContext";
 import { SettingsProvider, useSettings } from "@/contexts/SettingsContext";
 import { Toaster } from "sonner";
 
-const LandingPage = lazy(() => import("@/pages/LandingPage"));
-const LoginPage = lazy(() => import("@/pages/LoginPage"));
-const RegisterPage = lazy(() => import("@/pages/RegisterPage"));
-const ForgotPasswordPage = lazy(() => import("@/pages/ForgotPasswordPage"));
-const ResetPasswordPage = lazy(() => import("@/pages/ResetPasswordPage"));
-const DashboardLayout = lazy(() => import("@/layouts/DashboardLayout"));
-const DashboardHome = lazy(() => import("@/pages/dashboard/DashboardHome"));
-const WalletPage = lazy(() => import("@/pages/dashboard/WalletPage"));
-const MembersPage = lazy(() => import("@/pages/dashboard/MembersPage"));
-const GenealogyPage = lazy(() => import("@/pages/dashboard/GenealogyPage"));
-const ProductsPage = lazy(() => import("@/pages/dashboard/ProductsPage"));
-const OrdersPage = lazy(() => import("@/pages/dashboard/OrdersPage"));
-const BusinessPage = lazy(() => import("@/pages/dashboard/BusinessPage"));
-const ProfilePage = lazy(() => import("@/pages/dashboard/ProfilePage"));
-const SettingsPage = lazy(() => import("@/pages/dashboard/SettingsPage"));
-const SmartCyclePage = lazy(() => import("@/pages/dashboard/SmartCyclePage"));
-const PendingPaymentsPage = lazy(() => import("@/pages/dashboard/PendingPaymentsPage"));
-const MonthlySettlementPage = lazy(() => import("@/pages/dashboard/MonthlySettlementPage"));
-const AccountsPage = lazy(() => import("@/pages/dashboard/AccountsPage"));
-const MPSClaimsPage = lazy(() => import("@/pages/dashboard/MPSClaimsPage"));
-const PartnersPage = lazy(() => import("@/pages/dashboard/PartnersPage"));
-const ProductApprovalsPage = lazy(() => import("@/pages/dashboard/ProductApprovalsPage"));
-const PartnerApprovalsPage = lazy(() => import("@/pages/dashboard/PartnerApprovalsPage"));
-const AIUpgradePage = lazy(() => import("@/pages/dashboard/AIUpgradePage"));
-const AuditLogPage = lazy(() => import("@/pages/dashboard/AuditLogPage"));
-const SystemHealthPage = lazy(() => import("@/pages/dashboard/SystemHealthPage"));
-const OwnerGuidePage = lazy(() => import("@/pages/dashboard/OwnerGuidePage"));
-const PartnerRegisterPage = lazy(() => import("@/pages/PartnerRegisterPage"));
-const WithdrawalsPage = lazy(() => import("@/pages/dashboard/WithdrawalsPage"));
-const LeaderboardPage = lazy(() => import("@/pages/dashboard/LeaderboardPage"));
-const InvoicePage = lazy(() => import("@/pages/InvoicePage"));
-const WalletStatementPage = lazy(() => import("@/pages/WalletStatementPage"));
-const PartnerDashboardPage = lazy(() => import("@/pages/PartnerDashboardPage"));
-const DirectoryPage = lazy(() => import("@/pages/DirectoryPage"));
-const MethoStorePage = lazy(() => import("@/pages/MethoStorePage"));
-const PartnerShopPage = lazy(() => import("@/pages/PartnerShopPage"));
-const PartnerPayoutStatementPage = lazy(() => import("@/pages/PartnerPayoutStatementPage"));
-const ShopPage = lazy(() => import("@/pages/ShopPage"));
-const PartnerGalleryPage = lazy(() => import("@/pages/PartnerGalleryPage"));
-const InstallPage = lazy(() => import("@/pages/InstallPage"));
-const MethoStoreAdminPage = lazy(() => import("@/pages/dashboard/MethoStoreAdminPage"));
-const MethoStoreOwnerPage = lazy(() => import("@/pages/dashboard/MethoStoreOwnerPage"));
+const loadLandingPage = () => import("@/pages/LandingPage");
+const loadLoginPage = () => import("@/pages/LoginPage");
+const loadRegisterPage = () => import("@/pages/RegisterPage");
+const loadForgotPasswordPage = () => import("@/pages/ForgotPasswordPage");
+const loadResetPasswordPage = () => import("@/pages/ResetPasswordPage");
+const loadDashboardLayout = () => import("@/layouts/DashboardLayout");
+const loadDashboardHome = () => import("@/pages/dashboard/DashboardHome");
+const loadWalletPage = () => import("@/pages/dashboard/WalletPage");
+const loadMembersPage = () => import("@/pages/dashboard/MembersPage");
+const loadGenealogyPage = () => import("@/pages/dashboard/GenealogyPage");
+const loadProductsPage = () => import("@/pages/dashboard/ProductsPage");
+const loadOrdersPage = () => import("@/pages/dashboard/OrdersPage");
+const loadBusinessPage = () => import("@/pages/dashboard/BusinessPage");
+const loadProfilePage = () => import("@/pages/dashboard/ProfilePage");
+const loadSettingsPage = () => import("@/pages/dashboard/SettingsPage");
+const loadSmartCyclePage = () => import("@/pages/dashboard/SmartCyclePage");
+const loadPendingPaymentsPage = () => import("@/pages/dashboard/PendingPaymentsPage");
+const loadMonthlySettlementPage = () => import("@/pages/dashboard/MonthlySettlementPage");
+const loadAccountsPage = () => import("@/pages/dashboard/AccountsPage");
+const loadMPSClaimsPage = () => import("@/pages/dashboard/MPSClaimsPage");
+const loadPartnersPage = () => import("@/pages/dashboard/PartnersPage");
+const loadProductApprovalsPage = () => import("@/pages/dashboard/ProductApprovalsPage");
+const loadPartnerApprovalsPage = () => import("@/pages/dashboard/PartnerApprovalsPage");
+const loadAIUpgradePage = () => import("@/pages/dashboard/AIUpgradePage");
+const loadAuditLogPage = () => import("@/pages/dashboard/AuditLogPage");
+const loadSystemHealthPage = () => import("@/pages/dashboard/SystemHealthPage");
+const loadOwnerGuidePage = () => import("@/pages/dashboard/OwnerGuidePage");
+const loadPartnerRegisterPage = () => import("@/pages/PartnerRegisterPage");
+const loadWithdrawalsPage = () => import("@/pages/dashboard/WithdrawalsPage");
+const loadLeaderboardPage = () => import("@/pages/dashboard/LeaderboardPage");
+const loadInvoicePage = () => import("@/pages/InvoicePage");
+const loadWalletStatementPage = () => import("@/pages/WalletStatementPage");
+const loadPartnerDashboardPage = () => import("@/pages/PartnerDashboardPage");
+const loadDirectoryPage = () => import("@/pages/DirectoryPage");
+const loadMethoStorePage = () => import("@/pages/MethoStorePage");
+const loadPartnerShopPage = () => import("@/pages/PartnerShopPage");
+const loadPartnerPayoutStatementPage = () => import("@/pages/PartnerPayoutStatementPage");
+const loadShopPage = () => import("@/pages/ShopPage");
+const loadPartnerGalleryPage = () => import("@/pages/PartnerGalleryPage");
+const loadInstallPage = () => import("@/pages/InstallPage");
+const loadMethoStoreAdminPage = () => import("@/pages/dashboard/MethoStoreAdminPage");
+const loadMethoStoreOwnerPage = () => import("@/pages/dashboard/MethoStoreOwnerPage");
+
+const LandingPage = lazy(loadLandingPage);
+const LoginPage = lazy(loadLoginPage);
+const RegisterPage = lazy(loadRegisterPage);
+const ForgotPasswordPage = lazy(loadForgotPasswordPage);
+const ResetPasswordPage = lazy(loadResetPasswordPage);
+const DashboardLayout = lazy(loadDashboardLayout);
+const DashboardHome = lazy(loadDashboardHome);
+const WalletPage = lazy(loadWalletPage);
+const MembersPage = lazy(loadMembersPage);
+const GenealogyPage = lazy(loadGenealogyPage);
+const ProductsPage = lazy(loadProductsPage);
+const OrdersPage = lazy(loadOrdersPage);
+const BusinessPage = lazy(loadBusinessPage);
+const ProfilePage = lazy(loadProfilePage);
+const SettingsPage = lazy(loadSettingsPage);
+const SmartCyclePage = lazy(loadSmartCyclePage);
+const PendingPaymentsPage = lazy(loadPendingPaymentsPage);
+const MonthlySettlementPage = lazy(loadMonthlySettlementPage);
+const AccountsPage = lazy(loadAccountsPage);
+const MPSClaimsPage = lazy(loadMPSClaimsPage);
+const PartnersPage = lazy(loadPartnersPage);
+const ProductApprovalsPage = lazy(loadProductApprovalsPage);
+const PartnerApprovalsPage = lazy(loadPartnerApprovalsPage);
+const AIUpgradePage = lazy(loadAIUpgradePage);
+const AuditLogPage = lazy(loadAuditLogPage);
+const SystemHealthPage = lazy(loadSystemHealthPage);
+const OwnerGuidePage = lazy(loadOwnerGuidePage);
+const PartnerRegisterPage = lazy(loadPartnerRegisterPage);
+const WithdrawalsPage = lazy(loadWithdrawalsPage);
+const LeaderboardPage = lazy(loadLeaderboardPage);
+const InvoicePage = lazy(loadInvoicePage);
+const WalletStatementPage = lazy(loadWalletStatementPage);
+const PartnerDashboardPage = lazy(loadPartnerDashboardPage);
+const DirectoryPage = lazy(loadDirectoryPage);
+const MethoStorePage = lazy(loadMethoStorePage);
+const PartnerShopPage = lazy(loadPartnerShopPage);
+const PartnerPayoutStatementPage = lazy(loadPartnerPayoutStatementPage);
+const ShopPage = lazy(loadShopPage);
+const PartnerGalleryPage = lazy(loadPartnerGalleryPage);
+const InstallPage = lazy(loadInstallPage);
+const MethoStoreAdminPage = lazy(loadMethoStoreAdminPage);
+const MethoStoreOwnerPage = lazy(loadMethoStoreOwnerPage);
+
+const prefetchedChunks = new Set();
+const prefetchChunk = (loader) => {
+  if (typeof loader !== "function" || prefetchedChunks.has(loader)) return;
+  prefetchedChunks.add(loader);
+  loader().catch(() => {
+    prefetchedChunks.delete(loader);
+  });
+};
+
+const RouteWarmup = () => {
+  const location = useLocation();
+
+  useEffect(() => {
+    const pathname = String(location.pathname || "");
+    const publicTargets = [
+      loadLandingPage,
+      loadPartnerRegisterPage,
+      loadDirectoryPage,
+      loadMethoStorePage,
+      loadShopPage,
+      loadPartnerDashboardPage,
+      loadPartnerShopPage,
+      loadPartnerGalleryPage,
+    ];
+    const appTargets = [
+      loadDashboardLayout,
+      loadDashboardHome,
+      loadProductsPage,
+      loadPartnersPage,
+      loadMethoStoreAdminPage,
+      loadMethoStoreOwnerPage,
+    ];
+    const targets = pathname.startsWith("/app") ? [...publicTargets, ...appTargets] : publicTargets;
+
+    const runPrefetch = () => {
+      targets.forEach((loader) => prefetchChunk(loader));
+    };
+
+    if (typeof window !== "undefined" && typeof window.requestIdleCallback === "function") {
+      const id = window.requestIdleCallback(runPrefetch, { timeout: 1800 });
+      return () => window.cancelIdleCallback(id);
+    }
+
+    const timer = window.setTimeout(runPrefetch, 350);
+    return () => window.clearTimeout(timer);
+  }, [location.pathname]);
+
+  return null;
+};
 
 const PrivateRoute = ({ children }) => {
   const { user, loading } = useAuth();
@@ -153,6 +246,7 @@ function App() {
     <AuthProvider>
       <SettingsProvider>
         <BrowserRouter>
+          <RouteWarmup />
           <RuntimeMetaBindings />
           <Toaster position="top-right" richColors />
           <GlobalHomeTab />
