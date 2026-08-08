@@ -110,7 +110,6 @@ DEFAULT_SETTINGS = {
     "social_share_image_url": "",
     "top_leader_1_name": "",
     "top_leader_1_title": "MD",
-    "top_leader_1_image_url": "",
     "top_leader_2_name": "",
     "top_leader_2_title": "CEO",
     "top_leader_2_image_url": "",
