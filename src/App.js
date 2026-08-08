@@ -175,7 +175,6 @@ const MemberRoute = ({ children }) => {
 const GlobalHomeTab = () => {
   const location = useLocation();
   if (location.pathname === "/") return null;
-
   return (
     <Link
       to="/"
