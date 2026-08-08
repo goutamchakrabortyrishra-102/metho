@@ -380,8 +380,8 @@ export default function PartnerRegisterPage() {
           <p className="mt-4 text-xs text-slate-500 font-body">
             Once approved by admin, sign in using the username and password you set in this form.
           </p>
-          <Link to="/" className="mt-6 inline-block">
-            <Button className="bg-emerald-900 hover:bg-emerald-950 text-white rounded-full">Back to Home</Button>
+          <Link to="/directory" className="mt-6 inline-block">
+            <Button className="bg-emerald-900 hover:bg-emerald-950 text-white rounded-full">View All Partners/Services</Button>
           </Link>
         </div>
       </div>
