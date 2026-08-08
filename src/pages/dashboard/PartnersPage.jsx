@@ -163,6 +163,7 @@ export default function PartnersPage() {
   const [showOfflineBilling, setShowOfflineBilling] = useState(false);
   const [selectedPartnerId, setSelectedPartnerId] = useState("");
   const [nearbyCity, setNearbyCity] = useState("");
+  const [nearbyPincode, setNearbyPincode] = useState("");
   const [nearbyType, setNearbyType] = useState("");
   const [nearbyRadiusKm, setNearbyRadiusKm] = useState(15);
   const [nearbyLocation, setNearbyLocation] = useState(null);
@@ -177,6 +178,7 @@ export default function PartnersPage() {
   const [hotOnly, setHotOnly] = useState(false);
   const lastFormPinRef = useRef("");
   const lastEditPinRef = useRef("");
+  const lastNearbyPinRef = useRef("");
 
   const cityAdminDistrictOptions = useMemo(() => {
     if (!cityAdminState) return [];
@@ -705,25 +707,33 @@ export default function PartnersPage() {
 
   const useCityCenter = async () => {
     const city = String(nearbyCity || "").trim();
-    if (!city) {
-      toast.error("City দিন");
+    const normalizedPin = normalizePincode(nearbyPincode);
+    const geoNeedle = isCompletePincode(normalizedPin)
+      ? `${normalizedPin}, India`
+      : `${city}, India`;
+    if (!String(geoNeedle || "").trim() || geoNeedle === ", India") {
+      toast.error("City বা pincode দিন");
       return;
     }
     setNearbyGeoBusy(true);
     try {
-      const endpoint = `https://nominatim.openstreetmap.org/search?format=json&limit=1&q=${encodeURIComponent(`${city}, India`)}`;
+      const endpoint = `https://nominatim.openstreetmap.org/search?format=json&limit=1&q=${encodeURIComponent(geoNeedle)}`;
       const res = await fetch(endpoint);
       if (!res.ok) throw new Error("geocode failed");
       const rows = await res.json();
       const first = Array.isArray(rows) ? rows[0] : null;
       const lat = Number(first?.lat);
       const lng = Number(first?.lon);
+      const canonicalCity = String(first?.name || city).trim();
       if (!Number.isFinite(lat) || !Number.isFinite(lng)) {
         toast.error("City location পাওয়া যায়নি");
         return;
       }
+      if (canonicalCity) {
+        setNearbyCity(canonicalCity);
+      }
       setNearbyLocation({ lat, lng });
-      setNearbyLocationLabel(`${city} Center`);
+      setNearbyLocationLabel(`${canonicalCity || city} Center`);
       toast.success("City center selected");
     } catch {
       toast.error("City location fetch করা যায়নি");
@@ -851,11 +861,19 @@ export default function PartnersPage() {
 
     const overpassQuery = `[out:json][timeout:30];(\n${[...targetedSelectors, ...genericSelectors].join("\n")}\n);out center tags 800;`;
 
-    const resp = await fetch("https://overpass-api.de/api/interpreter", {
-      method: "POST",
-      body: overpassQuery,
-    });
-    if (!resp.ok) throw new Error("overpass failed");
+    const OVERPASS_MIRRORS = [
+      "https://overpass-api.de/api/interpreter",
+      "https://overpass.kumi.systems/api/interpreter",
+      "https://overpass.openstreetmap.ru/api/interpreter",
+    ];
+    let resp = null;
+    for (const mirror of OVERPASS_MIRRORS) {
+      try {
+        const r = await fetch(mirror, { method: "POST", body: overpassQuery });
+        if (r.ok) { resp = r; break; }
+      } catch { /* try next mirror */ }
+    }
+    if (!resp) throw new Error("overpass failed");
     const payload = await resp.json();
     const items = Array.isArray(payload?.elements) ? payload.elements : [];
 
@@ -879,7 +897,7 @@ export default function PartnersPage() {
 
         if (cityNeedle) {
           const compare = `${city} ${address}`.toLowerCase();
-          if (!compare.includes(cityNeedle)) return null;
+          if (compare && !compare.includes(cityNeedle)) return null;
         }
 
         const distanceKm = haversineKm(nearbyLocation.lat, nearbyLocation.lng, lat, lng);
@@ -1119,6 +1137,30 @@ export default function PartnersPage() {
       setSelectedPartnerId(String(partners[0].id));
     }
   }, [partners, selectedPartnerId]);
+
+  useEffect(() => {
+    const normalized = normalizePincode(nearbyPincode);
+    if (!isCompletePincode(normalized)) return;
+    if (lastNearbyPinRef.current === normalized) return;
+
+    let cancelled = false;
+    api.get(`/directory/pincode-lookup?pincode=${encodeURIComponent(normalized)}`)
+      .then(({ data }) => {
+        if (cancelled) return;
+        const city = String(data?.city || "").trim();
+        if (city) setNearbyCity(city);
+        lastNearbyPinRef.current = normalized;
+      })
+      .catch(() => {
+        if (!cancelled) {
+          toast.error("Nearby search pincode থেকে city খুঁজে পাওয়া যায়নি");
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [nearbyPincode]);
 
   useEffect(() => {
     if (!isAdmin) return;
@@ -1492,13 +1534,27 @@ export default function PartnersPage() {
           </div>
         </div>
 
-        <div className="mt-3 grid grid-cols-1 md:grid-cols-4 gap-2">
+        <div className="mt-3 grid grid-cols-1 md:grid-cols-5 gap-2">
           <Input
             value={nearbyCity}
             onChange={(e) => setNearbyCity(e.target.value)}
             list="partner-city-list"
             placeholder="City"
             data-testid="nearby-city-filter"
+          />
+          <Input
+            value={nearbyPincode}
+            onChange={(e) => {
+              const normalized = normalizePincode(e.target.value);
+              setNearbyPincode(normalized);
+              if (!isCompletePincode(normalized)) {
+                lastNearbyPinRef.current = "";
+              }
+            }}
+            placeholder="Pincode"
+            maxLength={6}
+            inputMode="numeric"
+            data-testid="nearby-pincode-filter"
           />
           <Input
             value={nearbyType}
@@ -1522,6 +1578,7 @@ export default function PartnersPage() {
             className="rounded-full"
             onClick={() => {
               setNearbyCity("");
+              setNearbyPincode("");
               setNearbyType("");
               setNearbyRadiusKm(15);
               setNearbyLocation(null);
@@ -1529,6 +1586,7 @@ export default function PartnersPage() {
               setNearbyLeads([]);
               setNearbySearched(false);
               setNearbySearchError("");
+              lastNearbyPinRef.current = "";
             }}
             data-testid="nearby-clear-filters"
           >
