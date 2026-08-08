@@ -102,7 +102,6 @@ const prefetchChunk = (loader) => {
 
 const RouteWarmup = () => {
   const location = useLocation();
-
   useEffect(() => {
     const pathname = String(location.pathname || "");
     const publicTargets = [
