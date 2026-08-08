@@ -562,6 +562,46 @@ export default function PartnerDashboardPage() {
     window.open(`https://wa.me/?text=${encodeURIComponent(message)}`, "_blank", "noopener,noreferrer");
   };
 
+  const sendInvoicePdfOnWhatsApp = async (order) => {
+    if (!order?.id) return;
+    try {
+      const response = await api.get(`/orders/${order.id}/invoice/pdf`, { responseType: "blob" });
+      const pdfBlob = response?.data instanceof Blob
+        ? response.data
+        : new Blob([response?.data], { type: "application/pdf" });
+      const fallbackName = `Invoice_${String(order?.order_no || order.id || "order").replace(/[^A-Za-z0-9_-]/g, "_")}.pdf`;
+      const file = new File([pdfBlob], fallbackName, { type: "application/pdf" });
+
+      if (navigator.share && navigator.canShare && navigator.canShare({ files: [file] })) {
+        await navigator.share({
+          title: `Invoice ${order?.order_no || ""}`,
+          text: `Invoice PDF for ${order?.order_no || "your order"}`,
+          files: [file],
+        });
+        toast.success("Invoice PDF shared");
+        return;
+      }
+
+      const anchor = document.createElement("a");
+      anchor.href = URL.createObjectURL(pdfBlob);
+      anchor.download = fallbackName;
+      document.body.appendChild(anchor);
+      anchor.click();
+      anchor.remove();
+
+      const whatsappUrl = order?.customer_whatsapp_invoice_url
+        || `https://wa.me/?text=${encodeURIComponent(`Invoice PDF downloaded for ${order?.order_no || "order"}. Please attach the PDF and send.`)}`;
+      window.open(whatsappUrl, "_blank", "noopener,noreferrer");
+      toast.success("PDF downloaded. WhatsApp chat opened.");
+    } catch (err) {
+      const detail = err?.response?.data?.detail;
+      const msg = typeof detail === "string" && detail.trim()
+        ? detail
+        : "Invoice PDF send failed";
+      toast.error(msg);
+    }
+  };
+
   const exportLedger = () => {
     const wb = XLSX.utils.book_new();
     const s1 = XLSX.utils.aoa_to_sheet([
@@ -2002,9 +2042,14 @@ export default function PartnerDashboardPage() {
                     </div>
                     <div className="text-right">
                       {o.customer_whatsapp_invoice_url ? (
-                        <a href={o.customer_whatsapp_invoice_url} target="_blank" rel="noreferrer" className="inline-flex items-center rounded-full bg-green-600 px-3 py-1.5 text-[11px] font-semibold text-white hover:bg-green-700">
-                          <MessageCircle className="w-3.5 h-3.5 mr-1" /> Send Invoice WhatsApp
-                        </a>
+                        <button
+                          type="button"
+                          onClick={() => sendInvoicePdfOnWhatsApp(o)}
+                          className="inline-flex items-center rounded-full bg-green-600 px-3 py-1.5 text-[11px] font-semibold text-white hover:bg-green-700"
+                          data-testid={`send-invoice-pdf-whatsapp-${o.id}`}
+                        >
+                          <MessageCircle className="w-3.5 h-3.5 mr-1" /> Send Invoice PDF WhatsApp
+                        </button>
                       ) : null}
                       <p className="text-[11px] text-amber-700 mt-1">Invoice, commission, and sales breakdown still hidden.</p>
                     </div>
