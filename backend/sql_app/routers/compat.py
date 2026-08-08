@@ -43,7 +43,7 @@ PRODUCT_IMAGE_MAX_UPLOAD_BYTES = 5 * 1024 * 1024
 PARTNER_PRODUCT_UNITS_KEY = "partner_product_units"
 PARTNER_UNIT_OPTIONS = {"piece", "kg", "gram", "litre", "ml"}
 PARTNER_PRODUCT_META_KEY = "partner_product_meta"
-TRANSPORT_SERVICE_TEMPLATE_KEYS = {"cab_airport_drop", "car_rental_daily", "bike_rental_daily", "cargo_transport"}
+TRANSPORT_SERVICE_TEMPLATE_KEYS = {"cab_airport_drop", "car_rental_daily", "bike_rental_daily", "cargo_transport", "courier_pickup"}
 ADMIN_ACCOUNTS_LEDGER_KEY = "admin_accounts_ledger"
 
 
@@ -518,6 +518,7 @@ def _is_transport_service_listing(item: PartnerProduct | None, meta_map: dict[st
     transport_keywords = [
         "transport", "cab", "car", "car rental", "bike", "motorbike", "vehicle", "rental", "taxi", "cargo", "logistics", "carrier",
         "goods carrier", "ride", "auto", "auto rental", "auto rickshaw", "autorickshaw",
+        "courier", "travel", "travel agency", "tour",
         "e-rickshaw", "erickshaw", "rickshaw", "truck", "pickup van", "van rental", "scooter rental",
     ]
     if listing_type == "service" and any(k in haystack for k in transport_keywords):
@@ -563,6 +564,7 @@ def _save_transport_trip(db: Session, trip: dict) -> dict:
         row.value_json = json.dumps(payload)
         row.updated_at = datetime.now(timezone.utc)
     db.commit()
+    return payload
 
 
 def _load_admin_accounts_ledger(db: Session) -> dict:

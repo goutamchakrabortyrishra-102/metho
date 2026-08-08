@@ -110,6 +110,8 @@ def partner_register(payload: dict, db: Session = Depends(get_db)):
     login_id = str(payload.get("login_id") or payload.get("email") or "").strip()
     raw_password = str(payload.get("password") or "").strip()
     sector = _normalize_partner_sector(payload.get("business_type") or payload.get("sector"))
+    selected_primary_sector = str(payload.get("service_sector") if sector == "Service" else payload.get("shop_sector") or "").strip()
+    business_type_label = f"{sector} - {selected_primary_sector}" if selected_primary_sector else sector
     phone = str(payload.get("phone", "")).strip()
     pan_no = str(payload.get("pan_no") or payload.get("gst_no") or "").strip().upper()
     aadhaar_no = "".join(ch for ch in str(payload.get("aadhaar_no") or "") if ch.isdigit())
@@ -154,7 +156,7 @@ def partner_register(payload: dict, db: Session = Depends(get_db)):
     row = PartnerRequest(
         id=request_id,
         business_name=str(payload.get("business_name", "")).strip(),
-        business_type=sector,
+        business_type=business_type_label,
         contact_person=str(payload.get("contact_person", "")).strip(),
         phone=phone,
         email=login_id,
