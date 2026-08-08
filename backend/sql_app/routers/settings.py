@@ -16,6 +16,8 @@ PUBLIC_SETTINGS_EXCLUDE_KEYS = {
     "einvoice_password",
 }
 
+DATA_URL_MAX_LEN = 4096
+
 PUBLIC_BRANDING_DATA_KEYS = {
     "site_logo_url",
     "landing_hero_image_url",
