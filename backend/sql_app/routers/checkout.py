@@ -763,13 +763,13 @@ def create_public_order(payload: dict, db: Session = Depends(get_db), authorizat
         partner = db.query(AssociatePartner).filter(AssociatePartner.id == partner_product.partner_id).first()
         if not partner:
             continue
-        dashboard_url = "https://methoaayupay.com/partner?tab=orders"
+        invoice_url = f"https://methoaayupay.com/invoice/{row.id}"
         message = (
             f"New offline partner/service order request received.\n"
             f"Order ID: ORD-{row.id[:8].upper()}\n"
             f"Customer: {customer_name}\n"
             f"Total: ₹{float(row.total_amount or 0):.2f}\n"
-            f"Open Partner Dashboard: {dashboard_url}"
+            f"Open Invoice: {invoice_url}"
         )
         whatsapp_url = _build_partner_whatsapp_url(partner.whatsapp_no or partner.phone, message)
         if whatsapp_url:
