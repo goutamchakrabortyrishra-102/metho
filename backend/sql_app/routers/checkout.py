@@ -773,19 +773,8 @@ def create_public_order(payload: dict, db: Session = Depends(get_db), authorizat
                 "url": whatsapp_url,
             })
 
+    # New order notification must go to partner WhatsApp only.
     member_whatsapp_share_url = ""
-    if customer_phone_digits:
-        order_link = f"https://metho.store/invoice/{row.id}"
-        payment_label = payment_method.upper()
-        message = (
-            f"METHO order placed successfully.\n"
-            f"Order ID: ORD-{row.id[:8].upper()}\n"
-            f"Customer: {customer_name}\n"
-            f"Payment Mode: {payment_label}\n"
-            f"Total: ₹{float(row.total_amount or 0):.2f}\n"
-            f"Track order / invoice: {order_link}"
-        )
-        member_whatsapp_share_url = f"https://wa.me/{customer_phone_digits}?text={quote(message)}"
 
     return {
         "id": row.id,
