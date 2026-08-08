@@ -90,6 +90,7 @@ const DEFAULT_PARTNER_MESSAGE_TEMPLATES = [
 const LS_BUSINESS_TYPES_KEY = "metho_admin_business_categories_v1";
 const LS_CITIES_KEY = "metho_admin_cities_v1";
 const LS_MESSAGE_TEMPLATES_KEY = "metho_admin_partner_message_templates_v1";
+const GOOGLE_PLACES_API_KEY = process.env.REACT_APP_GOOGLE_PLACES_API_KEY;
 
 const LEAD_FOLLOWUP_STATUSES = ["New", "Attempted", "Connected", "Interested", "Not Interested", "Converted"];
 
@@ -731,16 +732,104 @@ export default function PartnersPage() {
     }
   };
 
-  const searchExternalLeads = async () => {
-    if (!nearbyLocation) {
-      toast.error("আগে current location বা city center set করুন");
-      return;
+  const fetchGoogleLeads = async ({ radiusKm, radiusM, cityNeedle }) => {
+    if (!GOOGLE_PLACES_API_KEY) return [];
+
+    const queryParts = [
+      String(nearbyType || "").trim() || "business",
+      cityNeedle ? `in ${String(nearbyCity || "").trim()}` : "near me",
+      "India",
+    ].filter(Boolean);
+
+    const body = {
+      textQuery: queryParts.join(" "),
+      languageCode: "en",
+      regionCode: "IN",
+      maxResultCount: 20,
+      locationBias: {
+        circle: {
+          center: {
+            latitude: Number(nearbyLocation.lat),
+            longitude: Number(nearbyLocation.lng),
+          },
+          radius: Number(radiusM),
+        },
+      },
+    };
+
+    const res = await fetch("https://places.googleapis.com/v1/places:searchText", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "X-Goog-Api-Key": GOOGLE_PLACES_API_KEY,
+        "X-Goog-FieldMask": [
+          "places.id",
+          "places.displayName",
+          "places.formattedAddress",
+          "places.location",
+          "places.nationalPhoneNumber",
+          "places.internationalPhoneNumber",
+          "places.websiteUri",
+          "places.types",
+          "places.primaryTypeDisplayName",
+          "places.googleMapsUri",
+          "places.businessStatus",
+        ].join(","),
+      },
+      body: JSON.stringify(body),
+    });
+
+    if (!res.ok) {
+      throw new Error(`google places failed (${res.status})`);
     }
 
-    const radiusKm = Math.max(1, Number(nearbyRadiusKm) || 15);
-    const radiusM = Math.max(1000, Math.round(radiusKm * 1000));
-    const regex = toOverpassRegex(nearbyType);
+    const payload = await res.json();
+    const items = Array.isArray(payload?.places) ? payload.places : [];
 
+    return items
+      .map((place, idx) => {
+        const lat = Number(place?.location?.latitude);
+        const lng = Number(place?.location?.longitude);
+        if (!Number.isFinite(lat) || !Number.isFinite(lng)) return null;
+
+        const name = String(place?.displayName?.text || "").trim();
+        if (!name) return null;
+
+        const website = String(place?.websiteUri || "").trim();
+        // Keep only offline/no-website style leads.
+        if (website) return null;
+
+        const phone = cleanPhone(place?.nationalPhoneNumber || place?.internationalPhoneNumber || "");
+        const address = String(place?.formattedAddress || "").trim();
+        const city = String(nearbyCity || "").trim();
+        const distanceKm = haversineKm(nearbyLocation.lat, nearbyLocation.lng, lat, lng);
+        const typeLabel = String(
+          place?.primaryTypeDisplayName?.text
+          || (Array.isArray(place?.types) ? place.types[0] : "business")
+          || "business"
+        ).replace(/_/g, " ");
+
+        if (!Number.isFinite(distanceKm) || distanceKm > radiusKm) return null;
+
+        return {
+          id: `gplace-${place?.id || idx}`,
+          business_name: name,
+          business_type: typeLabel,
+          city,
+          address,
+          phone,
+          website,
+          distance_km: distanceKm,
+          lat,
+          lng,
+          map_url: String(place?.googleMapsUri || "").trim(),
+        };
+      })
+      .filter(Boolean)
+      .sort((a, b) => a.distance_km - b.distance_km);
+  };
+
+  const fetchOverpassLeads = async ({ radiusKm, radiusM, regex, cityNeedle }) => {
     const genericSelectors = [
       `node["shop"](around:${radiusM},${nearbyLocation.lat},${nearbyLocation.lng});`,
       `way["shop"](around:${radiusM},${nearbyLocation.lat},${nearbyLocation.lng});`,
@@ -762,67 +851,100 @@ export default function PartnersPage() {
 
     const overpassQuery = `[out:json][timeout:30];(\n${[...targetedSelectors, ...genericSelectors].join("\n")}\n);out center tags 800;`;
 
+    const resp = await fetch("https://overpass-api.de/api/interpreter", {
+      method: "POST",
+      body: overpassQuery,
+    });
+    if (!resp.ok) throw new Error("overpass failed");
+    const payload = await resp.json();
+    const items = Array.isArray(payload?.elements) ? payload.elements : [];
+
+    return items
+      .map((item, idx) => {
+        const tags = item?.tags || {};
+        const lat = Number(item?.lat ?? item?.center?.lat);
+        const lng = Number(item?.lon ?? item?.center?.lon);
+        if (!Number.isFinite(lat) || !Number.isFinite(lng)) return null;
+
+        const name = String(tags?.name || "").trim();
+        if (!name) return null;
+
+        const address = buildLeadAddress(tags);
+        const website = String(tags?.website || tags?.["contact:website"] || "").trim();
+        const social = String(tags?.facebook || tags?.instagram || tags?.["contact:facebook"] || tags?.["contact:instagram"] || "").trim();
+        const phone = cleanPhone(tags?.phone || tags?.mobile || tags?.["contact:phone"] || tags?.["contact:mobile"] || "");
+        const city = String(tags?.["addr:city"] || "").trim();
+        const hasOnline = !!website || !!social;
+        if (hasOnline) return null;
+
+        if (cityNeedle) {
+          const compare = `${city} ${address}`.toLowerCase();
+          if (!compare.includes(cityNeedle)) return null;
+        }
+
+        const distanceKm = haversineKm(nearbyLocation.lat, nearbyLocation.lng, lat, lng);
+        const leadType = String(tags?.shop || tags?.amenity || tags?.office || tags?.craft || tags?.tourism || "business").replace(/_/g, " ");
+        return {
+          id: `${item?.type || "lead"}-${item?.id || idx}`,
+          business_name: name,
+          business_type: leadType,
+          city,
+          address,
+          phone,
+          website,
+          distance_km: distanceKm,
+          lat,
+          lng,
+        };
+      })
+      .filter(Boolean)
+      .filter((lead) => Number.isFinite(lead.distance_km) && lead.distance_km <= radiusKm)
+      .sort((a, b) => a.distance_km - b.distance_km);
+  };
+
+  const searchExternalLeads = async () => {
+    if (!nearbyLocation) {
+      toast.error("আগে current location বা city center set করুন");
+      return;
+    }
+
+    const radiusKm = Math.max(1, Number(nearbyRadiusKm) || 15);
+    const radiusM = Math.max(1000, Math.round(radiusKm * 1000));
+    const regex = toOverpassRegex(nearbyType);
+    const cityNeedle = String(nearbyCity || "").trim().toLowerCase();
+
     setNearbySearchBusy(true);
     setNearbySearchError("");
     try {
-      const resp = await fetch("https://overpass-api.de/api/interpreter", {
-        method: "POST",
-        body: overpassQuery,
-      });
-      if (!resp.ok) throw new Error("overpass failed");
-      const payload = await resp.json();
-      const items = Array.isArray(payload?.elements) ? payload.elements : [];
-      const cityNeedle = String(nearbyCity || "").trim().toLowerCase();
+      let mapped = [];
+      let usedSource = "overpass";
 
-      const mapped = items
-        .map((item, idx) => {
-          const tags = item?.tags || {};
-          const lat = Number(item?.lat ?? item?.center?.lat);
-          const lng = Number(item?.lon ?? item?.center?.lon);
-          if (!Number.isFinite(lat) || !Number.isFinite(lng)) return null;
-
-          const name = String(tags?.name || "").trim();
-          if (!name) return null;
-
-          const address = buildLeadAddress(tags);
-          const website = String(tags?.website || tags?.["contact:website"] || "").trim();
-          const social = String(tags?.facebook || tags?.instagram || tags?.["contact:facebook"] || tags?.["contact:instagram"] || "").trim();
-          const phone = cleanPhone(tags?.phone || tags?.mobile || tags?.["contact:phone"] || tags?.["contact:mobile"] || "");
-          const city = String(tags?.["addr:city"] || "").trim();
-          const hasOnline = !!website || !!social;
-          if (hasOnline) return null;
-
-          if (cityNeedle) {
-            const compare = `${city} ${address}`.toLowerCase();
-            if (!compare.includes(cityNeedle)) return null;
+      if (GOOGLE_PLACES_API_KEY) {
+        try {
+          mapped = await fetchGoogleLeads({ radiusKm, radiusM, cityNeedle });
+          if (mapped.length) {
+            usedSource = "google";
           }
+        } catch {
+          // Keep existing flow by falling back to Overpass.
+        }
+      }
 
-          const distanceKm = haversineKm(nearbyLocation.lat, nearbyLocation.lng, lat, lng);
-          const leadType = String(tags?.shop || tags?.amenity || tags?.office || tags?.craft || tags?.tourism || "business").replace(/_/g, " ");
-          return {
-            id: `${item?.type || "lead"}-${item?.id || idx}`,
-            business_name: name,
-            business_type: leadType,
-            city,
-            address,
-            phone,
-            website,
-            distance_km: distanceKm,
-            lat,
-            lng,
-          };
-        })
-        .filter(Boolean)
-        .filter((lead) => Number.isFinite(lead.distance_km) && lead.distance_km <= radiusKm)
-        .sort((a, b) => a.distance_km - b.distance_km);
+      if (!mapped.length) {
+        mapped = await fetchOverpassLeads({ radiusKm, radiusM, regex, cityNeedle });
+      }
 
       const dedupMap = new Map();
       mapped.forEach((lead) => {
         const key = `${lead.business_name.toLowerCase()}|${lead.phone}|${lead.lat.toFixed(4)}|${lead.lng.toFixed(4)}`;
         if (!dedupMap.has(key)) dedupMap.set(key, lead);
       });
-      setNearbyLeads(Array.from(dedupMap.values()).slice(0, 300));
+      const finalLeads = Array.from(dedupMap.values()).slice(0, 300);
+      setNearbyLeads(finalLeads);
       setNearbySearched(true);
+      if (usedSource === "google") {
+        toast.success(`Google leads found: ${finalLeads.length}`);
+      }
     } catch {
       setNearbyLeads([]);
       setNearbySearched(true);
