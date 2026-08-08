@@ -1225,8 +1225,10 @@ def partner_orders(db: Session = Depends(get_db), current_user=Depends(get_curre
                 "order_no": f"ORD-{row.id[:8].upper()}",
                 "status": status,
                 "created_at": row.created_at.isoformat() if row.created_at else None,
-                # Partner view is intentionally restricted: show only order number/status.
+                # Partner view stays restricted to delivery-relevant details only.
                 "restricted_order_view": True,
+                "delivery_name": str(row.payer_name or "Customer").strip() or "Customer",
+                "delivery_address": str(row.shipping_address or "").strip(),
                 "payment_method": "",
                 "my_sales": 0,
                 "my_commission": 0,

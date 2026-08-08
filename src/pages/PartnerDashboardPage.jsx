@@ -1985,9 +1985,11 @@ export default function PartnerDashboardPage() {
                     <div>
                       <p className="font-mono text-xs text-emerald-800">{o.order_no}</p>
                       <p className="text-xs text-muted-foreground">Status: {String(o?.status || "pending_approval").toUpperCase()}</p>
+                      <p className="text-xs text-slate-700 mt-1">Customer: {o.delivery_name || "Customer"}</p>
+                      <p className="text-xs text-slate-700 mt-0.5 whitespace-pre-line">Address: {o.delivery_address || "Address not available"}</p>
                     </div>
                     <div className="text-right">
-                      <p className="text-[11px] text-amber-700 mt-1">Order details, invoice, এবং commission partner view-এ disabled।</p>
+                      <p className="text-[11px] text-amber-700 mt-1">Invoice, commission, and sales breakdown still hidden.</p>
                     </div>
                   </div>
                 ))}
