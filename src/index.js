@@ -5,6 +5,16 @@ import "@/index.css";
 import App from "@/App";
 import InstallAppPrompt from "@/components/InstallAppPrompt";
 
+const BootMarker = () => {
+  React.useEffect(() => {
+    if (typeof window !== "undefined") {
+      window.__methoAppMounted = true;
+    }
+  }, []);
+
+  return null;
+};
+
 const clearLegacyPwaState = async () => {
   if ("serviceWorker" in navigator) {
     try {
@@ -63,6 +73,7 @@ const queryClient = new QueryClient({
 const root = ReactDOM.createRoot(document.getElementById("root"));
 root.render(
   <React.StrictMode>
+    <BootMarker />
     <QueryClientProvider client={queryClient}>
       <App />
       <InstallAppPrompt />
