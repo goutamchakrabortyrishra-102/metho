@@ -805,7 +805,7 @@ def create_public_order(payload: dict, db: Session = Depends(get_db), authorizat
         partner = db.query(AssociatePartner).filter(AssociatePartner.id == partner_product.partner_id).first()
         if not partner:
             continue
-        dashboard_url = "https://methoaayupay.com/login?next=/partner"
+        dashboard_url = "https://methoaayupay.com/partner?tab=orders"
         message = (
             f"New offline partner/service order request received.\n"
             f"Order ID: ORD-{row.id[:8].upper()}\n"

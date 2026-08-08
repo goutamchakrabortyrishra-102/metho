@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from "react";
-import { Link, Navigate } from "react-router-dom";
+import { Link, Navigate, useLocation } from "react-router-dom";
 import { Store, TrendingUp, Percent, Package, ShoppingCart, FileText, LogOut, ScrollText, FileSpreadsheet, FileDown, Images, ReceiptText, Copy, MessageCircle, ExternalLink, CarTaxiFront, PlayCircle, CheckCircle2, Wallet, Clock3, XCircle } from "lucide-react";
 import * as XLSX from "xlsx";
 import { toast } from "sonner";
@@ -224,6 +224,7 @@ const getDashboardTheme = (primarySector) => {
 };
 
 export default function PartnerDashboardPage() {
+  const location = useLocation();
   const { user, logout } = useAuth();
   const [summary, setSummary] = useState(null);
   const [products, setProducts] = useState([]);
@@ -264,6 +265,7 @@ export default function PartnerDashboardPage() {
   const [rejectReasonDrafts, setRejectReasonDrafts] = useState({});
   const [serviceFareDrafts, setServiceFareDrafts] = useState({});
   const [serviceActionBusy, setServiceActionBusy] = useState({});
+  const [ordersShortcutPinned, setOrdersShortcutPinned] = useState(false);
   const normalizedProducts = Array.isArray(products) ? products : [];
   const normalizedLedger = Array.isArray(ledger) ? ledger : [];
   const normalizedOrders = Array.isArray(orders) ? orders : [];
@@ -534,6 +536,21 @@ export default function PartnerDashboardPage() {
   }, [user]);
 
   useEffect(() => {
+    try {
+      setOrdersShortcutPinned(window.localStorage.getItem("metho_partner_orders_shortcut_v1") === "1");
+    } catch {}
+  }, []);
+
+  useEffect(() => {
+    const requestedTab = String(new URLSearchParams(location.search).get("tab") || "").trim().toLowerCase();
+    if (!requestedTab) return;
+    const allowedTabs = new Set(["overview", "offline", "orders", "ledger", ...sectorTabs]);
+    if (allowedTabs.has(requestedTab) && requestedTab !== tab) {
+      setTab(requestedTab);
+    }
+  }, [location.search, sectorTabs, tab]);
+
+  useEffect(() => {
     const allowedTabs = new Set(["overview", "offline", "orders", "ledger", ...sectorTabs]);
     if (!allowedTabs.has(tab)) {
       setTab(tab === "overview" ? listingDefaultTab : "overview");
@@ -630,6 +647,14 @@ export default function PartnerDashboardPage() {
   const openPayoutPdf = () => {
     // Opens a new tab with a print-ready payout statement
     window.open(`/partner-payout`, "_blank");
+  };
+
+  const saveOrdersShortcut = () => {
+    try {
+      window.localStorage.setItem("metho_partner_orders_shortcut_v1", "1");
+    } catch {}
+    setOrdersShortcutPinned(true);
+    toast.success("New Orders shortcut saved for mobile screen");
   };
 
   const deleteProduct = async (id) => {
@@ -2019,7 +2044,12 @@ export default function PartnerDashboardPage() {
 
         {tab === "orders" && (
           <div className="bg-white rounded-xl border border-border p-6">
-            <h3 className="font-display font-bold text-emerald-950 text-lg mb-4">Orders including your products</h3>
+            <div className="flex items-center justify-between gap-2 mb-4 flex-wrap">
+              <h3 className="font-display font-bold text-emerald-950 text-lg">Orders including your products</h3>
+              <Button type="button" onClick={saveOrdersShortcut} variant="outline" className="rounded-full border-emerald-300 text-emerald-900 hover:bg-emerald-50" data-testid="save-orders-shortcut">
+                Save New Orders Shortcut
+              </Button>
+            </div>
             {normalizedOrders.length === 0 ? (
               <p className="text-sm text-muted-foreground">No orders yet.</p>
             ) : (
@@ -2063,6 +2093,17 @@ export default function PartnerDashboardPage() {
             )}
           </div>
         )}
+
+        {ordersShortcutPinned ? (
+          <button
+            type="button"
+            onClick={() => setTab("orders")}
+            className="md:hidden fixed bottom-20 left-4 z-40 rounded-full bg-emerald-900 text-white px-4 py-2 text-xs font-semibold shadow-lg"
+            data-testid="mobile-new-orders-shortcut"
+          >
+            New Orders
+          </button>
+        ) : null}
 
       </main>
     </div>
