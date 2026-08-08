@@ -187,7 +187,6 @@ export default function UpiPaymentDialog({
       if (!screenshot?.url) return toast.error("Please upload payment screenshot");
     }
     setSubmitting(true);
-    const whatsappPopup = window.open("about:blank", "_blank");
     try {
       const payload = {
         items: items.map((i) => ({
@@ -218,17 +217,8 @@ export default function UpiPaymentDialog({
       const { data } = await api.post(endpoint, payload);
       const partnerWhatsappUrl = data?.partner_whatsapp_url || (Array.isArray(data?.partner_whatsapp_urls) ? data.partner_whatsapp_urls[0]?.url : "");
       const customerWhatsappUrl = data?.member_whatsapp_share_url || "";
-      const whatsappUrl = customerWhatsappUrl;
-      if (whatsappUrl) {
-        setPartnerWhatsappUrl(customerWhatsappUrl);
-        if (whatsappPopup) {
-          whatsappPopup.location.href = whatsappUrl;
-        } else {
-          toast.info("WhatsApp link ready below if popup was blocked.");
-        }
-      } else if (whatsappPopup) {
-        whatsappPopup.close();
-      }
+      // Customer checkout should remain plain. Do not auto-open any WhatsApp/SMS composer.
+      setPartnerWhatsappUrl(customerWhatsappUrl || partnerWhatsappUrl || "");
       if (paymentMode === "cod") {
         toast.success("COD order placed. Delivery charges should be discussed and negotiated directly with the partner.", { duration: 5000 });
       } else {
@@ -269,7 +259,6 @@ export default function UpiPaymentDialog({
 
     setSubmitting(true);
     try {
-  const whatsappPopup = window.open("about:blank", "_blank");
       const orderPayload = {
         items: items.map((i) => ({
           product_id: i.id,
@@ -343,17 +332,8 @@ export default function UpiPaymentDialog({
             );
             const verifiedWhatsappUrl = verified?.partner_whatsapp_url || (Array.isArray(verified?.partner_whatsapp_urls) ? verified.partner_whatsapp_urls[0]?.url : "");
             const verifiedCustomerWhatsappUrl = verified?.member_whatsapp_share_url || "";
-            const finalWhatsappUrl = verifiedCustomerWhatsappUrl;
-            if (finalWhatsappUrl) {
-              setPartnerWhatsappUrl(verifiedCustomerWhatsappUrl);
-              if (whatsappPopup) {
-                whatsappPopup.location.href = finalWhatsappUrl;
-              } else {
-                toast.info("WhatsApp link ready below if popup was blocked.");
-              }
-            } else if (whatsappPopup) {
-              whatsappPopup.close();
-            }
+            // Keep checkout plain for customer side: no auto WhatsApp redirect/open.
+            setPartnerWhatsappUrl(verifiedCustomerWhatsappUrl || verifiedWhatsappUrl || "");
             onOrderPlaced?.(verified);
             if (isGuest) {
               writeGuestCheckoutPrefs({
