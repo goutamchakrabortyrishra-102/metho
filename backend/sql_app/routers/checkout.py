@@ -689,13 +689,39 @@ def create_public_order(payload: dict, db: Session = Depends(get_db), authorizat
 
     member_ref = str(payload.get("member_code") or payload.get("member_id") or "").strip()
     payer_name_raw = str(payload.get("payer_name") or "").strip()
-    customer_name = payer_name_raw or "Customer"
+    customer_name = payer_name_raw
     customer_phone = str(payload.get("customer_phone") or "").strip()
+    shipping_address = str(payload.get("shipping_address") or "").strip()
     payment_method = str(payload.get("payment_method") or "upi").strip().lower()
     customer_phone_digits = "".join(ch for ch in customer_phone if ch.isdigit())
 
+    if str(customer_user_id or "").strip():
+        customer_user = db.query(User).filter(User.id == str(customer_user_id).strip()).first()
+        if customer_user:
+            if not customer_name:
+                customer_name = str(getattr(customer_user, "name", "") or "").strip()
+            if not customer_phone_digits:
+                customer_phone_digits = "".join(ch for ch in str(getattr(customer_user, "phone", "") or "") if ch.isdigit())
+
+    if not customer_name:
+        customer_name = "Customer"
+
+    has_partner_item = False
+    has_partner_physical_item = False
+    for item in normalized_items:
+        if str(item.get("product_type") or "").strip() != "associate_partner":
+            continue
+        has_partner_item = True
+        if not _is_service_order_item(item):
+            has_partner_physical_item = True
+
+    if has_partner_item and not customer_phone_digits:
+        raise HTTPException(status_code=400, detail="Partner order requires customer mobile number")
+    if has_partner_physical_item and not shipping_address:
+        raise HTTPException(status_code=400, detail="Delivery address is required for partner product orders")
+
     if payment_method == "cod":
-        if not payer_name_raw:
+        if not customer_name or customer_name == "Customer":
             raise HTTPException(status_code=400, detail="COD order requires customer name")
         if not customer_phone_digits:
             raise HTTPException(status_code=400, detail="COD order requires customer phone")
@@ -703,18 +729,18 @@ def create_public_order(payload: dict, db: Session = Depends(get_db), authorizat
         id=str(uuid.uuid4()),
         customer_user_id=customer_user_id,
         member_ref=member_ref,
-        shipping_address=str(payload.get("shipping_address") or "").strip(),
+        shipping_address=shipping_address,
         payment_method=payment_method,
         txn_id=str(payload.get("txn_id") or "").strip(),
         payment_screenshot_url=str(payload.get("payment_screenshot_url") or "").strip(),
-        payer_name=str(payload.get("payer_name") or "").strip(),
+        payer_name=customer_name,
         items_json=json.dumps(normalized_items),
         total_amount=total,
         status="pending_approval",
     )
     db.add(row)
     db.commit()
-    _save_order_contact_phone(db, row.id, customer_phone)
+    _save_order_contact_phone(db, row.id, customer_phone_digits)
 
     partner_whatsapp_urls = []
     partner_ids_seen = set()

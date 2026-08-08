@@ -175,6 +175,8 @@ export default function UpiPaymentDialog({
 
   const submit = async (e) => {
     e.preventDefault();
+    if (!existingOrderId && !resolvedCustomerPhone) return toast.error("Order-এর জন্য Mobile Number দিন");
+    if (!existingOrderId && !resolvedPayerName) return toast.error("Order-এর জন্য Customer Name দিন");
     if (existingOrderId && paymentMode === "cod") return toast.error("COD is only available for new checkout");
     if (paymentMode === "cod" && !codEnabled) return toast.error("COD is not available for this partner");
     if (paymentMode === "cod" && !resolvedCustomerPhone) return toast.error("COD order-এর জন্য Mobile Number দিন");
@@ -216,7 +218,7 @@ export default function UpiPaymentDialog({
       const { data } = await api.post(endpoint, payload);
       const partnerWhatsappUrl = data?.partner_whatsapp_url || (Array.isArray(data?.partner_whatsapp_urls) ? data.partner_whatsapp_urls[0]?.url : "");
       const customerWhatsappUrl = data?.member_whatsapp_share_url || "";
-      const whatsappUrl = paymentMode === "cod" ? (customerWhatsappUrl || partnerWhatsappUrl) : partnerWhatsappUrl;
+      const whatsappUrl = partnerWhatsappUrl || customerWhatsappUrl;
       if (whatsappUrl) {
         setPartnerWhatsappUrl(partnerWhatsappUrl || customerWhatsappUrl);
         if (whatsappPopup) {
@@ -261,6 +263,7 @@ export default function UpiPaymentDialog({
       return;
     }
     if (requiresShippingAddress && !address.trim()) return toast.error("Please enter shipping address");
+    if (!resolvedPayerName) return toast.error("Order-এর জন্য Customer Name দিন");
     if (isGuest && !normalizedPayerPhone) return toast.error("Please enter mobile number");
     if (!resolvedCustomerPhone) return toast.error("Please enter mobile number");
 
