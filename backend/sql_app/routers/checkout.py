@@ -39,54 +39,6 @@ def _build_partner_whatsapp_url(phone: str | None, message: str) -> str:
     return f"https://wa.me/{digits}?text={quote(message)}"
 
 
-def _normalize_phone_e164_digits(phone: str | None) -> str:
-    digits = "".join(ch for ch in str(phone or "") if ch.isdigit())
-    if not digits:
-        return ""
-    if len(digits) == 10:
-        # Default to India country code for local 10-digit numbers.
-        return f"91{digits}"
-    if digits.startswith("00"):
-        return digits[2:]
-    return digits
-
-
-def _send_partner_whatsapp_direct_message(phone: str | None, message: str) -> bool:
-    token = str(os.getenv("WHATSAPP_CLOUD_TOKEN") or "").strip()
-    phone_number_id = str(os.getenv("WHATSAPP_PHONE_NUMBER_ID") or "").strip()
-    if not token or not phone_number_id:
-        return False
-
-    recipient = _normalize_phone_e164_digits(phone)
-    if not recipient:
-        return False
-
-    try:
-        url = f"https://graph.facebook.com/v20.0/{phone_number_id}/messages"
-        payload = json.dumps(
-            {
-                "messaging_product": "whatsapp",
-                "recipient_type": "individual",
-                "to": recipient,
-                "type": "text",
-                "text": {"preview_url": False, "body": str(message or "").strip()},
-            }
-        ).encode("utf-8")
-        req = urllib.request.Request(
-            url,
-            data=payload,
-            method="POST",
-            headers={
-                "Authorization": f"Bearer {token}",
-                "Content-Type": "application/json",
-            },
-        )
-        with urllib.request.urlopen(req, timeout=8) as resp:
-            return int(getattr(resp, "status", 200) or 200) < 300
-    except Exception:
-        return False
-
-
 def _order_contact_key(order_id: str) -> str:
     return f"{ORDER_CONTACT_KEY_PREFIX}{str(order_id or '').strip()}"
 
@@ -813,7 +765,6 @@ def create_public_order(payload: dict, db: Session = Depends(get_db), authorizat
             f"Total: ₹{float(row.total_amount or 0):.2f}\n"
             f"Open Partner Dashboard: {dashboard_url}"
         )
-        _send_partner_whatsapp_direct_message(partner.whatsapp_no or partner.phone, message)
         whatsapp_url = _build_partner_whatsapp_url(partner.whatsapp_no or partner.phone, message)
         if whatsapp_url:
             partner_whatsapp_urls.append({
