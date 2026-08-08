@@ -61,6 +61,60 @@ const maybeClearLegacyPwaStateOnce = () => {
 
 maybeClearLegacyPwaStateOnce();
 
+const installChunkLoadRecovery = () => {
+  if (typeof window === "undefined") return;
+  const recoveryKey = "metho_chunk_recovery_v1";
+  const hasRecovered = () => {
+    try {
+      return window.sessionStorage.getItem(recoveryKey) === "1";
+    } catch {
+      return true;
+    }
+  };
+  const markRecovered = () => {
+    try {
+      window.sessionStorage.setItem(recoveryKey, "1");
+    } catch {}
+  };
+
+  const triggerRecoveryReload = () => {
+    if (hasRecovered()) return;
+    markRecovered();
+    const nextUrl = new URL(window.location.href);
+    nextUrl.searchParams.set("_chunkfix", String(Date.now()));
+    window.location.replace(nextUrl.toString());
+  };
+
+  const isChunkFailure = (raw) => {
+    const msg = String(raw || "").toLowerCase();
+    return (
+      msg.includes("chunkloaderror") ||
+      msg.includes("loading chunk") ||
+      msg.includes("failed to fetch dynamically imported module") ||
+      msg.includes("importing a module script failed")
+    );
+  };
+
+  window.addEventListener("error", (event) => {
+    const targetSrc = String(event?.target?.src || "");
+    if (isChunkFailure(event?.message) || targetSrc.includes("/static/js/")) {
+      triggerRecoveryReload();
+    }
+  }, true);
+
+  window.addEventListener("unhandledrejection", (event) => {
+    const reason = event?.reason;
+    const message = typeof reason === "string"
+      ? reason
+      : (reason?.message || reason?.toString?.() || "");
+    if (isChunkFailure(message)) {
+      triggerRecoveryReload();
+    }
+  });
+};
+
+installChunkLoadRecovery();
+
 const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
