@@ -773,15 +773,12 @@ def create_public_order(payload: dict, db: Session = Depends(get_db), authorizat
                 "url": whatsapp_url,
             })
 
-    # New order notification must go to partner WhatsApp only.
-    member_whatsapp_share_url = ""
-
     return {
         "id": row.id,
         "status": row.status,
         "total_amount": row.total_amount,
         "items": normalized_items,
-        "member_whatsapp_share_url": member_whatsapp_share_url,
+        "member_whatsapp_share_url": "",
         "partner_whatsapp_url": (partner_whatsapp_urls[0]["url"] if partner_whatsapp_urls else ""),
         "partner_whatsapp_urls": partner_whatsapp_urls,
     }
