@@ -183,6 +183,7 @@ export default function UpiPaymentDialog({
       if (!screenshot?.url) return toast.error("Please upload payment screenshot");
     }
     setSubmitting(true);
+    const whatsappPopup = window.open("about:blank", "_blank");
     try {
       const payload = {
         items: items.map((i) => ({
@@ -214,10 +215,13 @@ export default function UpiPaymentDialog({
       const whatsappUrl = data?.partner_whatsapp_url || (Array.isArray(data?.partner_whatsapp_urls) ? data.partner_whatsapp_urls[0]?.url : "");
       if (whatsappUrl) {
         setPartnerWhatsappUrl(whatsappUrl);
-        const opened = window.open(whatsappUrl, "_blank", "noopener,noreferrer");
-        if (!opened) {
+        if (whatsappPopup) {
+          whatsappPopup.location.href = whatsappUrl;
+        } else {
           toast.info("WhatsApp link ready below if popup was blocked.");
         }
+      } else if (whatsappPopup) {
+        whatsappPopup.close();
       }
       if (paymentMode === "cod") {
         toast.success("COD order placed. Delivery charges should be discussed and negotiated directly with the partner.", { duration: 5000 });
@@ -258,6 +262,7 @@ export default function UpiPaymentDialog({
 
     setSubmitting(true);
     try {
+  const whatsappPopup = window.open("about:blank", "_blank");
       const orderPayload = {
         items: items.map((i) => ({
           product_id: i.id,
@@ -332,10 +337,13 @@ export default function UpiPaymentDialog({
             const verifiedWhatsappUrl = verified?.partner_whatsapp_url || (Array.isArray(verified?.partner_whatsapp_urls) ? verified.partner_whatsapp_urls[0]?.url : "");
             if (verifiedWhatsappUrl) {
               setPartnerWhatsappUrl(verifiedWhatsappUrl);
-              const opened = window.open(verifiedWhatsappUrl, "_blank", "noopener,noreferrer");
-              if (!opened) {
+              if (whatsappPopup) {
+                whatsappPopup.location.href = verifiedWhatsappUrl;
+              } else {
                 toast.info("WhatsApp link ready below if popup was blocked.");
               }
+            } else if (whatsappPopup) {
+              whatsappPopup.close();
             }
             onOrderPlaced?.(verified);
             if (isGuest) {
