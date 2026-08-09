@@ -506,16 +506,16 @@ function BrandingImageUpload({ purpose, label, hint, value, onChange, onPersist,
     setBusy(true);
     try {
       const normalizedPurpose = String(purpose || "").trim().toLowerCase();
-      const shouldFallbackToEmbeddedForCriticalBranding =
-        normalizedPurpose.startsWith("top_leader_") ||
-        normalizedPurpose === "site_logo";
+      const shouldPersistAsEmbeddedBranding = Boolean(normalizedPurpose);
       let nextUrl = "";
-      const makeFormData = () => {
-        const fd = new FormData();
-        fd.append("file", f);
-        return fd;
-      };
-      if (uploadEndpoint) {
+      if (shouldPersistAsEmbeddedBranding) {
+        nextUrl = await readAsDataUrl(f);
+      } else if (uploadEndpoint) {
+        const makeFormData = () => {
+          const fd = new FormData();
+          fd.append("file", f);
+          return fd;
+        };
         let data;
         try {
           const res = await api.post(uploadEndpoint, makeFormData(), {
@@ -535,19 +535,12 @@ function BrandingImageUpload({ purpose, label, hint, value, onChange, onPersist,
         }
         nextUrl = String(data?.url || "").trim();
         if (!nextUrl) throw new Error("Upload response missing url");
-        // Keep the stable server URL even if the hosted image is briefly unreachable right after upload.
         const resolved = resolveAssetUrl(nextUrl);
         const reachable = await canLoadImage(resolved);
         if (!reachable) {
-          if (!shouldFallbackToEmbeddedForCriticalBranding) {
-            throw new Error("Uploaded image URL is not reachable");
-          }
+          throw new Error("Uploaded image URL is not reachable");
         }
-      } else if (shouldFallbackToEmbeddedForCriticalBranding) {
-        // Fallback mode for environments where dedicated upload endpoint is unavailable.
-        nextUrl = await readAsDataUrl(f);
       } else {
-        // Keep existing data-url flow for non-critical branding fields.
         nextUrl = await readAsDataUrl(f);
       }
       onChange(nextUrl);
