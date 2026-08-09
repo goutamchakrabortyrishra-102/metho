@@ -1744,7 +1744,7 @@ export default function PartnerShopPage() {
               {previewItem?.description ? <p className="text-sm text-slate-600 mt-2">{previewItem.description}</p> : <p className="text-sm text-slate-500 mt-2">No description provided.</p>}
               <div className="mt-3 flex items-center justify-between">
                 <span className="font-display font-black text-xl text-sky-800">{isTransportServiceListing(previewItem) ? "Fare on confirm" : `₹${previewItem?.price || 0}`}</span>
-                <span className="text-sm text-slate-500">{isServiceListing(previewItem) ? "Service" : `Stock: ${getStock(previewItem)}`}</span>
+                {isServiceListing(previewItem) ? <span className="text-sm text-slate-500">Service</span> : (getStock(previewItem) <= 0 ? <span className="text-sm text-slate-500">Out of Stock</span> : null)}
               </div>
             </div>
           </div>

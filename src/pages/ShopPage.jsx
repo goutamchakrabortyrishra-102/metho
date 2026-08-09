@@ -444,12 +444,11 @@ export default function ShopPage() {
                   <span className="font-display font-black text-xl text-emerald-950">₹{p.price}</span>
                   <div className="flex items-center gap-1.5">
                     <span className="text-xs px-2 py-0.5 rounded-full font-semibold bg-amber-100 text-amber-900">METHO</span>
-                    <span className={
-                      "text-[10px] px-2 py-0.5 rounded-full font-semibold " +
-                      (isOutOfStock ? "bg-red-100 text-red-700" : "bg-emerald-100 text-emerald-800")
-                    }>
-                      {isOutOfStock ? "Out" : `Stock ${stock}`}
-                    </span>
+                    {isOutOfStock ? (
+                      <span className="text-[10px] px-2 py-0.5 rounded-full font-semibold bg-red-100 text-red-700">
+                        Out of Stock
+                      </span>
+                    ) : null}
                   </div>
                 </div>
                 <div className="mt-3">
@@ -521,7 +520,7 @@ export default function ShopPage() {
               {previewProduct?.description ? <p className="text-sm text-slate-600 mt-2 whitespace-pre-line">{previewProduct.description}</p> : <p className="text-sm text-slate-500 mt-2">No description provided.</p>}
               <div className="mt-3 flex items-center justify-between">
                 <span className="font-display font-black text-3xl text-emerald-950">₹{previewProduct?.price || 0}</span>
-                <span className="text-sm text-slate-500">Stock: {Math.max(0, Number(previewProduct?.stock ?? 0))}</span>
+                {Math.max(0, Number(previewProduct?.stock ?? 0)) <= 0 ? <span className="text-sm text-slate-500">Out of Stock</span> : null}
               </div>
             </div>
           </div>

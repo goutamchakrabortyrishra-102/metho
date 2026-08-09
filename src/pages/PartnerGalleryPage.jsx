@@ -342,7 +342,7 @@ function ProductModal({ product, onClose, onAdd, onDec, qty, galleryUrl, isBookN
               <span className="font-display font-black text-3xl text-emerald-950">₹{product.price}</span>
               {!isService ? <p className="text-xs text-slate-500 mt-1">{formatPriceForMeasureUnit(product.price, product, activeMeasureUnit)}</p> : null}
             </div>
-            <span className="text-sm text-slate-500">{isService ? "Service" : `Stock: ${product.stock ?? 0}`}</span>
+            {isService ? <span className="text-sm text-slate-500">Service</span> : ((Number(product.stock ?? 0) <= 0) ? <span className="text-sm text-slate-500">Out of Stock</span> : null)}
           </div>
           <div className="mt-4 space-y-2">
             {!isService && selectableUnits.length > 1 ? (
