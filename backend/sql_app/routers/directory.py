@@ -116,6 +116,7 @@ def _service_meta_for_product(meta_map: dict[str, dict], product_id: str) -> dic
     if mode not in {"detailed", "summary_total"}:
         mode = "detailed"
     pdf_url = str((meta or {}).get("pdf_url") or (meta or {}).get("product_pdf_url") or "").strip()
+    youtube_url = str((meta or {}).get("youtube_url") or "").strip()
     return {
         "listing_type": "service" if is_service else "product",
         "item_kind": "service" if is_service else "product",
@@ -125,6 +126,7 @@ def _service_meta_for_product(meta_map: dict[str, dict], product_id: str) -> dic
         "service_template_key": str((meta or {}).get("service_template_key") or "").strip(),
         "pdf_url": pdf_url,
         "product_pdf_url": pdf_url,
+        "youtube_url": youtube_url,
     }
 
 

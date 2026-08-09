@@ -12,6 +12,14 @@ import UpiPaymentDialog from "@/components/UpiPaymentDialog";
 import { resolveAssetUrl, getAssetImageFallbackCandidates } from "@/lib/utils";
 import { inferPartnerPrimarySector, getPartnerVisibleSectors, isDoorstepServiceLike, isHospitalityServiceLike, isTransportServiceLike, PARTNER_SECTOR_KEYS } from "@/lib/partnerSector";
 
+const normalizeYoutubeUrl = (value) => {
+  const raw = String(value || "").trim();
+  if (!raw) return "";
+  if (/^https?:\/\//i.test(raw)) return raw;
+  if (/^(www\.)?youtube\.com\//i.test(raw) || /^youtu\.be\//i.test(raw)) return `https://${raw}`;
+  return "";
+};
+
 const mapsUrl = (p) => {
   const q = [p.business_name, p.address, p.city, p.state].filter(Boolean).join(", ");
   return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(q)}`;
@@ -1365,6 +1373,17 @@ export default function PartnerShopPage() {
                         >
                           <CalendarCheck2 className="w-4 h-4 mr-2" /> Book Now
                         </Button>
+                        {normalizeYoutubeUrl(service?.youtube_url) ? (
+                          <Button
+                            type="button"
+                            variant="outline"
+                            onClick={() => window.open(normalizeYoutubeUrl(service?.youtube_url), "_blank", "noopener,noreferrer")}
+                            className="w-full mt-2 rounded-full"
+                            data-testid={`shop-watch-transport-video-${service.id}`}
+                          >
+                            Watch Video
+                          </Button>
+                        ) : null}
                       </div>
                     </div>
                   );
@@ -1473,6 +1492,17 @@ export default function PartnerShopPage() {
                         <Button type="button" onClick={() => bookServiceNow(service)} className="w-full mt-3 rounded-full bg-amber-600 hover:bg-amber-700 text-white" data-testid={`shop-book-hospitality-${service.id}`}>
                           <CalendarCheck2 className="w-4 h-4 mr-2" /> Book Now
                         </Button>
+                        {normalizeYoutubeUrl(service?.youtube_url) ? (
+                          <Button
+                            type="button"
+                            variant="outline"
+                            onClick={() => window.open(normalizeYoutubeUrl(service?.youtube_url), "_blank", "noopener,noreferrer")}
+                            className="w-full mt-2 rounded-full"
+                            data-testid={`shop-watch-hospitality-video-${service.id}`}
+                          >
+                            Watch Video
+                          </Button>
+                        ) : null}
                       </div>
                     </div>
                   );
@@ -1581,6 +1611,17 @@ export default function PartnerShopPage() {
                         <Button type="button" onClick={() => bookServiceNow(service)} className="w-full mt-3 rounded-full bg-violet-700 hover:bg-violet-800 text-white" data-testid={`shop-book-doorstep-${service.id}`}>
                           <CalendarCheck2 className="w-4 h-4 mr-2" /> Book Now
                         </Button>
+                        {normalizeYoutubeUrl(service?.youtube_url) ? (
+                          <Button
+                            type="button"
+                            variant="outline"
+                            onClick={() => window.open(normalizeYoutubeUrl(service?.youtube_url), "_blank", "noopener,noreferrer")}
+                            className="w-full mt-2 rounded-full"
+                            data-testid={`shop-watch-doorstep-video-${service.id}`}
+                          >
+                            Watch Video
+                          </Button>
+                        ) : null}
                       </div>
                     </div>
                   );
@@ -1708,6 +1749,17 @@ export default function PartnerShopPage() {
                         >
                           <CalendarCheck2 className="w-4 h-4 mr-2" /> Book Now
                         </Button>
+                        {normalizeYoutubeUrl(service?.youtube_url) ? (
+                          <Button
+                            type="button"
+                            variant="outline"
+                            onClick={() => window.open(normalizeYoutubeUrl(service?.youtube_url), "_blank", "noopener,noreferrer")}
+                            className="w-full mt-2 rounded-full"
+                            data-testid={`shop-watch-service-video-${service.id}`}
+                          >
+                            Watch Video
+                          </Button>
+                        ) : null}
                       </div>
                     </div>
                   );
@@ -1746,6 +1798,17 @@ export default function PartnerShopPage() {
                 <span className="font-display font-black text-xl text-sky-800">{isTransportServiceListing(previewItem) ? "Fare on confirm" : `₹${previewItem?.price || 0}`}</span>
                 {isServiceListing(previewItem) ? <span className="text-sm text-slate-500">Service</span> : (getStock(previewItem) <= 0 ? <span className="text-sm text-slate-500">Out of Stock</span> : null)}
               </div>
+              {isServiceListing(previewItem) && normalizeYoutubeUrl(previewItem?.youtube_url) ? (
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="w-full mt-3 rounded-full"
+                  onClick={() => window.open(normalizeYoutubeUrl(previewItem?.youtube_url), "_blank", "noopener,noreferrer")}
+                  data-testid="shop-preview-watch-video"
+                >
+                  Watch Video
+                </Button>
+              ) : null}
             </div>
           </div>
         </div>

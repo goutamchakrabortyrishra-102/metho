@@ -147,6 +147,23 @@ def _set_product_hidden_flag(db: Session, product_id: str, hidden: bool) -> bool
     return bool(hidden_map.get(product_id, False))
 
 
+def _get_product_youtube_map(db: Session) -> dict:
+    settings = load_settings(db)
+    youtube_map = settings.get("product_youtube_map")
+    return youtube_map if isinstance(youtube_map, dict) else {}
+
+
+def _set_product_youtube_url(db: Session, product_id: str, youtube_url: str) -> str:
+    youtube_map = _get_product_youtube_map(db)
+    normalized = str(youtube_url or "").strip()
+    if normalized:
+        youtube_map[str(product_id)] = normalized
+    else:
+        youtube_map.pop(str(product_id), None)
+    save_settings(db, {"product_youtube_map": youtube_map})
+    return normalized
+
+
 def _compact_image_ref(value: str) -> str:
     return str(value or "").strip()
 
@@ -162,6 +179,7 @@ def list_products(limit: int | None = None, authorization: str | None = Header(d
     meta_map = {m.product_id: m for m in meta_rows}
     pricing_tier_map = _get_pricing_tier_map(db)
     hidden_map = _get_product_hidden_map(db)
+    youtube_map = _get_product_youtube_map(db)
 
     out = []
     for p in products:
@@ -189,6 +207,7 @@ def list_products(limit: int | None = None, authorization: str | None = Header(d
                 "product_type": (m.product_type if m else "metho"),
                 "image_url": (m.image_url if m else ""),
                 "pricing_tiers": pricing_tier_map.get(p.id, []),
+                "youtube_url": str(youtube_map.get(str(p.id)) or "").strip(),
                 "hidden": bool(hidden_map.get(p.id, False)),
             }
         )
@@ -278,6 +297,7 @@ def create_product(payload: ProductCreate, db: Session = Depends(get_db), curren
         db.add(partner_product)
         db.commit()
         db.refresh(partner_product)
+        _set_product_youtube_url(db, partner_product.id, payload.youtube_url)
         product_code = _ensure_product_code(db, partner_product.id, "associate_partner")
         saved_tiers = _set_product_pricing_tiers(db, partner_product.id, payload.pricing_tiers)
         return {
@@ -316,6 +336,7 @@ def create_product(payload: ProductCreate, db: Session = Depends(get_db), curren
 
     db.commit()
     db.refresh(product)
+    _set_product_youtube_url(db, product.id, payload.youtube_url)
     product_code = _ensure_product_code(db, product.id, product_type)
     saved_tiers = _set_product_pricing_tiers(db, product.id, payload.pricing_tiers)
     return {
@@ -378,6 +399,7 @@ def update_product(product_id: str, payload: ProductCreate, db: Session = Depend
         partner_product.active = True
 
         db.commit()
+        _set_product_youtube_url(db, partner_product.id, payload.youtube_url)
         product_code = _ensure_product_code(db, partner_product.id, "associate_partner")
         saved_tiers = _set_product_pricing_tiers(db, partner_product.id, payload.pricing_tiers)
         return {
@@ -411,6 +433,7 @@ def update_product(product_id: str, payload: ProductCreate, db: Session = Depend
     meta.gst_percent = (gst_percent if product_type == "metho" else 0)
 
     db.commit()
+    _set_product_youtube_url(db, product.id, payload.youtube_url)
     product_code = _ensure_product_code(db, product.id, product_type)
     saved_tiers = _set_product_pricing_tiers(db, product.id, payload.pricing_tiers)
     return {
@@ -467,6 +490,8 @@ def patch_product(product_id: str, payload: dict, db: Session = Depends(get_db),
             target.stock = max(0, int(payload.get("stock")))
         except Exception:
             raise HTTPException(status_code=400, detail="Invalid stock")
+    if "youtube_url" in payload:
+        _set_product_youtube_url(db, product_id, str(payload.get("youtube_url") or ""))
 
     hidden = None
     if "hidden" in payload:

@@ -27,6 +27,7 @@ class ProductCreate(BaseModel):
     discount_percent: float = 0
     gst_percent: float = 0
     pricing_tiers: list[dict] | None = None
+    youtube_url: str = ""
 
 
 class OrderCreate(BaseModel):

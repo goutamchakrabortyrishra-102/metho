@@ -68,6 +68,7 @@ export default function AddProductDialog({
     product_type: "metho",
     partner_id: "",
     pricing_tiers_input: "",
+    youtube_url: "",
   });
   const [partners, setPartners] = useState([]);
   const [generating, setGenerating] = useState(false);
@@ -117,6 +118,7 @@ export default function AddProductDialog({
         pricing_tiers_input: Array.isArray(product.pricing_tiers)
           ? product.pricing_tiers.map((t) => `${t.qty}:${t.price}`).join(", ")
           : "",
+        youtube_url: product.youtube_url || "",
       });
       return;
     }
@@ -136,7 +138,7 @@ export default function AddProductDialog({
 
   const resetForm = () => setForm({
     name: "", category: categories[0] || "Health & Wellness", price: "", mrp: "", discount_percent: "", gst_percent: "", stock: "",
-    description: "", image_url: "", product_type: "metho", pricing_tiers_input: "",
+    description: "", image_url: "", product_type: "metho", pricing_tiers_input: "", youtube_url: "",
   });
 
   const parsePricingTiers = (raw) => {
@@ -433,6 +435,7 @@ export default function AddProductDialog({
         stock: Number(form.stock || 0),
         description: form.description || "",
         image_url: form.image_url || "",
+        youtube_url: form.youtube_url || "",
         product_type: form.product_type,
         partner_id: form.product_type === "associate_partner" ? (form.partner_id || null) : null,
       };
@@ -794,6 +797,17 @@ export default function AddProductDialog({
               placeholder="Product description... (AI দিয়েও লেখানো যাবে)"
               rows={3}
               data-testid="new-product-description-input"
+            />
+          </div>
+
+          <div>
+            <Label>YouTube Link (Optional)</Label>
+            <Input
+              value={form.youtube_url}
+              onChange={setF("youtube_url")}
+              placeholder="https://www.youtube.com/watch?v=..."
+              data-testid="new-product-youtube-input"
+              className="mt-1.5"
             />
           </div>
 
