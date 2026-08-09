@@ -766,8 +766,8 @@ export default function PartnerProductForm({
         stock: Number(form.stock || (isService ? 1 : 0)),
         discount_percent: Number(form.discount_percent || 0),
         gst_percent: Number(form.gst_percent || 0),
-        image_url: isTransportOnlyTemplateMode ? TRANSPORT_CARD_PREVIEW : String(form.image_url || "").trim(),
-        pdf_url: isTransportOnlyTemplateMode ? "" : String(form.pdf_url || "").trim(),
+        image_url: String(form.image_url || "").trim(),
+        pdf_url: String(form.pdf_url || "").trim(),
         listing_type: isService ? "service" : "product",
         item_kind: isService ? "service" : "product",
         is_service: isService,
@@ -848,14 +848,14 @@ export default function PartnerProductForm({
           </div>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div><Label>Category *</Label><Input required value={form.category} onChange={(e) => setForm({ ...form, category: e.target.value })} className="mt-1" data-testid="my-prod-cat" /></div>
-            {isTransportOnlyTemplateMode ? null : <div><Label>PDF Link</Label><Input value={form.pdf_url || ""} onChange={(e) => setForm({ ...form, pdf_url: e.target.value })} className="mt-1" placeholder="https://...pdf" data-testid="my-prod-pdf" /></div>}
+            <div><Label>PDF Link</Label><Input value={form.pdf_url || ""} onChange={(e) => setForm({ ...form, pdf_url: e.target.value })} className="mt-1" placeholder="https://...pdf" data-testid="my-prod-pdf" /></div>
           </div>
           {activeListingType === "service" && !isTransportOnlyTemplateMode ? (
             <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-3 space-y-3" data-testid="service-template-block">
               <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
                 <div>
                   <p className="text-sm font-semibold text-emerald-950">Ready Service Templates</p>
-                  <p className="text-[11px] text-emerald-900">{isTransportOnlyTemplateMode ? "শুধু transport ride/rental template এখানেই থাকবে। Public card-এ image + Book Now দেখাবে, আর customer pickup/destination manually দেবে।" : "Hotel room, homestay, clinic, restaurant table, salon সহ pre-built setup।"}</p>
+                  <p className="text-[11px] text-emerald-900">Hotel room, homestay, clinic, restaurant table, salon সহ pre-built setup।</p>
                 </div>
                 <select
                   value={serviceSectorFilter}
@@ -883,21 +883,13 @@ export default function PartnerProductForm({
               </div>
             </div>
           ) : null}
-          {isTransportOnlyTemplateMode ? (
-            <div>
-              <Label>Transport Card Preview</Label>
-              <div className="mt-1.5 flex items-center gap-3 rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-3">
-                <img
-                  src={TRANSPORT_CARD_PREVIEW}
-                  alt="Transport card preview"
-                  className="w-20 h-16 rounded-lg border border-emerald-200 object-cover bg-white"
-                />
-                <p className="text-[11px] text-emerald-900">Transport listing-এ fixed vehicle image ব্যবহার হবে। Public card-এ image + Book Now থাকবে, customer pickup/destination manually দেবে।</p>
-              </div>
-            </div>
-          ) : (
           <div>
-              <Label>{activeListingType === "service" ? "Image Upload (Optional for Service)" : "Image Upload (Saved as PDF)"}</Label>
+            <Label>{isTransportOnlyTemplateMode ? "Vehicle Image + PDF" : (activeListingType === "service" ? "Image Upload (Optional for Service)" : "Image Upload (Saved as PDF)")}</Label>
+            {isTransportOnlyTemplateMode ? (
+              <p className="mt-1.5 text-[11px] text-emerald-900">
+                Transport listing-এ uploaded car model image + PDF link ব্যবহার হবে। Preset template / fare setup ছাড়াই public card-এ Book Now default দেখাবে।
+              </p>
+            ) : null}
             <div className="mt-1.5 flex flex-wrap items-center gap-3">
               <input
                 ref={fileRef}
@@ -918,7 +910,7 @@ export default function PartnerProductForm({
                 {uploadingImage ? (
                   <><Loader2 className="w-4 h-4 mr-2 animate-spin" /> Uploading...</>
                 ) : (
-                  <><Upload className="w-4 h-4 mr-2" /> {product?.id ? "Change Image (PDF link only)" : "Image Upload (PDF link only)"}</>
+                  <><Upload className="w-4 h-4 mr-2" /> {product?.id ? "Change Image / PDF" : "Upload Image / PDF"}</>
                 )}
               </Button>
               {localPreviewUrl || form.image_url || form.pdf_url ? (

@@ -342,7 +342,7 @@ export default function PartnerShopPage() {
   const [doorstepSearch, setDoorstepSearch] = useState("");
   const [serviceSearch, setServiceSearch] = useState("");
   const [transportService, setTransportService] = useState(null);
-  const [transportBookingMode, setTransportBookingMode] = useState("template");
+  const [transportBookingMode, setTransportBookingMode] = useState("route");
   const [transportBusy, setTransportBusy] = useState(false);
   const [transportBooking, setTransportBooking] = useState(null);
   const [transportFarePresets, setTransportFarePresets] = useState([]);
@@ -588,7 +588,7 @@ export default function PartnerShopPage() {
   const selectTransportBookingService = (nextService) => {
     setTransportService(nextService || null);
     setTransportServiceSearch("");
-    setTransportBookingMode("template");
+    setTransportBookingMode("route");
     setSelectedFarePresetId("");
     setTransportFarePresets([]);
     setTransportBooking(null);
@@ -674,7 +674,7 @@ export default function PartnerShopPage() {
     if (!service?.id) return;
     setTransportService(service);
     setTransportServiceSearch("");
-    setTransportBookingMode("template");
+    setTransportBookingMode("route");
     setTransportForm({
       customer_name: isMemberOrCustomer ? (user?.name || "") : "",
       customer_phone: isMemberOrCustomer ? (user?.phone || "") : "",
@@ -739,7 +739,7 @@ export default function PartnerShopPage() {
       if (!transportService?.id) {
         setTransportService(bookingService);
         setTransportServiceSearch("");
-        setTransportBookingMode("template");
+        setTransportBookingMode("route");
         void loadTransportFarePresets(bookingService.id);
       }
       const manualMemberRef = String(guestMemberRef || "").trim();
@@ -1141,21 +1141,9 @@ export default function PartnerShopPage() {
                 </Button>
               </div>
 
-                <div className="mt-4 inline-flex rounded-full border border-sky-200 bg-sky-50 p-1">
-                  <button
-                    type="button"
-                    onClick={() => setTransportBookingMode("template")}
-                    className={`rounded-full px-4 py-1.5 text-xs font-semibold ${transportBookingMode === "template" ? "bg-sky-700 text-white" : "text-sky-900 hover:bg-white"}`}
-                  >
-                    Service Template
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setTransportBookingMode("route")}
-                    className={`rounded-full px-4 py-1.5 text-xs font-semibold ${transportBookingMode === "route" ? "bg-sky-700 text-white" : "text-sky-900 hover:bg-white"}`}
-                  >
-                    Pickup / Destination
-                  </button>
+                <div className="mt-4 rounded-lg border border-sky-200 bg-sky-50 p-3">
+                  <p className="text-[11px] font-semibold text-sky-900">Default Book Now flow</p>
+                  <p className="text-xs text-slate-700 mt-1">Pickup, destination, customer details, and travel date enough. Preset template / service fare setup ছাড়াই simple booking flow থাকবে।</p>
                 </div>
 
               {!user ? <p className="text-[11px] text-amber-700 mt-3">Guest mode active: Member ID/Code দিলে reward attribution হবে, না দিলে guest booking হবে।</p> : null}
