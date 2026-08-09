@@ -3775,22 +3775,13 @@ def create_transport_booking(payload: dict, request: Request, db: Session = Depe
         "created_at": now_iso(),
     }
     saved = _save_transport_trip(db, trip)
-    dashboard_url = "https://methoaayupay.com/login?next=/partner"
-    message = (
-        f"New offline partner/service transport booking request received.\n"
-        f"Booking ID: {saved.get('trip_code') or saved.get('id') or trip_id}\n"
-        f"Customer: {customer_name}\n"
-        f"Route: {pickup} -> {destination}\n"
-        f"Open Partner Dashboard: {dashboard_url}"
-    )
-    whatsapp_url = _build_partner_whatsapp_url(partner.whatsapp_no or partner.phone, message)
     return {
         "ok": True,
         "booking": saved,
         "order": {"id": order_row.id, "order_no": f"ORD-{order_row.id[:8].upper()}", "status": order_row.status, "auto_approved": False},
         "next_step": "Booking created with route details. Partner will set final fare first; then commission will be credited and trip auto-approved on confirm.",
         "reward_note": member_ref and "Member reference captured for reward attribution." or "Guest booking created without member reward attribution.",
-        "partner_whatsapp_url": whatsapp_url,
+        "partner_whatsapp_url": "",
     }
 
 
