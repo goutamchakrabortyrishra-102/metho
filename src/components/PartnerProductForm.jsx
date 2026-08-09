@@ -849,7 +849,7 @@ export default function PartnerProductForm({
               <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
                 <div>
                   <p className="text-sm font-semibold text-emerald-950">Ready Service Templates</p>
-                  <p className="text-[11px] text-emerald-900">{normalizedAllowedServiceSectors?.length === 1 && normalizedAllowedServiceSectors[0] === "Transport" ? "শুধু transport ride/rental templates এখানেই থাকবে।" : "Hotel room, homestay, clinic, restaurant table, salon সহ pre-built setup।"}</p>
+                  <p className="text-[11px] text-emerald-900">{normalizedAllowedServiceSectors?.length === 1 && normalizedAllowedServiceSectors[0] === "Transport" ? "শুধু transport ride/rental template এখানেই থাকবে। Public card-এ image + Book Now দেখাবে, আর customer pickup/destination manually দেবে।" : "Hotel room, homestay, clinic, restaurant table, salon সহ pre-built setup।"}</p>
                 </div>
                 <select
                   value={serviceSectorFilter}

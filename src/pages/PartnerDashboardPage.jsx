@@ -258,9 +258,6 @@ export default function PartnerDashboardPage() {
   const [loadingTransport, setLoadingTransport] = useState(false);
   const [fareDrafts, setFareDrafts] = useState({});
   const [txnDrafts, setTxnDrafts] = useState({});
-  const [transportPresets, setTransportPresets] = useState([]);
-  const [presetBusy, setPresetBusy] = useState(false);
-  const [presetForm, setPresetForm] = useState({ service_product_id: "", destination: "", fare: "", pickup_hint: "", notes: "" });
   const [transportStatusFilter, setTransportStatusFilter] = useState("all");
   const [rejectReasonDrafts, setRejectReasonDrafts] = useState({});
   const [serviceFareDrafts, setServiceFareDrafts] = useState({});
@@ -352,7 +349,6 @@ export default function PartnerDashboardPage() {
     }).catch(() => {
       // Keep current UI state if reload fails; avoid wiping freshly uploaded previews.
     });
-    api.get("/partner/transport/fare-presets").then((r) => setTransportPresets(Array.isArray(r.data?.items) ? r.data.items : [])).catch(() => setTransportPresets([]));
     setLoadingTransport(true);
     api.get("/partner/transport/bookings").then((r) => {
       const next = r?.data && typeof r.data === "object" ? r.data : {};
@@ -478,55 +474,6 @@ export default function PartnerDashboardPage() {
       toast.error(err?.response?.data?.detail || "Service booking confirmation failed");
     } finally {
       setServiceBusy(orderId, { confirming: false });
-    }
-  };
-
-  const transportServices = React.useMemo(() => {
-    const source = Array.isArray(products) ? products : [];
-    return source.filter((p) => isTransportServiceListing(p));
-  }, [products]);
-
-  useEffect(() => {
-    if (!transportServices.length) return;
-    setPresetForm((prev) => {
-      if (prev.service_product_id) return prev;
-      return { ...prev, service_product_id: String(transportServices[0].id || "") };
-    });
-  }, [transportServices]);
-
-  const saveFarePreset = async () => {
-    const destination = String(presetForm.destination || "").trim();
-    const fare = Number(presetForm.fare || 0);
-    if (!presetForm.service_product_id) return toast.error("Transport service select করুন");
-    if (!destination) return toast.error("Destination দিন");
-    if (!fare || fare <= 0) return toast.error("Valid preset fare দিন");
-    setPresetBusy(true);
-    try {
-      const { data } = await api.post("/partner/transport/fare-presets", {
-        service_product_id: presetForm.service_product_id,
-        destination,
-        fare,
-        pickup_hint: String(presetForm.pickup_hint || "").trim(),
-        notes: String(presetForm.notes || "").trim(),
-      });
-      setTransportPresets(Array.isArray(data?.items) ? data.items : []);
-      setPresetForm((prev) => ({ ...prev, destination: "", fare: "", pickup_hint: "", notes: "" }));
-      toast.success("Preset fare saved");
-    } catch (err) {
-      toast.error(err?.response?.data?.detail || "Preset save failed");
-    } finally {
-      setPresetBusy(false);
-    }
-  };
-
-  const deleteFarePreset = async (presetId) => {
-    if (!window.confirm("Delete this preset fare?")) return;
-    try {
-      const { data } = await api.delete(`/partner/transport/fare-presets/${presetId}`);
-      setTransportPresets(Array.isArray(data?.items) ? data.items : []);
-      toast.success("Preset deleted");
-    } catch (err) {
-      toast.error(err?.response?.data?.detail || "Preset delete failed");
     }
   };
 
@@ -1773,73 +1720,6 @@ export default function PartnerDashboardPage() {
                   </div>
                 </div>
               </div>
-            </div>
-
-            <div className="mt-4 rounded-xl border border-emerald-200 bg-emerald-50/70 p-4" data-testid="transport-fare-presets-block">
-              <p className="text-[10px] uppercase tracking-widest text-emerald-800 font-semibold">Common Destination Fare Presets</p>
-              <p className="text-xs text-slate-600 mt-1">Partner আগে থেকে destination + fare set করে রাখলে customer booking-এ tick/select করে direct book করতে পারবে।</p>
-              <div className="mt-3 grid grid-cols-1 md:grid-cols-2 gap-2">
-                <select
-                  value={presetForm.service_product_id}
-                  onChange={(e) => setPresetForm((prev) => ({ ...prev, service_product_id: e.target.value }))}
-                  className="h-10 rounded-md border border-input bg-white px-3 text-sm"
-                >
-                  <option value="">Select transport service</option>
-                  {transportServices.map((s) => (
-                    <option key={s.id} value={s.id}>{s.name} ({s.category})</option>
-                  ))}
-                </select>
-                <Input
-                  value={presetForm.destination}
-                  onChange={(e) => setPresetForm((prev) => ({ ...prev, destination: e.target.value }))}
-                  placeholder="Common destination (e.g. Airport Terminal 2)"
-                  className="h-10"
-                />
-                <Input
-                  type="number"
-                  min="1"
-                  step="0.01"
-                  value={presetForm.fare}
-                  onChange={(e) => setPresetForm((prev) => ({ ...prev, fare: e.target.value }))}
-                  placeholder="Preset fare"
-                  className="h-10"
-                />
-                <Input
-                  value={presetForm.pickup_hint}
-                  onChange={(e) => setPresetForm((prev) => ({ ...prev, pickup_hint: e.target.value }))}
-                  placeholder="Pickup hint (optional)"
-                  className="h-10"
-                />
-              </div>
-              <div className="mt-2 grid grid-cols-1 md:grid-cols-[1fr_auto] gap-2">
-                <Input
-                  value={presetForm.notes}
-                  onChange={(e) => setPresetForm((prev) => ({ ...prev, notes: e.target.value }))}
-                  placeholder="Notes (optional)"
-                  className="h-10"
-                />
-                <Button className="rounded-full bg-emerald-900 hover:bg-emerald-950 text-white" onClick={saveFarePreset} disabled={presetBusy}>
-                  {presetBusy ? "Saving..." : "Save Preset"}
-                </Button>
-              </div>
-
-              {(transportPresets || []).length ? (
-                <div className="mt-3 space-y-2">
-                  {transportPresets.map((preset) => (
-                    <div key={preset.id} className="rounded-lg border border-emerald-200 bg-white px-3 py-2 flex items-center justify-between gap-3">
-                      <div>
-                        <p className="text-sm font-semibold text-emerald-950">{preset.destination} · {inr(preset.fare || 0)}</p>
-                        <p className="text-xs text-slate-600">Service ID: {preset.service_product_id || "all transport services"}{preset.pickup_hint ? ` · Pickup: ${preset.pickup_hint}` : ""}</p>
-                      </div>
-                      <Button size="sm" variant="outline" className="rounded-full border-red-300 text-red-700 hover:bg-red-50" onClick={() => deleteFarePreset(preset.id)}>
-                        Delete
-                      </Button>
-                    </div>
-                  ))}
-                </div>
-              ) : (
-                <p className="text-xs text-slate-500 mt-3">No preset saved yet.</p>
-              )}
             </div>
 
             <div className="mt-4 rounded-xl border border-slate-200 bg-white p-3">
