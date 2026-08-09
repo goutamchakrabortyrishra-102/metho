@@ -10,6 +10,61 @@ from ..models import AppSetting, AssociatePartner, PartnerRequest, User
 
 router = APIRouter(prefix="/api", tags=["partner-public"])
 
+TRANSPORT_HINTS = {"transport", "cab", "taxi", "car", "car rental", "bike", "bike rental", "truck", "logistics", "courier", "travel", "cargo", "vehicle", "auto", "rickshaw"}
+STAY_DINING_HINTS = {"hotel", "homestay", "home stay", "guest house", "resort", "restaurant", "resturent", "cafe", "dining", "seat booking", "sitbooking", "banquet", "rental house", "flat", "apartment", "stay"}
+DOORSTEP_HINTS = {"doorstep", "mistri", "mechanic", "plumber", "plumbing", "electrician", "repair", "cleaning", "laundry", "tailoring", "beauty at home", "home service"}
+SHOP_HINTS = {"shop", "store", "mart", "grocery", "vegetable", "cosmetics", "beauty", "product", "retail", "kirana", "pharmacy"}
+
+
+def _normalize_hint_text(value) -> str:
+    return str(value or "").strip().lower()
+
+
+def _contains_any_hint(text: str, hints: set[str]) -> bool:
+    return any(h in text for h in hints)
+
+
+def _infer_registration_sector_fields(payload: dict) -> tuple[str, str, str]:
+    combined = " ".join(
+        _normalize_hint_text(v)
+        for v in [
+            payload.get("business_name"),
+            payload.get("business_description"),
+            payload.get("service_category"),
+            payload.get("shop_category"),
+            payload.get("service_sector"),
+            payload.get("shop_sector"),
+        ]
+    )
+
+    looks_transport = _contains_any_hint(combined, TRANSPORT_HINTS)
+    looks_stay_dining = _contains_any_hint(combined, STAY_DINING_HINTS)
+    looks_doorstep = _contains_any_hint(combined, DOORSTEP_HINTS)
+    looks_shop = _contains_any_hint(combined, SHOP_HINTS)
+
+    raw_sector = _normalize_partner_sector(payload.get("business_type") or payload.get("sector"))
+    sector = "Service" if (looks_transport or looks_stay_dining or looks_doorstep) else ("Shop" if looks_shop else raw_sector)
+
+    service_sector = str(payload.get("service_sector") or "").strip()
+    shop_sector = str(payload.get("shop_sector") or "").strip()
+
+    if sector == "Service":
+        if looks_transport:
+            service_sector = "Transport"
+        elif looks_stay_dining:
+            service_sector = "Stay & Dining"
+        elif looks_doorstep:
+            service_sector = "Doorstep"
+        elif not service_sector:
+            service_sector = "Other Services"
+        shop_sector = ""
+    else:
+        if not shop_sector:
+            shop_sector = "Others"
+        service_sector = ""
+
+    return sector, service_sector, shop_sector
+
 
 def _delete_partner_request_artifacts(db: Session, request: PartnerRequest) -> None:
     request_id = str(getattr(request, "id", "") or "").strip()
@@ -109,8 +164,11 @@ def _compose_partner_description(payload: dict, sector: str) -> str:
 def partner_register(payload: dict, db: Session = Depends(get_db)):
     login_id = str(payload.get("login_id") or payload.get("email") or "").strip()
     raw_password = str(payload.get("password") or "").strip()
-    sector = _normalize_partner_sector(payload.get("business_type") or payload.get("sector"))
-    selected_primary_sector = str(payload.get("service_sector") if sector == "Service" else payload.get("shop_sector") or "").strip()
+    sector, inferred_service_sector, inferred_shop_sector = _infer_registration_sector_fields(payload or {})
+    payload["business_type"] = sector
+    payload["service_sector"] = inferred_service_sector
+    payload["shop_sector"] = inferred_shop_sector
+    selected_primary_sector = str(inferred_service_sector if sector == "Service" else inferred_shop_sector or "").strip()
     business_type_label = f"{sector} - {selected_primary_sector}" if selected_primary_sector else sector
     phone = str(payload.get("phone", "")).strip()
     pan_no = str(payload.get("pan_no") or payload.get("gst_no") or "").strip().upper()

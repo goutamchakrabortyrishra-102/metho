@@ -38,7 +38,7 @@ const SERVICE_TEMPLATES = [
   {
     key: "hotel_standard_room",
     sector: "Hotel",
-    name: "Standard Room Booking",
+    name: "Standard Room Booking (/day)",
     category: "Service / Hotel",
     price: 1800,
     stock: 12,
@@ -47,7 +47,7 @@ const SERVICE_TEMPLATES = [
   {
     key: "hotel_deluxe_room",
     sector: "Hotel",
-    name: "Deluxe Room Booking",
+    name: "Deluxe Room Booking (/day)",
     category: "Service / Hotel",
     price: 3200,
     stock: 8,
@@ -56,7 +56,7 @@ const SERVICE_TEMPLATES = [
   {
     key: "hotel_suite_room",
     sector: "Hotel",
-    name: "Suite Room Booking",
+    name: "Suite Room Booking (/day)",
     category: "Service / Hotel",
     price: 4800,
     stock: 5,
@@ -65,7 +65,7 @@ const SERVICE_TEMPLATES = [
   {
     key: "homestay_daily_stay",
     sector: "Homestay",
-    name: "Homestay Daily Stay",
+    name: "Homestay Daily Stay (/day)",
     category: "Service / Homestay",
     price: 1400,
     stock: 6,
@@ -74,7 +74,7 @@ const SERVICE_TEMPLATES = [
   {
     key: "homestay_weekend_package",
     sector: "Homestay",
-    name: "Homestay Weekend Package",
+    name: "Homestay Weekend Package (/day)",
     category: "Service / Homestay",
     price: 3200,
     stock: 4,
@@ -137,11 +137,32 @@ const SERVICE_TEMPLATES = [
   {
     key: "restaurant_table_booking",
     sector: "Restaurant",
-    name: "Restaurant Table Booking",
+    name: "Restaurant Time Slot Booking",
     category: "Service / Restaurant",
     price: 500,
     stock: 25,
+    service_invoice_mode: "summary_total",
     description: "Table reservation booking. Capacity can represent total bookable tables per slot.",
+  },
+  {
+    key: "rental_house_monthly",
+    sector: "Homestay",
+    name: "Rental House Booking (/month)",
+    category: "Service / Homestay",
+    price: 12000,
+    stock: 10,
+    service_invoice_mode: "summary_total",
+    description: "Monthly rental-house booking template for long-stay customers.",
+  },
+  {
+    key: "flat_apartment_monthly",
+    sector: "Homestay",
+    name: "Flat / Apartment Booking (/month)",
+    category: "Service / Homestay",
+    price: 18000,
+    stock: 10,
+    service_invoice_mode: "summary_total",
+    description: "Monthly flat or apartment booking template for residential stays.",
   },
   {
     key: "banquet_slot",
@@ -642,7 +663,7 @@ export default function PartnerProductForm({
       price: String(tpl.price),
       stock: String(tpl.stock),
       service_template_key: tpl.key,
-      service_invoice_mode: prev.service_invoice_mode || "detailed",
+      service_invoice_mode: String(tpl.service_invoice_mode || prev.service_invoice_mode || "detailed").toLowerCase(),
     }));
     toast.success(`${tpl.sector} template applied`);
   };

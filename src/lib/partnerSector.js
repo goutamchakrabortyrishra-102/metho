@@ -22,7 +22,7 @@ const includesAny = (text, keywords) => keywords.some((k) => text.includes(k));
 const normalizeHintText = (parts) => parts.map((value) => normalizeBusinessType(value)).join(" ").trim();
 
 const TRANSPORT_TEMPLATE_KEYS = ["cab_airport_drop", "car_rental_daily", "bike_rental_daily", "cargo_transport", "courier_pickup"];
-const HOSPITALITY_TEMPLATE_KEYS = ["hotel_standard_room", "hotel_deluxe_room", "hotel_suite_room", "homestay_daily_stay", "homestay_weekend_package", "restaurant_table_booking", "banquet_slot", "restaurant_takeaway_slot", "cafe_table_reservation"];
+const HOSPITALITY_TEMPLATE_KEYS = ["hotel_standard_room", "hotel_deluxe_room", "hotel_suite_room", "homestay_daily_stay", "homestay_weekend_package", "restaurant_table_booking", "banquet_slot", "restaurant_takeaway_slot", "cafe_table_reservation", "rental_house_monthly", "flat_apartment_monthly"];
 const DOORSTEP_TEMPLATE_KEYS = ["ac_service_visit", "plumbing_repair", "electrician_visit", "appliance_repair", "laundry_kg_service", "dry_clean_service", "tailoring_stitching", "beauty_home_service", "courier_pickup", "house_deep_clean", "office_cleaning", "pest_control_visit"];
 
 const TRANSPORT_HINTS = [
@@ -62,14 +62,20 @@ const HOSPITALITY_HINTS = [
   "hotel",
   "homestay",
   "home stay",
+  "rental house",
+  "flat",
+  "apartment",
   "guest house",
   "guesthouse",
   "lodge",
   "resort",
   "inn",
   "restaurant",
+  "resturent",
   "cafe",
   "banquet",
+  "seat booking",
+  "sitbooking",
   "stay",
   "dining",
   "takeaway",

@@ -84,6 +84,62 @@ const ALL_SHOP_TEMPLATE_OPTIONS = Array.from(
   new Set(Object.values(SHOP_TEMPLATE_OPTIONS_BY_SECTOR).flat())
 );
 
+const TRANSPORT_REG_HINTS = [
+  "transport", "cab", "taxi", "car", "car rental", "bike", "bike rental", "duchaka", "truck", "lorry", "logistics", "courier", "travel", "cargo", "vehicle",
+];
+const STAY_DINING_REG_HINTS = [
+  "hotel", "homestay", "home stay", "guest house", "resort", "restaurant", "resturent", "cafe", "dining", "sitbooking", "seat booking", "banquet", "rental house", "flat", "apartment", "stay",
+];
+const DOORSTEP_REG_HINTS = [
+  "doorstep", "mistri", "mechanic", "plumber", "plumbing", "electrician", "repair", "cleaning", "laundry", "tailoring", "beauty at home", "home service",
+];
+const SHOP_REG_HINTS = [
+  "shop", "store", "mart", "grocery", "vegetable", "cosmetics", "beauty", "product", "retail", "kirana", "pharmacy",
+];
+
+const normalizeText = (value) => String(value || "").trim().toLowerCase();
+const includesAnyHint = (text, hints) => hints.some((hint) => text.includes(hint));
+
+const inferRegistrationSelection = (form) => {
+  const combinedText = [
+    form.business_name,
+    form.business_description,
+    form.service_category,
+    form.shop_category,
+  ].map(normalizeText).join(" ");
+
+  const looksTransport = includesAnyHint(combinedText, TRANSPORT_REG_HINTS);
+  const looksStayDining = includesAnyHint(combinedText, STAY_DINING_REG_HINTS);
+  const looksDoorstep = includesAnyHint(combinedText, DOORSTEP_REG_HINTS);
+  const looksShop = includesAnyHint(combinedText, SHOP_REG_HINTS);
+
+  const inferredBusinessType = (looksTransport || looksStayDining || looksDoorstep)
+    ? "Service"
+    : (looksShop ? "Shop" : String(form.business_type || "Shop"));
+
+  let inferredServiceSector = String(form.service_sector || "");
+  if (inferredBusinessType === "Service") {
+    if (looksTransport) inferredServiceSector = "Transport";
+    else if (looksStayDining) inferredServiceSector = "Stay & Dining";
+    else if (looksDoorstep) inferredServiceSector = "Doorstep";
+    else inferredServiceSector = inferredServiceSector || "Other Services";
+  }
+
+  let inferredShopSector = String(form.shop_sector || "");
+  if (inferredBusinessType === "Shop") {
+    if (combinedText.includes("vegetable")) inferredShopSector = "Vegetables";
+    else if (combinedText.includes("grocery") || combinedText.includes("kirana")) inferredShopSector = "Grocery";
+    else if (combinedText.includes("cosmetic") || combinedText.includes("beauty")) inferredShopSector = "Cosmetics & Beauty";
+    else inferredShopSector = inferredShopSector || "Others";
+  }
+
+  return {
+    business_type: inferredBusinessType,
+    service_sector: inferredServiceSector,
+    shop_sector: inferredShopSector,
+  };
+};
+
 const DEFAULT_TERMS = [
   "1. The Partner shall be solely responsible for the quality, warranty, delivery, service standards, after-sales support, customer promises, and all business outcomes related to its products and services.",
   "2. The Partner must ensure that every product, service, price, description, image, certificate, license, registration number, and supporting business document uploaded on this platform is genuine, accurate, complete, and legally valid.",
@@ -178,6 +234,42 @@ export default function PartnerRegisterPage() {
   }, [cityOptions, form.city, form.state, form.district, indiaLocationMeta.citiesByStateDistrict]);
 
   const upd = (k) => (e) => setForm({ ...form, [k]: e.target.value });
+
+  const inferenceInput = useMemo(() => ({
+    business_name: form.business_name,
+    business_description: form.business_description,
+    service_category: form.service_category,
+    shop_category: form.shop_category,
+    business_type: form.business_type,
+    service_sector: form.service_sector,
+    shop_sector: form.shop_sector,
+  }), [
+    form.business_name,
+    form.business_description,
+    form.service_category,
+    form.shop_category,
+    form.business_type,
+    form.service_sector,
+    form.shop_sector,
+  ]);
+
+  useEffect(() => {
+    const inferred = inferRegistrationSelection(inferenceInput);
+    setForm((prev) => {
+      const shouldUpdate =
+        inferred.business_type !== prev.business_type ||
+        (inferred.business_type === "Service" && inferred.service_sector !== prev.service_sector) ||
+        (inferred.business_type === "Shop" && inferred.shop_sector !== prev.shop_sector);
+
+      if (!shouldUpdate) return prev;
+      return {
+        ...prev,
+        business_type: inferred.business_type,
+        service_sector: inferred.business_type === "Service" ? inferred.service_sector : "",
+        shop_sector: inferred.business_type === "Shop" ? inferred.shop_sector : "",
+      };
+    });
+  }, [inferenceInput]);
 
   useEffect(() => {
     let cancelled = false;
