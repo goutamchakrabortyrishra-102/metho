@@ -17,6 +17,13 @@ import { inferPartnerPrimarySector, getPartnerVisibleSectors, isDoorstepServiceL
 
 const FALLBACK = "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 400 400'><rect width='400' height='400' fill='%23e2e8f0'/><text x='50%25' y='50%25' dominant-baseline='middle' text-anchor='middle' fill='%23475569' font-size='20' font-family='Arial'>No Image</text></svg>";
 const PDF_PREVIEW = "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 400 400'><rect width='400' height='400' fill='%23f1f5f9'/><rect x='80' y='50' width='240' height='300' rx='14' fill='%23ffffff' stroke='%2394a3b8' stroke-width='4'/><text x='200' y='190' text-anchor='middle' fill='%23dc2626' font-size='46' font-family='Arial' font-weight='bold'>PDF</text><text x='200' y='228' text-anchor='middle' fill='%23334155' font-size='16' font-family='Arial'>Tap to Open</text></svg>";
+const normalizeYoutubeUrl = (value) => {
+  const raw = String(value || "").trim();
+  if (!raw) return "";
+  if (/^https?:\/\//i.test(raw)) return raw;
+  if (/^(www\.)?youtube\.com\//i.test(raw) || /^youtu\.be\//i.test(raw)) return `https://${raw}`;
+  return "";
+};
 const cleanPhone = (v) => (v || "").replace(/[^\d]/g, "");
 const ownerChatUrl = (partner) => {
   const n = cleanPhone(partner?.whatsapp_no || partner?.phone);
@@ -383,6 +390,17 @@ function ProductModal({ product, onClose, onAdd, onDec, qty, galleryUrl, isBookN
                 {isService ? <CalendarCheck2 className="w-4 h-4 mr-2" /> : <ShoppingCart className="w-4 h-4 mr-2" />} {isService ? "Book Now" : "Add to Cart"}
               </Button>
             )}
+            {normalizeYoutubeUrl(product?.youtube_url) ? (
+              <Button
+                type="button"
+                variant="outline"
+                className="w-full rounded-full"
+                onClick={() => window.open(normalizeYoutubeUrl(product?.youtube_url), "_blank", "noopener,noreferrer")}
+                data-testid="gallery-preview-watch-video"
+              >
+                Watch Video
+              </Button>
+            ) : null}
             {/* Share this product on WhatsApp */}
             <button
               onClick={() => window.open(`https://wa.me/?text=${encodeURIComponent(waMsg)}`, '_blank')}
