@@ -78,6 +78,26 @@ const HOSPITALITY_HINTS = [
   "lounge",
 ];
 const DOORSTEP_HINTS = ["doorstep", "home service", "cleaning", "laundry", "plumbing", "electrician", "repair", "tailoring", "beauty", "courier", "pest control", "appliance", "ac service", "home repair", "dry clean"];
+const PRODUCT_HINTS = [
+  "shop",
+  "store",
+  "retail",
+  "product",
+  "mart",
+  "super market",
+  "supermarket",
+  "grocery",
+  "vegetable",
+  "cosmetics",
+  "pharmacy",
+  "electronics",
+  "hardware",
+  "stationery",
+  "fashion",
+  "wholesale",
+  "distributor",
+  "seller",
+];
 
 export const isTransportServiceLike = (item) => {
   const key = normalizeBusinessType(item?.service_template_key);
@@ -110,13 +130,16 @@ export const inferPartnerPrimarySector = ({ businessType, businessName, counts }
   const doorstepCount = toCount(counts?.doorstep);
   const otherServiceCount = toCount(counts?.otherServices);
 
-  if (normalizedType.includes("shop")) {
-    return PRODUCT_SECTOR;
-  }
-
   const looksLikeTransport = includesAny(identity, TRANSPORT_HINTS);
   const looksLikeHospitality = includesAny(identity, HOSPITALITY_HINTS);
   const looksLikeDoorstep = includesAny(identity, DOORSTEP_HINTS);
+  const looksLikeProduct = includesAny(identity, PRODUCT_HINTS);
+
+  // Deterministic mapping for registration/business naming.
+  if (looksLikeTransport) return TRANSPORT_SECTOR;
+  if (looksLikeHospitality) return HOSPITALITY_SECTOR;
+  if (looksLikeDoorstep) return DOORSTEP_SECTOR;
+  if (looksLikeProduct) return PRODUCT_SECTOR;
 
   const looksLikeServicePartner =
     normalizedType.includes("service") ||
@@ -145,7 +168,7 @@ export const inferPartnerPrimarySector = ({ businessType, businessName, counts }
 
   if (productCount > 0) return PRODUCT_SECTOR;
   const serviceTotal = transportCount + hospitalityCount + doorstepCount + otherServiceCount;
-  if (serviceTotal <= 0) return PRODUCT_SECTOR;
+  if (serviceTotal <= 0) return OTHER_SERVICE_SECTOR;
 
   const rankedFallback = [
     { key: TRANSPORT_SECTOR, count: transportCount },
