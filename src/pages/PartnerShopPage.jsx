@@ -1353,7 +1353,7 @@ export default function PartnerShopPage() {
                         <p className="text-[10px] uppercase tracking-widest text-sky-700 font-semibold truncate">{service.category}</p>
                         <p className="font-display font-bold text-emerald-950 mt-0.5 line-clamp-1">{service.name}</p>
                         <div className="mt-2 flex items-center justify-between">
-                          <span className="font-display font-black text-emerald-950">₹{service.price}</span>
+                          <span className="text-[11px] font-semibold text-sky-800">Fare on confirm</span>
                           <span className="text-[11px] text-slate-500">Ride / Rental</span>
                         </div>
 
@@ -1743,7 +1743,7 @@ export default function PartnerShopPage() {
               <h3 className="font-display font-black text-emerald-950 text-xl mt-1">{previewItem?.name || "Product"}</h3>
               {previewItem?.description ? <p className="text-sm text-slate-600 mt-2">{previewItem.description}</p> : <p className="text-sm text-slate-500 mt-2">No description provided.</p>}
               <div className="mt-3 flex items-center justify-between">
-                <span className="font-display font-black text-3xl text-emerald-950">₹{previewItem?.price || 0}</span>
+                <span className="font-display font-black text-xl text-sky-800">{isTransportServiceListing(previewItem) ? "Fare on confirm" : `₹${previewItem?.price || 0}`}</span>
                 <span className="text-sm text-slate-500">{isServiceListing(previewItem) ? "Service" : `Stock: ${getStock(previewItem)}`}</span>
               </div>
             </div>
