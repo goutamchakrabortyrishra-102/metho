@@ -1715,7 +1715,7 @@ export default function PartnerDashboardPage() {
                           <p className="text-xs text-muted-foreground">{p.category}</p>
                           <p className="font-display font-black text-emerald-800 mt-1">{withUnit(p.price, p.unit_type)}</p>
                           <p className="text-[10px] text-slate-500">{String(p?.service_template_key || "transport").replace(/_/g, " ")}</p>
-                          <div className="flex gap-1 mt-2">
+                          <div className="grid grid-cols-1 gap-1 mt-2">
                             <PartnerProductForm
                               product={p}
                               onSaved={loadAll}
@@ -1726,17 +1726,18 @@ export default function PartnerDashboardPage() {
                               dialogTitle="Edit Transport Listing"
                               dialogDescription="Update only this transport listing. Fare confirmation and trip execution stay in the transport tab."
                             />
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              className="rounded-full border-amber-300 text-amber-800 hover:bg-amber-50 h-7 px-2 text-[11px]"
-                              onClick={() => deleteTransportImage(p)}
-                              data-testid={`del-my-transport-image-${p.id}`}
-                              disabled={noRealImage}
-                            >
-                              Delete Image
-                            </Button>
-                            <Button size="sm" variant="outline" className="rounded-full border-red-300 text-red-700 hover:bg-red-50 h-7 px-2 text-[11px]" onClick={() => deleteProduct(p.id)} data-testid={`del-my-transport-${p.id}`}>Delete</Button>
+                            {!noRealImage ? (
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                className="rounded-full border-amber-300 text-amber-800 hover:bg-amber-50 h-7 px-2 text-[11px] w-full"
+                                onClick={() => deleteTransportImage(p)}
+                                data-testid={`del-my-transport-image-${p.id}`}
+                              >
+                                Delete Image
+                              </Button>
+                            ) : null}
+                            <Button size="sm" variant="outline" className="rounded-full border-red-300 text-red-700 hover:bg-red-50 h-7 px-2 text-[11px] w-full" onClick={() => deleteProduct(p.id)} data-testid={`del-my-transport-${p.id}`}>Delete</Button>
                           </div>
                         </div>
                       </div>
