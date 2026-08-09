@@ -25,6 +25,7 @@ const EMPTY = {
   service_invoice_mode: "detailed",
   service_template_key: "",
 };
+const TRANSPORT_CARD_PREVIEW = "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 800 520'><defs><linearGradient id='bg' x1='0' y1='0' x2='1' y2='1'><stop offset='0%25' stop-color='%230b1220'/><stop offset='100%25' stop-color='%231e293b'/></linearGradient><linearGradient id='road' x1='0' y1='0' x2='0' y2='1'><stop offset='0%25' stop-color='%23334155'/><stop offset='100%25' stop-color='%230f172a'/></linearGradient></defs><rect width='800' height='520' fill='url(%23bg)'/><rect y='330' width='800' height='190' fill='url(%23road)'/><path d='M90 335 C185 255 303 205 446 205 H560 C624 205 684 246 711 302 L740 362 H640 L608 312 C593 289 568 274 540 274 H438 C353 274 270 301 201 352 L178 369 H62 Z' fill='%23dc2626'/><path d='M254 223 H537 C589 223 634 251 659 293 L675 320 H611 L584 282 C569 260 545 246 519 246 H338 C304 246 270 253 238 267 Z' fill='%23fca5a5' opacity='0.18'/><circle cx='243' cy='368' r='44' fill='%230f172a'/><circle cx='243' cy='368' r='19' fill='%23e2e8f0'/><circle cx='592' cy='368' r='44' fill='%230f172a'/><circle cx='592' cy='368' r='19' fill='%23e2e8f0'/><rect x='368' y='236' width='118' height='48' rx='12' fill='%23dbeafe' opacity='0.92'/><rect x='498' y='236' width='73' height='48' rx='12' fill='%23dbeafe' opacity='0.92'/><rect x='95' y='402' width='610' height='8' rx='4' fill='%23f8fafc' opacity='0.2'/><text x='62' y='82' fill='%23fecaca' font-size='28' font-family='Arial' font-weight='700'>Transport Card Preview</text><text x='62' y='120' fill='%23ffffff' font-size='44' font-family='Arial' font-weight='700'>Vehicle image + Book Now</text></svg>";
 
 const UNIT_OPTIONS = [
   { value: "piece", label: "Per Piece" },
@@ -765,7 +766,8 @@ export default function PartnerProductForm({
         stock: Number(form.stock || (isService ? 1 : 0)),
         discount_percent: Number(form.discount_percent || 0),
         gst_percent: Number(form.gst_percent || 0),
-        image_url: String(form.image_url || "").trim(),
+        image_url: isTransportOnlyTemplateMode ? TRANSPORT_CARD_PREVIEW : String(form.image_url || "").trim(),
+        pdf_url: isTransportOnlyTemplateMode ? "" : String(form.pdf_url || "").trim(),
         listing_type: isService ? "service" : "product",
         item_kind: isService ? "service" : "product",
         is_service: isService,
@@ -846,9 +848,9 @@ export default function PartnerProductForm({
           </div>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div><Label>Category *</Label><Input required value={form.category} onChange={(e) => setForm({ ...form, category: e.target.value })} className="mt-1" data-testid="my-prod-cat" /></div>
-            <div><Label>PDF Link</Label><Input value={form.pdf_url || ""} onChange={(e) => setForm({ ...form, pdf_url: e.target.value })} className="mt-1" placeholder="https://...pdf" data-testid="my-prod-pdf" /></div>
+            {isTransportOnlyTemplateMode ? null : <div><Label>PDF Link</Label><Input value={form.pdf_url || ""} onChange={(e) => setForm({ ...form, pdf_url: e.target.value })} className="mt-1" placeholder="https://...pdf" data-testid="my-prod-pdf" /></div>}
           </div>
-          {activeListingType === "service" ? (
+          {activeListingType === "service" && !isTransportOnlyTemplateMode ? (
             <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-3 space-y-3" data-testid="service-template-block">
               <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
                 <div>
@@ -881,6 +883,19 @@ export default function PartnerProductForm({
               </div>
             </div>
           ) : null}
+          {isTransportOnlyTemplateMode ? (
+            <div>
+              <Label>Transport Card Preview</Label>
+              <div className="mt-1.5 flex items-center gap-3 rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-3">
+                <img
+                  src={TRANSPORT_CARD_PREVIEW}
+                  alt="Transport card preview"
+                  className="w-20 h-16 rounded-lg border border-emerald-200 object-cover bg-white"
+                />
+                <p className="text-[11px] text-emerald-900">Transport listing-এ fixed vehicle image ব্যবহার হবে। Public card-এ image + Book Now থাকবে, customer pickup/destination manually দেবে।</p>
+              </div>
+            </div>
+          ) : (
           <div>
               <Label>{activeListingType === "service" ? "Image Upload (Optional for Service)" : "Image Upload (Saved as PDF)"}</Label>
             <div className="mt-1.5 flex flex-wrap items-center gap-3">
@@ -944,6 +959,7 @@ export default function PartnerProductForm({
               <p className="text-[11px] text-emerald-700 mt-1">If you upload a new image, the gallery image and regenerated PDF link will both update.</p>
             ) : null}
           </div>
+          )}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div><Label>{activeListingType === "service" ? "Booking Price (₹) *" : "Price (₹) *"}</Label><Input type="number" required value={form.price} onChange={(e) => setForm({ ...form, price: e.target.value })} className="mt-1" data-testid="my-prod-price" /></div>
             <div><Label>{activeListingType === "service" ? "Daily Slot / Capacity" : "Stock"}</Label><Input type="number" value={form.stock} onChange={(e) => setForm({ ...form, stock: e.target.value })} className="mt-1" data-testid="my-prod-stock" /></div>
