@@ -794,11 +794,6 @@ export default function PartnerShopPage() {
         estimated_rate_per_km: transportFareEstimate?.source === "route" && routeRatePerKm > 0 ? routeRatePerKm : null,
       });
       setTransportBooking(data?.booking || null);
-      if (data?.partner_whatsapp_url) {
-        window.setTimeout(() => {
-          window.open(data.partner_whatsapp_url, "_blank", "noopener,noreferrer");
-        }, 250);
-      }
       toast.success("Transport booking submitted");
     } catch (err) {
       toast.error(err?.response?.data?.detail || "Transport booking failed");
