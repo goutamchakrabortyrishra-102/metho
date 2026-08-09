@@ -611,11 +611,13 @@ export default function PartnerShopPage() {
     if (!transportService?.id) return;
     const derived = inferPickupDestinationFromServiceName(transportService?.name);
     if (!derived.pickup || !derived.destination) return;
-    if (String(transportForm.pickup || "").trim() || String(transportForm.destination || "").trim()) return;
+    const hasPickup = Boolean(String(transportForm.pickup || "").trim());
+    const hasDestination = Boolean(String(transportForm.destination || "").trim());
+    if (hasPickup && hasDestination) return;
     setTransportForm((prev) => ({
       ...prev,
-      pickup: derived.pickup,
-      destination: derived.destination,
+      pickup: hasPickup ? prev.pickup : derived.pickup,
+      destination: hasDestination ? prev.destination : derived.destination,
     }));
   }, [transportService?.id, transportService?.name, transportForm.destination, transportForm.pickup]);
   const hasHospitalityListings = hospitalityListings.length > 0;
@@ -766,10 +768,15 @@ export default function PartnerShopPage() {
       || filteredTransportServiceOptions[0]
       || transportListings[0]
       || null;
+    const routeFromServiceName = inferPickupDestinationFromServiceName(bookingService?.name);
     const hasSelectedPreset = Boolean(selectedFarePresetId);
     const derivedPickup = String(transportForm.pickup || "").trim()
       || String(selectedTransportPreset?.pickup_hint || "").trim()
+      || String(routeFromServiceName.pickup || "").trim()
       || "Preset pickup (to be confirmed)";
+    const derivedDestination = String(transportForm.destination || "").trim()
+      || String(selectedTransportPreset?.destination || "").trim()
+      || String(routeFromServiceName.destination || "").trim();
     if (!bookingService?.id) {
       toast.error("Transport service select করুন অথবা service name লিখুন");
       return;
@@ -786,7 +793,7 @@ export default function PartnerShopPage() {
       toast.error("Pickup দিন");
       return;
     }
-    if (!transportForm.destination.trim() && !selectedFarePresetId) {
+    if (!derivedDestination && !selectedFarePresetId) {
       toast.error("Destination দিন অথবা preset select করুন");
       return;
     }
@@ -810,7 +817,7 @@ export default function PartnerShopPage() {
         customer_name: transportForm.customer_name,
         customer_phone: transportForm.customer_phone,
         pickup: derivedPickup,
-        destination: transportForm.destination,
+        destination: derivedDestination,
         fare_preset_id: selectedFarePresetId,
         travel_date: transportForm.travel_date,
         notes: transportForm.notes,
