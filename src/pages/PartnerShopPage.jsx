@@ -145,11 +145,23 @@ const getUnitType = (item) => {
   return "piece";
 };
 
-const getQtyStep = (item) => {
-  const unit = getUnitType(item);
-  if (unit === "kg" || unit === "litre") return 0.1;
+const getMeasureUnitStep = (measureUnit) => {
+  const unit = String(measureUnit || "").trim().toLowerCase();
+  if (unit === "kg" || unit === "litre") return 1;
   if (unit === "gram" || unit === "ml") return 100;
   return 1;
+};
+
+const getQtyStep = (item, measureUnit = "") => {
+  const unit = getUnitType(item);
+  const resolvedMeasureUnit = ["kg", "gram", "litre", "ml", "piece"].includes(String(measureUnit || "").trim().toLowerCase())
+    ? String(measureUnit).trim().toLowerCase()
+    : unit;
+  if (unit === "piece") {
+    const configured = Number(item?.quantity_step || 0);
+    return Number.isFinite(configured) && configured > 0 ? Math.max(1, Math.round(configured)) : 1;
+  }
+  return Number(convertQtyBetweenUnits(getMeasureUnitStep(resolvedMeasureUnit), resolvedMeasureUnit, unit).toFixed(3));
 };
 
 const normalizeQtyByUnit = (value, item) => {

@@ -196,21 +196,25 @@ const getUnitType = (item) => {
   return "piece";
 };
 
-const getQtyStep = (item) => {
-  const unit = getUnitType(item);
-  const configured = Number(item?.quantity_step || 0);
-  if (Number.isFinite(configured) && configured > 0) {
-    if (unit === "gram" || unit === "ml") return Math.max(1, Math.round(configured));
-    if (unit === "piece") return Math.max(1, Math.round(configured));
-    return Number(configured.toFixed(3));
-  }
-  if (unit === "kg" || unit === "litre") return 0.1;
+const getMeasureUnitStep = (measureUnit) => {
+  const unit = String(measureUnit || "").trim().toLowerCase();
+  if (unit === "kg" || unit === "litre") return 1;
   if (unit === "gram" || unit === "ml") return 100;
   return 1;
 };
 
-const normalizeQtyByUnit = (value, item) => {
-  const step = getQtyStep(item);
+const getQtyStep = (item, measureUnit = "") => {
+  const unit = getUnitType(item);
+  const resolvedMeasureUnit = resolveMeasureUnit(item, measureUnit);
+  if (unit === "piece") {
+    const configured = Number(item?.quantity_step || 0);
+    return Number.isFinite(configured) && configured > 0 ? Math.max(1, Math.round(configured)) : 1;
+  }
+  return Number(convertQtyBetweenUnits(getMeasureUnitStep(resolvedMeasureUnit), resolvedMeasureUnit, unit).toFixed(3));
+};
+
+const normalizeQtyByUnit = (value, item, measureUnit = "") => {
+  const step = getQtyStep(item, measureUnit);
   const unit = getUnitType(item);
   const raw = Number(value || 0);
   if (!Number.isFinite(raw) || raw <= 0) return 0;
@@ -533,7 +537,7 @@ export default function PartnerGalleryPage() {
 
     const stock = getStock(product);
     const activeMeasureUnit = getCartMeasureUnit(product, preferredUnit);
-    const step = getQtyStep(product);
+    const step = getQtyStep(product, activeMeasureUnit);
     if (stock <= 0) {
       toast.error(`${product?.name || "Product"}: out of stock`);
       return;
@@ -541,7 +545,7 @@ export default function PartnerGalleryPage() {
 
     setCart((c) => {
       const current = Number(c[id] || 0);
-      const nextQty = normalizeQtyByUnit(current + step, product);
+      const nextQty = normalizeQtyByUnit(current + step, product, activeMeasureUnit);
       if (nextQty > stock) {
         toast.error(`${product?.name || "Product"}: max available stock is ${stock}`);
         return c;
@@ -561,10 +565,10 @@ export default function PartnerGalleryPage() {
       return;
     }
     const activeMeasureUnit = getCartMeasureUnit(product, preferredUnit);
-    const step = getQtyStep(product);
+    const step = getQtyStep(product, activeMeasureUnit);
     setCart((c) => {
       const current = Number(c[id] || 0);
-      const nextQty = normalizeQtyByUnit(current - step, product);
+      const nextQty = normalizeQtyByUnit(current - step, product, activeMeasureUnit);
       return { ...c, [id]: Math.max(0, nextQty) };
     });
   };
@@ -582,7 +586,7 @@ export default function PartnerGalleryPage() {
           return;
         }
         const stock = getStock(product);
-        const normalized = Math.min(normalizeQtyByUnit(qty, product), stock);
+        const normalized = Math.min(normalizeQtyByUnit(qty, product, cartUnits[id] || ""), stock);
         if (normalized > 0) next[id] = normalized;
       });
       return next;

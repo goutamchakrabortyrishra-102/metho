@@ -603,15 +603,17 @@ export default function PartnerDashboardPage() {
       anchor.click();
       anchor.remove();
 
-      const phoneDigits = String(order?.delivery_phone || "").replace(/\D/g, "");
-      const invoiceLink = `${window.location.origin}/invoice/${order.id}`;
-      const message = `Invoice ready for ${order?.order_no || "your order"}\nCustomer: ${order?.delivery_name || "Customer"}\nOpen invoice: ${invoiceLink}\nPDF downloaded. Please attach and send.`;
-
-      if (phoneDigits) {
-        const waWebUrl = `https://wa.me/${phoneDigits}?text=${encodeURIComponent(message)}`;
-        window.open(waWebUrl, "_blank", "noopener,noreferrer");
-      } else if (order?.customer_whatsapp_invoice_url) {
+      if (order?.customer_whatsapp_invoice_url) {
         window.open(order.customer_whatsapp_invoice_url, "_blank", "noopener,noreferrer");
+      } else {
+        const phoneDigits = String(order?.delivery_phone || "").replace(/\D/g, "");
+        const invoiceLink = `${window.location.origin}/invoice/${order.id}`;
+        const message = `Invoice ready for ${order?.order_no || "your order"}\nCustomer: ${order?.delivery_name || "Customer"}\nOpen invoice: ${invoiceLink}\nPDF downloaded. Please attach and send.`;
+
+        if (phoneDigits) {
+          const waWebUrl = `https://wa.me/${phoneDigits}?text=${encodeURIComponent(message)}`;
+          window.open(waWebUrl, "_blank", "noopener,noreferrer");
+        }
       }
       toast.success("PDF downloaded and WhatsApp chat opened.");
     } catch (err) {

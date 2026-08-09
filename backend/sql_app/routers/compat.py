@@ -2976,6 +2976,7 @@ def _invoice_payload(db: Session, order_id: str, current_user: User):
     seller_state_code = settings.get("company_state_code", "19")
     seller_email = settings.get("company_email", "admin@metho.com")
     seller_upi = settings.get("upi_id", "methopvtltd@paytm")
+    seller_phone = ""
 
     associate_partner_product_ids = [
         str(item.get("product_id") or "").strip()
@@ -3009,6 +3010,7 @@ def _invoice_payload(db: Session, order_id: str, current_user: User):
                 seller_state = str(partner.state or "").strip() or seller_state
                 seller_email = str(partner.email or "").strip() or seller_email
                 seller_upi = str(partner.upi_id or "").strip() or seller_upi
+                seller_phone = str(partner.phone or partner.whatsapp_no or "").strip()
 
     buyer = db.query(User).filter(User.id == row.customer_user_id).first() if row.customer_user_id else None
     buyer_role = str(getattr(buyer, "role", "") or "").strip().lower() if buyer else ""
@@ -3045,6 +3047,7 @@ def _invoice_payload(db: Session, order_id: str, current_user: User):
             "state_code": seller_state_code,
             "email": seller_email,
             "upi_id": seller_upi,
+            "phone": seller_phone,
         },
         "buyer": {
             "name": buyer_name,

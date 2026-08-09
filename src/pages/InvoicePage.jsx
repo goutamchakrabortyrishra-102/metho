@@ -225,7 +225,7 @@ export default function InvoicePage() {
             <h1 className="font-display font-black text-3xl text-emerald-950 mt-1">{inv.seller.name}</h1>
             <p className="text-xs text-slate-600 font-body mt-1">{inv.seller.address}</p>
             <p className="text-xs text-slate-600 font-body">GSTIN: <span className="font-mono font-semibold">{inv.seller.gst_no}</span> · PAN: <span className="font-mono">{inv.seller.pan}</span></p>
-            <p className="text-xs text-slate-600 font-body">State: {inv.seller.state} ({inv.seller.state_code}) · Email: {inv.seller.email}</p>
+            <p className="text-xs text-slate-600 font-body">State: {inv.seller.state} ({inv.seller.state_code}) · Email: {inv.seller.email}{inv.seller.phone ? ` · Phone: ${inv.seller.phone}` : ""}</p>
           </div>
           <div className="text-right">
             <div className="inline-flex items-center gap-1 text-emerald-900 font-bold text-lg font-display"><FileText className="w-5 h-5" /> INVOICE</div>
@@ -357,6 +357,7 @@ export default function InvoicePage() {
               <p className="font-semibold text-emerald-950">Payment Details</p>
               <p>UPI: <span className="font-mono">{inv.seller.upi_id}</span></p>
               <p>Payee: {inv.seller.name}</p>
+              {inv.seller.phone ? <p>Contact: {inv.seller.phone}</p> : null}
             </div>
             <div className="text-right">
               <p className="italic mb-8">For {inv.seller.name}</p>
