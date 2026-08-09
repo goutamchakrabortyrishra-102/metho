@@ -772,7 +772,7 @@ export default function PartnerProductForm({
         ...form,
         name: isTransportOnly ? String(form.name || "").trim() || "book now" : String(form.name || "").trim(),
         category: isTransportOnly ? String(form.category || "").trim() || "General" : String(form.category || "").trim(),
-        price: Number(isTransportOnly ? (form.price || 1) : form.price),
+        price: Number(isTransportOnly ? (form.price || 100) : form.price),
         stock: Number(form.stock || (isService ? 1 : 0)),
         discount_percent: Number(form.discount_percent || 0),
         gst_percent: Number(form.gst_percent || 0),
@@ -964,9 +964,14 @@ export default function PartnerProductForm({
             ) : null}
           </div>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            <div><Label>{activeListingType === "service" ? (isTransportOnlyTemplateMode ? "Booking Price (₹)" : "Booking Price (₹) *") : "Price (₹) *"}</Label><Input type="number" required={activeListingType === "service" ? !isTransportOnlyTemplateMode : true} value={form.price} onChange={(e) => setForm({ ...form, price: e.target.value })} className="mt-1" data-testid="my-prod-price" /></div>
+            {isTransportOnlyTemplateMode ? null : (
+              <div><Label>{activeListingType === "service" ? "Booking Price (₹) *" : "Price (₹) *"}</Label><Input type="number" required={activeListingType === "service" ? true : true} value={form.price} onChange={(e) => setForm({ ...form, price: e.target.value })} className="mt-1" data-testid="my-prod-price" /></div>
+            )}
             <div><Label>{activeListingType === "service" ? "Daily Slot / Capacity" : "Stock"}</Label><Input type="number" value={form.stock} onChange={(e) => setForm({ ...form, stock: e.target.value })} className="mt-1" data-testid="my-prod-stock" /></div>
           </div>
+          {isTransportOnlyTemplateMode ? (
+            <p className="text-[11px] text-sky-700 -mt-2">Transport fare booking request এ partner confirm করার সময় set হবে।</p>
+          ) : null}
           {activeListingType !== "service" ? (
             <div>
               <Label>Price Unit</Label>

@@ -435,10 +435,10 @@ export default function PartnerShopPage() {
       };
     }
     return {
-      label: `Estimated fare: ₹${Number(transportService?.price || 0).toLocaleString("en-IN")} (from service listing)`,
-      detail: "Route estimate will show after pickup and destination are provided.",
+      label: "Estimated fare will appear after pickup and destination",
+      detail: "Final fare will be confirmed by partner after request.",
     };
-  }, [selectedTransportPreset, transportFareEstimate, transportFareEstimateLoading, transportService?.price]);
+  }, [selectedTransportPreset, transportFareEstimate, transportFareEstimateLoading]);
   const products = useMemo(() => data?.products || [], [data?.products]);
   const productListings = useMemo(() => products.filter((item) => !isServiceListing(item)), [products]);
   const serviceListings = useMemo(() => products.filter((item) => isServiceListing(item)), [products]);
@@ -1174,7 +1174,7 @@ export default function PartnerShopPage() {
                               <span className="block font-semibold line-clamp-1">{service.name}</span>
                               <span className="block text-xs text-slate-500 line-clamp-1">{service.category || "Transport"}</span>
                             </span>
-                            <span className="shrink-0 text-xs font-semibold text-emerald-800">₹{Number(service?.price || 0).toLocaleString("en-IN")}</span>
+                            <span className="shrink-0 text-[10px] font-semibold text-sky-700">Fare on confirm</span>
                           </button>
                         )) : transportService ? (
                           <p className="px-3 py-2 text-sm text-emerald-700">Selected service loaded. Clear search to browse other transport templates.</p>
@@ -1191,7 +1191,7 @@ export default function PartnerShopPage() {
                         <div>
                           <p className="text-[10px] uppercase tracking-widest text-sky-700 font-semibold">Selected Service Template</p>
                           <p className="font-display font-bold text-emerald-950 mt-1">{transportService?.name}</p>
-                          <p className="text-xs text-slate-600 mt-1">{transportService?.category || "Transport"} · Base price ₹{Number(transportService?.price || 0).toLocaleString("en-IN")}</p>
+                          <p className="text-xs text-slate-600 mt-1">{transportService?.category || "Transport"} · Fare will be confirmed by partner</p>
                         </div>
                         <span className="rounded-full bg-white border border-sky-200 px-3 py-1 text-xs font-semibold text-sky-800">Partner will review and confirm</span>
                       </div>

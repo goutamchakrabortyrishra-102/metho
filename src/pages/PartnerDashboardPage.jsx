@@ -1713,7 +1713,7 @@ export default function PartnerDashboardPage() {
                           <p className="text-[10px] uppercase tracking-widest text-sky-700 font-semibold">Transport</p>
                           <p className="font-semibold text-sm text-emerald-950 mt-0.5">{p.name}</p>
                           <p className="text-xs text-muted-foreground">{p.category}</p>
-                          <p className="font-display font-black text-emerald-800 mt-1">{withUnit(p.price, p.unit_type)}</p>
+                          <p className="text-[11px] font-semibold text-sky-800 mt-1">Fare set on booking confirmation</p>
                           <p className="text-[10px] text-slate-500">{String(p?.service_template_key || "transport").replace(/_/g, " ")}</p>
                           <div className="grid grid-cols-1 gap-1 mt-2">
                             <PartnerProductForm
