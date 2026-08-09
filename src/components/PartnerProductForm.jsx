@@ -757,6 +757,11 @@ export default function PartnerProductForm({
     e.preventDefault();
     const listingType = hasFixedListingType ? forcedListingType : form.listing_type;
     const isService = listingType === "service";
+    const isTransportOnly = isTransportOnlyTemplateMode;
+    if (isTransportOnly && !String(form.image_url || "").trim()) {
+      toast.error("Vehicle image upload করুন");
+      return;
+    }
     if (!isService && !String(form.image_url || "").trim() && !String(form.pdf_url || "").trim()) {
       toast.error("Listing PDF required. Please upload image to auto-generate PDF link first.");
       return;
@@ -765,7 +770,9 @@ export default function PartnerProductForm({
     try {
       const payload = {
         ...form,
-        price: Number(form.price),
+        name: isTransportOnly ? String(form.name || "").trim() || "book now" : String(form.name || "").trim(),
+        category: isTransportOnly ? String(form.category || "").trim() || "General" : String(form.category || "").trim(),
+        price: Number(isTransportOnly ? (form.price || 0) : form.price),
         stock: Number(form.stock || (isService ? 1 : 0)),
         discount_percent: Number(form.discount_percent || 0),
         gst_percent: Number(form.gst_percent || 0),
@@ -845,8 +852,8 @@ export default function PartnerProductForm({
               )}
             </div>
             <div>
-              <Label>{activeListingType === "service" ? "Service Name *" : "Product Name *"}</Label>
-              <Input required value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} className="mt-1" data-testid="my-prod-name" />
+              <Label>{activeListingType === "service" ? (isTransportOnlyTemplateMode ? "Service Name" : "Service Name *") : "Product Name *"}</Label>
+              <Input required={!isTransportOnlyTemplateMode} value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} className="mt-1" data-testid="my-prod-name" />
             </div>
           </div>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
@@ -957,7 +964,7 @@ export default function PartnerProductForm({
             ) : null}
           </div>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            <div><Label>{activeListingType === "service" ? "Booking Price (₹) *" : "Price (₹) *"}</Label><Input type="number" required value={form.price} onChange={(e) => setForm({ ...form, price: e.target.value })} className="mt-1" data-testid="my-prod-price" /></div>
+            <div><Label>{activeListingType === "service" ? (isTransportOnlyTemplateMode ? "Booking Price (₹)" : "Booking Price (₹) *") : "Price (₹) *"}</Label><Input type="number" required={activeListingType === "service" ? !isTransportOnlyTemplateMode : true} value={form.price} onChange={(e) => setForm({ ...form, price: e.target.value })} className="mt-1" data-testid="my-prod-price" /></div>
             <div><Label>{activeListingType === "service" ? "Daily Slot / Capacity" : "Stock"}</Label><Input type="number" value={form.stock} onChange={(e) => setForm({ ...form, stock: e.target.value })} className="mt-1" data-testid="my-prod-stock" /></div>
           </div>
           {activeListingType !== "service" ? (
