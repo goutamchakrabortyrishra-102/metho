@@ -25,7 +25,17 @@ const normalizeYoutubeUrl = (value) => {
 const normalizeFacebookUrl = (value) => {
   const raw = String(value || "").trim();
   if (!raw) return "";
-  if (/^https?:\/\//i.test(raw)) return raw;
+  if (/^https?:\/\//i.test(raw)) {
+    try {
+      const host = new URL(raw).hostname.toLowerCase();
+      if (host === "facebook.com" || host === "www.facebook.com" || host === "fb.com" || host.endsWith(".facebook.com")) {
+        return raw;
+      }
+      return "";
+    } catch {
+      return "";
+    }
+  }
   if (/^(www\.)?facebook\.com\//i.test(raw) || /^fb\.com\//i.test(raw)) return `https://${raw}`;
   return "";
 };
@@ -428,10 +438,14 @@ export default function PartnerShopPage() {
   }, [user]);
 
   const p = data?.partner;
-  const partnerBusinessYoutubeUrl = normalizeYoutubeUrl(
-    p?.business_youtube_url || paymentProfile?.business_youtube_url
-  );
-  const partnerBusinessFacebookUrl = normalizeFacebookUrl(p?.business_facebook_url);
+  const partnerBusinessYoutubeUrl =
+    normalizeYoutubeUrl(p?.business_youtube_url) ||
+    normalizeYoutubeUrl(paymentProfile?.business_youtube_url) ||
+    normalizeYoutubeUrl(p?.business_facebook_url) ||
+    normalizeYoutubeUrl(paymentProfile?.business_facebook_url);
+  const partnerBusinessFacebookUrl =
+    normalizeFacebookUrl(p?.business_facebook_url) ||
+    normalizeFacebookUrl(paymentProfile?.business_facebook_url);
   const heroBannerSrc = data?.partner?.banner_url || "";
   const selectedTransportPreset = useMemo(() => {
     if (!Array.isArray(transportFarePresets) || !transportFarePresets.length) return null;
