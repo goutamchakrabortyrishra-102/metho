@@ -23,19 +23,6 @@ const routeMapsUrl = (pickup, destination) => {
   if (!dest) return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(origin)}`;
   return `https://www.google.com/maps/dir/?api=1&origin=${encodeURIComponent(origin)}&destination=${encodeURIComponent(dest)}&travelmode=driving`;
 };
-const inferPickupDestinationFromServiceName = (serviceName) => {
-  const text = String(serviceName || "").trim();
-  if (!text) return { pickup: "", destination: "" };
-  const compact = text.replace(/\s+/g, " ").trim();
-  const parts = compact.split(/\s*(?:\bto\b|->|—|–|-)\s*/i).map((part) => String(part || "").trim()).filter(Boolean);
-  if (parts.length >= 2) {
-    return {
-      pickup: parts[0],
-      destination: parts.slice(1).join(" to "),
-    };
-  }
-  return { pickup: "", destination: "" };
-};
 const formatTransportSchedule = (value) => {
   const raw = String(value || "").trim();
   if (!raw) return "";
@@ -444,20 +431,12 @@ export default function PartnerShopPage() {
         : "";
       return {
         label: `Estimated fare: ₹${Number(transportFareEstimate.amount).toLocaleString("en-IN")}${distanceText}${rateText}`,
-        detail: transportFareEstimate.source === "preset"
-          ? "Preset fare selected for this route."
-          : "Approximate fare from pickup and destination route.",
-      };
-    }
-    if (selectedTransportPreset?.fare > 0) {
-      return {
-        label: `Estimated fare: ₹${Number(selectedTransportPreset.fare).toLocaleString("en-IN")} (selected preset)`,
-        detail: "Preset fare available for this route.",
+        detail: "Approximate fare from pickup and destination route.",
       };
     }
     return {
       label: `Estimated fare: ₹${Number(transportService?.price || 0).toLocaleString("en-IN")} (from service listing)`,
-      detail: "No preset fare or route estimate available yet.",
+      detail: "Route estimate will show after pickup and destination are provided.",
     };
   }, [selectedTransportPreset, transportFareEstimate, transportFareEstimateLoading, transportService?.price]);
   const products = useMemo(() => data?.products || [], [data?.products]);
@@ -570,12 +549,6 @@ export default function PartnerShopPage() {
     const destination = String(transportForm.destination || "").trim();
     const presetFare = Number(selectedTransportPreset?.fare || 0);
 
-    if (selectedFarePresetId && presetFare > 0) {
-      setTransportFareEstimate({ amount: presetFare, source: "preset", distanceKm: null, ratePerKm: null });
-      setTransportFareEstimateLoading(false);
-      return;
-    }
-
     if (!pickup || !destination) {
       setTransportFareEstimate(null);
       setTransportFareEstimateLoading(false);
@@ -607,26 +580,12 @@ export default function PartnerShopPage() {
       cancelled = true;
     };
   }, [selectedFarePresetId, selectedTransportPreset, transportForm.destination, transportForm.pickup, transportService]);
-  useEffect(() => {
-    if (!transportService?.id) return;
-    const derived = inferPickupDestinationFromServiceName(transportService?.name);
-    if (!derived.pickup || !derived.destination) return;
-    const hasPickup = Boolean(String(transportForm.pickup || "").trim());
-    const hasDestination = Boolean(String(transportForm.destination || "").trim());
-    if (hasPickup && hasDestination) return;
-    setTransportForm((prev) => ({
-      ...prev,
-      pickup: hasPickup ? prev.pickup : derived.pickup,
-      destination: hasDestination ? prev.destination : derived.destination,
-    }));
-  }, [transportService?.id, transportService?.name, transportForm.destination, transportForm.pickup]);
   const hasHospitalityListings = hospitalityListings.length > 0;
   const hasDoorstepListings = doorstepListings.length > 0;
   const hasServiceListings = regularServiceListings.length > 0;
   const hasTransportListings = transportListings.length > 0;
 
   const selectTransportBookingService = (nextService) => {
-    const routePreset = inferPickupDestinationFromServiceName(nextService?.name);
     setTransportService(nextService || null);
     setTransportServiceSearch("");
     setTransportBookingMode("template");
@@ -635,8 +594,8 @@ export default function PartnerShopPage() {
     setTransportBooking(null);
     setTransportForm((prev) => ({
       ...prev,
-      pickup: routePreset.pickup || "",
-      destination: routePreset.destination || "",
+      pickup: "",
+      destination: "",
       travel_date: "",
       notes: "",
     }));
@@ -708,29 +667,19 @@ export default function PartnerShopPage() {
   };
 
   const loadTransportFarePresets = async (serviceId) => {
-    if (!serviceId) {
-      setTransportFarePresets([]);
-      return;
-    }
-    try {
-      const { data } = await api.get(`/transport/fare-presets?partner_code=${encodeURIComponent(partnerCode)}&service_product_id=${encodeURIComponent(serviceId)}`);
-      setTransportFarePresets(Array.isArray(data?.items) ? data.items : []);
-    } catch {
-      setTransportFarePresets([]);
-    }
+    setTransportFarePresets([]);
   };
 
   const openTransportBookingDesk = (service) => {
     if (!service?.id) return;
-    const routePreset = inferPickupDestinationFromServiceName(service?.name);
     setTransportService(service);
     setTransportServiceSearch("");
     setTransportBookingMode("template");
     setTransportForm({
       customer_name: isMemberOrCustomer ? (user?.name || "") : "",
       customer_phone: isMemberOrCustomer ? (user?.phone || "") : "",
-      pickup: routePreset.pickup || "",
-      destination: routePreset.destination || "",
+      pickup: "",
+      destination: "",
       travel_date: "",
       notes: "",
     });
@@ -759,24 +708,12 @@ export default function PartnerShopPage() {
   };
 
   const submitTransportBooking = async () => {
-    const presetServiceId = String(selectedTransportPreset?.service_product_id || "").trim();
-    const presetService = presetServiceId
-      ? transportListings.find((item) => String(item?.id || "") === presetServiceId) || null
-      : null;
     const bookingService = transportService
-      || presetService
       || filteredTransportServiceOptions[0]
       || transportListings[0]
       || null;
-    const routeFromServiceName = inferPickupDestinationFromServiceName(bookingService?.name);
-    const hasSelectedPreset = Boolean(selectedFarePresetId);
-    const derivedPickup = String(transportForm.pickup || "").trim()
-      || String(selectedTransportPreset?.pickup_hint || "").trim()
-      || String(routeFromServiceName.pickup || "").trim()
-      || "Preset pickup (to be confirmed)";
-    const derivedDestination = String(transportForm.destination || "").trim()
-      || String(selectedTransportPreset?.destination || "").trim()
-      || String(routeFromServiceName.destination || "").trim();
+    const derivedPickup = String(transportForm.pickup || "").trim();
+    const derivedDestination = String(transportForm.destination || "").trim();
     if (!bookingService?.id) {
       toast.error("Transport service select করুন অথবা service name লিখুন");
       return;
@@ -789,12 +726,12 @@ export default function PartnerShopPage() {
       toast.error("Mobile number দিন");
       return;
     }
-    if (!derivedPickup && !hasSelectedPreset) {
+    if (!derivedPickup) {
       toast.error("Pickup দিন");
       return;
     }
-    if (!derivedDestination && !selectedFarePresetId) {
-      toast.error("Destination দিন অথবা preset select করুন");
+    if (!derivedDestination) {
+      toast.error("Destination দিন");
       return;
     }
     setTransportBusy(true);
@@ -818,7 +755,7 @@ export default function PartnerShopPage() {
         customer_phone: transportForm.customer_phone,
         pickup: derivedPickup,
         destination: derivedDestination,
-        fare_preset_id: selectedFarePresetId,
+        fare_preset_id: "",
         travel_date: transportForm.travel_date,
         notes: transportForm.notes,
         member_ref: manualMemberRef || autoMemberRef,
@@ -1277,41 +1214,6 @@ export default function PartnerShopPage() {
                     </div>
                   )}
 
-                  {(transportFarePresets || []).length ? (
-                    <div className="rounded-lg border border-emerald-200 bg-emerald-50 p-3">
-                      <p className="text-xs font-semibold text-emerald-900">Common destination fare</p>
-                      <p className="text-[11px] text-slate-600 mt-0.5">Preset select করলে destination + fare route ready হয়ে যাবে।</p>
-                      <div className="mt-2 space-y-1.5">
-                        {(transportFarePresets || []).map((preset) => (
-                          <label key={preset.id} className="flex items-center gap-2 text-xs text-slate-700">
-                            <input
-                              type="radio"
-                              name="transport-fare-preset"
-                              checked={selectedFarePresetId === String(preset.id)}
-                              onChange={() => {
-                                setSelectedFarePresetId(String(preset.id));
-                                setTransportForm((prev) => ({
-                                  ...prev,
-                                  destination: String(preset.destination || ""),
-                                  notes: prev.notes || String(preset.notes || ""),
-                                }));
-                              }}
-                            />
-                            <span>{preset.destination} · ₹{Number(preset.fare || 0).toLocaleString("en-IN")}</span>
-                            {preset.pickup_hint ? <span className="text-[10px] text-slate-500">Pickup: {preset.pickup_hint}</span> : null}
-                          </label>
-                        ))}
-                        <button
-                          type="button"
-                          className="text-[11px] text-emerald-800 underline"
-                          onClick={() => setSelectedFarePresetId("")}
-                        >
-                          Use custom destination
-                        </button>
-                      </div>
-                    </div>
-                  ) : null}
-
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                     <Input value={transportForm.customer_name} onChange={(e) => setTransportForm((prev) => ({ ...prev, customer_name: e.target.value }))} placeholder="Customer name" className="h-10" />
                     <Input value={transportForm.customer_phone} onChange={(e) => setTransportForm((prev) => ({ ...prev, customer_phone: e.target.value }))} placeholder="Mobile number" className="h-10" />
@@ -1322,10 +1224,9 @@ export default function PartnerShopPage() {
                     <Input
                       value={transportForm.destination}
                       onChange={(e) => {
-                        setSelectedFarePresetId("");
                         setTransportForm((prev) => ({ ...prev, destination: e.target.value }));
                       }}
-                      placeholder={transportBookingMode === "template" ? "Destination (or select preset)" : "Destination"}
+                      placeholder="Destination"
                       className="h-10"
                     />
                   </div>
