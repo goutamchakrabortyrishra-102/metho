@@ -27,7 +27,7 @@ const inferPickupDestinationFromServiceName = (serviceName) => {
   const text = String(serviceName || "").trim();
   if (!text) return { pickup: "", destination: "" };
   const compact = text.replace(/\s+/g, " ").trim();
-  const parts = compact.split(/\s+(?:to|->|—|–|-)\s+/i).map((part) => String(part || "").trim()).filter(Boolean);
+  const parts = compact.split(/\s*(?:\bto\b|->|—|–|-)\s*/i).map((part) => String(part || "").trim()).filter(Boolean);
   if (parts.length >= 2) {
     return {
       pickup: parts[0],
@@ -607,6 +607,17 @@ export default function PartnerShopPage() {
       cancelled = true;
     };
   }, [selectedFarePresetId, selectedTransportPreset, transportForm.destination, transportForm.pickup, transportService]);
+  useEffect(() => {
+    if (!transportService?.id) return;
+    const derived = inferPickupDestinationFromServiceName(transportService?.name);
+    if (!derived.pickup || !derived.destination) return;
+    if (String(transportForm.pickup || "").trim() || String(transportForm.destination || "").trim()) return;
+    setTransportForm((prev) => ({
+      ...prev,
+      pickup: derived.pickup,
+      destination: derived.destination,
+    }));
+  }, [transportService?.id, transportService?.name, transportForm.destination, transportForm.pickup]);
   const hasHospitalityListings = hospitalityListings.length > 0;
   const hasDoorstepListings = doorstepListings.length > 0;
   const hasServiceListings = regularServiceListings.length > 0;
