@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { motion } from "framer-motion";
-import { ArrowRight, TrendingUp, Users, Wallet, Shield, Award, Sparkles, Check, ChevronRight, Star, Building2, Zap, Globe, MapPin, Store, Search, Phone } from "lucide-react";
+import { ArrowRight, TrendingUp, Users, Wallet, Shield, Award, Sparkles, Check, ChevronRight, Star, Building2, Zap, Globe, MapPin, Store, Search, Phone, PlayCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Logo } from "@/components/Logo";
@@ -85,6 +85,14 @@ const isVisibleMethoProduct = (product) => {
   const hiddenRaw = product?.hidden;
   const isHidden = hiddenRaw === true || String(hiddenRaw).toLowerCase() === "true" || String(hiddenRaw) === "1";
   return typeOk && !isHidden;
+};
+
+const normalizeYoutubeUrl = (value) => {
+  const raw = String(value || "").trim();
+  if (!raw) return "";
+  if (/^https?:\/\//i.test(raw)) return raw;
+  if (/^(www\.)?youtube\.com\//i.test(raw) || /^youtu\.be\//i.test(raw)) return `https://${raw}`;
+  return "";
 };
 const DEFAULT_POLICY = {
   mission_statement: "To build a trusted, product-driven smart earning ecosystem that delivers fair and sustainable income opportunities for everyone.",
@@ -1395,7 +1403,11 @@ const FAQ = () => {
   );
 };
 
-const Footer = () => (
+const Footer = () => {
+  const { settings } = useSettings();
+  const companyYoutubeUrl = normalizeYoutubeUrl(settings?.company_youtube_url);
+
+  return (
   <footer className="bg-emerald-950 text-emerald-100/80 py-14">
     <div className="max-w-7xl mx-auto px-6 grid md:grid-cols-4 gap-10">
       <div className="md:col-span-2">
@@ -1407,6 +1419,19 @@ const Footer = () => (
         <div className="mt-3 inline-flex items-center gap-2 rounded-full border border-emerald-700 bg-emerald-900/45 px-3 py-1.5 text-sm text-emerald-100">
           <Phone className="w-4 h-4 text-amber-300" /> Contact: +91 7003805387
         </div>
+        {companyYoutubeUrl ? (
+          <div className="mt-3">
+            <Button
+              type="button"
+              variant="outline"
+              className="rounded-full border-amber-300 bg-amber-50 text-emerald-950 hover:bg-amber-100"
+              onClick={() => window.open(companyYoutubeUrl, "_blank", "noopener,noreferrer")}
+              data-testid="landing-footer-watch-video"
+            >
+              <PlayCircle className="w-4 h-4 mr-2" /> Watch Video
+            </Button>
+          </div>
+        ) : null}
       </div>
       <div>
         <p className="font-display font-bold text-white uppercase tracking-widest text-xs">Product</p>
@@ -1432,7 +1457,8 @@ const Footer = () => (
       <p className="flex items-center gap-2"><Globe className="w-3 h-3" /> Powered by METHO Logistics ERP v3.0</p>
     </div>
   </footer>
-);
+  );
+};
 
 export default function LandingPage() {
   return (

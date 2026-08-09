@@ -100,6 +100,7 @@ DEFAULT_SETTINGS = {
     "landing_hero_image_url": "",
     "landing_tagline": "",
     "landing_subheading": "",
+    "company_youtube_url": "",
     "landing_top_product_ids": [],
     "landing_featured_partner_ids": [],
     "landing_featured_store_ids": [],

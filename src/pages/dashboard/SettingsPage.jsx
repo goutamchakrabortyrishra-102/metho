@@ -727,6 +727,7 @@ export default function SettingsPage() {
     landing_hero_image_url: "",
     landing_tagline: source.landing_tagline || "",
     landing_subheading: source.landing_subheading || "",
+    company_youtube_url: source.company_youtube_url || "",
     // Landing product/partner/store picks are managed from dedicated pages.
     // Do not overwrite those lists from Settings save to avoid stale page-state clobber.
     landing_show_metho_store: source.landing_show_metho_store !== false,
@@ -1065,6 +1066,14 @@ export default function SettingsPage() {
             <Field label="Company Name" testId="settings-company-name" value={form.company_name} onChange={setF("company_name")} type="text" />
             <Field label="Company GSTIN" testId="settings-company-gst" value={form.company_gst_no} onChange={setF("company_gst_no")} type="text" hint="Invoice header-এ প্রদর্শিত হবে।" />
             <Field label="Company PAN" testId="settings-company-pan" value={form.company_pan} onChange={setF("company_pan")} type="text" hint="Invoice header-এ প্রদর্শিত হবে।" />
+            <Field
+              label="Company YouTube Video URL"
+              testId="settings-company-youtube-url"
+              value={form.company_youtube_url ?? ""}
+              onChange={setF("company_youtube_url")}
+              type="text"
+              hint="Landing footer-এ Watch Video button show করার জন্য valid YouTube link দিন।"
+            />
             <div className="md:col-span-2">
               <Label className="text-emerald-950 font-semibold">Invoice Terms & Conditions</Label>
               <p className="text-xs text-muted-foreground font-body mt-0.5">প্রতিটি invoice-এর footer-এ এই text আসবে। Line-by-line লিখুন।</p>
