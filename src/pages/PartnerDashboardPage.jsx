@@ -247,6 +247,8 @@ export default function PartnerDashboardPage() {
   const [sendingRazorpay, setSendingRazorpay] = useState(false);
   const [shopBannerUrl, setShopBannerUrl] = useState("");
   const [partnerUpiId, setPartnerUpiId] = useState("");
+  const [partnerBusinessYoutubeUrl, setPartnerBusinessYoutubeUrl] = useState("");
+  const [partnerBusinessFacebookUrl, setPartnerBusinessFacebookUrl] = useState("");
   const [partnerCodEnabled, setPartnerCodEnabled] = useState(true);
   const [offerPopupEnabled, setOfferPopupEnabled] = useState(false);
   const [offerPopupTitle, setOfferPopupTitle] = useState("");
@@ -507,6 +509,8 @@ export default function PartnerDashboardPage() {
   useEffect(() => {
     if (!paymentProfile) return;
     setPartnerUpiId(paymentProfile?.partner_upi_id || "");
+    setPartnerBusinessYoutubeUrl(String(paymentProfile?.business_youtube_url || ""));
+    setPartnerBusinessFacebookUrl(String(paymentProfile?.business_facebook_url || ""));
     setPartnerCodEnabled(paymentProfile?.cod_enabled !== false);
     setOfferPopupEnabled(paymentProfile?.offer_popup?.enabled === true);
     setOfferPopupTitle(String(paymentProfile?.offer_popup?.title || ""));
@@ -797,6 +801,8 @@ export default function PartnerDashboardPage() {
     try {
       const { data } = await api.put("/partner/payment-profile", {
         upi_id: String(partnerUpiId || "").trim(),
+        business_youtube_url: String(partnerBusinessYoutubeUrl || "").trim(),
+        business_facebook_url: String(partnerBusinessFacebookUrl || "").trim(),
         cod_enabled: !!partnerCodEnabled,
         offer_popup: {
           enabled: !!offerPopupEnabled,
@@ -1148,6 +1154,48 @@ export default function PartnerDashboardPage() {
                     </Button>
                   </div>
                 </div>
+                <div className="mt-3">
+                  <Label htmlFor="partner-business-youtube">Business YouTube Link</Label>
+                  <div className="mt-1.5 flex flex-col sm:flex-row gap-2">
+                    <Input
+                      id="partner-business-youtube"
+                      value={partnerBusinessYoutubeUrl}
+                      onChange={(e) => setPartnerBusinessYoutubeUrl(e.target.value)}
+                      placeholder="https://www.youtube.com/watch?v=..."
+                      className="h-10"
+                    />
+                    <Button
+                      type="button"
+                      onClick={() => savePartnerUpiId()}
+                      disabled={savingPartnerUpi}
+                      className="rounded-full bg-emerald-900 hover:bg-emerald-950 text-white"
+                    >
+                      {savingPartnerUpi ? "Saving..." : "Save Link"}
+                    </Button>
+                  </div>
+                  <p className="text-[11px] text-slate-600 mt-1">সব product/service-এর জন্য আলাদা link লাগবে না। এই একটি business link public page-এ Watch Video হিসেবে দেখাবে।</p>
+                </div>
+                <div className="mt-3">
+                  <Label htmlFor="partner-business-facebook">Business Facebook Link</Label>
+                  <div className="mt-1.5 flex flex-col sm:flex-row gap-2">
+                    <Input
+                      id="partner-business-facebook"
+                      value={partnerBusinessFacebookUrl}
+                      onChange={(e) => setPartnerBusinessFacebookUrl(e.target.value)}
+                      placeholder="https://www.facebook.com/yourpage"
+                      className="h-10"
+                    />
+                    <Button
+                      type="button"
+                      onClick={() => savePartnerUpiId()}
+                      disabled={savingPartnerUpi}
+                      className="rounded-full bg-emerald-900 hover:bg-emerald-950 text-white"
+                    >
+                      {savingPartnerUpi ? "Saving..." : "Save Link"}
+                    </Button>
+                  </div>
+                  <p className="text-[11px] text-slate-600 mt-1">এই single Facebook link public partner page-এ show হবে।</p>
+                </div>
                 <div className="mt-3 rounded-lg border border-emerald-200 bg-emerald-50 p-3">
                   <div className="flex items-start justify-between gap-3">
                     <div>
@@ -1238,6 +1286,8 @@ export default function PartnerDashboardPage() {
                   </div>
                 </div>
                 <p className="font-mono text-xs text-emerald-900 mt-2">Current UPI: {paymentProfile?.partner_upi_id || "Not set"}</p>
+                <p className="text-xs text-slate-600 mt-1">Current Business Video: {paymentProfile?.business_youtube_url ? "Set" : "Not set"}</p>
+                <p className="text-xs text-slate-600 mt-1">Current Business Facebook: {paymentProfile?.business_facebook_url ? "Set" : "Not set"}</p>
                 <p className="text-xs text-slate-600 mt-1">Current COD: {paymentProfile?.cod_enabled === false ? "Disabled" : "Enabled"}</p>
                 <p className="text-xs text-slate-600 mt-1">Current Offer Popup: {paymentProfile?.offer_popup?.enabled ? "Enabled" : "Disabled"}</p>
                 {paymentProfile?.partner_qr_url ? (

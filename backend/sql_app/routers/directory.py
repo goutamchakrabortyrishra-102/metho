@@ -159,6 +159,28 @@ def _partner_banner_and_featured(db: Session, partner_id: str) -> tuple[str, lis
     return banner_url, featured_items
 
 
+def _partner_business_youtube_url(db: Session, partner_id: str) -> str:
+    row = db.query(AppSetting).filter(AppSetting.key == f"partner_business_youtube:{partner_id}").first()
+    if not row:
+        return ""
+    try:
+        payload = json.loads(row.value_json or "{}")
+    except Exception:
+        payload = {}
+    return str(payload.get("youtube_url") or "").strip()
+
+
+def _partner_business_facebook_url(db: Session, partner_id: str) -> str:
+    row = db.query(AppSetting).filter(AppSetting.key == f"partner_business_facebook:{partner_id}").first()
+    if not row:
+        return ""
+    try:
+        payload = json.loads(row.value_json or "{}")
+    except Exception:
+        payload = {}
+    return str(payload.get("facebook_url") or "").strip()
+
+
 def _partner_to_dict(p: AssociatePartner):
     return {
         "id": p.id,
@@ -371,6 +393,8 @@ def partner_public_page(partner_code: str, db: Session = Depends(get_db)):
 
     partner_doc = _partner_to_dict(partner)
     partner_doc["banner_url"] = banner_url
+    partner_doc["business_youtube_url"] = _partner_business_youtube_url(db, partner.id)
+    partner_doc["business_facebook_url"] = _partner_business_facebook_url(db, partner.id)
 
     return {
         "partner": partner_doc,

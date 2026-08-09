@@ -779,7 +779,7 @@ export default function PartnerProductForm({
         gst_percent: Number(form.gst_percent || 0),
         image_url: String(form.image_url || "").trim(),
         pdf_url: String(form.pdf_url || "").trim(),
-        youtube_url: isService ? String(form.youtube_url || "").trim() : "",
+        youtube_url: "",
         listing_type: isService ? "service" : "product",
         item_kind: isService ? "service" : "product",
         is_service: isService,
@@ -988,19 +988,6 @@ export default function PartnerProductForm({
                 ))}
               </select>
               <p className="text-[11px] text-muted-foreground mt-1">Example: যদি "Per Kg" দেন, তাহলে price হবে প্রতি কেজির দাম।</p>
-            </div>
-          ) : null}
-          {activeListingType === "service" ? (
-            <div>
-              <Label>YouTube Link (Service)</Label>
-              <Input
-                value={form.youtube_url || ""}
-                onChange={(e) => setForm({ ...form, youtube_url: e.target.value })}
-                className="mt-1"
-                placeholder="https://www.youtube.com/watch?v=..."
-                data-testid="my-service-youtube"
-              />
-              <p className="text-[11px] text-muted-foreground mt-1">Optional. এই link public partner service page-এ show হবে।</p>
             </div>
           ) : null}
           {activeListingType === "service" ? (

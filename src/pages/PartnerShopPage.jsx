@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { useParams, Link, useNavigate } from "react-router-dom";
-import { Building2, MapPin, Phone, ArrowLeft, Store, ShoppingCart, Plus, Minus, Navigation, Share2, LogIn, MessageCircle, Gift, Star, Images, Search, FileText, CalendarCheck2, X } from "lucide-react";
+import { Building2, MapPin, Phone, ArrowLeft, Store, ShoppingCart, Plus, Minus, Navigation, Share2, LogIn, MessageCircle, Gift, Star, Images, Search, FileText, CalendarCheck2, X, PlayCircle } from "lucide-react";
 import { toast } from "sonner";
 import api from "@/services/api";
 import { Button } from "@/components/ui/button";
@@ -17,6 +17,14 @@ const normalizeYoutubeUrl = (value) => {
   if (!raw) return "";
   if (/^https?:\/\//i.test(raw)) return raw;
   if (/^(www\.)?youtube\.com\//i.test(raw) || /^youtu\.be\//i.test(raw)) return `https://${raw}`;
+  return "";
+};
+
+const normalizeFacebookUrl = (value) => {
+  const raw = String(value || "").trim();
+  if (!raw) return "";
+  if (/^https?:\/\//i.test(raw)) return raw;
+  if (/^(www\.)?facebook\.com\//i.test(raw) || /^fb\.com\//i.test(raw)) return `https://${raw}`;
   return "";
 };
 
@@ -418,6 +426,8 @@ export default function PartnerShopPage() {
   }, [user]);
 
   const p = data?.partner;
+  const partnerBusinessYoutubeUrl = normalizeYoutubeUrl(p?.business_youtube_url);
+  const partnerBusinessFacebookUrl = normalizeFacebookUrl(p?.business_facebook_url);
   const heroBannerSrc = data?.partner?.banner_url || "";
   const selectedTransportPreset = useMemo(() => {
     if (!Array.isArray(transportFarePresets) || !transportFarePresets.length) return null;
@@ -940,6 +950,26 @@ export default function PartnerShopPage() {
             >
               <Share2 className="w-3.5 h-3.5" /> Share
             </button>
+            {partnerBusinessYoutubeUrl ? (
+              <button
+                type="button"
+                onClick={() => window.open(partnerBusinessYoutubeUrl, "_blank", "noopener,noreferrer")}
+                className="inline-flex items-center gap-1.5 bg-amber-400 hover:bg-amber-300 text-emerald-950 border border-amber-300 rounded-full text-xs font-bold px-4 py-2 transition"
+                data-testid="shop-watch-business-video"
+              >
+                <PlayCircle className="w-3.5 h-3.5" /> Watch Video
+              </button>
+            ) : null}
+            {partnerBusinessFacebookUrl ? (
+              <button
+                type="button"
+                onClick={() => window.open(partnerBusinessFacebookUrl, "_blank", "noopener,noreferrer")}
+                className="inline-flex items-center gap-1.5 bg-sky-500 hover:bg-sky-600 text-white border border-sky-400 rounded-full text-xs font-bold px-4 py-2 transition"
+                data-testid="shop-open-business-facebook"
+              >
+                Facebook
+              </button>
+            ) : null}
           </div>
         </div>
       </div>
@@ -1373,17 +1403,6 @@ export default function PartnerShopPage() {
                         >
                           <CalendarCheck2 className="w-4 h-4 mr-2" /> Book Now
                         </Button>
-                        {normalizeYoutubeUrl(service?.youtube_url) ? (
-                          <Button
-                            type="button"
-                            variant="outline"
-                            onClick={() => window.open(normalizeYoutubeUrl(service?.youtube_url), "_blank", "noopener,noreferrer")}
-                            className="w-full mt-2 rounded-full"
-                            data-testid={`shop-watch-transport-video-${service.id}`}
-                          >
-                            Watch Video
-                          </Button>
-                        ) : null}
                       </div>
                     </div>
                   );
@@ -1492,17 +1511,6 @@ export default function PartnerShopPage() {
                         <Button type="button" onClick={() => bookServiceNow(service)} className="w-full mt-3 rounded-full bg-amber-600 hover:bg-amber-700 text-white" data-testid={`shop-book-hospitality-${service.id}`}>
                           <CalendarCheck2 className="w-4 h-4 mr-2" /> Book Now
                         </Button>
-                        {normalizeYoutubeUrl(service?.youtube_url) ? (
-                          <Button
-                            type="button"
-                            variant="outline"
-                            onClick={() => window.open(normalizeYoutubeUrl(service?.youtube_url), "_blank", "noopener,noreferrer")}
-                            className="w-full mt-2 rounded-full"
-                            data-testid={`shop-watch-hospitality-video-${service.id}`}
-                          >
-                            Watch Video
-                          </Button>
-                        ) : null}
                       </div>
                     </div>
                   );
@@ -1611,17 +1619,6 @@ export default function PartnerShopPage() {
                         <Button type="button" onClick={() => bookServiceNow(service)} className="w-full mt-3 rounded-full bg-violet-700 hover:bg-violet-800 text-white" data-testid={`shop-book-doorstep-${service.id}`}>
                           <CalendarCheck2 className="w-4 h-4 mr-2" /> Book Now
                         </Button>
-                        {normalizeYoutubeUrl(service?.youtube_url) ? (
-                          <Button
-                            type="button"
-                            variant="outline"
-                            onClick={() => window.open(normalizeYoutubeUrl(service?.youtube_url), "_blank", "noopener,noreferrer")}
-                            className="w-full mt-2 rounded-full"
-                            data-testid={`shop-watch-doorstep-video-${service.id}`}
-                          >
-                            Watch Video
-                          </Button>
-                        ) : null}
                       </div>
                     </div>
                   );
@@ -1749,17 +1746,6 @@ export default function PartnerShopPage() {
                         >
                           <CalendarCheck2 className="w-4 h-4 mr-2" /> Book Now
                         </Button>
-                        {normalizeYoutubeUrl(service?.youtube_url) ? (
-                          <Button
-                            type="button"
-                            variant="outline"
-                            onClick={() => window.open(normalizeYoutubeUrl(service?.youtube_url), "_blank", "noopener,noreferrer")}
-                            className="w-full mt-2 rounded-full"
-                            data-testid={`shop-watch-service-video-${service.id}`}
-                          >
-                            Watch Video
-                          </Button>
-                        ) : null}
                       </div>
                     </div>
                   );
@@ -1798,17 +1784,6 @@ export default function PartnerShopPage() {
                 <span className="font-display font-black text-xl text-sky-800">{isTransportServiceListing(previewItem) ? "Fare on confirm" : `₹${previewItem?.price || 0}`}</span>
                 {isServiceListing(previewItem) ? <span className="text-sm text-slate-500">Service</span> : (getStock(previewItem) <= 0 ? <span className="text-sm text-slate-500">Out of Stock</span> : null)}
               </div>
-              {isServiceListing(previewItem) && normalizeYoutubeUrl(previewItem?.youtube_url) ? (
-                <Button
-                  type="button"
-                  variant="outline"
-                  className="w-full mt-3 rounded-full"
-                  onClick={() => window.open(normalizeYoutubeUrl(previewItem?.youtube_url), "_blank", "noopener,noreferrer")}
-                  data-testid="shop-preview-watch-video"
-                >
-                  Watch Video
-                </Button>
-              ) : null}
             </div>
           </div>
         </div>

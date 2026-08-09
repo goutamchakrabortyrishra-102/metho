@@ -317,6 +317,62 @@ def _partner_offer_popup_key(partner_id: str) -> str:
     return f"partner_offer_popup:{partner_id}"
 
 
+def _partner_business_youtube_key(partner_id: str) -> str:
+    return f"partner_business_youtube:{partner_id}"
+
+
+def _partner_business_facebook_key(partner_id: str) -> str:
+    return f"partner_business_facebook:{partner_id}"
+
+
+def _load_partner_business_youtube(db: Session, partner_id: str) -> str:
+    row = db.query(AppSetting).filter(AppSetting.key == _partner_business_youtube_key(partner_id)).first()
+    if not row:
+        return ""
+    try:
+        payload = json.loads(row.value_json or "{}")
+    except Exception:
+        payload = {}
+    return str(payload.get("youtube_url") or "").strip()
+
+
+def _save_partner_business_youtube(db: Session, partner_id: str, youtube_url: str) -> str:
+    normalized = str(youtube_url or "").strip()
+    payload = {"youtube_url": normalized, "updated_at": now_iso()}
+    row = db.query(AppSetting).filter(AppSetting.key == _partner_business_youtube_key(partner_id)).first()
+    if not row:
+        row = AppSetting(key=_partner_business_youtube_key(partner_id), value_json="{}")
+        db.add(row)
+    row.value_json = json.dumps(payload)
+    row.updated_at = datetime.now(timezone.utc)
+    db.commit()
+    return normalized
+
+
+def _load_partner_business_facebook(db: Session, partner_id: str) -> str:
+    row = db.query(AppSetting).filter(AppSetting.key == _partner_business_facebook_key(partner_id)).first()
+    if not row:
+        return ""
+    try:
+        payload = json.loads(row.value_json or "{}")
+    except Exception:
+        payload = {}
+    return str(payload.get("facebook_url") or "").strip()
+
+
+def _save_partner_business_facebook(db: Session, partner_id: str, facebook_url: str) -> str:
+    normalized = str(facebook_url or "").strip()
+    payload = {"facebook_url": normalized, "updated_at": now_iso()}
+    row = db.query(AppSetting).filter(AppSetting.key == _partner_business_facebook_key(partner_id)).first()
+    if not row:
+        row = AppSetting(key=_partner_business_facebook_key(partner_id), value_json="{}")
+        db.add(row)
+    row.value_json = json.dumps(payload)
+    row.updated_at = datetime.now(timezone.utc)
+    db.commit()
+    return normalized
+
+
 def _normalize_partner_offer_popup(payload: dict | None, current: dict | None = None) -> dict:
     base = current or {}
     src = payload or {}
@@ -414,6 +470,8 @@ def _purge_partner_related_records(db: Session, partner: AssociatePartner) -> No
                     _partner_banner_key(partner_id),
                     _partner_checkout_pref_key(partner_id),
                     _partner_offer_popup_key(partner_id),
+                    _partner_business_youtube_key(partner_id),
+                    _partner_business_facebook_key(partner_id),
                 ]
             )
         ).delete(synchronize_session=False)
@@ -3505,6 +3563,8 @@ def partner_payment_profile(request: Request, db: Session = Depends(get_db), cur
     wallet = _load_partner_wallet(db, partner.id)
     checkout_pref = _load_partner_checkout_pref(db, partner.id)
     offer_popup = _load_partner_offer_popup(db, partner.id)
+    business_youtube_url = _load_partner_business_youtube(db, partner.id)
+    business_facebook_url = _load_partner_business_facebook(db, partner.id)
     settings = load_settings(db)
     topup_qr_row = db.query(AppSetting).filter(AppSetting.key == _partner_topup_qr_key(partner.id)).first()
     topup_qr = ""
@@ -3529,6 +3589,8 @@ def partner_payment_profile(request: Request, db: Session = Depends(get_db), cur
         "partner_upi_id": partner.upi_id,
         "cod_enabled": bool(checkout_pref.get("cod_enabled", True)),
         "offer_popup": offer_popup,
+        "business_youtube_url": business_youtube_url,
+        "business_facebook_url": business_facebook_url,
         "partner_qr_url": _file_url(partner_payment_qr, request) if partner_payment_qr else "",
         "metho_upi_id": str(settings.get("upi_id") or "").strip(),
         "metho_upi_payee_name": str(settings.get("upi_payee_name") or "METHO Logistics Pvt Ltd").strip(),
@@ -3562,17 +3624,27 @@ def partner_payment_profile_update(payload: dict, db: Session = Depends(get_db),
     if "cod_enabled" in body:
         next_pref["cod_enabled"] = bool(body.get("cod_enabled"))
     next_offer = _load_partner_offer_popup(db, partner.id)
+    next_business_youtube_url = _load_partner_business_youtube(db, partner.id)
+    next_business_facebook_url = _load_partner_business_facebook(db, partner.id)
     if isinstance(body.get("offer_popup"), dict):
         next_offer = _normalize_partner_offer_popup(body.get("offer_popup"), next_offer)
+    if "business_youtube_url" in body:
+        next_business_youtube_url = str(body.get("business_youtube_url") or "").strip()
+    if "business_facebook_url" in body:
+        next_business_facebook_url = str(body.get("business_facebook_url") or "").strip()
 
     db.commit()
     saved_pref = _save_partner_checkout_pref(db, partner.id, next_pref)
     saved_offer = _save_partner_offer_popup(db, partner.id, next_offer)
+    saved_business_youtube_url = _save_partner_business_youtube(db, partner.id, next_business_youtube_url)
+    saved_business_facebook_url = _save_partner_business_facebook(db, partner.id, next_business_facebook_url)
     return {
         "ok": True,
         "partner_upi_id": str(partner.upi_id or "").strip(),
         "cod_enabled": bool(saved_pref.get("cod_enabled", True)),
         "offer_popup": saved_offer,
+        "business_youtube_url": saved_business_youtube_url,
+        "business_facebook_url": saved_business_facebook_url,
     }
 
 
@@ -3583,6 +3655,8 @@ def partner_public_payment_profile(partner_code: str, request: Request, db: Sess
         raise HTTPException(status_code=404, detail="Partner not found")
     checkout_pref = _load_partner_checkout_pref(db, partner.id)
     offer_popup = _load_partner_offer_popup(db, partner.id)
+    business_youtube_url = _load_partner_business_youtube(db, partner.id)
+    business_facebook_url = _load_partner_business_facebook(db, partner.id)
     qr_row = db.query(AppSetting).filter(AppSetting.key == _partner_payment_qr_key(partner.id)).first()
     qr_url = ""
     if qr_row:
@@ -3596,6 +3670,8 @@ def partner_public_payment_profile(partner_code: str, request: Request, db: Sess
         "upi_id": str(partner.upi_id or "").strip(),
         "cod_enabled": bool(checkout_pref.get("cod_enabled", True)),
         "offer_popup": offer_popup,
+        "business_youtube_url": business_youtube_url,
+        "business_facebook_url": business_facebook_url,
         "payee_name": str(partner.business_name or "").strip(),
         "qr_url": _file_url(qr_url, request) if qr_url else "",
     }

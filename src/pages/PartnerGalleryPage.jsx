@@ -24,6 +24,13 @@ const normalizeYoutubeUrl = (value) => {
   if (/^(www\.)?youtube\.com\//i.test(raw) || /^youtu\.be\//i.test(raw)) return `https://${raw}`;
   return "";
 };
+const normalizeFacebookUrl = (value) => {
+  const raw = String(value || "").trim();
+  if (!raw) return "";
+  if (/^https?:\/\//i.test(raw)) return raw;
+  if (/^(www\.)?facebook\.com\//i.test(raw) || /^fb\.com\//i.test(raw)) return `https://${raw}`;
+  return "";
+};
 const cleanPhone = (v) => (v || "").replace(/[^\d]/g, "");
 const ownerChatUrl = (partner) => {
   const n = cleanPhone(partner?.whatsapp_no || partner?.phone);
@@ -390,17 +397,6 @@ function ProductModal({ product, onClose, onAdd, onDec, qty, galleryUrl, isBookN
                 {isService ? <CalendarCheck2 className="w-4 h-4 mr-2" /> : <ShoppingCart className="w-4 h-4 mr-2" />} {isService ? "Book Now" : "Add to Cart"}
               </Button>
             )}
-            {normalizeYoutubeUrl(product?.youtube_url) ? (
-              <Button
-                type="button"
-                variant="outline"
-                className="w-full rounded-full"
-                onClick={() => window.open(normalizeYoutubeUrl(product?.youtube_url), "_blank", "noopener,noreferrer")}
-                data-testid="gallery-preview-watch-video"
-              >
-                Watch Video
-              </Button>
-            ) : null}
             {/* Share this product on WhatsApp */}
             <button
               onClick={() => window.open(`https://wa.me/?text=${encodeURIComponent(waMsg)}`, '_blank')}
@@ -640,6 +636,8 @@ export default function PartnerGalleryPage() {
 
   const galleryUrl = `${window.location.origin}/gallery/${partnerCode}`;
   const partnerChatUrl = ownerChatUrl(partner);
+  const partnerBusinessYoutubeUrl = normalizeYoutubeUrl(partner?.business_youtube_url);
+  const partnerBusinessFacebookUrl = normalizeFacebookUrl(partner?.business_facebook_url);
 
   const handleBookNow = (listing) => {
     if (!listing?.id) return;
@@ -888,6 +886,26 @@ export default function PartnerGalleryPage() {
               <MessageCircle className="w-3.5 h-3.5" /> Chat with Owner
             </a>
           ) : null}
+          {partnerBusinessYoutubeUrl ? (
+            <button
+              type="button"
+              onClick={() => window.open(partnerBusinessYoutubeUrl, "_blank", "noopener,noreferrer")}
+              className="inline-flex items-center gap-2 rounded-full bg-amber-400 px-4 py-2 text-xs font-bold text-emerald-950 hover:bg-amber-300"
+              data-testid="gallery-watch-business-video"
+            >
+              <PlayCircle className="w-3.5 h-3.5" /> Watch Video
+            </button>
+          ) : null}
+          {partnerBusinessFacebookUrl ? (
+            <button
+              type="button"
+              onClick={() => window.open(partnerBusinessFacebookUrl, "_blank", "noopener,noreferrer")}
+              className="inline-flex items-center gap-2 rounded-full bg-sky-500 px-4 py-2 text-xs font-bold text-white hover:bg-sky-600"
+              data-testid="gallery-open-business-facebook"
+            >
+              Facebook
+            </button>
+          ) : null}
         </div>
       </div>
 
@@ -1064,20 +1082,6 @@ export default function PartnerGalleryPage() {
                         >
                           Book Now
                         </Button>
-                        {normalizeYoutubeUrl(p?.youtube_url) ? (
-                          <Button
-                            type="button"
-                            variant="outline"
-                            className="w-full rounded-full h-9"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              window.open(normalizeYoutubeUrl(p?.youtube_url), "_blank", "noopener,noreferrer");
-                            }}
-                            data-testid={`gallery-watch-video-${p.id}`}
-                          >
-                            Watch Video
-                          </Button>
-                        ) : null}
                       </div>
                     ) : qty > 0 ? (
                       <div className="mt-2 space-y-2" onClick={(e) => e.stopPropagation()}>

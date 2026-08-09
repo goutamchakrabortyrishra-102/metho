@@ -94,6 +94,14 @@ const normalizeYoutubeUrl = (value) => {
   if (/^(www\.)?youtube\.com\//i.test(raw) || /^youtu\.be\//i.test(raw)) return `https://${raw}`;
   return "";
 };
+
+const normalizeFacebookUrl = (value) => {
+  const raw = String(value || "").trim();
+  if (!raw) return "";
+  if (/^https?:\/\//i.test(raw)) return raw;
+  if (/^(www\.)?facebook\.com\//i.test(raw) || /^fb\.com\//i.test(raw)) return `https://${raw}`;
+  return "";
+};
 const DEFAULT_POLICY = {
   mission_statement: "To build a trusted, product-driven smart earning ecosystem that delivers fair and sustainable income opportunities for everyone.",
   vision_statement: "Our vision is to empower marginalized people, transform small businesses from local to global, and build sustainable financial freedom with a special focus on women.",
@@ -1406,6 +1414,7 @@ const FAQ = () => {
 const Footer = () => {
   const { settings } = useSettings();
   const companyYoutubeUrl = normalizeYoutubeUrl(settings?.company_youtube_url);
+  const companyFacebookUrl = normalizeFacebookUrl(settings?.company_facebook_url);
 
   return (
   <footer className="bg-emerald-950 text-emerald-100/80 py-14">
@@ -1419,17 +1428,30 @@ const Footer = () => {
         <div className="mt-3 inline-flex items-center gap-2 rounded-full border border-emerald-700 bg-emerald-900/45 px-3 py-1.5 text-sm text-emerald-100">
           <Phone className="w-4 h-4 text-amber-300" /> Contact: +91 7003805387
         </div>
-        {companyYoutubeUrl ? (
-          <div className="mt-3">
-            <Button
-              type="button"
-              variant="outline"
-              className="rounded-full border-amber-300 bg-amber-50 text-emerald-950 hover:bg-amber-100"
-              onClick={() => window.open(companyYoutubeUrl, "_blank", "noopener,noreferrer")}
-              data-testid="landing-footer-watch-video"
-            >
-              <PlayCircle className="w-4 h-4 mr-2" /> Watch Video
-            </Button>
+        {(companyYoutubeUrl || companyFacebookUrl) ? (
+          <div className="mt-3 flex flex-wrap items-center gap-2">
+            {companyYoutubeUrl ? (
+              <Button
+                type="button"
+                variant="outline"
+                className="rounded-full border-amber-300 bg-amber-50 text-emerald-950 hover:bg-amber-100"
+                onClick={() => window.open(companyYoutubeUrl, "_blank", "noopener,noreferrer")}
+                data-testid="landing-footer-watch-video"
+              >
+                <PlayCircle className="w-4 h-4 mr-2" /> Watch Video
+              </Button>
+            ) : null}
+            {companyFacebookUrl ? (
+              <Button
+                type="button"
+                variant="outline"
+                className="rounded-full border-sky-300 bg-sky-50 text-sky-900 hover:bg-sky-100"
+                onClick={() => window.open(companyFacebookUrl, "_blank", "noopener,noreferrer")}
+                data-testid="landing-footer-open-facebook"
+              >
+                Facebook
+              </Button>
+            ) : null}
           </div>
         ) : null}
       </div>
