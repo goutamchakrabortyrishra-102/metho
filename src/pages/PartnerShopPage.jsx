@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useRef, useState } from "react";
 import { useParams, Link, useNavigate } from "react-router-dom";
 import { Building2, MapPin, Phone, ArrowLeft, Store, ShoppingCart, Plus, Minus, Navigation, Share2, LogIn, MessageCircle, Gift, Star, Images, Search, FileText, CalendarCheck2, X } from "lucide-react";
 import { toast } from "sonner";
-import api, { API } from "@/services/api";
+import api from "@/services/api";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Logo } from "@/components/Logo";
@@ -37,22 +37,6 @@ const formatTransportSchedule = (value) => {
   });
 };
 
-const postTransportBookingWithFallback = async (payload) => {
-  try {
-    return await api.post("/transport/bookings", payload);
-  } catch (err) {
-    const details = String(err?.response?.data?.detail || "");
-    if (details) {
-      throw err;
-    }
-
-    // Fallback: if cross-origin transport booking fails without backend detail (typical browser/network/CORS block),
-    // retry through same-origin /api path. This is transport-only and does not change other API flows.
-    const directPath = String(API || "").replace(/https?:\/\/[^/]+/i, "");
-    const fallbackBase = directPath || "/api";
-    return await api.post(`${fallbackBase}/transport/bookings`, payload);
-  }
-};
 const haversineKm = (lat1, lon1, lat2, lon2) => {
   const toRad = (value) => (value * Math.PI) / 180;
   const earthRadiusKm = 6371;
@@ -780,7 +764,7 @@ export default function PartnerShopPage() {
       }
       const manualMemberRef = String(guestMemberRef || "").trim();
       const autoMemberRef = normalizedRole === "member" ? String(user?.id || "").trim() : "";
-      const { data } = await postTransportBookingWithFallback({
+      const { data } = await api.post("/transport/bookings", {
         partner_code: partnerCode,
         service_product_id: bookingService.id,
         vehicle_type: String(bookingService?.service_template_key || "cab").includes("bike") ? "bike_rental" : String(bookingService?.service_template_key || "cab").includes("car") ? "car_rental" : "cab",
