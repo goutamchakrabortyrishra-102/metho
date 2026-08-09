@@ -23,6 +23,19 @@ const routeMapsUrl = (pickup, destination) => {
   if (!dest) return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(origin)}`;
   return `https://www.google.com/maps/dir/?api=1&origin=${encodeURIComponent(origin)}&destination=${encodeURIComponent(dest)}&travelmode=driving`;
 };
+const inferPickupDestinationFromServiceName = (serviceName) => {
+  const text = String(serviceName || "").trim();
+  if (!text) return { pickup: "", destination: "" };
+  const compact = text.replace(/\s+/g, " ").trim();
+  const parts = compact.split(/\s+(?:to|->|—|–|-)\s+/i).map((part) => String(part || "").trim()).filter(Boolean);
+  if (parts.length >= 2) {
+    return {
+      pickup: parts[0],
+      destination: parts.slice(1).join(" to "),
+    };
+  }
+  return { pickup: "", destination: "" };
+};
 const formatTransportSchedule = (value) => {
   const raw = String(value || "").trim();
   if (!raw) return "";
@@ -600,6 +613,7 @@ export default function PartnerShopPage() {
   const hasTransportListings = transportListings.length > 0;
 
   const selectTransportBookingService = (nextService) => {
+    const routePreset = inferPickupDestinationFromServiceName(nextService?.name);
     setTransportService(nextService || null);
     setTransportServiceSearch("");
     setTransportBookingMode("template");
@@ -608,8 +622,8 @@ export default function PartnerShopPage() {
     setTransportBooking(null);
     setTransportForm((prev) => ({
       ...prev,
-      pickup: "",
-      destination: "",
+      pickup: routePreset.pickup || "",
+      destination: routePreset.destination || "",
       travel_date: "",
       notes: "",
     }));
@@ -695,14 +709,15 @@ export default function PartnerShopPage() {
 
   const openTransportBookingDesk = (service) => {
     if (!service?.id) return;
+    const routePreset = inferPickupDestinationFromServiceName(service?.name);
     setTransportService(service);
     setTransportServiceSearch("");
     setTransportBookingMode("template");
     setTransportForm({
       customer_name: isMemberOrCustomer ? (user?.name || "") : "",
       customer_phone: isMemberOrCustomer ? (user?.phone || "") : "",
-      pickup: "",
-      destination: "",
+      pickup: routePreset.pickup || "",
+      destination: routePreset.destination || "",
       travel_date: "",
       notes: "",
     });
