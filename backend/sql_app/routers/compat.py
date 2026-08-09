@@ -3641,7 +3641,7 @@ def create_transport_booking(payload: dict, request: Request, db: Session = Depe
         raise HTTPException(status_code=400, detail="partner_code is required")
     if not service_product_id:
         raise HTTPException(status_code=400, detail="service_product_id is required")
-    if not pickup:
+    if not pickup and not fare_preset_id:
         raise HTTPException(status_code=400, detail="pickup is required")
     if not customer_phone:
         raise HTTPException(status_code=400, detail="customer_phone is required")
@@ -3685,6 +3685,8 @@ def create_transport_booking(payload: dict, request: Request, db: Session = Depe
             fare_quote = preset_fare
         if not destination:
             destination = str(selected_preset.get("destination") or "").strip()
+        if not pickup:
+            pickup = str(selected_preset.get("pickup_hint") or "").strip() or "Preset pickup (to be confirmed)"
 
     if not destination:
         raise HTTPException(status_code=400, detail="destination is required")

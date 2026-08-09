@@ -740,6 +740,10 @@ export default function PartnerShopPage() {
       || filteredTransportServiceOptions[0]
       || transportListings[0]
       || null;
+    const hasSelectedPreset = Boolean(selectedFarePresetId);
+    const derivedPickup = String(transportForm.pickup || "").trim()
+      || String(selectedTransportPreset?.pickup_hint || "").trim()
+      || "Preset pickup (to be confirmed)";
     if (!bookingService?.id) {
       toast.error("Transport service select করুন অথবা service name লিখুন");
       return;
@@ -752,7 +756,7 @@ export default function PartnerShopPage() {
       toast.error("Mobile number দিন");
       return;
     }
-    if (!transportForm.pickup.trim()) {
+    if (!derivedPickup && !hasSelectedPreset) {
       toast.error("Pickup দিন");
       return;
     }
@@ -779,7 +783,7 @@ export default function PartnerShopPage() {
         vehicle_type: String(bookingService?.service_template_key || "cab").includes("bike") ? "bike_rental" : String(bookingService?.service_template_key || "cab").includes("car") ? "car_rental" : "cab",
         customer_name: transportForm.customer_name,
         customer_phone: transportForm.customer_phone,
-        pickup: transportForm.pickup,
+        pickup: derivedPickup,
         destination: transportForm.destination,
         fare_preset_id: selectedFarePresetId,
         travel_date: transportForm.travel_date,
