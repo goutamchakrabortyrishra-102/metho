@@ -445,7 +445,9 @@ export default function PartnerShopPage() {
     normalizeYoutubeUrl(paymentProfile?.business_facebook_url);
   const partnerBusinessFacebookUrl =
     normalizeFacebookUrl(p?.business_facebook_url) ||
-    normalizeFacebookUrl(paymentProfile?.business_facebook_url);
+    normalizeFacebookUrl(paymentProfile?.business_facebook_url) ||
+    normalizeFacebookUrl(p?.business_youtube_url) ||
+    normalizeFacebookUrl(paymentProfile?.business_youtube_url);
   const heroBannerSrc = data?.partner?.banner_url || "";
   const selectedTransportPreset = useMemo(() => {
     if (!Array.isArray(transportFarePresets) || !transportFarePresets.length) return null;
