@@ -1659,11 +1659,21 @@ export default function PartnerDashboardPage() {
                   </div>
                 ) : (
                   <div className="mt-4 grid grid-cols-2 md:grid-cols-4 gap-4">
-                    {transportItems.map((p) => (
-                      <div key={p.id} className="rounded-lg border border-border overflow-hidden bg-white">
+                    {transportItems.map((p) => {
+                      const hasPresetImage = String(p?.image_url || "").startsWith("data:image/svg+xml");
+                      const noRealImage = !p?.image_url || hasPresetImage;
+                      return (
+                      <div key={p.id} className={`rounded-lg border overflow-hidden bg-white ${noRealImage ? "border-amber-300" : "border-border"}`}>
                         <div className="aspect-square bg-secondary relative">
-                          <img src={getPreviewImageUrl(p) || undefined} alt={p.name} className="w-full h-full object-cover" />
-                          {getPdfUrl(p) ? (
+                          {noRealImage ? (
+                            <div className="w-full h-full flex flex-col items-center justify-center bg-amber-50 gap-2">
+                              <span className="text-[10px] font-bold text-amber-700 bg-amber-100 rounded-full px-2 py-0.5">No Image</span>
+                              <p className="text-[10px] text-amber-800 text-center px-2">Edit করে vehicle image upload করুন</p>
+                            </div>
+                          ) : (
+                            <img src={getPreviewImageUrl(p) || undefined} alt={p.name} className="w-full h-full object-cover" />
+                          )}
+                          {getPdfUrl(p) && !noRealImage ? (
                             <button
                               type="button"
                               onClick={() => window.open(getPdfUrl(p), "_blank")}
@@ -1686,7 +1696,7 @@ export default function PartnerDashboardPage() {
                               fixedListingType="service"
                               allowedServiceSectors={["Transport", "Logistics"]}
                               initialServiceSectorFilter="Transport"
-                              triggerLabel="Edit Transport"
+                              triggerLabel={noRealImage ? "Upload Image" : "Edit"}
                               dialogTitle="Edit Transport Listing"
                               dialogDescription="Update only this transport listing. Fare confirmation and trip execution stay in the transport tab."
                             />
@@ -1694,7 +1704,8 @@ export default function PartnerDashboardPage() {
                           </div>
                         </div>
                       </div>
-                    ))}
+                      );
+                    })}
                   </div>
                 )}
               </div>

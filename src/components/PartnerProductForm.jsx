@@ -642,7 +642,10 @@ export default function PartnerProductForm({
     const fallbackType = normalizeListingType(defaultListingType);
     const source = product || { ...EMPTY, listing_type: fallbackType };
     const resolved = hasFixedListingType ? forcedListingType : (product ? resolveListingType(source) : fallbackType);
-    setForm({ ...EMPTY, ...source, listing_type: resolved });
+    const rawImageUrl = String(source?.image_url || "");
+    // auto-clear preset SVG placeholder images so partner is prompted to upload a real one
+    const cleanedImageUrl = rawImageUrl.startsWith("data:image/svg+xml") ? "" : rawImageUrl;
+    setForm({ ...EMPTY, ...source, listing_type: resolved, image_url: cleanedImageUrl });
     setLocalPreviewUrl("");
   }, [product, defaultListingType, hasFixedListingType, forcedListingType]);
 
@@ -951,7 +954,6 @@ export default function PartnerProductForm({
               <p className="text-[11px] text-emerald-700 mt-1">If you upload a new image, the gallery image and regenerated PDF link will both update.</p>
             ) : null}
           </div>
-          )}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div><Label>{activeListingType === "service" ? "Booking Price (₹) *" : "Price (₹) *"}</Label><Input type="number" required value={form.price} onChange={(e) => setForm({ ...form, price: e.target.value })} className="mt-1" data-testid="my-prod-price" /></div>
             <div><Label>{activeListingType === "service" ? "Daily Slot / Capacity" : "Stock"}</Label><Input type="number" value={form.stock} onChange={(e) => setForm({ ...form, stock: e.target.value })} className="mt-1" data-testid="my-prod-stock" /></div>
