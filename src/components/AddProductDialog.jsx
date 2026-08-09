@@ -466,10 +466,17 @@ export default function AddProductDialog({
       }
 
       const savedProductId = String(data?.id || product?.id || "").trim();
-      if (savedProductId) {
-        await api.put(`/products/${savedProductId}/youtube-url`, {
-          youtube_url: form.youtube_url || "",
-        });
+      if (savedProductId && String(form.youtube_url || "").trim()) {
+        try {
+          await api.put(`/products/${savedProductId}/youtube-url`, {
+            youtube_url: form.youtube_url || "",
+          });
+        } catch (youtubeErr) {
+          const status = Number(youtubeErr?.response?.status || 0);
+          if (status !== 404 && status !== 405) {
+            throw youtubeErr;
+          }
+        }
       }
 
       resetForm();
