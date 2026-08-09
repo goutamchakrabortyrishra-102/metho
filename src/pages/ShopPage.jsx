@@ -17,8 +17,21 @@ const normalizeYoutubeUrl = (value) => {
   if (!raw) return "";
   if (/^https?:\/\//i.test(raw)) return raw;
   if (/^(www\.)?youtube\.com\//i.test(raw) || /^youtu\.be\//i.test(raw)) return `https://${raw}`;
+  if (/youtube\.com|youtu\.be/i.test(raw)) return `https://${raw}`;
+  if (/^[A-Za-z0-9_-]{11}$/i.test(raw)) return `https://www.youtube.com/watch?v=${raw}`;
   return "";
 };
+
+const getProductVideoUrl = (product) => normalizeYoutubeUrl(
+  product?.youtube_url ||
+  product?.youtubeUrl ||
+  product?.video_url ||
+  product?.videoUrl ||
+  product?.meta?.youtube_url ||
+  product?.product_meta?.youtube_url ||
+  product?.payload?.youtube_url ||
+  ""
+);
 
 const FALLBACK_IMAGE = "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 600 600'><rect width='600' height='600' fill='%23e2e8f0'/><text x='50%25' y='50%25' dominant-baseline='middle' text-anchor='middle' fill='%23475569' font-size='28' font-family='Arial, sans-serif'>METHO Product</text></svg>";
 
@@ -491,12 +504,12 @@ export default function ShopPage() {
                       {isOutOfStock ? "Out of Stock" : "Add to Cart"}
                     </Button>
                   )}
-                  {normalizeYoutubeUrl(p?.youtube_url) ? (
+                  {getProductVideoUrl(p) ? (
                     <Button
                       type="button"
                       variant="outline"
                       className="w-full mt-2 rounded-full text-xs"
-                      onClick={() => window.open(normalizeYoutubeUrl(p?.youtube_url), "_blank", "noopener,noreferrer")}
+                      onClick={() => window.open(getProductVideoUrl(p), "_blank", "noopener,noreferrer")}
                       data-testid={`shop-watch-video-${i}`}
                     >
                       Watch Video
@@ -541,12 +554,12 @@ export default function ShopPage() {
                 <span className="font-display font-black text-3xl text-emerald-950">₹{previewProduct?.price || 0}</span>
                 {Math.max(0, Number(previewProduct?.stock ?? 0)) <= 0 ? <span className="text-sm text-slate-500">Out of Stock</span> : null}
               </div>
-              {normalizeYoutubeUrl(previewProduct?.youtube_url) ? (
+              {getProductVideoUrl(previewProduct) ? (
                 <Button
                   type="button"
                   variant="outline"
                   className="w-full mt-3 rounded-full"
-                  onClick={() => window.open(normalizeYoutubeUrl(previewProduct?.youtube_url), "_blank", "noopener,noreferrer")}
+                  onClick={() => window.open(getProductVideoUrl(previewProduct), "_blank", "noopener,noreferrer")}
                   data-testid="shop-preview-watch-video"
                 >
                   Watch Video

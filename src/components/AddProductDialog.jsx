@@ -468,7 +468,7 @@ export default function AddProductDialog({
       const savedProductId = String(data?.id || product?.id || "").trim();
       if (savedProductId && String(form.youtube_url || "").trim()) {
         try {
-          await api.put(`/products/${savedProductId}/youtube-url`, {
+          await api.patch(`/products/${savedProductId}`, {
             youtube_url: form.youtube_url || "",
           });
         } catch (youtubeErr) {
