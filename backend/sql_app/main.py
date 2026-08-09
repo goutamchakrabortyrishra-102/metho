@@ -52,6 +52,9 @@ DEFAULT_ALLOWED_HOSTS = [
 ]
 
 CORS_ALLOW_ORIGINS = _csv_env("CORS_ALLOW_ORIGINS", DEFAULT_CORS_ORIGINS)
+for _required_origin in ("https://methoaayupay.com", "https://www.methoaayupay.com", "https://metho-bmz.pages.dev"):
+    if _required_origin not in CORS_ALLOW_ORIGINS:
+        CORS_ALLOW_ORIGINS.append(_required_origin)
 ALLOWED_HOSTS = _csv_env("ALLOWED_HOSTS", DEFAULT_ALLOWED_HOSTS)
 
 # Request-window limiter for brute-force and upload abuse mitigation.

@@ -1875,7 +1875,9 @@ export default function PartnerDashboardPage() {
                 {visibleTransportTrips.map((trip) => {
                   const required = Number(trip?.required_commission_reserve || 0);
                   const fare = Number(trip?.fare_final || trip?.fare_quote || 0);
+                  const walletBalance = Number(transportData?.wallet?.balance || 0);
                   const status = String(trip?.status || "booked");
+                  const walletShort = status === "booked" && required > 0 && walletBalance + 1e-9 < required;
                   const statusMeta = TRANSPORT_STATUS_META?.[status] || { label: status, tone: "bg-slate-100 text-slate-700 border-slate-200" };
                   return (
                     <div key={trip.id} className="rounded-xl border border-border p-4" data-testid={`partner-trip-${trip.id}`}>
@@ -1904,6 +1906,9 @@ export default function PartnerDashboardPage() {
                           </span>
                           <p className="text-xs text-slate-600 mt-1">Fare: {inr(fare)}</p>
                           <p className="text-xs text-amber-700">Reserve needed: {inr(required)}</p>
+                          {walletShort ? (
+                            <p className="text-xs font-semibold text-red-700 mt-1">Wallet balance low. Please top up wallet before confirming.</p>
+                          ) : null}
                         </div>
                       </div>
 
@@ -1921,8 +1926,8 @@ export default function PartnerDashboardPage() {
                           <Button variant="outline" className="rounded-full" onClick={() => updateTripFare(trip.id)}>
                             Save Final Fare
                           </Button>
-                          <Button className="rounded-full bg-emerald-900 hover:bg-emerald-950 text-white" onClick={() => confirmTripBooking(trip.id)}>
-                            <CheckCircle2 className="w-4 h-4 mr-1" /> Confirm + Lock Fare + Auto Approve
+                          <Button className="rounded-full bg-emerald-900 hover:bg-emerald-950 text-white" onClick={() => confirmTripBooking(trip.id)} disabled={walletShort}>
+                            <CheckCircle2 className="w-4 h-4 mr-1" /> {walletShort ? "Wallet topup korun" : "Confirm + Lock Fare + Auto Approve"}
                           </Button>
                         </div>
                       ) : null}
