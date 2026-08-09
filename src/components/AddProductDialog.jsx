@@ -464,6 +464,14 @@ export default function AddProductDialog({
       } else {
         toast.success("Product added!");
       }
+
+      const savedProductId = String(data?.id || product?.id || "").trim();
+      if (savedProductId) {
+        await api.put(`/products/${savedProductId}/youtube-url`, {
+          youtube_url: form.youtube_url || "",
+        });
+      }
+
       resetForm();
       setOpen(false);
       onCreated && onCreated();

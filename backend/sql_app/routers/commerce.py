@@ -509,6 +509,20 @@ def patch_product(product_id: str, payload: dict, db: Session = Depends(get_db),
     }
 
 
+@router.put("/products/{product_id}/youtube-url")
+def update_product_youtube_url(product_id: str, payload: dict, db: Session = Depends(get_db), current_user=Depends(get_current_user)):
+    if current_user.role not in ("super_admin", "company_admin", "admin"):
+        raise HTTPException(status_code=403, detail="Insufficient permissions")
+
+    product = db.query(Product).filter(Product.id == product_id).first()
+    partner_product = db.query(PartnerProduct).filter(PartnerProduct.id == product_id).first()
+    if not product and not partner_product:
+        raise HTTPException(status_code=404, detail="Product not found")
+
+    saved = _set_product_youtube_url(db, product_id, str(payload.get("youtube_url") or ""))
+    return {"ok": True, "id": product_id, "youtube_url": saved}
+
+
 @router.delete("/products/{product_id}")
 def delete_product(product_id: str, db: Session = Depends(get_db), current_user=Depends(get_current_user)):
     if current_user.role not in ("super_admin", "company_admin", "admin"):
