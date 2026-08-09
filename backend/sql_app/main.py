@@ -55,6 +55,7 @@ CORS_ALLOW_ORIGINS = _csv_env("CORS_ALLOW_ORIGINS", DEFAULT_CORS_ORIGINS)
 for _required_origin in ("https://methoaayupay.com", "https://www.methoaayupay.com", "https://metho-bmz.pages.dev"):
     if _required_origin not in CORS_ALLOW_ORIGINS:
         CORS_ALLOW_ORIGINS.append(_required_origin)
+ALLOW_CREDENTIALS = "*" not in CORS_ALLOW_ORIGINS
 ALLOWED_HOSTS = _csv_env("ALLOWED_HOSTS", DEFAULT_ALLOWED_HOSTS)
 
 # Request-window limiter for brute-force and upload abuse mitigation.
@@ -394,7 +395,7 @@ app.add_middleware(
     CORSMiddleware,
     allow_origins=CORS_ALLOW_ORIGINS,
     allow_origin_regex=r"https://([a-z0-9-]+\.)*metho-bmz\.pages\.dev",
-    allow_credentials=True,
+    allow_credentials=ALLOW_CREDENTIALS,
     allow_methods=["*"],
     allow_headers=["*"],
 )

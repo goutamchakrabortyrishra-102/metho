@@ -5020,10 +5020,13 @@ async def my_monthly_projection(user: dict = Depends(get_current_user)):
 # ===================== MOUNT =====================
 app.include_router(api_router)
 
+_cors_origins = [item.strip() for item in str(os.environ.get('CORS_ORIGINS', '*') or '*').split(',') if item.strip()]
+_allow_credentials = '*' not in _cors_origins
+
 app.add_middleware(
     CORSMiddleware,
-    allow_credentials=True,
-    allow_origins=os.environ.get('CORS_ORIGINS', '*').split(','),
+    allow_credentials=_allow_credentials,
+    allow_origins=_cors_origins,
     allow_methods=["*"],
     allow_headers=["*"],
 )
