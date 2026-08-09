@@ -1052,17 +1052,33 @@ export default function PartnerGalleryPage() {
                     {outOfStock ? (
                       <Button disabled className="w-full mt-2 rounded-full h-9">Out of Stock</Button>
                     ) : isService ? (
-                      <Button
-                        type="button"
-                        onClick={e => {
-                          e.stopPropagation();
-                          handleBookNow(p);
-                        }}
-                        className={`w-full mt-2 rounded-full h-9 text-white ${isTransport ? "bg-sky-700 hover:bg-sky-800" : "bg-emerald-900 hover:bg-emerald-950"}`}
-                        data-testid={`quick-add-${p.id}`}
-                      >
-                        Book Now
-                      </Button>
+                      <div className="mt-2 space-y-2">
+                        <Button
+                          type="button"
+                          onClick={e => {
+                            e.stopPropagation();
+                            handleBookNow(p);
+                          }}
+                          className={`w-full rounded-full h-9 text-white ${isTransport ? "bg-sky-700 hover:bg-sky-800" : "bg-emerald-900 hover:bg-emerald-950"}`}
+                          data-testid={`quick-add-${p.id}`}
+                        >
+                          Book Now
+                        </Button>
+                        {normalizeYoutubeUrl(p?.youtube_url) ? (
+                          <Button
+                            type="button"
+                            variant="outline"
+                            className="w-full rounded-full h-9"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              window.open(normalizeYoutubeUrl(p?.youtube_url), "_blank", "noopener,noreferrer");
+                            }}
+                            data-testid={`gallery-watch-video-${p.id}`}
+                          >
+                            Watch Video
+                          </Button>
+                        ) : null}
+                      </div>
                     ) : qty > 0 ? (
                       <div className="mt-2 space-y-2" onClick={(e) => e.stopPropagation()}>
                         <div
