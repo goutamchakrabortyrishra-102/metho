@@ -54,6 +54,7 @@ const getTransportRatePerKm = (service) => {
     service?.price_per_km,
     service?.transport_rate,
     service?.km_rate,
+    service?.price,
   ];
   for (const value of candidates) {
     const parsed = Number(value);
@@ -730,7 +731,12 @@ export default function PartnerShopPage() {
   };
 
   const submitTransportBooking = async () => {
+    const presetServiceId = String(selectedTransportPreset?.service_product_id || "").trim();
+    const presetService = presetServiceId
+      ? transportListings.find((item) => String(item?.id || "") === presetServiceId) || null
+      : null;
     const bookingService = transportService
+      || presetService
       || filteredTransportServiceOptions[0]
       || transportListings[0]
       || null;
@@ -764,6 +770,9 @@ export default function PartnerShopPage() {
       }
       const manualMemberRef = String(guestMemberRef || "").trim();
       const autoMemberRef = normalizedRole === "member" ? String(user?.id || "").trim() : "";
+      const routeEstimatedFare = Number(transportFareEstimate?.amount || 0);
+      const routeDistanceKm = Number(transportFareEstimate?.distanceKm || 0);
+      const routeRatePerKm = Number(transportFareEstimate?.ratePerKm || 0);
       const { data } = await api.post("/transport/bookings", {
         partner_code: partnerCode,
         service_product_id: bookingService.id,
@@ -776,6 +785,9 @@ export default function PartnerShopPage() {
         travel_date: transportForm.travel_date,
         notes: transportForm.notes,
         member_ref: manualMemberRef || autoMemberRef,
+        estimated_fare: transportFareEstimate?.source === "route" && routeEstimatedFare > 0 ? routeEstimatedFare : null,
+        estimated_distance_km: transportFareEstimate?.source === "route" && routeDistanceKm > 0 ? routeDistanceKm : null,
+        estimated_rate_per_km: transportFareEstimate?.source === "route" && routeRatePerKm > 0 ? routeRatePerKm : null,
       });
       setTransportBooking(data?.booking || null);
       if (data?.partner_whatsapp_url) {
@@ -1188,7 +1200,6 @@ export default function PartnerShopPage() {
                         value={transportServiceSearch}
                         onChange={(e) => {
                           setTransportServiceSearch(e.target.value);
-                          if (transportService?.id) setTransportService(null);
                         }}
                         placeholder="Type cab / car rental / bike rental"
                         className="h-10 border-0 px-2 shadow-none focus-visible:ring-0"

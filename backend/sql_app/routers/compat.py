@@ -11,6 +11,7 @@ import zipfile
 import os
 import urllib.error
 import urllib.request
+from urllib.parse import quote
 from PIL import Image
 
 from fastapi import APIRouter, Depends, File, HTTPException, Query, Request, UploadFile
@@ -3634,6 +3635,7 @@ def create_transport_booking(payload: dict, request: Request, db: Session = Depe
     vehicle_type = str((payload or {}).get("vehicle_type") or "").strip().lower()
     travel_date = str((payload or {}).get("travel_date") or "").strip()
     fare_preset_id = str((payload or {}).get("fare_preset_id") or "").strip()
+    estimated_fare_raw = (payload or {}).get("estimated_fare")
 
     if not partner_code:
         raise HTTPException(status_code=400, detail="partner_code is required")
@@ -3666,6 +3668,12 @@ def create_transport_booking(payload: dict, request: Request, db: Session = Depe
         raise HTTPException(status_code=400, detail="Selected service is not configured as transport")
 
     fare_quote = round(max(1.0, float(service.price or 0)), 2)
+    try:
+        estimated_fare = round(max(1.0, float(estimated_fare_raw or 0)), 2)
+    except Exception:
+        estimated_fare = 0
+    if estimated_fare > 0:
+        fare_quote = estimated_fare
     selected_preset = None
     if fare_preset_id:
         presets = _load_transport_fare_presets(db, partner.id)
