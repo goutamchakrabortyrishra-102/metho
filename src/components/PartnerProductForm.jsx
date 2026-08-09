@@ -772,7 +772,7 @@ export default function PartnerProductForm({
         ...form,
         name: isTransportOnly ? String(form.name || "").trim() || "book now" : String(form.name || "").trim(),
         category: isTransportOnly ? String(form.category || "").trim() || "General" : String(form.category || "").trim(),
-        price: Number(isTransportOnly ? (form.price || 0) : form.price),
+        price: Number(isTransportOnly ? (form.price || 1) : form.price),
         stock: Number(form.stock || (isService ? 1 : 0)),
         discount_percent: Number(form.discount_percent || 0),
         gst_percent: Number(form.gst_percent || 0),
