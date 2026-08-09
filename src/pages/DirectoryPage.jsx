@@ -43,7 +43,7 @@ export default function DirectoryPage() {
     const queryQ = String(searchParams.get("q") || "").trim();
     const queryType = String(searchParams.get("business_type") || "").trim();
     const queryCategory = String(searchParams.get("category") || "").trim();
-    const queryShopSector = String(searchParams.get("shop_sector") || "").trim().toLowerCase();
+    const queryShopSector = String(searchParams.get("shop_sector") || "").trim();
     const queryCity = String(searchParams.get("city") || "").trim();
     const queryPincode = normalizePincode(searchParams.get("pincode") || "");
 
@@ -60,10 +60,10 @@ export default function DirectoryPage() {
     if (!quick) return;
     const quickMap = {
       products: { q: "", type: "All", shop_sector: "" },
-      vegetables: { q: "", type: "All", shop_sector: "vegetables" },
-      grocery: { q: "", type: "All", shop_sector: "grocery" },
-      "cosmetics-beauty": { q: "", type: "All", shop_sector: "cosmetics-beauty" },
-      others: { q: "", type: "All", shop_sector: "others" },
+      vegetables: { q: "", type: "All", shop_sector: "Vegetables" },
+      grocery: { q: "", type: "All", shop_sector: "Grocery" },
+      "cosmetics-beauty": { q: "", type: "All", shop_sector: "Cosmetics & Beauty" },
+      others: { q: "", type: "All", shop_sector: "Others" },
       transport: { q: "transport cab taxi rental bike logistics", type: "Service Provider" },
       "stay-dining": { q: "hotel homestay restaurant cafe", type: "Service Provider" },
       doorstep: { q: "home service cleaning repair laundry courier", type: "Service Provider" },
