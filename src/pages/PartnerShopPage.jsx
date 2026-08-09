@@ -17,6 +17,8 @@ const normalizeYoutubeUrl = (value) => {
   if (!raw) return "";
   if (/^https?:\/\//i.test(raw)) return raw;
   if (/^(www\.)?youtube\.com\//i.test(raw) || /^youtu\.be\//i.test(raw)) return `https://${raw}`;
+  if (/youtube\.com|youtu\.be/i.test(raw)) return `https://${raw}`;
+  if (/^[A-Za-z0-9_-]{11}$/i.test(raw)) return `https://www.youtube.com/watch?v=${raw}`;
   return "";
 };
 
@@ -426,7 +428,9 @@ export default function PartnerShopPage() {
   }, [user]);
 
   const p = data?.partner;
-  const partnerBusinessYoutubeUrl = normalizeYoutubeUrl(p?.business_youtube_url);
+  const partnerBusinessYoutubeUrl = normalizeYoutubeUrl(
+    p?.business_youtube_url || paymentProfile?.business_youtube_url
+  );
   const partnerBusinessFacebookUrl = normalizeFacebookUrl(p?.business_facebook_url);
   const heroBannerSrc = data?.partner?.banner_url || "";
   const selectedTransportPreset = useMemo(() => {
