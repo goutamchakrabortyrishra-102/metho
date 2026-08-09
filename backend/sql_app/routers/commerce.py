@@ -17,6 +17,10 @@ def _product_code_key(product_id: str) -> str:
     return f"product_code:{product_id}"
 
 
+def _product_youtube_key(product_id: str) -> str:
+    return f"product_youtube:{product_id}"
+
+
 def _list_existing_codes(db: Session) -> set[str]:
     rows = db.query(AppSetting).filter(AppSetting.key.like("product_code:%")).all()
     out: set[str] = set()
@@ -150,16 +154,40 @@ def _set_product_hidden_flag(db: Session, product_id: str, hidden: bool) -> bool
 def _get_product_youtube_map(db: Session) -> dict:
     settings = load_settings(db)
     youtube_map = settings.get("product_youtube_map")
-    return youtube_map if isinstance(youtube_map, dict) else {}
+    merged = dict(youtube_map if isinstance(youtube_map, dict) else {})
+    rows = db.query(AppSetting).filter(AppSetting.key.like("product_youtube:%")).all()
+    for row in rows:
+        product_id = str(row.key or "").split("product_youtube:", 1)[-1].strip()
+        if not product_id:
+            continue
+        value = str(row.value_json or "").strip()
+        if value:
+            merged[product_id] = value
+        elif product_id in merged:
+            merged.pop(product_id, None)
+    return merged
 
 
 def _set_product_youtube_url(db: Session, product_id: str, youtube_url: str) -> str:
     youtube_map = _get_product_youtube_map(db)
     normalized = str(youtube_url or "").strip()
+    product_key = str(product_id)
+    setting_key = _product_youtube_key(product_key)
+
+    row = db.query(AppSetting).filter(AppSetting.key == setting_key).first()
     if normalized:
-        youtube_map[str(product_id)] = normalized
+        youtube_map[product_key] = normalized
+        if not row:
+            db.add(AppSetting(key=setting_key, value_json=normalized, updated_at=datetime.now(timezone.utc)))
+        else:
+            row.value_json = normalized
+            row.updated_at = datetime.now(timezone.utc)
     else:
-        youtube_map.pop(str(product_id), None)
+        youtube_map.pop(product_key, None)
+        if row:
+            db.delete(row)
+
+    db.commit()
     save_settings(db, {"product_youtube_map": youtube_map})
     return normalized
 
@@ -537,6 +565,7 @@ def delete_product(product_id: str, db: Session = Depends(get_db), current_user=
         db.delete(product)
         try:
             db.commit()
+            _set_product_youtube_url(db, product_id, "")
             return {"ok": True, "id": product_id, "mode": "hard"}
         except IntegrityError:
             # Product has dependent rows (typically order history). Hide instead of failing.
@@ -552,6 +581,7 @@ def delete_product(product_id: str, db: Session = Depends(get_db), current_user=
     if partner_product:
         db.delete(partner_product)
         db.commit()
+        _set_product_youtube_url(db, product_id, "")
         _set_product_hidden_flag(db, product_id, True)
         return {"ok": True, "id": product_id, "mode": "hard"}
 
