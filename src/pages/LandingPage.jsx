@@ -434,7 +434,7 @@ const Hero = () => {
                   <span className="text-[10px] text-slate-500">4 parts</span>
                 </div>
                 <div className="mt-2 grid grid-cols-2 gap-2">
-                  <Link to="/directory?quick=vegetables" className="rounded-lg border border-emerald-200 bg-emerald-50/50 px-2.5 py-2 text-sm font-semibold hover:bg-emerald-100 transition-colors" data-testid="hero-product-vegetables">
+                  <Link to="/directory?quick=vegetables&shop_sector=Vegetables" className="rounded-lg border border-emerald-200 bg-emerald-50/50 px-2.5 py-2 text-sm font-semibold hover:bg-emerald-100 transition-colors" data-testid="hero-product-vegetables">
                     Vegetables
                   </Link>
                   <Link to="/directory?quick=grocery" className="rounded-lg border border-emerald-200 bg-emerald-50/50 px-2.5 py-2 text-sm font-semibold hover:bg-emerald-100 transition-colors" data-testid="hero-product-grocery">
@@ -554,7 +554,7 @@ const Hero = () => {
           </div>
 
           <Link
-            to="/directory?quick=vegetables"
+            to="/directory?quick=vegetables&shop_sector=Vegetables"
             className="mt-4 block"
             data-testid="landing-highlight-vegetables"
           >

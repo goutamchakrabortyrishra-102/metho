@@ -614,6 +614,41 @@ export default function PartnerDashboardPage() {
     } catch {}
   };
 
+  const deleteTransportImage = async (item) => {
+    if (!item?.id) return;
+    if (!window.confirm("Delete uploaded image for this transport listing?")) return;
+    try {
+      const listingType = String(item?.listing_type || item?.item_kind || "service").toLowerCase().includes("service")
+        ? "service"
+        : "product";
+      const isService = listingType === "service" || Boolean(item?.is_service);
+      const payload = {
+        ...item,
+        name: String(item?.name || "").trim(),
+        category: String(item?.category || "").trim(),
+        description: String(item?.description || ""),
+        price: Number(item?.price || 0),
+        stock: Number(item?.stock || (isService ? 1 : 0)),
+        discount_percent: Number(item?.discount_percent || 0),
+        gst_percent: Number(item?.gst_percent || 0),
+        image_url: "",
+        pdf_url: "",
+        listing_type: isService ? "service" : "product",
+        item_kind: isService ? "service" : "product",
+        is_service: isService,
+        service_booking_enabled: isService,
+        service_invoice_mode: isService ? String(item?.service_invoice_mode || "detailed").toLowerCase() : "detailed",
+        service_template_key: isService ? String(item?.service_template_key || "").trim() : "",
+        unit_type: isService ? "piece" : String(item?.unit_type || "piece").toLowerCase(),
+      };
+      await api.put(`/partner/products/${item.id}`, payload);
+      toast.success("Transport image deleted");
+      loadAll();
+    } catch (err) {
+      toast.error(err?.response?.data?.detail || "Image delete failed");
+    }
+  };
+
   const uploadTopupProof = async (e) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -1673,15 +1708,6 @@ export default function PartnerDashboardPage() {
                           ) : (
                             <img src={getPreviewImageUrl(p) || undefined} alt={p.name} className="w-full h-full object-cover" />
                           )}
-                          {getPdfUrl(p) && !noRealImage ? (
-                            <button
-                              type="button"
-                              onClick={() => window.open(getPdfUrl(p), "_blank")}
-                              className="absolute left-2 top-2 rounded-full bg-white/90 text-emerald-900 px-2.5 py-1 text-[10px] font-bold"
-                            >
-                              Open Preview
-                            </button>
-                          ) : null}
                         </div>
                         <div className="p-3">
                           <p className="text-[10px] uppercase tracking-widest text-sky-700 font-semibold">Transport</p>
@@ -1700,6 +1726,16 @@ export default function PartnerDashboardPage() {
                               dialogTitle="Edit Transport Listing"
                               dialogDescription="Update only this transport listing. Fare confirmation and trip execution stay in the transport tab."
                             />
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              className="rounded-full border-amber-300 text-amber-800 hover:bg-amber-50 h-7 px-2 text-[11px]"
+                              onClick={() => deleteTransportImage(p)}
+                              data-testid={`del-my-transport-image-${p.id}`}
+                              disabled={noRealImage}
+                            >
+                              Delete Image
+                            </Button>
                             <Button size="sm" variant="outline" className="rounded-full border-red-300 text-red-700 hover:bg-red-50 h-7 px-2 text-[11px]" onClick={() => deleteProduct(p.id)} data-testid={`del-my-transport-${p.id}`}>Delete</Button>
                           </div>
                         </div>

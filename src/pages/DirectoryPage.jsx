@@ -61,6 +61,7 @@ export default function DirectoryPage() {
     const quickMap = {
       products: { q: "", type: "All", shop_sector: "" },
       vegetables: { q: "", type: "All", shop_sector: "Vegetables" },
+      vegetabels: { q: "", type: "All", shop_sector: "Vegetables" },
       grocery: { q: "", type: "All", shop_sector: "Grocery" },
       "cosmetics-beauty": { q: "", type: "All", shop_sector: "Cosmetics & Beauty" },
       others: { q: "", type: "All", shop_sector: "Others" },

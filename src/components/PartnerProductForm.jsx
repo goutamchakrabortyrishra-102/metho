@@ -741,7 +741,7 @@ export default function PartnerProductForm({
         image_url: imageUrl || prev.image_url || "",
         pdf_url: pdfUrl || prev.pdf_url || "",
       }));
-      if (imageUrl && pdfUrl) toast.success("Image and PDF saved");
+      if (imageUrl && pdfUrl) toast.success(isTransportOnlyTemplateMode ? "Image saved (PDF auto-generated)" : "Image and PDF saved");
       else if (imageUrl) toast.success("Image saved");
       else if (pdfUrl) toast.success("PDF link saved");
       else toast.success("Upload completed");
@@ -851,7 +851,9 @@ export default function PartnerProductForm({
           </div>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div><Label>Category *</Label><Input required value={form.category} onChange={(e) => setForm({ ...form, category: e.target.value })} className="mt-1" data-testid="my-prod-cat" /></div>
-            <div><Label>PDF Link</Label><Input value={form.pdf_url || ""} onChange={(e) => setForm({ ...form, pdf_url: e.target.value })} className="mt-1" placeholder="https://...pdf" data-testid="my-prod-pdf" /></div>
+            {isTransportOnlyTemplateMode ? null : (
+              <div><Label>PDF Link</Label><Input value={form.pdf_url || ""} onChange={(e) => setForm({ ...form, pdf_url: e.target.value })} className="mt-1" placeholder="https://...pdf" data-testid="my-prod-pdf" /></div>
+            )}
           </div>
           {activeListingType === "service" && !isTransportOnlyTemplateMode ? (
             <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-3 space-y-3" data-testid="service-template-block">
@@ -887,10 +889,10 @@ export default function PartnerProductForm({
             </div>
           ) : null}
           <div>
-            <Label>{isTransportOnlyTemplateMode ? "Vehicle Image + PDF" : (activeListingType === "service" ? "Image Upload (Optional for Service)" : "Image Upload (Saved as PDF)")}</Label>
+            <Label>{isTransportOnlyTemplateMode ? "Vehicle Image" : (activeListingType === "service" ? "Image Upload (Optional for Service)" : "Image Upload (Saved as PDF)")}</Label>
             {isTransportOnlyTemplateMode ? (
               <p className="mt-1.5 text-[11px] text-emerald-900">
-                Transport listing-এ uploaded car model image + PDF link ব্যবহার হবে। Preset template / fare setup ছাড়াই public card-এ Book Now default দেখাবে।
+                Transport listing-এ শুধু vehicle image upload হবে। Public card-এ Book Now button দেখাবে।
               </p>
             ) : null}
             <div className="mt-1.5 flex flex-wrap items-center gap-3">
@@ -913,10 +915,10 @@ export default function PartnerProductForm({
                 {uploadingImage ? (
                   <><Loader2 className="w-4 h-4 mr-2 animate-spin" /> Uploading...</>
                 ) : (
-                  <><Upload className="w-4 h-4 mr-2" /> {product?.id ? "Change Image / PDF" : "Upload Image / PDF"}</>
+                  <><Upload className="w-4 h-4 mr-2" /> {isTransportOnlyTemplateMode ? (product?.id ? "Change Image" : "Upload Image") : (product?.id ? "Change Image / PDF" : "Upload Image / PDF")}</>
                 )}
               </Button>
-              {localPreviewUrl || form.image_url || form.pdf_url ? (
+              {localPreviewUrl || form.image_url || (!isTransportOnlyTemplateMode && form.pdf_url) ? (
                 <div className="relative">
                   <img
                     src={localPreviewUrl || form.image_url || "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 400 400'><defs><linearGradient id='g' x1='0' y1='0' x2='1' y2='1'><stop offset='0%25' stop-color='%23eff6ff'/><stop offset='100%25' stop-color='%23ecfdf5'/></linearGradient></defs><rect width='400' height='400' rx='28' fill='url(%23g)'/><rect x='62' y='54' width='276' height='292' rx='26' fill='%23ffffff' stroke='%23cbd5e1' stroke-width='4'/><circle cx='142' cy='142' r='22' fill='%23f59e0b' opacity='0.95'/><path d='M95 292 L162 220 L213 262 L260 208 L305 292 Z' fill='%2394a3b8' opacity='0.35'/><path d='M95 292 H305' stroke='%2394a3b8' stroke-width='5' stroke-linecap='round'/><text x='200' y='330' text-anchor='middle' fill='%230f766e' font-size='20' font-family='Arial' font-weight='700'>Image Preview</text></svg>"}
@@ -946,11 +948,11 @@ export default function PartnerProductForm({
                 </div>
               )}
             </div>
-            <p className="text-[11px] text-muted-foreground mt-1">JPG/PNG/WebP/GIF/SVG, max 5MB. Upload করলে gallery-র জন্য image URL আর catalog preview-র জন্য PDF link দুটোই save হবে.</p>
-            {form.pdf_url ? (
+            <p className="text-[11px] text-muted-foreground mt-1">{isTransportOnlyTemplateMode ? "JPG/PNG/WebP/GIF/SVG, max 5MB. Upload করলে image URL save হবে এবং PDF auto-generate হবে." : "JPG/PNG/WebP/GIF/SVG, max 5MB. Upload করলে gallery-র জন্য image URL আর catalog preview-র জন্য PDF link দুটোই save হবে."}</p>
+            {!isTransportOnlyTemplateMode && form.pdf_url ? (
               <p className="text-[11px] text-emerald-700 mt-1 break-all">PDF: {form.pdf_url}</p>
             ) : null}
-            {product?.id ? (
+            {product?.id && !isTransportOnlyTemplateMode ? (
               <p className="text-[11px] text-emerald-700 mt-1">If you upload a new image, the gallery image and regenerated PDF link will both update.</p>
             ) : null}
           </div>
