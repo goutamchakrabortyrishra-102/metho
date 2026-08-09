@@ -340,6 +340,7 @@ export default function PartnerShopPage() {
   const [doorstepSearch, setDoorstepSearch] = useState("");
   const [serviceSearch, setServiceSearch] = useState("");
   const [transportService, setTransportService] = useState(null);
+  const [transportBookingMode, setTransportBookingMode] = useState("template");
   const [transportBusy, setTransportBusy] = useState(false);
   const [transportBooking, setTransportBooking] = useState(null);
   const [transportFarePresets, setTransportFarePresets] = useState([]);
@@ -598,7 +599,8 @@ export default function PartnerShopPage() {
 
   const selectTransportBookingService = (nextService) => {
     setTransportService(nextService || null);
-    setTransportServiceSearch(nextService ? `${nextService?.name || ""}${nextService?.category ? ` (${nextService.category})` : ""}`.trim() : "");
+    setTransportServiceSearch("");
+    setTransportBookingMode("template");
     setSelectedFarePresetId("");
     setTransportFarePresets([]);
     setTransportBooking(null);
@@ -692,7 +694,8 @@ export default function PartnerShopPage() {
   const openTransportBookingDesk = (service) => {
     if (!service?.id) return;
     setTransportService(service);
-    setTransportServiceSearch(`${service?.name || ""}${service?.category ? ` (${service.category})` : ""}`.trim());
+    setTransportServiceSearch("");
+    setTransportBookingMode("template");
     setTransportForm({
       customer_name: isMemberOrCustomer ? (user?.name || "") : "",
       customer_phone: isMemberOrCustomer ? (user?.phone || "") : "",
@@ -754,7 +757,8 @@ export default function PartnerShopPage() {
     try {
       if (!transportService?.id) {
         setTransportService(bookingService);
-        setTransportServiceSearch(`${bookingService?.name || ""}${bookingService?.category ? ` (${bookingService.category})` : ""}`.trim());
+        setTransportServiceSearch("");
+        setTransportBookingMode("template");
         void loadTransportFarePresets(bookingService.id);
       }
       const manualMemberRef = String(guestMemberRef || "").trim();
@@ -1148,12 +1152,29 @@ export default function PartnerShopPage() {
                 <div>
                   <p className="text-[10px] uppercase tracking-widest text-emerald-800 font-semibold">Guest / Customer / Member Booking</p>
                   <h3 className="font-display font-bold text-emerald-950 text-lg mt-1">Transport Booking Desk</h3>
-                  <p className="text-sm text-slate-600 mt-2">Service select করে pickup, destination, Google Maps route, date-time এবং note submit করুন। Booking partner dashboard-এ যাবে, তারপর fare final করে partner confirm করতে পারবে।</p>
+                    <p className="text-sm text-slate-600 mt-2">Service template select করে বা pickup/destination দিয়ে booking দিন. দুটো mode-ই একই booking desk থেকে কাজ করবে।</p>
                 </div>
                 <Button type="button" variant="outline" className="rounded-full" onClick={() => setTransportActiveTab("services")}>
                   Back to Services
                 </Button>
               </div>
+
+                <div className="mt-4 inline-flex rounded-full border border-sky-200 bg-sky-50 p-1">
+                  <button
+                    type="button"
+                    onClick={() => setTransportBookingMode("template")}
+                    className={`rounded-full px-4 py-1.5 text-xs font-semibold ${transportBookingMode === "template" ? "bg-sky-700 text-white" : "text-sky-900 hover:bg-white"}`}
+                  >
+                    Service Template
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setTransportBookingMode("route")}
+                    className={`rounded-full px-4 py-1.5 text-xs font-semibold ${transportBookingMode === "route" ? "bg-sky-700 text-white" : "text-sky-900 hover:bg-white"}`}
+                  >
+                    Pickup / Destination
+                  </button>
+                </div>
 
               {!user ? <p className="text-[11px] text-amber-700 mt-3">Guest mode active: Member ID/Code দিলে reward attribution হবে, না দিলে guest booking হবে।</p> : null}
 
@@ -1186,7 +1207,9 @@ export default function PartnerShopPage() {
                             </span>
                             <span className="shrink-0 text-xs font-semibold text-emerald-800">₹{Number(service?.price || 0).toLocaleString("en-IN")}</span>
                           </button>
-                        )) : (
+                        )) : transportService ? (
+                          <p className="px-3 py-2 text-sm text-emerald-700">Selected service loaded. Clear search to browse other transport templates.</p>
+                        ) : (
                           <p className="px-3 py-2 text-sm text-slate-500">No transport service found for this search.</p>
                         )}
                       </div>
@@ -1197,7 +1220,7 @@ export default function PartnerShopPage() {
                     <div className="rounded-xl border border-sky-200 bg-sky-50/70 px-4 py-3">
                       <div className="flex flex-wrap items-start justify-between gap-3">
                         <div>
-                          <p className="text-[10px] uppercase tracking-widest text-sky-700 font-semibold">Selected Service</p>
+                          <p className="text-[10px] uppercase tracking-widest text-sky-700 font-semibold">Selected Service Template</p>
                           <p className="font-display font-bold text-emerald-950 mt-1">{transportService?.name}</p>
                           <p className="text-xs text-slate-600 mt-1">{transportService?.category || "Transport"} · Base price ₹{Number(transportService?.price || 0).toLocaleString("en-IN")}</p>
                         </div>
@@ -1206,7 +1229,7 @@ export default function PartnerShopPage() {
                     </div>
                   ) : (
                     <div className="rounded-xl border border-dashed border-emerald-200 bg-emerald-50/60 px-4 py-5 text-sm text-slate-600">
-                      আগে transport service select করুন, তারপর booking details fill করুন।
+                      আগে transport service template select করুন, তারপর pickup/destination fill করুন।
                     </div>
                   )}
 
@@ -1258,7 +1281,7 @@ export default function PartnerShopPage() {
                         setSelectedFarePresetId("");
                         setTransportForm((prev) => ({ ...prev, destination: e.target.value }));
                       }}
-                      placeholder="Destination"
+                      placeholder={transportBookingMode === "template" ? "Destination (or select preset)" : "Destination"}
                       className="h-10"
                     />
                   </div>
