@@ -552,6 +552,25 @@ const Hero = () => {
               </div>
             </div>
           </div>
+
+          <Link
+            to="/directory?quick=vegetables"
+            className="mt-4 block"
+            data-testid="landing-highlight-vegetables"
+          >
+            <div className="rounded-[26px] border border-red-300 bg-gradient-to-r from-red-700 via-red-600 to-red-500 px-5 py-4 text-white shadow-[0_20px_44px_rgba(185,28,28,0.28)] transition-transform hover:-translate-y-0.5">
+              <div className="flex items-center justify-between gap-3">
+                <div>
+                  <p className="text-[10px] uppercase tracking-[0.24em] text-red-100 font-bold">Product Sector</p>
+                  <p className="mt-1 font-display font-black text-xl leading-tight">Vegetables</p>
+                  <p className="mt-1 text-sm text-red-50/90">Fresh vegetable partner shops quickly browse করুন.</p>
+                </div>
+                <div className="shrink-0 rounded-2xl border border-white/20 bg-white/10 p-3">
+                  <ArrowRight className="w-5 h-5" />
+                </div>
+              </div>
+            </div>
+          </Link>
         </motion.div>
       </div>
 
