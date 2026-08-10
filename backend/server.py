@@ -3,7 +3,7 @@ METHO AAY-UPAY ERP v3.0 - Backend Server
 Powered by METHO Logistics Pvt. Ltd.
 FastAPI + MongoDB + JWT Auth
 """
-from fastapi import FastAPI, APIRouter, HTTPException, Depends, status, Header, UploadFile, File, Response, Body
+from fastapi import FastAPI, APIRouter, HTTPException, Depends, status, Header, UploadFile, File, Response, Body, Query
 from fastapi.responses import StreamingResponse, FileResponse
 from dotenv import load_dotenv
 from starlette.middleware.cors import CORSMiddleware
@@ -13,6 +13,11 @@ import logging
 import uuid
 import jwt
 import bcrypt
+import base64
+import hashlib
+import hmac
+import json
+import secrets
 from io import BytesIO
 from pathlib import Path
 import mimetypes
@@ -211,6 +216,133 @@ def create_token(user_id: str, role: str) -> str:
     }
     return jwt.encode(payload, JWT_SECRET, algorithm=JWT_ALGORITHM)
 
+
+CUSTOMER_ACCESS_MODES = {"mobile_only", "mobile_otp"}
+
+
+def _normalize_customer_phone(raw: str | None) -> str:
+    digits = "".join(ch for ch in str(raw or "") if ch.isdigit())
+    if len(digits) == 11 and digits.startswith("0"):
+        digits = digits[1:]
+    if len(digits) == 10:
+        return f"91{digits}"
+    if len(digits) > 12:
+        return digits[-12:]
+    return digits
+
+
+def _phone_local10(normalized: str | None) -> str:
+    text = str(normalized or "").strip()
+    return text[-10:] if len(text) >= 10 else text
+
+
+def _customer_access_secret(settings: dict | None) -> bytes:
+    env_secret = str(os.getenv("CUSTOMER_ORDER_ACCESS_SECRET") or "").strip()
+    configured = str((settings or {}).get("customer_order_access_secret") or "").strip()
+    fallback = f"{JWT_SECRET}|customer-mobile-access"
+    return (env_secret or configured or fallback).encode("utf-8")
+
+
+def _b64url_encode(raw: bytes) -> str:
+    return base64.urlsafe_b64encode(raw).decode("utf-8").rstrip("=")
+
+
+def _b64url_decode(text: str) -> bytes:
+    safe = str(text or "").strip()
+    pad = "=" * ((4 - len(safe) % 4) % 4)
+    return base64.urlsafe_b64decode((safe + pad).encode("utf-8"))
+
+
+def _issue_customer_access_token(phone: str, settings: dict | None) -> tuple[str, int]:
+    session_minutes = int((settings or {}).get("customer_order_session_minutes") or 720)
+    session_minutes = max(5, min(10080, session_minutes))
+    exp_ts = int((datetime.now(timezone.utc) + timedelta(minutes=session_minutes)).timestamp())
+    payload = {
+        "phone": str(phone or "").strip(),
+        "exp": exp_ts,
+        "kind": "customer_mobile_access_v1",
+    }
+    payload_text = json.dumps(payload, separators=(",", ":"), sort_keys=True)
+    encoded = _b64url_encode(payload_text.encode("utf-8"))
+    signature = hmac.new(_customer_access_secret(settings), encoded.encode("utf-8"), hashlib.sha256).hexdigest()
+    return f"{encoded}.{signature}", exp_ts
+
+
+def _verify_customer_access_token(token: str, settings: dict | None) -> str:
+    raw = str(token or "").strip()
+    if "." not in raw:
+        raise HTTPException(status_code=401, detail="Invalid access token")
+    encoded, provided_sig = raw.split(".", 1)
+    expected_sig = hmac.new(_customer_access_secret(settings), encoded.encode("utf-8"), hashlib.sha256).hexdigest()
+    if not hmac.compare_digest(expected_sig, provided_sig):
+        raise HTTPException(status_code=401, detail="Invalid access token")
+    try:
+        payload = json.loads(_b64url_decode(encoded).decode("utf-8"))
+    except Exception:
+        raise HTTPException(status_code=401, detail="Invalid access token")
+    exp_ts = int(payload.get("exp") or 0)
+    if exp_ts <= int(datetime.now(timezone.utc).timestamp()):
+        raise HTTPException(status_code=401, detail="Access token expired")
+    phone = _normalize_customer_phone(payload.get("phone") or "")
+    if len(_phone_local10(phone)) < 10:
+        raise HTTPException(status_code=401, detail="Invalid access token")
+    return phone
+
+
+def _hash_customer_otp(phone: str, otp: str, settings: dict | None) -> str:
+    text = f"{phone}|{otp}".encode("utf-8")
+    return hmac.new(_customer_access_secret(settings), text, hashlib.sha256).hexdigest()
+
+
+def _order_matches_phone(order: dict, phone: str, user_doc: dict | None = None) -> bool:
+    normalized = _normalize_customer_phone(phone)
+    local10 = _phone_local10(normalized)
+    if len(local10) < 10:
+        return False
+
+    customer_phone = _normalize_customer_phone(order.get("customer_phone") or "")
+    if customer_phone and (_phone_local10(customer_phone) == local10 or customer_phone == normalized):
+        return True
+
+    payer_phone = _normalize_customer_phone(order.get("payer_phone") or "")
+    if payer_phone and (_phone_local10(payer_phone) == local10 or payer_phone == normalized):
+        return True
+
+    if user_doc:
+        user_phone = _normalize_customer_phone(user_doc.get("phone") or "")
+        if user_phone and (_phone_local10(user_phone) == local10 or user_phone == normalized):
+            return True
+
+    return False
+
+
+async def _customer_orders_by_phone(phone: str, limit: int = 300) -> list[dict]:
+    normalized = _normalize_customer_phone(phone)
+    local10 = _phone_local10(normalized)
+    if len(local10) < 10:
+        return []
+
+    matched: list[dict] = []
+    seen = set()
+
+    async for order in db.orders.find({}, {"_id": 0}).sort("created_at", -1).limit(max(100, limit * 3)):
+        if len(matched) >= limit:
+            break
+        oid = str(order.get("id") or "").strip()
+        if not oid or oid in seen:
+            continue
+
+        buyer_doc = None
+        buyer_id = str(order.get("user_id") or "").strip()
+        if buyer_id:
+            buyer_doc = await db.users.find_one({"id": buyer_id}, {"_id": 0, "phone": 1})
+
+        if _order_matches_phone(order, normalized, buyer_doc):
+            seen.add(oid)
+            matched.append(order)
+
+    return matched
+
 async def get_current_user(authorization: Optional[str] = Header(None)) -> dict:
     if not authorization or not authorization.startswith("Bearer "):
         raise HTTPException(status_code=401, detail="Authorization token missing")
@@ -329,6 +461,7 @@ class OrderRequest(BaseModel):
     txn_id: Optional[str] = None
     payment_screenshot_url: Optional[str] = None
     payer_name: Optional[str] = None
+    customer_phone: Optional[str] = None
     # Optional: attribute this purchase to an existing member id (for BV/rewards)
     member_id: Optional[str] = None
     member_code: Optional[str] = None
@@ -381,6 +514,15 @@ class SettingsUpdate(BaseModel):
     # Referral / WhatsApp invite message (supports {sponsor_code} & {referral_link} vars)
     referral_message_template: Optional[str] = None
     referral_signup_bonus: Optional[float] = None
+    # Customer mobile order access / OTP control
+    customer_mobile_order_access_enabled: Optional[bool] = None
+    customer_mobile_access_mode: Optional[Literal["mobile_only", "mobile_otp"]] = None
+    customer_order_session_minutes: Optional[int] = None
+    customer_order_otp_ttl_seconds: Optional[int] = None
+    customer_order_otp_length: Optional[int] = None
+    customer_order_otp_max_attempts: Optional[int] = None
+    customer_order_otp_debug_mode: Optional[bool] = None
+    customer_order_access_secret: Optional[str] = None
     # First Partner-order cashback (member-only, one-time)
     first_partner_order_cashback_percent: Optional[float] = None
     first_partner_order_cashback_max: Optional[float] = None
@@ -516,6 +658,15 @@ DEFAULT_SETTINGS = {
     ),
     # Signup bonus — instantly credited to the sponsor's wallet when a new user registers under them
     "referral_signup_bonus": 50.0,
+    # Customer retention: guest mobile-based order access
+    "customer_mobile_order_access_enabled": True,
+    "customer_mobile_access_mode": "mobile_only",
+    "customer_order_session_minutes": 720,
+    "customer_order_otp_ttl_seconds": 300,
+    "customer_order_otp_length": 6,
+    "customer_order_otp_max_attempts": 5,
+    "customer_order_otp_debug_mode": True,
+    "customer_order_access_secret": "",
     # === First-Partner-Order Cashback (member-only, one-time) ===
     "first_partner_order_cashback_percent": 5.0,
     "first_partner_order_cashback_max": 100.0,
@@ -2602,6 +2753,33 @@ async def get_invoice_pdf(order_id: str, user: dict = Depends(get_current_user))
     )
 
 
+@api_router.get("/customer/mobile-access/orders/{order_id}/invoice")
+async def customer_mobile_order_invoice(order_id: str, token: str = Query("", min_length=10)):
+    settings = await get_settings()
+    if settings.get("customer_mobile_order_access_enabled") is False:
+        raise HTTPException(status_code=403, detail="Customer mobile access is disabled")
+    phone = _verify_customer_access_token(token, settings)
+    orders = await _customer_orders_by_phone(phone, limit=400)
+    target = next((o for o in orders if str(o.get("id") or "").strip() == str(order_id or "").strip()), None)
+    if not target:
+        raise HTTPException(status_code=403, detail="Order does not belong to this mobile number")
+    # Reuse existing invoice payload generator while keeping the external route token-protected.
+    return await get_invoice(order_id, {"id": "customer-mobile", "role": "super_admin"})
+
+
+@api_router.get("/customer/mobile-access/orders/{order_id}/invoice/pdf")
+async def customer_mobile_order_invoice_pdf(order_id: str, token: str = Query("", min_length=10)):
+    settings = await get_settings()
+    if settings.get("customer_mobile_order_access_enabled") is False:
+        raise HTTPException(status_code=403, detail="Customer mobile access is disabled")
+    phone = _verify_customer_access_token(token, settings)
+    orders = await _customer_orders_by_phone(phone, limit=400)
+    target = next((o for o in orders if str(o.get("id") or "").strip() == str(order_id or "").strip()), None)
+    if not target:
+        raise HTTPException(status_code=403, detail="Order does not belong to this mobile number")
+    return await get_invoice_pdf(order_id, {"id": "customer-mobile", "role": "super_admin"})
+
+
 def _build_wallet_statement_html(user: dict, wallet: dict, txs: list, settings: dict) -> str:
     """Simple wallet statement HTML for PDF export."""
     rows = "".join(
@@ -3338,6 +3516,7 @@ async def create_order(req: OrderRequest, user: Optional[dict] = Depends(get_opt
         "txn_id": req.txn_id,
         "payment_screenshot_url": req.payment_screenshot_url,
         "payer_name": req.payer_name or (user.get("name") if user else None),
+        "customer_phone": _normalize_customer_phone(req.customer_phone or (user.get("phone") if user else "")),
         "status": order_status,
         "rewards_credited": False,
         "payment_submitted_at": now_iso() if has_payment_proof else None,
@@ -3923,6 +4102,141 @@ async def my_orders(user: dict = Depends(get_current_user)):
     orders = await db.orders.find({"user_id": user["id"]}, {"_id": 0}).sort("created_at", -1).to_list(200)
     return orders
 
+
+@api_router.post("/customer/mobile-access/start")
+async def customer_mobile_access_start(payload: dict = Body(default_factory=dict)):
+    settings = await get_settings()
+    if settings.get("customer_mobile_order_access_enabled") is False:
+        raise HTTPException(status_code=403, detail="Customer mobile access is disabled")
+
+    phone = _normalize_customer_phone((payload or {}).get("phone") or "")
+    if len(_phone_local10(phone)) < 10:
+        raise HTTPException(status_code=400, detail="Valid mobile number is required")
+
+    orders = await _customer_orders_by_phone(phone, limit=300)
+    if not orders:
+        raise HTTPException(status_code=404, detail="No orders found for this mobile number")
+
+    mode = str(settings.get("customer_mobile_access_mode") or "mobile_only").strip().lower()
+    if mode not in CUSTOMER_ACCESS_MODES:
+        mode = "mobile_only"
+
+    if mode == "mobile_only":
+        token, exp_ts = _issue_customer_access_token(phone, settings)
+        return {
+            "ok": True,
+            "mode": mode,
+            "requires_otp": False,
+            "access_token": token,
+            "expires_at": datetime.fromtimestamp(exp_ts, tz=timezone.utc).isoformat(),
+            "order_count": len(orders),
+        }
+
+    otp_len = int(settings.get("customer_order_otp_length") or 6)
+    otp_len = max(4, min(8, otp_len))
+    otp_ttl = int(settings.get("customer_order_otp_ttl_seconds") or 300)
+    otp_ttl = max(60, min(900, otp_ttl))
+    max_attempts = int(settings.get("customer_order_otp_max_attempts") or 5)
+    max_attempts = max(1, min(10, max_attempts))
+
+    otp = "".join(secrets.choice("0123456789") for _ in range(otp_len))
+    expires_at = datetime.now(timezone.utc) + timedelta(seconds=otp_ttl)
+    otp_doc = {
+        "phone": phone,
+        "otp_hash": _hash_customer_otp(phone, otp, settings),
+        "expires_at": expires_at.isoformat(),
+        "attempts_left": max_attempts,
+        "updated_at": now_iso(),
+    }
+    await db.customer_mobile_otps.update_one({"phone": phone}, {"$set": otp_doc}, upsert=True)
+
+    out = {
+        "ok": True,
+        "mode": mode,
+        "requires_otp": True,
+        "expires_in_seconds": otp_ttl,
+        "order_count": len(orders),
+        "message": "OTP generated. Verify OTP to continue.",
+    }
+    if bool(settings.get("customer_order_otp_debug_mode")):
+        out["debug_otp"] = otp
+    return out
+
+
+@api_router.post("/customer/mobile-access/verify")
+async def customer_mobile_access_verify(payload: dict = Body(default_factory=dict)):
+    settings = await get_settings()
+    if settings.get("customer_mobile_order_access_enabled") is False:
+        raise HTTPException(status_code=403, detail="Customer mobile access is disabled")
+
+    phone = _normalize_customer_phone((payload or {}).get("phone") or "")
+    if len(_phone_local10(phone)) < 10:
+        raise HTTPException(status_code=400, detail="Valid mobile number is required")
+
+    mode = str(settings.get("customer_mobile_access_mode") or "mobile_only").strip().lower()
+    if mode not in CUSTOMER_ACCESS_MODES:
+        mode = "mobile_only"
+    if mode != "mobile_otp":
+        token, exp_ts = _issue_customer_access_token(phone, settings)
+        return {
+            "ok": True,
+            "mode": "mobile_only",
+            "access_token": token,
+            "expires_at": datetime.fromtimestamp(exp_ts, tz=timezone.utc).isoformat(),
+        }
+
+    otp_value = str((payload or {}).get("otp") or "").strip()
+    if not otp_value:
+        raise HTTPException(status_code=400, detail="OTP is required")
+
+    otp_doc = await db.customer_mobile_otps.find_one({"phone": phone}, {"_id": 0})
+    if not otp_doc:
+        raise HTTPException(status_code=400, detail="OTP not found. Request a new OTP")
+
+    try:
+        expires_at = datetime.fromisoformat(str(otp_doc.get("expires_at") or ""))
+    except Exception:
+        expires_at = datetime.now(timezone.utc) - timedelta(seconds=1)
+    if expires_at.tzinfo is None:
+        expires_at = expires_at.replace(tzinfo=timezone.utc)
+    if expires_at <= datetime.now(timezone.utc):
+        await db.customer_mobile_otps.delete_one({"phone": phone})
+        raise HTTPException(status_code=400, detail="OTP expired. Request a new OTP")
+
+    provided_hash = _hash_customer_otp(phone, otp_value, settings)
+    expected_hash = str(otp_doc.get("otp_hash") or "")
+    attempts_left = int(otp_doc.get("attempts_left") or 0)
+    if not expected_hash or not hmac.compare_digest(provided_hash, expected_hash):
+        attempts_left = max(0, attempts_left - 1)
+        if attempts_left <= 0:
+            await db.customer_mobile_otps.delete_one({"phone": phone})
+            raise HTTPException(status_code=400, detail="OTP failed too many times. Request a new OTP")
+        await db.customer_mobile_otps.update_one(
+            {"phone": phone},
+            {"$set": {"attempts_left": attempts_left, "updated_at": now_iso()}},
+        )
+        raise HTTPException(status_code=400, detail=f"Invalid OTP. {attempts_left} attempt(s) left")
+
+    await db.customer_mobile_otps.delete_one({"phone": phone})
+    token, exp_ts = _issue_customer_access_token(phone, settings)
+    return {
+        "ok": True,
+        "mode": "mobile_otp",
+        "access_token": token,
+        "expires_at": datetime.fromtimestamp(exp_ts, tz=timezone.utc).isoformat(),
+    }
+
+
+@api_router.get("/customer/mobile-access/orders")
+async def customer_mobile_access_orders(token: str = Query("", min_length=10)):
+    settings = await get_settings()
+    if settings.get("customer_mobile_order_access_enabled") is False:
+        raise HTTPException(status_code=403, detail="Customer mobile access is disabled")
+
+    phone = _verify_customer_access_token(token, settings)
+    orders = await _customer_orders_by_phone(phone, limit=300)
+    return orders
+
 # ===================== GENEALOGY =====================
 async def build_tree(user_id: str, depth: int = 0, max_depth: int = 5):
     if depth > max_depth:
@@ -4104,6 +4418,7 @@ async def read_public_settings():
         "einvoice_api_key",
         "einvoice_client_secret",
         "einvoice_password",
+        "customer_order_access_secret",
     }
     allow_large_data_url_keys = {
         "site_logo_url",
@@ -4144,6 +4459,14 @@ async def update_settings(req: SettingsUpdate, admin: dict = Depends(require_rol
     for bv_key in ("min_withdrawal", "cycle_target_bv", "rank_bronze_bv", "rank_silver_bv", "rank_gold_bv", "rank_diamond_bv", "leader_min_personal_product_sales"):
         if bv_key in updates and updates[bv_key] < 0:
             raise HTTPException(status_code=400, detail=f"{bv_key} must be non-negative")
+    for int_key in ("customer_order_session_minutes", "customer_order_otp_ttl_seconds", "customer_order_otp_length", "customer_order_otp_max_attempts"):
+        if int_key in updates and int(updates[int_key]) < 0:
+            raise HTTPException(status_code=400, detail=f"{int_key} must be non-negative")
+    if "customer_mobile_access_mode" in updates:
+        mode = str(updates.get("customer_mobile_access_mode") or "").strip().lower()
+        if mode not in CUSTOMER_ACCESS_MODES:
+            raise HTTPException(status_code=400, detail="customer_mobile_access_mode must be mobile_only or mobile_otp")
+        updates["customer_mobile_access_mode"] = mode
     if "smart_cycle_days" in updates and updates["smart_cycle_days"] < 1:
         raise HTTPException(status_code=400, detail="smart_cycle_days must be >= 1")
     if "smart_cycle_slot_days" in updates and updates["smart_cycle_slot_days"] < 1:
