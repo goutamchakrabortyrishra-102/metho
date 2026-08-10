@@ -51,7 +51,7 @@
             (function () {
                 if (typeof window === "undefined" || typeof document === "undefined") return;
 
-                var jsRecoveryKey = "metho_js_recovery_v2";
+                var jsRecoveryKey = "metho_js_recovery_v3";
                 var jsRecoveryMaxAttempts = 3;
 
                 var getAttemptCount = function (key) {
@@ -119,7 +119,7 @@
                     }
                 });
 
-                var recoveryKey = "metho_css_recovery_v2";
+                var recoveryKey = "metho_css_recovery_v3";
                 var maxRules = 20;
 
                 var hasPrimaryCssRules = function () {
@@ -231,7 +231,7 @@
             (function () {
                 if (typeof window === "undefined" || typeof document === "undefined") return;
 
-                var bootRecoveryKey = "metho_boot_recovery_v2";
+                var bootRecoveryKey = "metho_boot_recovery_v3";
                 var bootRecoveryMaxAttempts = 3;
 
                 var clearClientCachesBestEffort = function () {
@@ -291,7 +291,7 @@
             (function () {
                 if (typeof window === "undefined" || typeof document === "undefined") return;
 
-                var fallbackBootKey = "metho_template_bootstrap_v1";
+                var fallbackBootKey = "metho_template_bootstrap_v2";
                 var manifestCandidates = [
                     "/asset-manifest.json",
                     "/build/asset-manifest.json",
