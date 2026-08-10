@@ -1135,7 +1135,7 @@ export default function PartnerShopPage() {
         </div>
       )}
 
-      {canShowTransport && hasTransportListings ? (
+      {canShowTransport ? (
         <>
           <div className="mb-8">
             <div className="bg-white rounded-xl border border-sky-200 p-6" data-testid="partner-shop-transport-panel">
@@ -1365,7 +1365,23 @@ export default function PartnerShopPage() {
 
             {filteredTransport.length === 0 ? (
               <div className="mt-6 rounded-xl border border-dashed border-sky-200 p-10 text-center text-slate-500">
-                No transport service found for this search.
+                <p>No transport service found for this search.</p>
+                <Button
+                  type="button"
+                  className="mt-4 rounded-full bg-sky-700 hover:bg-sky-800 text-white"
+                  onClick={() => {
+                    if (waUrl(p)) {
+                      window.open(waUrl(p), "_blank", "noopener,noreferrer");
+                      return;
+                    }
+                    if (p?.phone) {
+                      window.location.href = `tel:${p.phone}`;
+                    }
+                  }}
+                  data-testid="shop-book-transport-fallback"
+                >
+                  <CalendarCheck2 className="w-4 h-4 mr-2" /> Book Now
+                </Button>
               </div>
             ) : (
               <div className="mt-6 grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
