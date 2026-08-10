@@ -4,6 +4,15 @@
 <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <script>
+        (function () {
+            if (typeof window === "undefined") return;
+            if (window.location.hostname !== "www.methoaayupay.com") return;
+            var nextUrl = new URL(window.location.href);
+            nextUrl.hostname = "methoaayupay.com";
+            window.location.replace(nextUrl.toString());
+        })();
+    </script>
     <meta name="theme-color" content="#064e3b" />
     <meta name="description"
         content="METHO AAY-UPAY — India's most powerful direct-selling business platform. Aay hobe. Upay hobe." />

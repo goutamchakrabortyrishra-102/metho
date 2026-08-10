@@ -2,6 +2,11 @@ export default {
   async fetch(request, env) {
     const url = new URL(request.url);
 
+    if (url.hostname === "www.methoaayupay.com") {
+      url.hostname = "methoaayupay.com";
+      return Response.redirect(url.toString(), 301);
+    }
+
     const isAssetPath = (pathname) => {
       if (!pathname) return false;
       if (pathname.startsWith("/static/") || pathname.startsWith("/assets/") || pathname.startsWith("/icons/")) return true;
