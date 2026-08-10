@@ -106,6 +106,19 @@ export default function CustomerOrdersAccessPage() {
     setBusy(true);
     try {
       const { data } = await api.post("/customer/mobile-access/start", { phone: normalizedPhone });
+      if (data?.no_orders) {
+        setToken("");
+        setOrders([]);
+        setAwaitingOtp(false);
+        setOtp("");
+        setDebugOtp("");
+        try {
+          window.sessionStorage.removeItem(CUSTOMER_ACCESS_TOKEN_KEY);
+          window.sessionStorage.setItem(CUSTOMER_ACCESS_PHONE_KEY, normalizedPhone);
+        } catch {}
+        toast.error(String(data?.message || "No orders found for this mobile number"));
+        return;
+      }
       const accessToken = String(data?.access_token || "").trim();
       if (accessToken) {
         persistSession(normalizedPhone, accessToken);

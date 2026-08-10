@@ -4115,7 +4115,13 @@ async def customer_mobile_access_start(payload: dict = Body(default_factory=dict
 
     orders = await _customer_orders_by_phone(phone, limit=300)
     if not orders:
-        raise HTTPException(status_code=404, detail="No orders found for this mobile number")
+        return {
+            "ok": True,
+            "no_orders": True,
+            "requires_otp": False,
+            "order_count": 0,
+            "message": "No orders found for this mobile number",
+        }
 
     mode = str(settings.get("customer_mobile_access_mode") or "mobile_only").strip().lower()
     if mode not in CUSTOMER_ACCESS_MODES:

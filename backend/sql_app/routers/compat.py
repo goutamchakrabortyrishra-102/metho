@@ -391,7 +391,13 @@ def _find_public_order_ids_by_phone(db: Session, phone: str, scan_limit: int = 5
             payload = json.loads(row.value_json or "{}")
         except Exception:
             payload = {}
-        stored = _normalize_customer_phone((payload or {}).get("phone") or "")
+        payload_obj = payload or {}
+        stored = _normalize_customer_phone(
+            payload_obj.get("phone")
+            or payload_obj.get("customer_phone")
+            or payload_obj.get("delivery_phone")
+            or ""
+        )
         if not stored:
             continue
         if stored == normalized or _phone_local10(stored) == local10:
@@ -2925,7 +2931,13 @@ def customer_mobile_access_start(payload: dict, db: Session = Depends(get_db)):
 
     order_ids = _find_public_order_ids_by_phone(db, phone)
     if not order_ids:
-        raise HTTPException(status_code=404, detail="No orders found for this mobile number")
+        return {
+            "ok": True,
+            "no_orders": True,
+            "requires_otp": False,
+            "order_count": 0,
+            "message": "No orders found for this mobile number",
+        }
 
     mode = str(settings.get("customer_mobile_access_mode") or "mobile_only").strip().lower()
     if mode not in CUSTOMER_ACCESS_MODES:
