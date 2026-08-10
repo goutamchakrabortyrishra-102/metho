@@ -12,3 +12,7 @@ services:
         - backend/**
       ignoredPaths:
         - backend/**/*.md
+    disk:
+      name: metho-uploads
+      mountPath: /var/data
+      sizeGB: 1

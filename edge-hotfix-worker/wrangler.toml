@@ -6,6 +6,8 @@ workers_dev = false
 routes = [
   { pattern = "methoaayupay.com/static/js/main.520aeb0e.js", zone_name = "methoaayupay.com" },
   { pattern = "methoaayupay.com/static/js/main.cc9e7425.js", zone_name = "methoaayupay.com" },
+  { pattern = "methoaayupay.com/static/js/main.34da93d1.js", zone_name = "methoaayupay.com" },
   { pattern = "www.methoaayupay.com/static/js/main.520aeb0e.js", zone_name = "methoaayupay.com" },
-  { pattern = "www.methoaayupay.com/static/js/main.cc9e7425.js", zone_name = "methoaayupay.com" }
+  { pattern = "www.methoaayupay.com/static/js/main.cc9e7425.js", zone_name = "methoaayupay.com" },
+  { pattern = "www.methoaayupay.com/static/js/main.34da93d1.js", zone_name = "methoaayupay.com" }
 ]
