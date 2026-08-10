@@ -250,7 +250,6 @@ const Hero = () => {
   }, [settings?.landing_top_product_ids]);
   const HERO_IMG = settings?.landing_hero_image_url_full || DEFAULT_HERO_IMG;
   const tagline = settings?.landing_tagline;
-  const subheading = settings?.landing_subheading;
   const companyVideoUrl = normalizeYoutubeUrl(settings?.company_youtube_url);
 
   useEffect(() => {
@@ -314,14 +313,6 @@ const Hero = () => {
               Real Business. Real Rewards. Real Growth.
               <span className="mt-4 block text-xl md:text-2xl lg:text-[2rem] font-bold text-amber-600 italic leading-tight">METHO AAY-UPAY — Smart Commerce for customer, Members &amp; Partners.</span>
             </h1>
-          )}
-          {subheading ? (
-            <p className="mt-5 max-w-2xl text-base md:text-lg text-slate-600 font-body leading-relaxed">{subheading}</p>
-          ) : (
-            <p className="mt-5 max-w-2xl text-base md:text-lg text-slate-600 font-body leading-relaxed">
-              METHO AAY-UPAY gives one unified workflow for onboarding, selling, partner discovery, and reward growth.
-              <span className="block mt-1 text-slate-500">Built for practical execution, transparent rewards, and long-term business expansion.</span>
-            </p>
           )}
           <div className="mt-6 grid gap-2.5 sm:grid-cols-2 lg:grid-cols-4 max-w-3xl">
             {[
