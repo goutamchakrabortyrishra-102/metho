@@ -1091,6 +1091,39 @@ export default function PartnerShopPage() {
         </div>
         ) : null}
 
+        {canShowTransport ? (
+          <div className="mb-8" data-testid="partner-shop-transport-cta-main">
+            <div className="bg-white rounded-xl border border-sky-200 p-6">
+              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+                <div>
+                  <p className="text-[10px] uppercase tracking-widest text-sky-700 font-semibold">Transport Service</p>
+                  <h3 className="font-display font-bold text-emerald-950 text-lg mt-1">Book cab, car rental, bike rental</h3>
+                  <p className="text-sm text-slate-600 mt-1">Pickup ও destination দিয়ে ride request দিন। Partner fare confirm করবে।</p>
+                </div>
+                <Button
+                  type="button"
+                  className="rounded-full bg-sky-700 hover:bg-sky-800 text-white shrink-0"
+                  onClick={() => {
+                    if (hasTransportListings) {
+                      setTransportActiveTab("booking");
+                      window.requestAnimationFrame(() => {
+                        document.getElementById("transport-booking-desk")?.scrollIntoView({ behavior: "smooth", block: "start" });
+                      });
+                    } else {
+                      const link = waUrl(p);
+                      if (link) { window.open(link, "_blank", "noopener,noreferrer"); return; }
+                      if (p?.phone) window.location.href = `tel:${p.phone}`;
+                    }
+                  }}
+                  data-testid="shop-book-transport-main-cta"
+                >
+                  <CalendarCheck2 className="w-4 h-4 mr-2" /> Book Now
+                </Button>
+              </div>
+            </div>
+          </div>
+        ) : null}
+
         {/* Cashback banner */}
         {cashback?.percent > 0 && (user?.role !== "member" || cashback.eligible) && (
           <div className="mb-8 rounded-xl border-2 border-amber-400 bg-gradient-to-r from-amber-50 to-yellow-50 p-5 flex flex-wrap items-center gap-3" data-testid="cashback-banner">
@@ -1135,6 +1168,7 @@ export default function PartnerShopPage() {
         </div>
       )}
 
+      <div className="max-w-6xl mx-auto px-4">
       {canShowTransport && !hasTransportListings ? (
         <div className="mb-8">
           <div className="bg-white rounded-xl border border-sky-200 p-6" data-testid="partner-shop-transport-fallback-panel">
@@ -1464,6 +1498,8 @@ export default function PartnerShopPage() {
           </section>
         </>
       ) : null}
+
+      </div>
 
       {canShowHospitality && hasHospitalityListings ? (
         <>
