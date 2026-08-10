@@ -507,6 +507,30 @@ const Hero = () => {
                   <div className="mt-4 grid grid-cols-1 sm:grid-cols-2 gap-2">
                     {[
                       {
+                        title: "Member Registration",
+                        href: "/register",
+                        icon: Users,
+                        testId: "landing-quick-member-registration",
+                      },
+                      {
+                        title: "Partner Registration",
+                        href: "/partner-register",
+                        icon: Building2,
+                        testId: "landing-quick-partner-registration",
+                      },
+                      {
+                        title: "View All Products",
+                        href: "/shop",
+                        icon: Store,
+                        testId: "landing-quick-view-all-products",
+                      },
+                      {
+                        title: "View All Partners/Services",
+                        href: "/directory",
+                        icon: Globe,
+                        testId: "landing-quick-view-all-partners-services",
+                      },
+                      {
                         title: "Customer Order History",
                         href: "/customer-orders",
                         icon: Shield,
@@ -538,7 +562,7 @@ const Hero = () => {
                         data-testid={item.testId}
                       >
                         <div className="flex items-center justify-between gap-3">
-                          <p className="font-display font-bold text-[0.96rem] md:text-[1.02rem] leading-tight tracking-tight line-clamp-1">{item.title}</p>
+                          <p className="font-display font-bold text-[0.96rem] md:text-[1.02rem] leading-tight tracking-tight">{item.title}</p>
                           <div className="w-8 h-8 rounded-xl bg-emerald-950/70 border border-emerald-100/35 flex items-center justify-center group-hover:bg-emerald-950 transition-colors shrink-0">
                             <item.icon className="w-4 h-4" />
                           </div>
@@ -555,7 +579,7 @@ const Hero = () => {
                         data-testid="landing-quick-watch-video"
                       >
                         <div className="flex items-center justify-between gap-3">
-                          <p className="font-display font-bold text-[0.96rem] md:text-[1.02rem] leading-tight tracking-tight line-clamp-1">Watch VDO</p>
+                          <p className="font-display font-bold text-[0.96rem] md:text-[1.02rem] leading-tight tracking-tight">Watch VDO</p>
                           <div className="w-8 h-8 rounded-xl bg-emerald-950/70 border border-emerald-100/35 flex items-center justify-center group-hover:bg-emerald-950 transition-colors shrink-0">
                             <PlayCircle className="w-4 h-4" />
                           </div>
@@ -568,7 +592,7 @@ const Hero = () => {
                         data-testid="landing-quick-watch-video"
                       >
                         <div className="flex items-center justify-between gap-3">
-                          <p className="font-display font-bold text-[0.96rem] md:text-[1.02rem] leading-tight tracking-tight line-clamp-1">Watch VDO</p>
+                          <p className="font-display font-bold text-[0.96rem] md:text-[1.02rem] leading-tight tracking-tight">Watch VDO</p>
                           <div className="w-8 h-8 rounded-xl bg-emerald-950/70 border border-emerald-100/35 flex items-center justify-center group-hover:bg-emerald-950 transition-colors shrink-0">
                             <PlayCircle className="w-4 h-4" />
                           </div>
