@@ -670,6 +670,43 @@ def _purge_partner_related_records(db: Session, partner: AssociatePartner) -> No
     gst_no = str(getattr(partner, "gst_no", "") or "").strip()
 
     if partner_id:
+        partner_product_ids = [
+            str(row[0])
+            for row in db.query(PartnerProduct.id).filter(PartnerProduct.partner_id == partner_id).all()
+            if row and row[0]
+        ]
+
+        if partner_product_ids:
+            units_row = db.query(AppSetting).filter(AppSetting.key == PARTNER_PRODUCT_UNITS_KEY).first()
+            if units_row:
+                try:
+                    units_doc = json.loads(units_row.value_json or "{}")
+                except Exception:
+                    units_doc = {}
+                if isinstance(units_doc, dict):
+                    units_changed = False
+                    for product_id in partner_product_ids:
+                        if units_doc.pop(product_id, None) is not None:
+                            units_changed = True
+                    if units_changed:
+                        units_row.value_json = json.dumps(units_doc)
+                        units_row.updated_at = datetime.now(timezone.utc)
+
+            meta_row = db.query(AppSetting).filter(AppSetting.key == PARTNER_PRODUCT_META_KEY).first()
+            if meta_row:
+                try:
+                    meta_doc = json.loads(meta_row.value_json or "{}")
+                except Exception:
+                    meta_doc = {}
+                if isinstance(meta_doc, dict):
+                    meta_changed = False
+                    for product_id in partner_product_ids:
+                        if meta_doc.pop(product_id, None) is not None:
+                            meta_changed = True
+                    if meta_changed:
+                        meta_row.value_json = json.dumps(meta_doc)
+                        meta_row.updated_at = datetime.now(timezone.utc)
+
         db.query(PartnerProduct).filter(PartnerProduct.partner_id == partner_id).delete(synchronize_session=False)
         db.query(AppSetting).filter(
             AppSetting.key.in_(
@@ -683,6 +720,8 @@ def _purge_partner_related_records(db: Session, partner: AssociatePartner) -> No
                     _partner_offer_popup_key(partner_id),
                     _partner_business_youtube_key(partner_id),
                     _partner_business_facebook_key(partner_id),
+                    _partner_featured_images_key(partner_id),
+                    _transport_fare_presets_key(partner_id),
                 ]
             )
         ).delete(synchronize_session=False)
@@ -698,6 +737,18 @@ def _purge_partner_related_records(db: Session, partner: AssociatePartner) -> No
                 topup_keys_to_delete.append(row.key)
         if topup_keys_to_delete:
             db.query(AppSetting).filter(AppSetting.key.in_(topup_keys_to_delete)).delete(synchronize_session=False)
+
+        transport_rows = db.query(AppSetting).filter(AppSetting.key.like("transport_trip:%")).all()
+        transport_keys_to_delete = []
+        for row in transport_rows:
+            try:
+                doc = json.loads(row.value_json or "{}")
+            except Exception:
+                continue
+            if str(doc.get("partner_id") or "").strip() == partner_id:
+                transport_keys_to_delete.append(row.key)
+        if transport_keys_to_delete:
+            db.query(AppSetting).filter(AppSetting.key.in_(transport_keys_to_delete)).delete(synchronize_session=False)
 
     if login_id:
         db.query(User).filter(User.email == login_id, User.role == "partner").delete(synchronize_session=False)

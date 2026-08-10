@@ -76,7 +76,7 @@ def _delete_partner_request_artifacts(db: Session, request: PartnerRequest) -> N
 
 
 def _cleanup_orphaned_partner_registration(db: Session, login_id: str, phone: str, pan_no: str) -> None:
-    """Preserve existing partner registration records instead of deleting them during a fresh submission."""
+    """Remove stale approved requests only when no linked active partner account exists."""
     request_queries = []
     if login_id:
         request_queries.append(
@@ -97,11 +97,13 @@ def _cleanup_orphaned_partner_registration(db: Session, login_id: str, phone: st
             .all()
         )
 
+    stale_approved_requests: dict[str, PartnerRequest] = {}
     for request_rows in request_queries:
         for request in request_rows:
             request_id = str(getattr(request, "id", "") or "").strip()
             if not request_id:
                 continue
+            request_status = str(getattr(request, "status", "") or "").strip().lower()
             linked_partner = None
             req_email = str(getattr(request, "email", "") or "").strip()
             req_phone = str(getattr(request, "phone", "") or "").strip()
@@ -113,8 +115,20 @@ def _cleanup_orphaned_partner_registration(db: Session, login_id: str, phone: st
             if not linked_partner and req_gst:
                 linked_partner = db.query(AssociatePartner).filter(AssociatePartner.gst_no == req_gst).first()
 
-            if linked_partner is None:
+            if linked_partner is not None:
                 continue
+
+            if request_status != "approved":
+                continue
+
+            linked_user = db.query(User).filter(User.email == req_email, User.role == "partner", User.is_active.is_(True)).first() if req_email else None
+            if linked_user is not None:
+                continue
+
+            stale_approved_requests[request_id] = request
+
+    for request in stale_approved_requests.values():
+        _delete_partner_request_artifacts(db, request)
 
     if login_id:
         orphan_user = db.query(User).filter(User.email == login_id, User.role == "partner").first()
