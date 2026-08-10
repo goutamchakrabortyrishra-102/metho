@@ -1280,6 +1280,17 @@ def partner_orders(db: Session = Depends(get_db), current_user=Depends(get_curre
         if not customer_phone_digits and str(row.customer_user_id or "").strip():
             customer_user = db.query(User).filter(User.id == str(row.customer_user_id or "").strip()).first()
             customer_phone_digits = "".join(ch for ch in str(getattr(customer_user, "phone", "") or "") if ch.isdigit())
+        # For transport bookings made before the phone-save fix, fall back to the trip's customer_phone.
+        if not customer_phone_digits and str(row.shipping_address or "").startswith("Transport Trip:"):
+            trip_rows = db.query(AppSetting).filter(AppSetting.key.like("transport_trip:%")).all()
+            for t_row in trip_rows:
+                try:
+                    t_data = json.loads(t_row.value_json or "{}")
+                except Exception:
+                    continue
+                if str(t_data.get("order_id") or "") == str(row.id):
+                    customer_phone_digits = "".join(ch for ch in str(t_data.get("customer_phone") or "") if ch.isdigit())
+                    break
 
         raw_payment_method = str(row.payment_method or "").strip().lower()
         normalized_payment_method = raw_payment_method
