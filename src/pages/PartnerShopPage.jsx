@@ -1135,7 +1135,38 @@ export default function PartnerShopPage() {
         </div>
       )}
 
-      {canShowTransport ? (
+      {canShowTransport && !hasTransportListings ? (
+        <div className="mb-8">
+          <div className="bg-white rounded-xl border border-sky-200 p-6" data-testid="partner-shop-transport-fallback-panel">
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+              <div>
+                <p className="text-[10px] uppercase tracking-widest text-sky-700 font-semibold">Transport Service</p>
+                <h3 className="font-display font-bold text-emerald-950 text-lg mt-1">Quick Booking CTA</h3>
+                <p className="text-sm text-slate-600 mt-1">Transport booking এর জন্য owner-এর সাথে সরাসরি connect করুন।</p>
+              </div>
+              <Button
+                type="button"
+                className="rounded-full bg-sky-700 hover:bg-sky-800 text-white"
+                onClick={() => {
+                  const link = waUrl(p);
+                  if (link) {
+                    window.open(link, "_blank", "noopener,noreferrer");
+                    return;
+                  }
+                  if (p?.phone) {
+                    window.location.href = `tel:${p.phone}`;
+                  }
+                }}
+                data-testid="shop-book-transport-fallback"
+              >
+                <CalendarCheck2 className="w-4 h-4 mr-2" /> Book Now
+              </Button>
+            </div>
+          </div>
+        </div>
+      ) : null}
+
+      {canShowTransport && hasTransportListings ? (
         <>
           <div className="mb-8">
             <div className="bg-white rounded-xl border border-sky-200 p-6" data-testid="partner-shop-transport-panel">
@@ -1365,23 +1396,7 @@ export default function PartnerShopPage() {
 
             {filteredTransport.length === 0 ? (
               <div className="mt-6 rounded-xl border border-dashed border-sky-200 p-10 text-center text-slate-500">
-                <p>No transport service found for this search.</p>
-                <Button
-                  type="button"
-                  className="mt-4 rounded-full bg-sky-700 hover:bg-sky-800 text-white"
-                  onClick={() => {
-                    if (waUrl(p)) {
-                      window.open(waUrl(p), "_blank", "noopener,noreferrer");
-                      return;
-                    }
-                    if (p?.phone) {
-                      window.location.href = `tel:${p.phone}`;
-                    }
-                  }}
-                  data-testid="shop-book-transport-fallback"
-                >
-                  <CalendarCheck2 className="w-4 h-4 mr-2" /> Book Now
-                </Button>
+                No transport service found for this search.
               </div>
             ) : (
               <div className="mt-6 grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
