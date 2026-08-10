@@ -506,7 +506,7 @@ function BrandingImageUpload({ purpose, label, hint, value, onChange, onPersist,
     setBusy(true);
     try {
       const normalizedPurpose = String(purpose || "").trim().toLowerCase();
-      const shouldPersistAsEmbeddedBranding = Boolean(normalizedPurpose);
+      const shouldPersistAsEmbeddedBranding = !uploadEndpoint && Boolean(normalizedPurpose);
       let nextUrl = "";
       if (shouldPersistAsEmbeddedBranding) {
         nextUrl = await readAsDataUrl(f);
