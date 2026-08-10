@@ -636,8 +636,16 @@ export default function PartnerGalleryPage() {
 
   const galleryUrl = `${window.location.origin}/gallery/${partnerCode}`;
   const partnerChatUrl = ownerChatUrl(partner);
-  const partnerBusinessYoutubeUrl = normalizeYoutubeUrl(partner?.business_youtube_url);
-  const partnerBusinessFacebookUrl = normalizeFacebookUrl(partner?.business_facebook_url);
+  const partnerBusinessYoutubeUrl =
+    normalizeYoutubeUrl(partner?.business_youtube_url) ||
+    normalizeYoutubeUrl(paymentProfile?.business_youtube_url) ||
+    normalizeYoutubeUrl(partner?.business_facebook_url) ||
+    normalizeYoutubeUrl(paymentProfile?.business_facebook_url);
+  const partnerBusinessFacebookUrl =
+    normalizeFacebookUrl(partner?.business_facebook_url) ||
+    normalizeFacebookUrl(paymentProfile?.business_facebook_url) ||
+    normalizeFacebookUrl(partner?.business_youtube_url) ||
+    normalizeFacebookUrl(paymentProfile?.business_youtube_url);
 
   const handleBookNow = (listing) => {
     if (!listing?.id) return;
