@@ -2,7 +2,7 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { useParams, Link, useSearchParams } from "react-router-dom";
 import {
   ArrowLeft, ShoppingCart, Plus, Minus, Share2, FileDown,
-  MessageCircle, X, Phone, MapPin, Store, Star, Search, CalendarCheck2,
+  MessageCircle, X, Phone, MapPin, Store, Star, Search, CalendarCheck2, PlayCircle,
 } from "lucide-react";
 import { toast } from "sonner";
 import { jsPDF } from "jspdf";
