@@ -305,6 +305,7 @@ const isServiceListing = (item) => {
     .find((v) => typeof v === "string" && v.trim());
   if (String(hint || "").toLowerCase().includes("service")) return true;
   if (item?.is_service === true || item?.service_booking_enabled === true) return true;
+  if (isTransportServiceLike(item) || isHospitalityServiceLike(item) || isDoorstepServiceLike(item)) return true;
   return false;
 };
 
