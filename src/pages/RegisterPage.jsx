@@ -26,10 +26,12 @@ const generateMemberId = () => {
 export default function RegisterPage() {
   const [params] = useSearchParams();
   const refFromUrl = (params.get("ref") || "").trim().toUpperCase();
+  const prefillName = (params.get("prefill_name") || "").trim();
+  const prefillPhone = (params.get("prefill_phone") || "").trim();
   const [form, setForm] = useState(() => ({
-    name: "",
+    name: prefillName,
     email: generateMemberId(),
-    phone: "",
+    phone: prefillPhone,
     dob: "",
     address: "",
     pan_no: "",

@@ -256,6 +256,7 @@ export default function PartnerDashboardPage() {
   const [offerPopupCtaText, setOfferPopupCtaText] = useState("");
   const [offerPopupCoupon, setOfferPopupCoupon] = useState("");
   const [savingPartnerUpi, setSavingPartnerUpi] = useState(false);
+  const [sendingInvoiceOrderId, setSendingInvoiceOrderId] = useState("");
   const [transportData, setTransportData] = useState({ items: [], wallet: { balance: 0 } });
   const [loadingTransport, setLoadingTransport] = useState(false);
   const [fareDrafts, setFareDrafts] = useState({});
@@ -540,6 +541,8 @@ export default function PartnerDashboardPage() {
 
   const sendInvoicePdfOnWhatsApp = async (order) => {
     if (!order?.id) return;
+    if (sendingInvoiceOrderId === order.id) return;
+    setSendingInvoiceOrderId(order.id);
     try {
       const response = await api.get(`/orders/${order.id}/invoice/pdf`, { responseType: "blob" });
       const pdfBlob = response?.data instanceof Blob
@@ -548,31 +551,43 @@ export default function PartnerDashboardPage() {
       const fallbackName = `Invoice_${String(order?.order_no || order.id || "order").replace(/[^A-Za-z0-9_-]/g, "_")}.pdf`;
 
       const anchor = document.createElement("a");
-      anchor.href = URL.createObjectURL(pdfBlob);
+      const objectUrl = URL.createObjectURL(pdfBlob);
+      anchor.href = objectUrl;
       anchor.download = fallbackName;
       document.body.appendChild(anchor);
       anchor.click();
       anchor.remove();
+      setTimeout(() => URL.revokeObjectURL(objectUrl), 1000);
 
-      if (order?.customer_whatsapp_invoice_url) {
-        window.open(order.customer_whatsapp_invoice_url, "_blank", "noopener,noreferrer");
-      } else {
-        const phoneDigits = String(order?.delivery_phone || "").replace(/\D/g, "");
-        const invoiceLink = `${window.location.origin}/invoice/${order.id}`;
-        const message = `Invoice ready for ${order?.order_no || "your order"}\nCustomer: ${order?.delivery_name || "Customer"}\nOpen invoice: ${invoiceLink}\nPDF downloaded. Please attach and send.`;
+      const backendUrl = String(order?.customer_whatsapp_invoice_url || "").trim();
+      const phoneFromOrder = String(order?.delivery_phone || "").replace(/\D/g, "");
+      const phoneFromBackendUrl = (backendUrl.match(/wa\.me\/(\d{6,15})/) || backendUrl.match(/[?&]phone=(\d{6,15})/))?.[1] || "";
+      const phoneDigits = phoneFromOrder || phoneFromBackendUrl;
 
-        if (phoneDigits) {
-          const waWebUrl = `https://wa.me/${phoneDigits}?text=${encodeURIComponent(message)}`;
-          window.open(waWebUrl, "_blank", "noopener,noreferrer");
-        }
+      const invoiceLink = `${window.location.origin}/invoice/${order.id}`;
+      const message = `Invoice ready for ${order?.order_no || "your order"}\nCustomer: ${order?.delivery_name || "Customer"}\nOpen invoice: ${invoiceLink}\nPDF downloaded. Please attach and send.`;
+
+      let whatsappUrl = "";
+      if (phoneDigits) {
+        whatsappUrl = `https://wa.me/${phoneDigits}?text=${encodeURIComponent(message)}`;
+      } else if (backendUrl) {
+        whatsappUrl = backendUrl;
       }
-      toast.success("PDF downloaded and WhatsApp chat opened.");
+
+      if (whatsappUrl) {
+        window.open(whatsappUrl, "_blank", "noopener,noreferrer");
+        toast.success("PDF downloaded and customer WhatsApp chat opened.");
+      } else {
+        toast.success("PDF downloaded. Customer WhatsApp number not found, attach and send manually.");
+      }
     } catch (err) {
       const detail = err?.response?.data?.detail;
       const msg = typeof detail === "string" && detail.trim()
         ? detail
         : "Invoice PDF send failed";
       toast.error(msg);
+    } finally {
+      setSendingInvoiceOrderId("");
     }
   };
 
@@ -2064,10 +2079,11 @@ export default function PartnerDashboardPage() {
                         <button
                           type="button"
                           onClick={() => sendInvoicePdfOnWhatsApp(o)}
-                          className="inline-flex items-center rounded-full bg-green-600 px-3 py-1.5 text-[11px] font-semibold text-white hover:bg-green-700"
+                          disabled={sendingInvoiceOrderId === o.id}
+                          className="inline-flex items-center rounded-full bg-green-600 px-3 py-1.5 text-[11px] font-semibold text-white hover:bg-green-700 disabled:cursor-not-allowed disabled:opacity-70"
                           data-testid={`send-invoice-pdf-whatsapp-${o.id}`}
                         >
-                          <MessageCircle className="w-3.5 h-3.5 mr-1" /> Send Invoice PDF WhatsApp
+                          <MessageCircle className="w-3.5 h-3.5 mr-1" /> {sendingInvoiceOrderId === o.id ? "Preparing PDF..." : "Send Invoice PDF WhatsApp"}
                         </button>
                       ) : null}
                       <p className="text-[11px] text-amber-700 mt-1">Invoice, commission, and sales breakdown still hidden.</p>

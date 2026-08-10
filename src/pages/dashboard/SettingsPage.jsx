@@ -688,6 +688,14 @@ export default function SettingsPage() {
     razorpay_enabled: !!source.razorpay_enabled,
     razorpay_key_id: source.razorpay_key_id || "",
     razorpay_key_secret: source.razorpay_key_secret || "",
+    customer_mobile_order_access_enabled: source.customer_mobile_order_access_enabled !== false,
+    customer_mobile_access_mode: source.customer_mobile_access_mode || "mobile_only",
+    customer_order_session_minutes: Number(source.customer_order_session_minutes) || 720,
+    customer_order_otp_ttl_seconds: Number(source.customer_order_otp_ttl_seconds) || 300,
+    customer_order_otp_length: Number(source.customer_order_otp_length) || 6,
+    customer_order_otp_max_attempts: Number(source.customer_order_otp_max_attempts) || 5,
+    customer_order_otp_debug_mode: !!source.customer_order_otp_debug_mode,
+    customer_order_access_secret: source.customer_order_access_secret || "",
     referral_message_template: source.referral_message_template,
     referral_signup_bonus: Number(source.referral_signup_bonus) || 0,
     leader_min_direct_members: Number(source.leader_min_direct_members) || 0,
@@ -1213,6 +1221,105 @@ export default function SettingsPage() {
                 data-testid="settings-razorpay-key-secret"
               />
               <p className="text-[11px] text-muted-foreground mt-1">Secret server-side verify-তে ব্যবহার হবে। এই value publish করবেন না।</p>
+            </div>
+          </Section>
+
+          <Section
+            title="Customer Mobile Entry + OTP"
+            subtitle="Guest customer mobile number দিয়ে order history access control। এখন mobile-only চালু রাখতে পারেন, পরে OTP mode settings থেকে অন করুন।"
+            icon={Users}
+            badge="Retention"
+          >
+            <div className="md:col-span-2 rounded-lg border border-blue-200 bg-blue-50 p-3 text-xs text-blue-900">
+              <p className="font-semibold">No code-touch switching</p>
+              <p className="mt-1">Mobile-only mode দ্রুত customer ধরে রাখতে সাহায্য করবে। OTP mode-এ গেলে SMS/OTP delivery integration প্রয়োজন হতে পারে।</p>
+            </div>
+            <div>
+              <Label className="flex items-center gap-2">
+                <input
+                  type="checkbox"
+                  checked={form.customer_mobile_order_access_enabled !== false}
+                  onChange={(e) => setF("customer_mobile_order_access_enabled")(e.target.checked)}
+                  className="w-4 h-4"
+                  data-testid="settings-customer-mobile-access-enabled"
+                />
+                Enable customer mobile order access
+              </Label>
+              <p className="text-[11px] text-muted-foreground mt-1">Off থাকলে /customer-orders flow disable থাকবে।</p>
+            </div>
+            <div>
+              <Label>Verification Mode</Label>
+              <select
+                value={form.customer_mobile_access_mode || "mobile_only"}
+                onChange={(e) => setF("customer_mobile_access_mode")(e.target.value)}
+                className="mt-1.5 h-11 w-full rounded-md border border-input bg-white px-3 text-sm"
+                data-testid="settings-customer-mobile-access-mode"
+              >
+                <option value="mobile_only">Mobile only (fast entry)</option>
+                <option value="mobile_otp">Mobile + OTP verification</option>
+              </select>
+              <p className="text-[11px] text-muted-foreground mt-1">Current default: mobile-only.</p>
+            </div>
+            <Field
+              label="Session Duration"
+              testId="settings-customer-session-minutes"
+              value={form.customer_order_session_minutes}
+              onChange={setF("customer_order_session_minutes")}
+              suffix="min"
+              step="1"
+              hint="Mobile entry successful হলে customer access token কত মিনিট valid থাকবে।"
+            />
+            <Field
+              label="OTP TTL"
+              testId="settings-customer-otp-ttl"
+              value={form.customer_order_otp_ttl_seconds}
+              onChange={setF("customer_order_otp_ttl_seconds")}
+              suffix="sec"
+              step="1"
+              hint="OTP generation-এর পর কত seconds valid থাকবে।"
+            />
+            <Field
+              label="OTP Length"
+              testId="settings-customer-otp-length"
+              value={form.customer_order_otp_length}
+              onChange={setF("customer_order_otp_length")}
+              suffix="digits"
+              step="1"
+              hint="OTP mode active থাকলে কত digit-এর OTP generate হবে।"
+            />
+            <Field
+              label="Max OTP Attempts"
+              testId="settings-customer-otp-attempts"
+              value={form.customer_order_otp_max_attempts}
+              onChange={setF("customer_order_otp_max_attempts")}
+              suffix="tries"
+              step="1"
+              hint="ভুল OTP কতবার পর্যন্ত allow হবে।"
+            />
+            <div>
+              <Label className="flex items-center gap-2">
+                <input
+                  type="checkbox"
+                  checked={!!form.customer_order_otp_debug_mode}
+                  onChange={(e) => setF("customer_order_otp_debug_mode")(e.target.checked)}
+                  className="w-4 h-4"
+                  data-testid="settings-customer-otp-debug"
+                />
+                Debug OTP preview in API response
+              </Label>
+              <p className="text-[11px] text-muted-foreground mt-1">SMS provider integration-এর আগে test environment-এ helpful। Production-এ off রাখুন।</p>
+            </div>
+            <div>
+              <Label>Access Secret (optional)</Label>
+              <Input
+                type="password"
+                value={form.customer_order_access_secret || ""}
+                onChange={(e) => setF("customer_order_access_secret")(e.target.value)}
+                placeholder="Custom signing secret"
+                className="mt-1.5 h-11 font-mono text-sm"
+                data-testid="settings-customer-access-secret"
+              />
+              <p className="text-[11px] text-muted-foreground mt-1">Set করলে customer access token এই secret দিয়ে sign হবে।</p>
             </div>
           </Section>
 

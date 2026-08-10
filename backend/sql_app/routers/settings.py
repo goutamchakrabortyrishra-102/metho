@@ -14,6 +14,7 @@ PUBLIC_SETTINGS_EXCLUDE_KEYS = {
     "einvoice_api_key",
     "einvoice_client_secret",
     "einvoice_password",
+    "customer_order_access_secret",
 }
 
 DATA_URL_MAX_LEN = 4_000_000
@@ -64,6 +65,14 @@ DEFAULT_SETTINGS = {
     "referral_signup_bonus": 0,
     "first_partner_order_cashback_percent": 0,
     "first_partner_order_cashback_max": 0,
+    "customer_mobile_order_access_enabled": True,
+    "customer_mobile_access_mode": "mobile_only",
+    "customer_order_session_minutes": 720,
+    "customer_order_otp_ttl_seconds": 300,
+    "customer_order_otp_length": 6,
+    "customer_order_otp_max_attempts": 5,
+    "customer_order_otp_debug_mode": True,
+    "customer_order_access_secret": "",
     "leader_min_direct_members": 0,
     "leader_min_active_members": 0,
     "leader_min_personal_monthly_purchase": 0,

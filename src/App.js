@@ -47,6 +47,8 @@ const loadPartnerGalleryPage = () => import("@/pages/PartnerGalleryPage");
 const loadInstallPage = () => import("@/pages/InstallPage");
 const loadMethoStoreAdminPage = () => import("@/pages/dashboard/MethoStoreAdminPage");
 const loadMethoStoreOwnerPage = () => import("@/pages/dashboard/MethoStoreOwnerPage");
+const loadCustomerOrdersAccessPage = () => import("@/pages/CustomerOrdersAccessPage");
+const loadCustomerInvoicePage = () => import("@/pages/CustomerInvoicePage");
 
 const LandingPage = lazy(loadLandingPage);
 const LoginPage = lazy(loadLoginPage);
@@ -90,6 +92,8 @@ const PartnerGalleryPage = lazy(loadPartnerGalleryPage);
 const InstallPage = lazy(loadInstallPage);
 const MethoStoreAdminPage = lazy(loadMethoStoreAdminPage);
 const MethoStoreOwnerPage = lazy(loadMethoStoreOwnerPage);
+const CustomerOrdersAccessPage = lazy(loadCustomerOrdersAccessPage);
+const CustomerInvoicePage = lazy(loadCustomerInvoicePage);
 
 const prefetchedChunks = new Set();
 const prefetchChunk = (loader) => {
@@ -253,6 +257,8 @@ function App() {
               <Route path="/" element={<LandingPage />} />
               <Route path="/shop" element={<ShopPage />} />
               <Route path="/install" element={<InstallPage />} />
+              <Route path="/customer-orders" element={<CustomerOrdersAccessPage />} />
+              <Route path="/customer-invoice/:orderId" element={<CustomerInvoicePage />} />
               <Route path="/login" element={<LoginPage />} />
               <Route path="/admin-login" element={<LoginPage adminOnly />} />
               <Route path="/register" element={<RegisterPage />} />

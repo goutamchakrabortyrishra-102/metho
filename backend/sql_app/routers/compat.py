@@ -12,6 +12,7 @@ import os
 import urllib.error
 import urllib.request
 from urllib.parse import quote
+import secrets
 from PIL import Image
 
 from fastapi import APIRouter, Depends, File, HTTPException, Query, Request, UploadFile
@@ -46,6 +47,9 @@ PARTNER_UNIT_OPTIONS = {"piece", "kg", "gram", "litre", "ml"}
 PARTNER_PRODUCT_META_KEY = "partner_product_meta"
 TRANSPORT_SERVICE_TEMPLATE_KEYS = {"cab_airport_drop", "car_rental_daily", "bike_rental_daily", "cargo_transport", "courier_pickup"}
 ADMIN_ACCOUNTS_LEDGER_KEY = "admin_accounts_ledger"
+CUSTOMER_ORDER_CONTACT_KEY_PREFIX = "order_contact:"
+CUSTOMER_ORDER_OTP_KEY_PREFIX = "customer_mobile_otp:"
+CUSTOMER_ACCESS_MODES = {"mobile_only", "mobile_otp"}
 
 
 def _normalize_partner_unit_type(value: str | None) -> str:
@@ -242,6 +246,207 @@ def _fallback_product_description(name: str, category: str, product_type: str) -
 
 def now_iso() -> str:
     return datetime.now(timezone.utc).isoformat()
+
+
+def _normalize_customer_phone(raw: str | None) -> str:
+    digits = "".join(ch for ch in str(raw or "") if ch.isdigit())
+    if len(digits) == 11 and digits.startswith("0"):
+        digits = digits[-10:]
+    if len(digits) == 10:
+        return f"91{digits}"
+    if len(digits) > 12:
+        return digits[-12:]
+    return digits
+
+
+def _phone_local10(normalized: str) -> str:
+    text = str(normalized or "").strip()
+    return text[-10:] if len(text) >= 10 else text
+
+
+def _customer_access_secret(settings: dict | None) -> bytes:
+    env_secret = str(os.getenv("CUSTOMER_ORDER_ACCESS_SECRET") or "").strip()
+    configured_secret = str((settings or {}).get("customer_order_access_secret") or "").strip()
+    fallback = f"{ADMIN_LOGIN_ID}|customer-mobile-access"
+    return (env_secret or configured_secret or fallback).encode("utf-8")
+
+
+def _b64url_encode(raw: bytes) -> str:
+    return base64.urlsafe_b64encode(raw).decode("utf-8").rstrip("=")
+
+
+def _b64url_decode(text: str) -> bytes:
+    safe = str(text or "").strip()
+    pad = "=" * ((4 - len(safe) % 4) % 4)
+    return base64.urlsafe_b64decode((safe + pad).encode("utf-8"))
+
+
+def _issue_customer_access_token(phone: str, settings: dict | None) -> tuple[str, int]:
+    session_minutes = int((settings or {}).get("customer_order_session_minutes") or 720)
+    session_minutes = max(5, min(10080, session_minutes))
+    exp_ts = int((datetime.now(timezone.utc) + timedelta(minutes=session_minutes)).timestamp())
+    payload = {
+        "phone": str(phone or "").strip(),
+        "exp": exp_ts,
+        "kind": "customer_mobile_access_v1",
+    }
+    payload_text = json.dumps(payload, separators=(",", ":"), sort_keys=True)
+    encoded = _b64url_encode(payload_text.encode("utf-8"))
+    secret = _customer_access_secret(settings)
+    signature = hmac.new(secret, encoded.encode("utf-8"), hashlib.sha256).hexdigest()
+    return f"{encoded}.{signature}", exp_ts
+
+
+def _verify_customer_access_token(token: str, settings: dict | None) -> str:
+    raw = str(token or "").strip()
+    if "." not in raw:
+        raise HTTPException(status_code=401, detail="Invalid access token")
+    encoded, provided_sig = raw.split(".", 1)
+    expected_sig = hmac.new(
+        _customer_access_secret(settings),
+        encoded.encode("utf-8"),
+        hashlib.sha256,
+    ).hexdigest()
+    if not hmac.compare_digest(expected_sig, provided_sig):
+        raise HTTPException(status_code=401, detail="Invalid access token")
+    try:
+        payload = json.loads(_b64url_decode(encoded).decode("utf-8"))
+    except Exception:
+        raise HTTPException(status_code=401, detail="Invalid access token")
+
+    exp_ts = int(payload.get("exp") or 0)
+    if exp_ts <= int(datetime.now(timezone.utc).timestamp()):
+        raise HTTPException(status_code=401, detail="Access token expired")
+    phone = _normalize_customer_phone(payload.get("phone") or "")
+    if len(phone) < 10:
+        raise HTTPException(status_code=401, detail="Invalid access token")
+    return phone
+
+
+def _customer_otp_key(phone: str) -> str:
+    return f"{CUSTOMER_ORDER_OTP_KEY_PREFIX}{str(phone or '').strip()}"
+
+
+def _hash_customer_otp(phone: str, otp: str, settings: dict | None) -> str:
+    secret = _customer_access_secret(settings)
+    text = f"{phone}|{otp}".encode("utf-8")
+    return hmac.new(secret, text, hashlib.sha256).hexdigest()
+
+
+def _save_customer_otp_state(db: Session, phone: str, state: dict) -> None:
+    key = _customer_otp_key(phone)
+    row = db.query(AppSetting).filter(AppSetting.key == key).first()
+    if not row:
+        row = AppSetting(key=key, value_json=json.dumps(state or {}), updated_at=datetime.now(timezone.utc))
+        db.add(row)
+    else:
+        row.value_json = json.dumps(state or {})
+        row.updated_at = datetime.now(timezone.utc)
+    db.commit()
+
+
+def _load_customer_otp_state(db: Session, phone: str) -> dict:
+    key = _customer_otp_key(phone)
+    row = db.query(AppSetting).filter(AppSetting.key == key).first()
+    if not row:
+        return {}
+    try:
+        payload = json.loads(row.value_json or "{}")
+        return payload if isinstance(payload, dict) else {}
+    except Exception:
+        return {}
+
+
+def _delete_setting_key(db: Session, key: str) -> None:
+    row = db.query(AppSetting).filter(AppSetting.key == key).first()
+    if row:
+        db.delete(row)
+        db.commit()
+
+
+def _find_public_order_ids_by_phone(db: Session, phone: str, scan_limit: int = 5000) -> list[str]:
+    normalized = _normalize_customer_phone(phone)
+    local10 = _phone_local10(normalized)
+    if len(local10) < 10:
+        return []
+
+    rows = (
+        db.query(AppSetting)
+        .filter(AppSetting.key.like(f"{CUSTOMER_ORDER_CONTACT_KEY_PREFIX}%"))
+        .order_by(AppSetting.updated_at.desc())
+        .limit(max(100, int(scan_limit)))
+        .all()
+    )
+
+    out: list[str] = []
+    seen = set()
+    for row in rows:
+        key = str(row.key or "")
+        if not key.startswith(CUSTOMER_ORDER_CONTACT_KEY_PREFIX):
+            continue
+        order_id = key[len(CUSTOMER_ORDER_CONTACT_KEY_PREFIX):].strip()
+        if not order_id or order_id in seen:
+            continue
+        try:
+            payload = json.loads(row.value_json or "{}")
+        except Exception:
+            payload = {}
+        stored = _normalize_customer_phone((payload or {}).get("phone") or "")
+        if not stored:
+            continue
+        if stored == normalized or _phone_local10(stored) == local10:
+            seen.add(order_id)
+            out.append(order_id)
+    return out
+
+
+def _serialize_public_order_list_row(row: PublicOrder) -> dict:
+    try:
+        items = json.loads(row.items_json or "[]")
+    except Exception:
+        items = []
+    metho_amount = sum(float(i.get("subtotal") or 0) for i in items if i.get("product_type") == "metho")
+    associate_amount = sum(float(i.get("subtotal") or 0) for i in items if i.get("product_type") != "metho")
+    return {
+        "id": row.id,
+        "order_no": f"ORD-{row.id[:8].upper()}",
+        "status": row.status,
+        "created_at": row.created_at.isoformat() if row.created_at else now_iso(),
+        "shipping_address": row.shipping_address,
+        "txn_id": row.txn_id,
+        "payment_screenshot_url": row.payment_screenshot_url,
+        "payer_name": row.payer_name,
+        "items": [
+            {
+                "product_id": i.get("product_id"),
+                "product_code": i.get("product_code") or "",
+                "product_name": i.get("name"),
+                "quantity": i.get("quantity", 1),
+                "price": float(i.get("price") or 0),
+                "subtotal": float(i.get("subtotal") or 0),
+                "product_type": i.get("product_type") or "metho",
+            }
+            for i in items
+        ],
+        "total_amount": float(row.total_amount or 0),
+        "metho_amount": round(metho_amount, 2),
+        "associate_amount": round(associate_amount, 2),
+        "rejection_reason": "",
+    }
+
+
+def _ensure_customer_order_access(db: Session, order_id: str, phone: str) -> PublicOrder:
+    oid = str(order_id or "").strip()
+    if not oid:
+        raise HTTPException(status_code=400, detail="Order id is required")
+    row = db.query(PublicOrder).filter(PublicOrder.id == oid).first()
+    if not row:
+        raise HTTPException(status_code=404, detail="Order not found")
+
+    allowed_ids = set(_find_public_order_ids_by_phone(db, phone, scan_limit=10000))
+    if oid not in allowed_ids:
+        raise HTTPException(status_code=403, detail="Order does not belong to this mobile number")
+    return row
 
 
 def _require_admin_user(current_user: User):
@@ -2704,43 +2909,152 @@ def list_orders(db: Session = Depends(get_db), current_user=Depends(get_current_
         q = q.filter(PublicOrder.customer_user_id == current_user.id)
     rows = q.order_by(PublicOrder.created_at.desc()).limit(300).all()
 
-    out = []
-    for r in rows:
-        try:
-            items = json.loads(r.items_json or "[]")
-        except Exception:
-            items = []
-        metho_amount = sum(float(i.get("subtotal") or 0) for i in items if i.get("product_type") == "metho")
-        associate_amount = sum(float(i.get("subtotal") or 0) for i in items if i.get("product_type") != "metho")
-        out.append(
-            {
-                "id": r.id,
-                "order_no": f"ORD-{r.id[:8].upper()}",
-                "status": r.status,
-                "created_at": r.created_at.isoformat() if r.created_at else now_iso(),
-                "shipping_address": r.shipping_address,
-                "txn_id": r.txn_id,
-                "payment_screenshot_url": r.payment_screenshot_url,
-                "payer_name": r.payer_name,
-                "items": [
-                    {
-                        "product_id": i.get("product_id"),
-                        "product_code": i.get("product_code") or "",
-                        "product_name": i.get("name"),
-                        "quantity": i.get("quantity", 1),
-                        "price": float(i.get("price") or 0),
-                        "subtotal": float(i.get("subtotal") or 0),
-                        "product_type": i.get("product_type") or "metho",
-                    }
-                    for i in items
-                ],
-                "total_amount": float(r.total_amount or 0),
-                "metho_amount": round(metho_amount, 2),
-                "associate_amount": round(associate_amount, 2),
-                "rejection_reason": "",
-            }
-        )
+    out = [_serialize_public_order_list_row(r) for r in rows]
     return out
+
+
+@router.post("/customer/mobile-access/start")
+def customer_mobile_access_start(payload: dict, db: Session = Depends(get_db)):
+    settings = load_settings(db)
+    if settings.get("customer_mobile_order_access_enabled") is False:
+        raise HTTPException(status_code=403, detail="Customer mobile access is disabled")
+
+    phone = _normalize_customer_phone((payload or {}).get("phone") or "")
+    if len(_phone_local10(phone)) < 10:
+        raise HTTPException(status_code=400, detail="Valid mobile number is required")
+
+    order_ids = _find_public_order_ids_by_phone(db, phone)
+    if not order_ids:
+        raise HTTPException(status_code=404, detail="No orders found for this mobile number")
+
+    mode = str(settings.get("customer_mobile_access_mode") or "mobile_only").strip().lower()
+    if mode not in CUSTOMER_ACCESS_MODES:
+        mode = "mobile_only"
+
+    if mode == "mobile_only":
+        token, exp_ts = _issue_customer_access_token(phone, settings)
+        return {
+            "ok": True,
+            "mode": mode,
+            "requires_otp": False,
+            "access_token": token,
+            "expires_at": datetime.fromtimestamp(exp_ts, tz=timezone.utc).isoformat(),
+            "order_count": len(order_ids),
+        }
+
+    otp_len = int(settings.get("customer_order_otp_length") or 6)
+    otp_len = max(4, min(8, otp_len))
+    otp_ttl = int(settings.get("customer_order_otp_ttl_seconds") or 300)
+    otp_ttl = max(60, min(900, otp_ttl))
+    max_attempts = int(settings.get("customer_order_otp_max_attempts") or 5)
+    max_attempts = max(1, min(10, max_attempts))
+    otp = "".join(secrets.choice("0123456789") for _ in range(otp_len))
+
+    expires_at = datetime.now(timezone.utc) + timedelta(seconds=otp_ttl)
+    otp_state = {
+        "phone": phone,
+        "otp_hash": _hash_customer_otp(phone, otp, settings),
+        "expires_at": expires_at.isoformat(),
+        "attempts_left": max_attempts,
+        "updated_at": now_iso(),
+    }
+    _save_customer_otp_state(db, phone, otp_state)
+
+    out = {
+        "ok": True,
+        "mode": mode,
+        "requires_otp": True,
+        "expires_in_seconds": otp_ttl,
+        "order_count": len(order_ids),
+        "message": "OTP generated. Verify OTP to continue.",
+    }
+    if bool(settings.get("customer_order_otp_debug_mode")):
+        out["debug_otp"] = otp
+    return out
+
+
+@router.post("/customer/mobile-access/verify")
+def customer_mobile_access_verify(payload: dict, db: Session = Depends(get_db)):
+    settings = load_settings(db)
+    if settings.get("customer_mobile_order_access_enabled") is False:
+        raise HTTPException(status_code=403, detail="Customer mobile access is disabled")
+
+    phone = _normalize_customer_phone((payload or {}).get("phone") or "")
+    if len(_phone_local10(phone)) < 10:
+        raise HTTPException(status_code=400, detail="Valid mobile number is required")
+
+    mode = str(settings.get("customer_mobile_access_mode") or "mobile_only").strip().lower()
+    if mode not in CUSTOMER_ACCESS_MODES:
+        mode = "mobile_only"
+    if mode != "mobile_otp":
+        token, exp_ts = _issue_customer_access_token(phone, settings)
+        return {
+            "ok": True,
+            "mode": "mobile_only",
+            "access_token": token,
+            "expires_at": datetime.fromtimestamp(exp_ts, tz=timezone.utc).isoformat(),
+        }
+
+    otp_value = str((payload or {}).get("otp") or "").strip()
+    if not otp_value:
+        raise HTTPException(status_code=400, detail="OTP is required")
+
+    otp_state = _load_customer_otp_state(db, phone)
+    if not otp_state:
+        raise HTTPException(status_code=400, detail="OTP not found. Request a new OTP")
+
+    try:
+        expires_at = datetime.fromisoformat(str(otp_state.get("expires_at") or ""))
+    except Exception:
+        expires_at = datetime.now(timezone.utc) - timedelta(seconds=1)
+    if expires_at.tzinfo is None:
+        expires_at = expires_at.replace(tzinfo=timezone.utc)
+    if expires_at <= datetime.now(timezone.utc):
+        _delete_setting_key(db, _customer_otp_key(phone))
+        raise HTTPException(status_code=400, detail="OTP expired. Request a new OTP")
+
+    provided_hash = _hash_customer_otp(phone, otp_value, settings)
+    expected_hash = str(otp_state.get("otp_hash") or "")
+    attempts_left = int(otp_state.get("attempts_left") or 0)
+    if not expected_hash or not hmac.compare_digest(provided_hash, expected_hash):
+        attempts_left = max(0, attempts_left - 1)
+        if attempts_left <= 0:
+            _delete_setting_key(db, _customer_otp_key(phone))
+            raise HTTPException(status_code=400, detail="OTP failed too many times. Request a new OTP")
+        otp_state["attempts_left"] = attempts_left
+        otp_state["updated_at"] = now_iso()
+        _save_customer_otp_state(db, phone, otp_state)
+        raise HTTPException(status_code=400, detail=f"Invalid OTP. {attempts_left} attempt(s) left")
+
+    _delete_setting_key(db, _customer_otp_key(phone))
+    token, exp_ts = _issue_customer_access_token(phone, settings)
+    return {
+        "ok": True,
+        "mode": "mobile_otp",
+        "access_token": token,
+        "expires_at": datetime.fromtimestamp(exp_ts, tz=timezone.utc).isoformat(),
+    }
+
+
+@router.get("/customer/mobile-access/orders")
+def customer_mobile_access_orders(token: str = Query("", min_length=10), db: Session = Depends(get_db)):
+    settings = load_settings(db)
+    if settings.get("customer_mobile_order_access_enabled") is False:
+        raise HTTPException(status_code=403, detail="Customer mobile access is disabled")
+
+    phone = _verify_customer_access_token(token, settings)
+    order_ids = _find_public_order_ids_by_phone(db, phone)
+    if not order_ids:
+        return []
+
+    rows = (
+        db.query(PublicOrder)
+        .filter(PublicOrder.id.in_(order_ids))
+        .order_by(PublicOrder.created_at.desc())
+        .limit(200)
+        .all()
+    )
+    return [_serialize_public_order_list_row(r) for r in rows]
 
 
 @router.get("/offline-billing/member/{member_ref}")
@@ -3143,6 +3457,53 @@ def order_invoice_json(order_id: str, db: Session = Depends(get_db), current_use
 @router.get("/orders/{order_id}/invoice/pdf")
 def order_invoice_pdf(order_id: str, db: Session = Depends(get_db), current_user=Depends(get_current_user)):
     inv = _invoice_payload(db, order_id, current_user)
+    buff = BytesIO()
+    c = canvas.Canvas(buff, pagesize=A4)
+    w, h = A4
+    y = h - 50
+    c.setFont("Helvetica-Bold", 16)
+    c.drawString(40, y, inv["seller"]["name"])
+    y -= 22
+    c.setFont("Helvetica", 10)
+    c.drawString(40, y, f"Invoice: {inv['invoice_no']}  Order: {inv['order_no']}")
+    y -= 16
+    c.drawString(40, y, f"Buyer: {inv['buyer']['name']}  Member: {inv['buyer']['member_code'] or '-'}")
+    y -= 16
+    c.drawString(40, y, f"Total: INR {inv['grand_total']:.2f}  (Taxable: {inv['subtotal_pre_tax']:.2f}, GST: {(inv['total_cgst'] + inv['total_sgst']):.2f})")
+    y -= 24
+    for idx, item in enumerate(inv["items"], start=1):
+        if y < 70:
+            c.showPage()
+            y = h - 50
+        c.drawString(40, y, f"{idx}. {item['product_name']} x{item['quantity']} [{item['product_type']}]  INR {item['subtotal']:.2f}")
+        y -= 14
+    c.showPage()
+    c.save()
+    pdf = buff.getvalue()
+    return Response(content=pdf, media_type="application/pdf")
+
+
+@router.get("/customer/mobile-access/orders/{order_id}/invoice")
+def customer_order_invoice(order_id: str, token: str = Query("", min_length=10), db: Session = Depends(get_db)):
+    settings = load_settings(db)
+    if settings.get("customer_mobile_order_access_enabled") is False:
+        raise HTTPException(status_code=403, detail="Customer mobile access is disabled")
+    phone = _verify_customer_access_token(token, settings)
+    row = _ensure_customer_order_access(db, order_id, phone)
+    pseudo_user = SimpleNamespace(role="member", id=str(row.customer_user_id or ""))
+    return _invoice_payload(db, row.id, pseudo_user)
+
+
+@router.get("/customer/mobile-access/orders/{order_id}/invoice/pdf")
+def customer_order_invoice_pdf(order_id: str, token: str = Query("", min_length=10), db: Session = Depends(get_db)):
+    settings = load_settings(db)
+    if settings.get("customer_mobile_order_access_enabled") is False:
+        raise HTTPException(status_code=403, detail="Customer mobile access is disabled")
+    phone = _verify_customer_access_token(token, settings)
+    row = _ensure_customer_order_access(db, order_id, phone)
+    pseudo_user = SimpleNamespace(role="member", id=str(row.customer_user_id or ""))
+    inv = _invoice_payload(db, row.id, pseudo_user)
+
     buff = BytesIO()
     c = canvas.Canvas(buff, pagesize=A4)
     w, h = A4
@@ -5543,6 +5904,10 @@ def settings_update(payload: dict, db: Session = Depends(get_db), current_user=D
             "rank_gold_bv",
             "rank_diamond_bv",
             "referral_signup_bonus",
+            "customer_order_session_minutes",
+            "customer_order_otp_ttl_seconds",
+            "customer_order_otp_length",
+            "customer_order_otp_max_attempts",
             "leader_min_direct_members",
             "leader_min_active_members",
             "leader_min_personal_monthly_purchase",
@@ -5564,6 +5929,13 @@ def settings_update(payload: dict, db: Session = Depends(get_db), current_user=D
         for key in non_negative_keys:
             if payload.get(key) is not None and float(payload.get(key) or 0) < 0:
                 raise HTTPException(status_code=400, detail=f"{key} must be non-negative")
+        if payload.get("customer_mobile_access_mode") is not None:
+            mode = str(payload.get("customer_mobile_access_mode") or "").strip().lower()
+            if mode not in CUSTOMER_ACCESS_MODES:
+                raise HTTPException(status_code=400, detail="customer_mobile_access_mode must be mobile_only or mobile_otp")
+            payload["customer_mobile_access_mode"] = mode
+        if payload.get("customer_order_access_secret") is not None:
+            payload["customer_order_access_secret"] = str(payload.get("customer_order_access_secret") or "").strip()
         if payload.get("smart_cycle_days") is not None and int(payload.get("smart_cycle_days") or 0) < 1:
             raise HTTPException(status_code=400, detail="smart_cycle_days must be >= 1")
         current = load_settings(db)
