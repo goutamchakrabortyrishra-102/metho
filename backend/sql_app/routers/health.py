@@ -4,12 +4,15 @@ from fastapi import APIRouter
 
 router = APIRouter(prefix="/api", tags=["health"])
 
+RELEASE_TAG = "customer-mobile-access-hotfix-2026-08-10-1"
+
 
 @router.get("")
 def api_root():
     return {
         "app": "METHO AAY-UPAY ERP v3.0",
         "mode": "sql-starter",
+        "release_tag": RELEASE_TAG,
         "status": "running",
         "time": datetime.now(timezone.utc).isoformat(),
     }
