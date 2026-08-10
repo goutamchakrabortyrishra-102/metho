@@ -4328,6 +4328,21 @@ def get_transport_booking(trip_id: str, request: Request, customer_phone: str | 
     }
 
 
+@router.get("/admin/transport/bookings")
+def admin_transport_bookings(
+    offset: int = Query(default=0, ge=0),
+    limit: int = Query(default=3, ge=1, le=100),
+    db: Session = Depends(get_db),
+    current_user=Depends(get_current_user),
+):
+    if getattr(current_user, "role", "") not in {"super_admin", "company_admin", "admin"}:
+        raise HTTPException(status_code=403, detail="Admin access only")
+    all_trips = _list_transport_trips(db, limit=100000)
+    total = len(all_trips)
+    page_items = all_trips[offset: offset + limit]
+    return {"total": total, "offset": offset, "limit": limit, "items": page_items}
+
+
 @router.get("/partner/transport/bookings")
 def partner_transport_bookings(db: Session = Depends(get_db), current_user=Depends(get_current_user)):
     if getattr(current_user, "role", "") != "partner":

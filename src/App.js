@@ -46,6 +46,7 @@ const loadShopPage = () => import("@/pages/ShopPage");
 const loadPartnerGalleryPage = () => import("@/pages/PartnerGalleryPage");
 const loadInstallPage = () => import("@/pages/InstallPage");
 const loadMethoStoreAdminPage = () => import("@/pages/dashboard/MethoStoreAdminPage");
+const loadAdminTransportPage = () => import("@/pages/dashboard/AdminTransportPage");
 const loadMethoStoreOwnerPage = () => import("@/pages/dashboard/MethoStoreOwnerPage");
 const loadCustomerOrdersAccessPage = () => import("@/pages/CustomerOrdersAccessPage");
 const loadCustomerInvoicePage = () => import("@/pages/CustomerInvoicePage");
@@ -91,6 +92,7 @@ const ShopPage = lazy(loadShopPage);
 const PartnerGalleryPage = lazy(loadPartnerGalleryPage);
 const InstallPage = lazy(loadInstallPage);
 const MethoStoreAdminPage = lazy(loadMethoStoreAdminPage);
+const AdminTransportPage = lazy(loadAdminTransportPage);
 const MethoStoreOwnerPage = lazy(loadMethoStoreOwnerPage);
 const CustomerOrdersAccessPage = lazy(loadCustomerOrdersAccessPage);
 const CustomerInvoicePage = lazy(loadCustomerInvoicePage);
@@ -309,6 +311,7 @@ function App() {
                 <Route path="system-health" element={<AdminRoute><SystemHealthPage /></AdminRoute>} />
                 <Route path="owner-guide" element={<AdminRoute><OwnerGuidePage /></AdminRoute>} />
                 <Route path="withdrawals" element={<AdminRoute><WithdrawalsPage /></AdminRoute>} />
+                <Route path="transport-bookings" element={<AdminRoute><AdminTransportPage /></AdminRoute>} />
                 <Route path="leaderboard" element={<LeaderboardPage />} />
               </Route>
               <Route
