@@ -4245,6 +4245,16 @@ def create_transport_booking(payload: dict, request: Request, db: Session = Depe
     db.add(order_row)
     db.commit()
     db.refresh(order_row)
+    # Save customer phone so partner/orders can display it instead of falling back to the user account phone.
+    _customer_phone_digits = "".join(ch for ch in customer_phone if ch.isdigit())
+    if _customer_phone_digits:
+        _contact_key = f"order_contact:{order_row.id}"
+        _contact_row = db.query(AppSetting).filter(AppSetting.key == _contact_key).first()
+        if not _contact_row:
+            db.add(AppSetting(key=_contact_key, value_json=json.dumps({"customer_phone": _customer_phone_digits})))
+        else:
+            _contact_row.value_json = json.dumps({"customer_phone": _customer_phone_digits})
+        db.commit()
     trip = {
         "id": trip_id,
         "trip_code": f"TRP-{trip_id[:8].upper()}",
