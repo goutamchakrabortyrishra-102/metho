@@ -251,6 +251,7 @@ const Hero = () => {
   const HERO_IMG = settings?.landing_hero_image_url_full || DEFAULT_HERO_IMG;
   const tagline = settings?.landing_tagline;
   const subheading = settings?.landing_subheading;
+  const companyVideoUrl = normalizeYoutubeUrl(settings?.company_youtube_url);
 
   useEffect(() => {
     let active = true;
@@ -489,80 +490,84 @@ const Hero = () => {
                 <div className="relative z-10 p-4 md:p-5 h-full flex flex-col">
                   <div className="flex items-start justify-between gap-3">
                     <div className="max-w-[78%]">
-                      <p className="text-[9px] uppercase tracking-[0.3em] text-amber-300 font-bold">METHO Corporate Access</p>
-                      <h3 className="mt-2 font-display font-black text-[1.2rem] md:text-[1.62rem] text-white leading-[1.1] tracking-tight">
-                        One gateway for member growth and partner commerce.
-                      </h3>
-                      <p className="mt-2 text-[11px] md:text-xs text-emerald-100/80 leading-relaxed">
-                        Join the network, onboard businesses, and discover products and services from one business-ready panel.
-                      </p>
+                      <p className="text-[9px] uppercase tracking-[0.3em] text-amber-300 font-bold">Quick Access</p>
                     </div>
                     <div className="rounded-2xl bg-white/10 border border-white/15 p-2.5 md:p-3 text-white shrink-0 backdrop-blur-sm">
                       <Building2 className="w-5 h-5 md:w-6 md:h-6" />
                     </div>
                   </div>
 
-                  <div className="mt-4 grid gap-2">
+                  <div className="mt-4 grid grid-cols-1 sm:grid-cols-2 gap-2">
                     {[
                       {
-                        title: "Member Registration",
-                        subtitle: "Create member account in seconds",
-                        href: "/register",
-                        icon: Users,
-                        tag: "ONBOARD",
+                        title: "Customer Order History",
+                        href: "/customer-orders",
+                        icon: Shield,
+                        testId: "landing-quick-customer-order-history",
                       },
                       {
-                        title: "Partner Registration",
-                        subtitle: "List your business with METHO",
-                        href: "/partner-register",
+                        title: "Partner Login",
+                        href: "/login",
                         icon: Building2,
-                        tag: "BUSINESS",
+                        testId: "landing-quick-partner-login",
                       },
                       {
-                        title: "View All Products",
-                        subtitle: "Browse complete METHO product catalog",
-                        href: "/shop",
+                        title: "Store Login",
+                        href: "/login?next=/app/metho-store-owner",
                         icon: Store,
-                        tag: "CATALOG",
+                        testId: "landing-quick-store-login",
                       },
                       {
-                        title: "View All Partners/Services",
-                        subtitle: "Explore verified shops and service points",
-                        href: "/directory",
-                        icon: Globe,
-                        tag: "DIRECTORY",
+                        title: "Member Login",
+                        href: "/login",
+                        icon: Users,
+                        testId: "landing-quick-member-login",
                       },
                     ].map((item) => (
                       <Link
                         key={item.title}
                         to={item.href}
-                        className="group rounded-2xl bg-emerald-950/78 border border-emerald-100/30 backdrop-blur px-4 py-2.5 text-white shadow-[0_14px_30px_rgba(0,0,0,0.35)] hover:bg-emerald-950/86 hover:border-amber-200/50 transition-colors"
-                        data-testid={`landing-corporate-access-${item.title.toLowerCase().replace(/[^a-z0-9]+/g, "-")}`}
+                        className="group rounded-2xl bg-emerald-950/78 border border-emerald-100/30 backdrop-blur px-4 py-3 text-white shadow-[0_14px_30px_rgba(0,0,0,0.35)] hover:bg-emerald-950/86 hover:border-amber-200/50 transition-colors"
+                        data-testid={item.testId}
                       >
                         <div className="flex items-center justify-between gap-3">
-                          <div className="min-w-0">
-                            <p className="font-display font-bold text-[0.96rem] md:text-[1.02rem] leading-tight tracking-tight line-clamp-1">{item.title}</p>
-                            <p className="mt-1 text-[11px] md:text-xs text-emerald-50/98 line-clamp-1">{item.subtitle}</p>
-                          </div>
-                          <div className="flex items-center gap-2 shrink-0">
-                            <span className="rounded-full bg-amber-300 text-emerald-950 px-2.5 py-1 text-[9px] md:text-[10px] font-bold uppercase tracking-wider whitespace-nowrap">
-                              {item.tag}
-                            </span>
-                            <div className="w-8 h-8 rounded-xl bg-emerald-950/70 border border-emerald-100/35 flex items-center justify-center group-hover:bg-emerald-950 transition-colors">
-                              <item.icon className="w-4 h-4" />
-                            </div>
+                          <p className="font-display font-bold text-[0.96rem] md:text-[1.02rem] leading-tight tracking-tight line-clamp-1">{item.title}</p>
+                          <div className="w-8 h-8 rounded-xl bg-emerald-950/70 border border-emerald-100/35 flex items-center justify-center group-hover:bg-emerald-950 transition-colors shrink-0">
+                            <item.icon className="w-4 h-4" />
                           </div>
                         </div>
                       </Link>
                     ))}
-                  </div>
 
-                  <div className="mt-3 rounded-xl border border-white/15 bg-white/10 px-4 py-3 backdrop-blur">
-                    <p className="text-[10px] uppercase tracking-[0.24em] text-emerald-100/90 font-semibold">Business Ready Platform</p>
-                    <div className="mt-2 flex items-center justify-between gap-3 text-white">
-                      <p className="text-sm md:text-[15px] font-semibold leading-tight">Registration, commerce, and partner discovery aligned in one workflow.</p>
-                      <ArrowRight className="w-4 h-4 text-amber-300 shrink-0" />
-                    </div>
+                    {companyVideoUrl ? (
+                      <a
+                        href={companyVideoUrl}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="group rounded-2xl bg-emerald-950/78 border border-emerald-100/30 backdrop-blur px-4 py-3 text-white shadow-[0_14px_30px_rgba(0,0,0,0.35)] hover:bg-emerald-950/86 hover:border-amber-200/50 transition-colors sm:col-span-2"
+                        data-testid="landing-quick-watch-video"
+                      >
+                        <div className="flex items-center justify-between gap-3">
+                          <p className="font-display font-bold text-[0.96rem] md:text-[1.02rem] leading-tight tracking-tight line-clamp-1">Watch VDO</p>
+                          <div className="w-8 h-8 rounded-xl bg-emerald-950/70 border border-emerald-100/35 flex items-center justify-center group-hover:bg-emerald-950 transition-colors shrink-0">
+                            <PlayCircle className="w-4 h-4" />
+                          </div>
+                        </div>
+                      </a>
+                    ) : (
+                      <Link
+                        to="/shop"
+                        className="group rounded-2xl bg-emerald-950/78 border border-emerald-100/30 backdrop-blur px-4 py-3 text-white shadow-[0_14px_30px_rgba(0,0,0,0.35)] hover:bg-emerald-950/86 hover:border-amber-200/50 transition-colors sm:col-span-2"
+                        data-testid="landing-quick-watch-video"
+                      >
+                        <div className="flex items-center justify-between gap-3">
+                          <p className="font-display font-bold text-[0.96rem] md:text-[1.02rem] leading-tight tracking-tight line-clamp-1">Watch VDO</p>
+                          <div className="w-8 h-8 rounded-xl bg-emerald-950/70 border border-emerald-100/35 flex items-center justify-center group-hover:bg-emerald-950 transition-colors shrink-0">
+                            <PlayCircle className="w-4 h-4" />
+                          </div>
+                        </div>
+                      </Link>
+                    )}
                   </div>
                 </div>
               </div>
