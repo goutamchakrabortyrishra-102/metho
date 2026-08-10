@@ -311,17 +311,16 @@ const Hero = () => {
             </h1>
           ) : (
             <h1 className="mt-6 max-w-4xl font-display font-black text-4xl md:text-5xl lg:text-6xl tracking-tight leading-[0.97] text-emerald-950">
-              Build daily demand.
-              <span className="block text-amber-500 italic">Scale reliable income.</span>
-              <span className="mt-4 block text-xl md:text-2xl lg:text-[2rem] font-bold text-slate-800 leading-tight">Corporate commerce system for members, partners, and management.</span>
+              Real Business. Real Rewards. Real Growth.
+              <span className="mt-4 block text-xl md:text-2xl lg:text-[2rem] font-bold text-amber-600 italic leading-tight">METHO AAY-UPAY — Smart Commerce for customer, Members &amp; Partners.</span>
             </h1>
           )}
           {subheading ? (
             <p className="mt-5 max-w-2xl text-base md:text-lg text-slate-600 font-body leading-relaxed">{subheading}</p>
           ) : (
             <p className="mt-5 max-w-2xl text-base md:text-lg text-slate-600 font-body leading-relaxed">
-              METHO unifies registration, product sales, partner directory, and earnings operations in one business workflow.
-              <span className="block mt-1 text-slate-500">Designed for disciplined execution, transparent growth, and scale-ready field teams.</span>
+              METHO AAY-UPAY gives one unified workflow for onboarding, selling, partner discovery, and reward growth.
+              <span className="block mt-1 text-slate-500">Built for practical execution, transparent rewards, and long-term business expansion.</span>
             </p>
           )}
           <div className="mt-6 grid gap-2.5 sm:grid-cols-2 lg:grid-cols-4 max-w-3xl">
