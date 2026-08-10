@@ -299,16 +299,8 @@ const Hero = () => {
     <div className="absolute -top-16 left-1/2 -translate-x-1/2 w-[28rem] h-[28rem] bg-amber-300/15 rounded-full blur-3xl" />
     <div className="absolute right-0 top-24 w-72 h-72 bg-emerald-900/6 rounded-full blur-3xl" />
     <div className="max-w-7xl mx-auto px-6 relative">
-      <div className="mb-5 flex">
-        <div className="inline-flex items-center rounded-full border border-emerald-200 bg-white/95 px-4 py-2 text-sm font-semibold tracking-wide text-emerald-900 shadow-sm">
-          Powered By Metho Logistics Private Limited
-        </div>
-      </div>
       <div className="grid lg:grid-cols-12 gap-8 items-center">
         <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.6 }} className="lg:col-span-7">
-          <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-white/90 border border-emerald-900/10 text-emerald-900 text-xs font-semibold tracking-wide shadow-sm">
-            <Sparkles className="w-3.5 h-3.5" /> Powered By Metho Logistics Private Limited
-          </div>
           {tagline ? (
             <h1 className="mt-6 font-display font-black text-4xl md:text-5xl lg:text-6xl tracking-tight leading-[0.97] text-emerald-950">
               {tagline}
