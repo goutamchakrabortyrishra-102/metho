@@ -4,7 +4,7 @@ from fastapi import APIRouter
 
 router = APIRouter(prefix="/api", tags=["health"])
 
-RELEASE_TAG = "customer-mobile-access-hotfix-2026-08-10-1"
+RELEASE_TAG = "customer-mobile-access-hotfix-2026-08-10-2"
 
 
 @router.get("")
