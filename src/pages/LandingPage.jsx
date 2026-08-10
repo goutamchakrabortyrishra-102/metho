@@ -484,7 +484,14 @@ const Hero = () => {
             <div className="absolute -left-3 top-10 bottom-10 w-1.5 rounded-full bg-gradient-to-b from-[#ff9933] via-white to-[#138808]" />
             <div className="relative rounded-[28px] overflow-hidden shadow-2xl border border-emerald-900/10 bg-white p-3">
               <div className="relative min-h-[500px] md:min-h-[470px] rounded-[22px] overflow-hidden bg-emerald-950">
-                <img src={NETWORK_IMG} alt="Associate partner network" className="absolute inset-0 w-full h-full object-cover opacity-12" />
+                <img
+                  src={NETWORK_IMG}
+                  alt="Associate partner network"
+                  className="absolute inset-0 w-full h-full object-cover opacity-12"
+                  loading="lazy"
+                  decoding="async"
+                  fetchPriority="low"
+                />
                 <div className="absolute inset-0 bg-gradient-to-br from-emerald-950 via-emerald-900 to-emerald-950" />
 
                 <div className="relative z-10 p-4 md:p-5 h-full flex flex-col">

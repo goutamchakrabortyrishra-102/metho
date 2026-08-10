@@ -2,8 +2,6 @@ import React, { useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 import { Store, Plus, Pencil, Trash2, TrendingUp, Percent, Building, FileSpreadsheet, FileDown, ScrollText, Star, MessageCircle, Images, Upload, CheckCircle2, XCircle, ChevronDown, Search, Eye, Network, Package, LocateFixed, Globe, PhoneCall } from "lucide-react";
 import { Navigate, Link, useLocation, useNavigate } from "react-router-dom";
-import * as XLSX from "xlsx";
-import { jsPDF } from "jspdf";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -554,93 +552,101 @@ export default function PartnersPage() {
 
   const exportLedgerExcel = () => {
     if (!ledger) return;
-    const wb = XLSX.utils.book_new();
-    const p = ledger.partner;
-    const summaryRows = [
-      ["METHOO STORE — Partner Ledger", ""],
-      ["Partner Code", p.partner_code], ["Business Name", p.business_name],
-      ["Business Type", p.business_type], ["Contact", `${p.contact_person} · ${p.phone}`],
-      ["GST No", p.gst_no || "—"], ["Commission %", p.commission_percent],
-      ["Total Sales", p.total_sales || 0], ["Total Commission Paid", p.total_commission_paid || 0],
-      ["Generated", new Date().toLocaleString()], [],
-    ];
-    const s1 = XLSX.utils.aoa_to_sheet(summaryRows);
-    s1["!cols"] = [{ wch: 30 }, { wch: 30 }];
-    XLSX.utils.book_append_sheet(wb, s1, "Summary");
+    import("xlsx")
+      .then((XLSX) => {
+        const wb = XLSX.utils.book_new();
+        const p = ledger.partner;
+        const summaryRows = [
+          ["METHOO STORE — Partner Ledger", ""],
+          ["Partner Code", p.partner_code], ["Business Name", p.business_name],
+          ["Business Type", p.business_type], ["Contact", `${p.contact_person} · ${p.phone}`],
+          ["GST No", p.gst_no || "—"], ["Commission %", p.commission_percent],
+          ["Total Sales", p.total_sales || 0], ["Total Commission Paid", p.total_commission_paid || 0],
+          ["Generated", new Date().toLocaleString()], [],
+        ];
+        const s1 = XLSX.utils.aoa_to_sheet(summaryRows);
+        s1["!cols"] = [{ wch: 30 }, { wch: 30 }];
+        XLSX.utils.book_append_sheet(wb, s1, "Summary");
 
-    const entryRows = [
-      ["Date", "Order Ref", "Period", "Sales (₹)", "Commission %", "Commission (₹)"],
-      ...ledger.entries.map((e) => [
-        new Date(e.created_at).toLocaleString(),
-        e.ref_order_id, e.period,
-        e.sales_amount, e.commission_percent, e.commission_amount,
-      ]),
-      [], ["TOTAL", "", "", ledger.entries.reduce((s, e) => s + (e.sales_amount || 0), 0), "", ledger.entries.reduce((s, e) => s + (e.commission_amount || 0), 0)],
-    ];
-    const s2 = XLSX.utils.aoa_to_sheet(entryRows);
-    s2["!cols"] = [{ wch: 24 }, { wch: 40 }, { wch: 12 }, { wch: 15 }, { wch: 15 }, { wch: 18 }];
-    XLSX.utils.book_append_sheet(wb, s2, "Ledger Entries");
+        const entryRows = [
+          ["Date", "Order Ref", "Period", "Sales (₹)", "Commission %", "Commission (₹)"],
+          ...ledger.entries.map((e) => [
+            new Date(e.created_at).toLocaleString(),
+            e.ref_order_id, e.period,
+            e.sales_amount, e.commission_percent, e.commission_amount,
+          ]),
+          [], ["TOTAL", "", "", ledger.entries.reduce((s, e) => s + (e.sales_amount || 0), 0), "", ledger.entries.reduce((s, e) => s + (e.commission_amount || 0), 0)],
+        ];
+        const s2 = XLSX.utils.aoa_to_sheet(entryRows);
+        s2["!cols"] = [{ wch: 24 }, { wch: 40 }, { wch: 12 }, { wch: 15 }, { wch: 15 }, { wch: 18 }];
+        XLSX.utils.book_append_sheet(wb, s2, "Ledger Entries");
 
-    XLSX.writeFile(wb, `Partner_${p.partner_code}_Ledger.xlsx`);
-    toast.success("Ledger exported");
+        XLSX.writeFile(wb, `Partner_${p.partner_code}_Ledger.xlsx`);
+        toast.success("Ledger exported");
+      })
+      .catch(() => toast.error("Excel export module failed to load"));
   };
 
   const downloadPartnerPdf = (p) => {
-    const doc = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
-    const W = doc.internal.pageSize.getWidth();
+    import("jspdf")
+      .then(({ jsPDF }) => {
+        const doc = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
+        const W = doc.internal.pageSize.getWidth();
 
-    doc.setFillColor(5, 46, 22);
-    doc.rect(0, 0, W, 28, "F");
-    doc.setTextColor(255, 255, 255);
-    doc.setFont("helvetica", "bold");
-    doc.setFontSize(16);
-    doc.text("METHOO STORE Partner Profile", 10, 12);
-    doc.setFontSize(8);
-    doc.setFont("helvetica", "normal");
-    doc.text(`Generated: ${new Date().toLocaleString()}`, 10, 20);
+        doc.setFillColor(5, 46, 22);
+        doc.rect(0, 0, W, 28, "F");
+        doc.setTextColor(255, 255, 255);
+        doc.setFont("helvetica", "bold");
+        doc.setFontSize(16);
+        doc.text("METHOO STORE Partner Profile", 10, 12);
+        doc.setFontSize(8);
+        doc.setFont("helvetica", "normal");
+        doc.text(`Generated: ${new Date().toLocaleString()}`, 10, 20);
 
-    let y = 40;
-    const write = (label, value) => {
-      doc.setTextColor(71, 85, 105);
-      doc.setFont("helvetica", "bold");
-      doc.setFontSize(8);
-      doc.text(label, 10, y);
-      doc.setTextColor(5, 46, 22);
-      doc.setFont("helvetica", "normal");
-      doc.text(String(value ?? "—"), 55, y);
-      y += 7;
-    };
+        let y = 40;
+        const write = (label, value) => {
+          doc.setTextColor(71, 85, 105);
+          doc.setFont("helvetica", "bold");
+          doc.setFontSize(8);
+          doc.text(label, 10, y);
+          doc.setTextColor(5, 46, 22);
+          doc.setFont("helvetica", "normal");
+          doc.text(String(value ?? "—"), 55, y);
+          y += 7;
+        };
 
-    write("Partner Code", p.partner_code);
-    write("Business Name", p.business_name);
-    write("Business Type", p.business_type);
-    write("Contact Person", p.contact_person);
-    write("Phone", p.phone);
-    write("WhatsApp", p.whatsapp_no || p.phone);
-    write("Email", p.email || "—");
-    write("GST No", p.gst_no || "—");
-    write("Commission %", `${p.commission_percent ?? p.agreement_percent ?? 0}%`);
-    write("Status", p.active !== false ? "Active" : "Inactive");
-    write("Address", p.address || "—");
-    write("City", p.city || "—");
-    write("State", p.state || "—");
-    write("Pincode", p.pincode || "—");
-    y += 4;
+        write("Partner Code", p.partner_code);
+        write("Business Name", p.business_name);
+        write("Business Type", p.business_type);
+        write("Contact Person", p.contact_person);
+        write("Phone", p.phone);
+        write("WhatsApp", p.whatsapp_no || p.phone);
+        write("Email", p.email || "—");
+        write("GST No", p.gst_no || "—");
+        write("Commission %", `${p.commission_percent ?? p.agreement_percent ?? 0}%`);
+        write("Status", p.active !== false ? "Active" : "Inactive");
+        write("Address", p.address || "—");
+        write("City", p.city || "—");
+        write("State", p.state || "—");
+        write("Pincode", p.pincode || "—");
+        y += 4;
 
-    doc.setFont("helvetica", "bold");
-    doc.setFontSize(10);
-    doc.text("Financial Summary", 10, y);
-    y += 6;
-    doc.setFont("helvetica", "normal");
-    write("Total Sales", inr(p.total_sales || 0));
-    write("Commission Paid", inr(p.total_commission_paid || 0));
-    write("Reserve Wallet", inr(p.wallet?.balance || 0));
+        doc.setFont("helvetica", "bold");
+        doc.setFontSize(10);
+        doc.text("Financial Summary", 10, y);
+        y += 6;
+        doc.setFont("helvetica", "normal");
+        write("Total Sales", inr(p.total_sales || 0));
+        write("Commission Paid", inr(p.total_commission_paid || 0));
+        write("Reserve Wallet", inr(p.wallet?.balance || 0));
 
-    doc.setTextColor(148, 163, 184);
-    doc.setFontSize(7);
-    doc.text(`Partner shop: ${window.location.origin}/partner-shop/${p.partner_code}`, 10, 285);
-    doc.save(`Partner_${p.partner_code}_Profile.pdf`);
-    toast.success("Partner PDF downloaded");
+        doc.setTextColor(148, 163, 184);
+        doc.setFontSize(7);
+        doc.text(`Partner shop: ${window.location.origin}/partner-shop/${p.partner_code}`, 10, 285);
+        doc.save(`Partner_${p.partner_code}_Profile.pdf`);
+        toast.success("Partner PDF downloaded");
+      })
+      .catch(() => toast.error("PDF export module failed to load"));
   };
 
   const load = () => api.get("/admin/partners")
@@ -2317,7 +2323,13 @@ export default function PartnersPage() {
                     </div>
                     {req.proof_url ? (
                       <a href={resolveAssetUrl(req.proof_url)} target="_blank" rel="noreferrer">
-                        <img src={resolveAssetUrl(req.proof_url)} alt="Top-up proof" className="w-20 h-20 object-cover rounded-lg border border-border" />
+                        <img
+                          src={resolveAssetUrl(req.proof_url)}
+                          alt="Top-up proof"
+                          className="w-20 h-20 object-cover rounded-lg border border-border"
+                          loading="lazy"
+                          decoding="async"
+                        />
                       </a>
                     ) : null}
                   </div>

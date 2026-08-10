@@ -108,23 +108,26 @@ const RouteWarmup = () => {
   const location = useLocation();
   useEffect(() => {
     const pathname = String(location.pathname || "");
+    const connection = typeof navigator !== "undefined" ? navigator.connection || navigator.mozConnection || navigator.webkitConnection : null;
+    const saveDataEnabled = !!connection?.saveData;
+    const effectiveType = String(connection?.effectiveType || "").toLowerCase();
+    const constrainedNetwork = saveDataEnabled || effectiveType === "slow-2g" || effectiveType === "2g" || effectiveType === "3g";
+    if (constrainedNetwork) return;
+
     const publicTargets = [
       loadLandingPage,
+      loadLoginPage,
+      loadRegisterPage,
       loadPartnerRegisterPage,
       loadDirectoryPage,
       loadMethoStorePage,
       loadShopPage,
-      loadPartnerDashboardPage,
-      loadPartnerShopPage,
-      loadPartnerGalleryPage,
+      loadCustomerOrdersAccessPage,
     ];
     const appTargets = [
       loadDashboardLayout,
       loadDashboardHome,
       loadProductsPage,
-      loadPartnersPage,
-      loadMethoStoreAdminPage,
-      loadMethoStoreOwnerPage,
     ];
     const targets = pathname.startsWith("/app") ? [...publicTargets, ...appTargets] : publicTargets;
 
