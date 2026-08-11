@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useRef } from "react";
+import React, { useEffect, useState, useRef, useMemo } from "react";
 import { toast } from "sonner";
 import { Settings as SettingsIcon, Save, Sparkles, Users, PieChart, Award, QrCode, Upload, Loader2, MessageCircle, Gift, Image as ImageIcon, FileCheck2, Share2, Copy } from "lucide-react";
 import api from "@/services/api";
@@ -34,6 +34,75 @@ const updateSlotList = (list, slotIndex, nextValue, maxItems) => {
   }
   base[slotIndex] = normalizedNext;
   return base.filter(Boolean);
+};
+
+const DEFAULT_SERVICE_SECTORS = ["Transport", "Delivery Partner", "Stay & Dining", "Property Buy & Sell", "Doorstep", "Other Services"];
+const DEFAULT_SHOP_SECTORS = ["Vegetables", "Grocery", "Cosmetics & Beauty", "Others"];
+
+const DEFAULT_SERVICE_TEMPLATES_BY_SECTOR = {
+  Transport: ["Cab", "Car Rental", "Bike Rental", "Travel Agency"],
+  "Delivery Partner": ["Courier", "Logistics", "Cargo", "Parcel", "Express Delivery", "Pickup & Drop"],
+  "Stay & Dining": ["Hotel", "Homestay", "Restaurant", "Cafe", "Banquet", "House Rent", "Flat Rent", "Shop Rent", "Apartment Rent", "Event Venue Rental", "Resort Rental", "Hall Rental"],
+  "Property Buy & Sell": ["Property Sale", "Flat Sale", "House Sale", "Shop Sale", "Plot Sale", "Commercial Property", "Property Broker", "Site Visit"],
+  Doorstep: ["Home Service", "Laundry", "Cleaning", "Tailoring", "Beauty at Home", "Repair Center"],
+  "Other Services": ["Doctor Clinic", "Diagnostic Center", "Education", "Fitness", "Legal", "Accounting", "Photography", "Internet Service", "Other Service"],
+};
+
+const DEFAULT_SHOP_TEMPLATES_BY_SECTOR = {
+  Vegetables: ["Fresh Vegetable", "Leafy Greens", "Seasonal Produce", "Root Vegetables"],
+  Grocery: ["Kirana Essentials", "Rice & Dal", "Spices & Masala", "Oil & Pantry"],
+  "Cosmetics & Beauty": ["Skincare", "Makeup", "Hair Care", "Personal Care"],
+  Others: ["Household", "Stationery", "Fashion", "General Store"],
+};
+
+const sanitizeList = (items) => {
+  if (!Array.isArray(items)) return [];
+  const seen = new Set();
+  const out = [];
+  items.forEach((item) => {
+    const value = String(item || "").trim();
+    const key = value.toLowerCase();
+    if (!value || seen.has(key)) return;
+    seen.add(key);
+    out.push(value);
+  });
+  return out;
+};
+
+const normalizeRegistrationOptions = (value) => {
+  const source = value && typeof value === "object" ? value : {};
+  const normalizeMap = (mapValue) => {
+    const out = {};
+    const entries = mapValue && typeof mapValue === "object" ? Object.entries(mapValue) : [];
+    entries.forEach(([sector, list]) => {
+      const name = String(sector || "").trim();
+      if (!name) return;
+      const normalizedList = sanitizeList(list);
+      if (normalizedList.length) out[name] = normalizedList;
+    });
+    return out;
+  };
+  return {
+    service_sectors: sanitizeList(source.service_sectors),
+    shop_sectors: sanitizeList(source.shop_sectors),
+    service_templates_by_sector: normalizeMap(source.service_templates_by_sector),
+    shop_templates_by_sector: normalizeMap(source.shop_templates_by_sector),
+  };
+};
+
+const mergeUniqueInOrder = (...lists) => {
+  const seen = new Set();
+  const out = [];
+  lists.forEach((list) => {
+    (Array.isArray(list) ? list : []).forEach((item) => {
+      const value = String(item || "").trim();
+      const key = value.toLowerCase();
+      if (!value || seen.has(key)) return;
+      seen.add(key);
+      out.push(value);
+    });
+  });
+  return out;
 };
 
 function ReferralMessageSection({ form, setF, memberCode }) {
@@ -653,6 +722,130 @@ export default function SettingsPage() {
     : 0;
   const splitValid = Math.abs(splitSum - 100) < 0.01;
 
+  const registrationCustom = normalizeRegistrationOptions(form?.partner_registration_custom_options);
+  const mergedServiceSectors = useMemo(
+    () => mergeUniqueInOrder(DEFAULT_SERVICE_SECTORS, registrationCustom.service_sectors),
+    [registrationCustom.service_sectors]
+  );
+  const mergedShopSectors = useMemo(
+    () => mergeUniqueInOrder(DEFAULT_SHOP_SECTORS, registrationCustom.shop_sectors),
+    [registrationCustom.shop_sectors]
+  );
+  const mergedServiceTemplates = useMemo(() => {
+    const keys = mergeUniqueInOrder(Object.keys(DEFAULT_SERVICE_TEMPLATES_BY_SECTOR), Object.keys(registrationCustom.service_templates_by_sector), mergedServiceSectors);
+    const out = {};
+    keys.forEach((key) => {
+      out[key] = mergeUniqueInOrder(DEFAULT_SERVICE_TEMPLATES_BY_SECTOR[key] || [], registrationCustom.service_templates_by_sector[key] || []);
+    });
+    return out;
+  }, [registrationCustom.service_templates_by_sector, mergedServiceSectors]);
+  const mergedShopTemplates = useMemo(() => {
+    const keys = mergeUniqueInOrder(Object.keys(DEFAULT_SHOP_TEMPLATES_BY_SECTOR), Object.keys(registrationCustom.shop_templates_by_sector), mergedShopSectors);
+    const out = {};
+    keys.forEach((key) => {
+      out[key] = mergeUniqueInOrder(DEFAULT_SHOP_TEMPLATES_BY_SECTOR[key] || [], registrationCustom.shop_templates_by_sector[key] || []);
+    });
+    return out;
+  }, [registrationCustom.shop_templates_by_sector, mergedShopSectors]);
+
+  const [newServiceSector, setNewServiceSector] = useState("");
+  const [newShopSector, setNewShopSector] = useState("");
+  const [newServiceSubBySector, setNewServiceSubBySector] = useState({});
+  const [newShopSubBySector, setNewShopSubBySector] = useState({});
+
+  const updateRegistrationCustom = (next) => {
+    setForm((prev) => ({
+      ...prev,
+      partner_registration_custom_options: normalizeRegistrationOptions(next),
+    }));
+  };
+
+  const addServiceSector = () => {
+    const value = String(newServiceSector || "").trim();
+    if (!value) return;
+    updateRegistrationCustom({
+      ...registrationCustom,
+      service_sectors: mergeUniqueInOrder(registrationCustom.service_sectors, [value]),
+    });
+    setNewServiceSector("");
+  };
+
+  const removeServiceSector = (sector) => {
+    const nextTemplates = { ...registrationCustom.service_templates_by_sector };
+    delete nextTemplates[sector];
+    updateRegistrationCustom({
+      ...registrationCustom,
+      service_sectors: registrationCustom.service_sectors.filter((item) => String(item).toLowerCase() !== String(sector).toLowerCase()),
+      service_templates_by_sector: nextTemplates,
+    });
+  };
+
+  const addShopSector = () => {
+    const value = String(newShopSector || "").trim();
+    if (!value) return;
+    updateRegistrationCustom({
+      ...registrationCustom,
+      shop_sectors: mergeUniqueInOrder(registrationCustom.shop_sectors, [value]),
+    });
+    setNewShopSector("");
+  };
+
+  const removeShopSector = (sector) => {
+    const nextTemplates = { ...registrationCustom.shop_templates_by_sector };
+    delete nextTemplates[sector];
+    updateRegistrationCustom({
+      ...registrationCustom,
+      shop_sectors: registrationCustom.shop_sectors.filter((item) => String(item).toLowerCase() !== String(sector).toLowerCase()),
+      shop_templates_by_sector: nextTemplates,
+    });
+  };
+
+  const addServiceSubCategory = (sector) => {
+    const value = String(newServiceSubBySector[sector] || "").trim();
+    if (!value) return;
+    const nextList = mergeUniqueInOrder(registrationCustom.service_templates_by_sector?.[sector] || [], [value]);
+    updateRegistrationCustom({
+      ...registrationCustom,
+      service_templates_by_sector: {
+        ...registrationCustom.service_templates_by_sector,
+        [sector]: nextList,
+      },
+    });
+    setNewServiceSubBySector((prev) => ({ ...prev, [sector]: "" }));
+  };
+
+  const removeServiceSubCategory = (sector, value) => {
+    const current = registrationCustom.service_templates_by_sector?.[sector] || [];
+    const next = current.filter((item) => String(item).toLowerCase() !== String(value).toLowerCase());
+    const map = { ...registrationCustom.service_templates_by_sector };
+    if (next.length) map[sector] = next;
+    else delete map[sector];
+    updateRegistrationCustom({ ...registrationCustom, service_templates_by_sector: map });
+  };
+
+  const addShopSubCategory = (sector) => {
+    const value = String(newShopSubBySector[sector] || "").trim();
+    if (!value) return;
+    const nextList = mergeUniqueInOrder(registrationCustom.shop_templates_by_sector?.[sector] || [], [value]);
+    updateRegistrationCustom({
+      ...registrationCustom,
+      shop_templates_by_sector: {
+        ...registrationCustom.shop_templates_by_sector,
+        [sector]: nextList,
+      },
+    });
+    setNewShopSubBySector((prev) => ({ ...prev, [sector]: "" }));
+  };
+
+  const removeShopSubCategory = (sector, value) => {
+    const current = registrationCustom.shop_templates_by_sector?.[sector] || [];
+    const next = current.filter((item) => String(item).toLowerCase() !== String(value).toLowerCase());
+    const map = { ...registrationCustom.shop_templates_by_sector };
+    if (next.length) map[sector] = next;
+    else delete map[sector];
+    updateRegistrationCustom({ ...registrationCustom, shop_templates_by_sector: map });
+  };
+
   const buildSettingsPayload = (source) => ({
     smart_cycle_bonus_percent: Number(source.smart_cycle_bonus_percent),
     metho_commission_percent: Number(source.metho_commission_percent),
@@ -755,6 +948,7 @@ export default function SettingsPage() {
     top_leader_6_name: source.top_leader_6_name || "",
     top_leader_6_title: source.top_leader_6_title || "",
     top_leader_6_image_url: source.top_leader_6_image_url || "",
+    partner_registration_custom_options: normalizeRegistrationOptions(source.partner_registration_custom_options),
   });
 
   const persistFormToServer = async (source, successMessage) => {
@@ -1658,6 +1852,107 @@ export default function SettingsPage() {
                     testId="branding-top-leader-6"
                     uploadEndpoint="/admin/upload/top-leader-image?slot=6"
                   />
+                </div>
+              </div>
+            </div>
+          </Section>
+
+          <Section
+            title="Partner Registration Categories"
+            subtitle="Admin এখান থেকে নতুন category/sub category add করলে Partner Register dropdown-এ auto show হবে।"
+            icon={Sparkles}
+            badge="Dynamic"
+          >
+            <div className="md:col-span-2 grid gap-4 md:grid-cols-2">
+              <div className="rounded-xl border border-border p-4 bg-slate-50/40">
+                <p className="font-semibold text-emerald-950">Service Sectors</p>
+                <div className="mt-3 flex gap-2">
+                  <Input value={newServiceSector} onChange={(e) => setNewServiceSector(e.target.value)} placeholder="Add service sector" className="h-10" />
+                  <Button type="button" variant="outline" className="rounded-full" onClick={addServiceSector}>Add</Button>
+                </div>
+                <div className="mt-3 flex flex-wrap gap-2">
+                  {mergedServiceSectors.map((sector) => {
+                    const isDefault = DEFAULT_SERVICE_SECTORS.some((v) => v.toLowerCase() === sector.toLowerCase());
+                    return (
+                      <span key={sector} className="inline-flex items-center gap-1 rounded-full border border-emerald-300 bg-emerald-50 px-2.5 py-1 text-xs font-semibold text-emerald-900">
+                        {sector}
+                        {!isDefault ? <button type="button" className="text-red-700" onClick={() => removeServiceSector(sector)}>x</button> : null}
+                      </span>
+                    );
+                  })}
+                </div>
+              </div>
+
+              <div className="rounded-xl border border-border p-4 bg-slate-50/40">
+                <p className="font-semibold text-emerald-950">Shop Sectors</p>
+                <div className="mt-3 flex gap-2">
+                  <Input value={newShopSector} onChange={(e) => setNewShopSector(e.target.value)} placeholder="Add shop sector" className="h-10" />
+                  <Button type="button" variant="outline" className="rounded-full" onClick={addShopSector}>Add</Button>
+                </div>
+                <div className="mt-3 flex flex-wrap gap-2">
+                  {mergedShopSectors.map((sector) => {
+                    const isDefault = DEFAULT_SHOP_SECTORS.some((v) => v.toLowerCase() === sector.toLowerCase());
+                    return (
+                      <span key={sector} className="inline-flex items-center gap-1 rounded-full border border-emerald-300 bg-emerald-50 px-2.5 py-1 text-xs font-semibold text-emerald-900">
+                        {sector}
+                        {!isDefault ? <button type="button" className="text-red-700" onClick={() => removeShopSector(sector)}>x</button> : null}
+                      </span>
+                    );
+                  })}
+                </div>
+              </div>
+            </div>
+
+            <div className="md:col-span-2 grid gap-4 md:grid-cols-2">
+              <div className="rounded-xl border border-border p-4 bg-white">
+                <p className="font-semibold text-emerald-950">Service Sub Categories</p>
+                <div className="mt-3 space-y-3">
+                  {mergedServiceSectors.map((sector) => (
+                    <div key={sector} className="rounded-lg border border-border p-3">
+                      <p className="text-sm font-semibold text-emerald-900">{sector}</p>
+                      <div className="mt-2 flex gap-2">
+                        <Input value={newServiceSubBySector[sector] || ""} onChange={(e) => setNewServiceSubBySector((prev) => ({ ...prev, [sector]: e.target.value }))} placeholder="Add service sub category" className="h-9" />
+                        <Button type="button" variant="outline" className="rounded-full" onClick={() => addServiceSubCategory(sector)}>Add</Button>
+                      </div>
+                      <div className="mt-2 flex flex-wrap gap-1.5">
+                        {(mergedServiceTemplates[sector] || []).map((item) => {
+                          const isDefault = (DEFAULT_SERVICE_TEMPLATES_BY_SECTOR[sector] || []).some((v) => v.toLowerCase() === item.toLowerCase());
+                          return (
+                            <span key={`${sector}-${item}`} className="inline-flex items-center gap-1 rounded-full border border-slate-300 bg-slate-50 px-2 py-1 text-[11px]">
+                              {item}
+                              {!isDefault ? <button type="button" className="text-red-700" onClick={() => removeServiceSubCategory(sector, item)}>x</button> : null}
+                            </span>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              <div className="rounded-xl border border-border p-4 bg-white">
+                <p className="font-semibold text-emerald-950">Shop Sub Categories</p>
+                <div className="mt-3 space-y-3">
+                  {mergedShopSectors.map((sector) => (
+                    <div key={sector} className="rounded-lg border border-border p-3">
+                      <p className="text-sm font-semibold text-emerald-900">{sector}</p>
+                      <div className="mt-2 flex gap-2">
+                        <Input value={newShopSubBySector[sector] || ""} onChange={(e) => setNewShopSubBySector((prev) => ({ ...prev, [sector]: e.target.value }))} placeholder="Add shop sub category" className="h-9" />
+                        <Button type="button" variant="outline" className="rounded-full" onClick={() => addShopSubCategory(sector)}>Add</Button>
+                      </div>
+                      <div className="mt-2 flex flex-wrap gap-1.5">
+                        {(mergedShopTemplates[sector] || []).map((item) => {
+                          const isDefault = (DEFAULT_SHOP_TEMPLATES_BY_SECTOR[sector] || []).some((v) => v.toLowerCase() === item.toLowerCase());
+                          return (
+                            <span key={`${sector}-${item}`} className="inline-flex items-center gap-1 rounded-full border border-slate-300 bg-slate-50 px-2 py-1 text-[11px]">
+                              {item}
+                              {!isDefault ? <button type="button" className="text-red-700" onClick={() => removeShopSubCategory(sector, item)}>x</button> : null}
+                            </span>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  ))}
                 </div>
               </div>
             </div>

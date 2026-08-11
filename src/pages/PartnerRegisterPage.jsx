@@ -77,17 +77,6 @@ const SHOP_TEMPLATE_OPTIONS_BY_SECTOR = {
   Others: ["Household", "Stationery", "Fashion", "General Store"],
 };
 
-const ALL_SERVICE_TEMPLATE_OPTIONS = Array.from(
-  new Set([
-    ...SERVICE_CATEGORY_OPTIONS,
-    ...Object.values(SERVICE_TEMPLATE_OPTIONS_BY_SECTOR).flat(),
-  ])
-);
-
-const ALL_SHOP_TEMPLATE_OPTIONS = Array.from(
-  new Set(Object.values(SHOP_TEMPLATE_OPTIONS_BY_SECTOR).flat())
-);
-
 const TRANSPORT_REG_HINTS = [
   "transport", "cab", "taxi", "car", "car rental", "bike", "bike rental", "duchaka", "truck", "lorry", "travel", "vehicle",
 ];
@@ -201,6 +190,49 @@ const writeLocalArray = (key, items) => {
   }
 };
 
+const mergeUniqueInOrder = (...lists) => {
+  const seen = new Set();
+  const out = [];
+  lists.forEach((list) => {
+    (Array.isArray(list) ? list : []).forEach((item) => {
+      const value = String(item || "").trim();
+      const key = value.toLowerCase();
+      if (!value || seen.has(key)) return;
+      seen.add(key);
+      out.push(value);
+    });
+  });
+  return out;
+};
+
+const normalizeRegistrationCustomOptions = (value) => {
+  const source = value && typeof value === "object" ? value : {};
+  const normalizeMap = (obj) => {
+    const out = {};
+    const entries = obj && typeof obj === "object" ? Object.entries(obj) : [];
+    entries.forEach(([key, list]) => {
+      const sector = String(key || "").trim();
+      if (!sector) return;
+      const merged = mergeUniqueInOrder(list);
+      if (merged.length) out[sector] = merged;
+    });
+    return out;
+  };
+  return {
+    service_sectors: mergeUniqueInOrder(source.service_sectors),
+    shop_sectors: mergeUniqueInOrder(source.shop_sectors),
+    service_templates_by_sector: normalizeMap(source.service_templates_by_sector),
+    shop_templates_by_sector: normalizeMap(source.shop_templates_by_sector),
+  };
+};
+
+const DEFAULT_REGISTRATION_CUSTOM_OPTIONS = {
+  service_sectors: [],
+  shop_sectors: [],
+  service_templates_by_sector: {},
+  shop_templates_by_sector: {},
+};
+
 export default function PartnerRegisterPage() {
   const nav = useNavigate();
   const [form, setForm] = useState({
@@ -224,13 +256,46 @@ export default function PartnerRegisterPage() {
   const [done, setDone] = useState(null);
   const [termsOpen, setTermsOpen] = useState(false);
   const [agreedToTerms, setAgreedToTerms] = useState(false);
+  const [registrationCustomOptions, setRegistrationCustomOptions] = useState(DEFAULT_REGISTRATION_CUSTOM_OPTIONS);
   const isShop = form.business_type === "Shop";
   const isService = form.business_type === "Service";
+  const serviceSectorOptions = useMemo(
+    () => mergeUniqueInOrder(SERVICE_SECTOR_OPTIONS, registrationCustomOptions.service_sectors),
+    [registrationCustomOptions.service_sectors]
+  );
+  const shopSectorOptions = useMemo(
+    () => mergeUniqueInOrder(SHOP_SECTOR_OPTIONS, registrationCustomOptions.shop_sectors),
+    [registrationCustomOptions.shop_sectors]
+  );
+  const serviceTemplateOptionsBySector = useMemo(() => {
+    const keys = mergeUniqueInOrder(Object.keys(SERVICE_TEMPLATE_OPTIONS_BY_SECTOR), Object.keys(registrationCustomOptions.service_templates_by_sector), serviceSectorOptions);
+    const out = {};
+    keys.forEach((sector) => {
+      out[sector] = mergeUniqueInOrder(SERVICE_TEMPLATE_OPTIONS_BY_SECTOR[sector] || [], registrationCustomOptions.service_templates_by_sector[sector] || []);
+    });
+    return out;
+  }, [registrationCustomOptions.service_templates_by_sector, serviceSectorOptions]);
+  const shopTemplateOptionsBySector = useMemo(() => {
+    const keys = mergeUniqueInOrder(Object.keys(SHOP_TEMPLATE_OPTIONS_BY_SECTOR), Object.keys(registrationCustomOptions.shop_templates_by_sector), shopSectorOptions);
+    const out = {};
+    keys.forEach((sector) => {
+      out[sector] = mergeUniqueInOrder(SHOP_TEMPLATE_OPTIONS_BY_SECTOR[sector] || [], registrationCustomOptions.shop_templates_by_sector[sector] || []);
+    });
+    return out;
+  }, [registrationCustomOptions.shop_templates_by_sector, shopSectorOptions]);
+  const allServiceTemplateOptions = useMemo(
+    () => mergeUniqueInOrder(SERVICE_CATEGORY_OPTIONS, ...Object.values(serviceTemplateOptionsBySector)),
+    [serviceTemplateOptionsBySector]
+  );
+  const allShopTemplateOptions = useMemo(
+    () => mergeUniqueInOrder(...Object.values(shopTemplateOptionsBySector)),
+    [shopTemplateOptionsBySector]
+  );
   const suggestedServiceTemplates = isService
-    ? (SERVICE_TEMPLATE_OPTIONS_BY_SECTOR[form.service_sector] || ALL_SERVICE_TEMPLATE_OPTIONS)
+    ? (serviceTemplateOptionsBySector[form.service_sector] || allServiceTemplateOptions)
     : [];
   const suggestedShopTemplates = isShop
-    ? (SHOP_TEMPLATE_OPTIONS_BY_SECTOR[form.shop_sector] || ALL_SHOP_TEMPLATE_OPTIONS)
+    ? (shopTemplateOptionsBySector[form.shop_sector] || allShopTemplateOptions)
     : [];
   const selectedDistrictOptions = useMemo(() => {
     const fromPin = districtOptions || [];
@@ -284,6 +349,22 @@ export default function PartnerRegisterPage() {
       };
     });
   }, [inferenceInput]);
+
+  useEffect(() => {
+    let cancelled = false;
+    api.get("/settings/public")
+      .then((r) => {
+        if (cancelled) return;
+        const next = normalizeRegistrationCustomOptions(r?.data?.partner_registration_custom_options);
+        setRegistrationCustomOptions(next);
+      })
+      .catch(() => {
+        if (!cancelled) setRegistrationCustomOptions(DEFAULT_REGISTRATION_CUSTOM_OPTIONS);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -565,7 +646,7 @@ export default function PartnerRegisterPage() {
                       data-testid="reg-service-sector"
                     >
                       <option value="">Select service sector</option>
-                      {SERVICE_SECTOR_OPTIONS.map((sector) => (
+                      {serviceSectorOptions.map((sector) => (
                         <option key={sector} value={sector}>{sector}</option>
                       ))}
                     </select>
@@ -612,7 +693,7 @@ export default function PartnerRegisterPage() {
                       data-testid="reg-shop-sector"
                     >
                       <option value="">Select shop sector</option>
-                      {SHOP_SECTOR_OPTIONS.map((sector) => (
+                      {shopSectorOptions.map((sector) => (
                         <option key={sector} value={sector}>{sector}</option>
                       ))}
                     </select>

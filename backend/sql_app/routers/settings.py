@@ -90,6 +90,12 @@ DEFAULT_SETTINGS = {
         "Nutrition",
         "Utilities",
     ],
+    "partner_registration_custom_options": {
+        "service_sectors": [],
+        "shop_sectors": [],
+        "service_templates_by_sector": {},
+        "shop_templates_by_sector": {},
+    },
     "product_pricing_tiers": {},
     "enable_partner_slab_pricing": False,
     "upi_id": "methopvtltd@paytm",
