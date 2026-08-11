@@ -38,12 +38,22 @@ const isTransportServiceListing = (item) => {
   return isTransportServiceLike(item);
 };
 const HOSPITALITY_SERVICE_SECTORS = ["Hotel", "Homestay", "Restaurant", "Cafe"];
+const RESTAURANT_SLOT_TEMPLATE_KEYS = new Set([
+  "restaurant_table_booking",
+  "banquet_slot",
+  "restaurant_takeaway_slot",
+  "cafe_table_reservation",
+]);
 const DOORSTEP_SERVICE_SECTORS = ["Home Service", "Laundry", "Beauty at Home", "Cleaning", "Courier", "Tailoring"];
 const isHospitalityServiceListing = (item) => {
   return isHospitalityServiceLike(item);
 };
 const isDoorstepServiceListing = (item) => {
   return isDoorstepServiceLike(item);
+};
+const isRestaurantSlotService = (item) => {
+  const key = String(item?.service_template_key || "").trim().toLowerCase();
+  return RESTAURANT_SLOT_TEMPLATE_KEYS.has(key);
 };
 const TRANSPORT_STATUS_META = {
   booked: { label: "New Request", tone: "bg-sky-100 text-sky-800 border-sky-200" },
@@ -265,6 +275,9 @@ export default function PartnerDashboardPage() {
   const [rejectReasonDrafts, setRejectReasonDrafts] = useState({});
   const [serviceFareDrafts, setServiceFareDrafts] = useState({});
   const [serviceActionBusy, setServiceActionBusy] = useState({});
+  const [restaurantRateDrafts, setRestaurantRateDrafts] = useState({});
+  const [restaurantCapacityDrafts, setRestaurantCapacityDrafts] = useState({});
+  const [restaurantConfigBusy, setRestaurantConfigBusy] = useState({});
   const [ordersShortcutPinned, setOrdersShortcutPinned] = useState(false);
   const normalizedProducts = Array.isArray(products) ? products : [];
   const normalizedLedger = Array.isArray(ledger) ? ledger : [];
@@ -375,6 +388,33 @@ export default function PartnerDashboardPage() {
       loadAll();
     } catch (err) {
       toast.error(err?.response?.data?.detail || "Fare update failed");
+    }
+  };
+
+  const saveRestaurantSlotConfig = async (productId, fallbackPrice, fallbackStock) => {
+    const rate = Number(restaurantRateDrafts?.[productId] ?? fallbackPrice ?? 0);
+    const capacity = Number(restaurantCapacityDrafts?.[productId] ?? fallbackStock ?? 0);
+    if (rate <= 0) {
+      toast.error("Booking rate valid দিন");
+      return;
+    }
+    if (!Number.isFinite(capacity) || capacity < 0) {
+      toast.error("Seating capacity valid দিন");
+      return;
+    }
+
+    setRestaurantConfigBusy((prev) => ({ ...prev, [productId]: true }));
+    try {
+      await api.put(`/partner/products/${productId}`, {
+        price: rate,
+        stock: Math.floor(capacity),
+      });
+      toast.success("Restaurant slot rate/capacity updated");
+      loadAll();
+    } catch (err) {
+      toast.error(err?.response?.data?.detail || "Update failed");
+    } finally {
+      setRestaurantConfigBusy((prev) => ({ ...prev, [productId]: false }));
     }
   };
 
@@ -1551,6 +1591,45 @@ export default function PartnerDashboardPage() {
                       ) : null}
                     </div>
                     <div className="p-3"><p className="font-semibold text-sm text-emerald-950">{p.name}</p><p className="text-xs text-muted-foreground">{p.category}</p><p className="font-display font-black text-emerald-800 mt-1">{withUnit(p.price, p.unit_type)}</p><p className="text-[10px] text-slate-500">{String(p?.service_invoice_mode || "detailed").replace(/_/g, " ")}</p>
+                    {isRestaurantSlotService(p) ? (
+                      <div className="mt-2 rounded-lg border border-amber-200 bg-amber-50 p-2 space-y-2">
+                        <p className="text-[10px] font-semibold uppercase tracking-wider text-amber-800">Restaurant Slot Control</p>
+                        <div>
+                          <Label className="text-[10px] text-slate-600">Booking Rate (INR)</Label>
+                          <Input
+                            type="number"
+                            min="1"
+                            step="1"
+                            value={restaurantRateDrafts?.[p.id] ?? String(Number(p?.price || 0))}
+                            onChange={(e) => setRestaurantRateDrafts((prev) => ({ ...prev, [p.id]: e.target.value }))}
+                            className="h-8 mt-1 text-xs"
+                            data-testid={`restaurant-rate-${p.id}`}
+                          />
+                        </div>
+                        <div>
+                          <Label className="text-[10px] text-slate-600">Seating Capacity</Label>
+                          <Input
+                            type="number"
+                            min="0"
+                            step="1"
+                            value={restaurantCapacityDrafts?.[p.id] ?? String(Math.max(0, Number(p?.stock || 0)))}
+                            onChange={(e) => setRestaurantCapacityDrafts((prev) => ({ ...prev, [p.id]: e.target.value }))}
+                            className="h-8 mt-1 text-xs"
+                            data-testid={`restaurant-capacity-${p.id}`}
+                          />
+                        </div>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="rounded-full h-7 px-2 text-[11px] border-amber-300 text-amber-900 hover:bg-amber-100 w-full"
+                          disabled={!!restaurantConfigBusy?.[p.id]}
+                          onClick={() => saveRestaurantSlotConfig(p.id, p?.price, p?.stock)}
+                          data-testid={`restaurant-save-config-${p.id}`}
+                        >
+                          {restaurantConfigBusy?.[p.id] ? "Saving..." : "Save Slot Config"}
+                        </Button>
+                      </div>
+                    ) : null}
                     <div className="flex gap-1 mt-2">
                       <PartnerProductForm
                         product={p}

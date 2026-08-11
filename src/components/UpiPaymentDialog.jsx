@@ -12,6 +12,12 @@ import { QRCodeCanvas } from "qrcode.react";
 import { resolveAssetUrl, buildUpiPaymentUri } from "@/lib/utils";
 
 const GUEST_CHECKOUT_PREFS_KEY = "metho_guest_checkout_prefs_v1";
+const RESTAURANT_SLOT_TEMPLATE_KEYS = new Set([
+  "restaurant_table_booking",
+  "banquet_slot",
+  "restaurant_takeaway_slot",
+  "cafe_table_reservation",
+]);
 
 const readGuestCheckoutPrefs = () => {
   try {
@@ -65,6 +71,8 @@ export default function UpiPaymentDialog({
   const [txnId, setTxnId] = useState("");
   const [payerName, setPayerName] = useState("");
   const [payerPhone, setPayerPhone] = useState("");
+  const [slotDateTime, setSlotDateTime] = useState("");
+  const [slotGuestCount, setSlotGuestCount] = useState("1");
   const [paymentMode, setPaymentMode] = useState("upi");
   const [screenshot, setScreenshot] = useState(null); // { url, storage_path }
   const [uploading, setUploading] = useState(false);
@@ -86,6 +94,12 @@ export default function UpiPaymentDialog({
   const requiresShippingAddress = Array.isArray(items)
     ? items.some((item) => !(item?.is_service || String(item?.listing_type || item?.item_kind || "").toLowerCase().includes("service")))
     : true;
+  const requiresRestaurantSlot = Array.isArray(items)
+    ? items.some((item) => {
+      const key = String(item?.service_template_key || "").trim().toLowerCase();
+      return RESTAURANT_SLOT_TEMPLATE_KEYS.has(key);
+    })
+    : false;
 
   useEffect(() => {
     if (!open) return;
@@ -179,6 +193,8 @@ export default function UpiPaymentDialog({
     if (paymentMode === "cod" && !resolvedCustomerPhone) return toast.error("COD order-এর জন্য Mobile Number দিন");
     if (paymentMode === "cod" && !resolvedPayerName) return toast.error("COD order-এর জন্য Customer Name দিন");
     if (!existingOrderId && requiresShippingAddress && !address.trim()) return toast.error("Please enter shipping address");
+    if (!existingOrderId && requiresRestaurantSlot && !slotDateTime.trim()) return toast.error("Restaurant slot date and time দিন");
+    if (!existingOrderId && requiresRestaurantSlot && Number(slotGuestCount || 0) <= 0) return toast.error("Guest count দিন");
     if (paymentMode === "upi") {
       if (!txnId.trim()) return toast.error("Please enter UPI Transaction ID");
       if (!screenshot?.url) return toast.error("Please upload payment screenshot");
@@ -201,6 +217,8 @@ export default function UpiPaymentDialog({
         payment_screenshot_url: paymentMode === "cod" ? "" : screenshot.url,
         payer_name: resolvedPayerName || undefined,
         customer_phone: resolvedCustomerPhone,
+        slot_datetime: requiresRestaurantSlot ? slotDateTime : "",
+        guest_count: requiresRestaurantSlot ? Number(slotGuestCount || 0) : 0,
       };
       const ref = (memberRef || "").trim();
       if (ref) {
@@ -232,6 +250,7 @@ export default function UpiPaymentDialog({
       }
       // Reset
       setTxnId(""); setPayerName(""); setPayerPhone(""); setScreenshot(null); setAddress("");
+      setSlotDateTime(""); setSlotGuestCount("1");
       setPaymentMode("upi");
     } catch (err) {
       toast.error(err?.response?.data?.detail || "Order submit failed");
@@ -246,6 +265,8 @@ export default function UpiPaymentDialog({
       return;
     }
     if (requiresShippingAddress && !address.trim()) return toast.error("Please enter shipping address");
+    if (requiresRestaurantSlot && !slotDateTime.trim()) return toast.error("Restaurant slot date and time দিন");
+    if (requiresRestaurantSlot && Number(slotGuestCount || 0) <= 0) return toast.error("Guest count দিন");
     if (!resolvedPayerName) return toast.error("Order-এর জন্য Customer Name দিন");
     if (isGuest && !normalizedPayerPhone) return toast.error("Please enter mobile number");
     if (!resolvedCustomerPhone) return toast.error("Please enter mobile number");
@@ -266,6 +287,8 @@ export default function UpiPaymentDialog({
         payment_method: "razorpay",
         payer_name: resolvedPayerName || undefined,
         customer_phone: resolvedCustomerPhone,
+        slot_datetime: requiresRestaurantSlot ? slotDateTime : "",
+        guest_count: requiresRestaurantSlot ? Number(slotGuestCount || 0) : 0,
       };
       const ref = (memberRef || "").trim();
       if (ref) {
@@ -336,6 +359,8 @@ export default function UpiPaymentDialog({
             setPayerPhone("");
             setScreenshot(null);
             setAddress("");
+            setSlotDateTime("");
+            setSlotGuestCount("1");
           } catch (err) {
             toast.error(err?.response?.data?.detail || "Payment verification failed");
           } finally {
@@ -541,6 +566,36 @@ export default function UpiPaymentDialog({
               </div>
             )}
 
+                {!existingOrderId && requiresRestaurantSlot ? (
+                  <div className="rounded-xl border border-amber-300 bg-amber-50 p-3 space-y-3">
+                    <p className="text-[11px] font-semibold text-amber-900">Restaurant Slot Details</p>
+                    <div>
+                      <Label htmlFor="restaurant-slot-time">Slot Date & Time <span className="text-red-500">*</span></Label>
+                      <Input
+                        id="restaurant-slot-time"
+                        type="datetime-local"
+                        value={slotDateTime}
+                        onChange={(e) => setSlotDateTime(e.target.value)}
+                        className="mt-1.5 h-11"
+                        data-testid="restaurant-slot-datetime"
+                      />
+                    </div>
+                    <div>
+                      <Label htmlFor="restaurant-slot-guests">Guest Count <span className="text-red-500">*</span></Label>
+                      <Input
+                        id="restaurant-slot-guests"
+                        type="number"
+                        min="1"
+                        step="1"
+                        value={slotGuestCount}
+                        onChange={(e) => setSlotGuestCount(e.target.value)}
+                        className="mt-1.5 h-11"
+                        data-testid="restaurant-slot-guests"
+                      />
+                    </div>
+                  </div>
+                ) : null}
+
                 {!existingOrderId && requiresShippingAddress && (
               <div>
                 <Label htmlFor="ship">Shipping Address <span className="text-red-500">*</span></Label>
@@ -640,6 +695,36 @@ export default function UpiPaymentDialog({
                   <p className="text-[11px] text-muted-foreground mt-1">
                     Leave blank for plain guest purchase. Provide Member ID/Code only if reward percentage attribution is needed.
                   </p>
+                </div>
+              ) : null}
+
+              {!existingOrderId && requiresRestaurantSlot ? (
+                <div className="rounded-xl border border-amber-300 bg-amber-50 p-3 space-y-3">
+                  <p className="text-[11px] font-semibold text-amber-900">Restaurant Slot Details</p>
+                  <div>
+                    <Label htmlFor="restaurant-slot-time-razorpay">Slot Date & Time <span className="text-red-500">*</span></Label>
+                    <Input
+                      id="restaurant-slot-time-razorpay"
+                      type="datetime-local"
+                      value={slotDateTime}
+                      onChange={(e) => setSlotDateTime(e.target.value)}
+                      className="mt-1.5 h-11"
+                      data-testid="restaurant-slot-datetime-razorpay"
+                    />
+                  </div>
+                  <div>
+                    <Label htmlFor="restaurant-slot-guests-razorpay">Guest Count <span className="text-red-500">*</span></Label>
+                    <Input
+                      id="restaurant-slot-guests-razorpay"
+                      type="number"
+                      min="1"
+                      step="1"
+                      value={slotGuestCount}
+                      onChange={(e) => setSlotGuestCount(e.target.value)}
+                      className="mt-1.5 h-11"
+                      data-testid="restaurant-slot-guests-razorpay"
+                    />
+                  </div>
                 </div>
               ) : null}
 

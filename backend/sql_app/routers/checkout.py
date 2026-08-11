@@ -30,6 +30,12 @@ PARTNER_PRODUCT_UNITS_KEY = "partner_product_units"
 PARTNER_PRODUCT_META_KEY = "partner_product_meta"
 PARTNER_UNIT_OPTIONS = {"piece", "kg", "gram", "litre", "ml"}
 ORDER_CONTACT_KEY_PREFIX = "order_contact:"
+RESTAURANT_SLOT_TEMPLATE_KEYS = {
+    "restaurant_table_booking",
+    "banquet_slot",
+    "restaurant_takeaway_slot",
+    "cafe_table_reservation",
+}
 
 
 def _build_partner_whatsapp_url(phone: str | None, message: str) -> str:
@@ -704,6 +710,12 @@ def create_public_order(payload: dict, db: Session = Depends(get_db), authorizat
     customer_name = payer_name_raw
     customer_phone = str(payload.get("customer_phone") or "").strip()
     shipping_address = str(payload.get("shipping_address") or "").strip()
+    slot_datetime = str(payload.get("slot_datetime") or "").strip()
+    guest_count_raw = payload.get("guest_count")
+    try:
+        guest_count = int(guest_count_raw if guest_count_raw is not None else 0)
+    except Exception:
+        guest_count = 0
     payment_method = str(payload.get("payment_method") or "upi").strip().lower()
     customer_phone_digits = "".join(ch for ch in customer_phone if ch.isdigit())
 
@@ -720,10 +732,14 @@ def create_public_order(payload: dict, db: Session = Depends(get_db), authorizat
 
     has_partner_item = False
     has_partner_physical_item = False
+    has_restaurant_slot_item = False
     for item in normalized_items:
         if str(item.get("product_type") or "").strip() != "associate_partner":
             continue
         has_partner_item = True
+        template_key = str(item.get("service_template_key") or "").strip().lower()
+        if template_key in RESTAURANT_SLOT_TEMPLATE_KEYS and _is_service_order_item(item):
+            has_restaurant_slot_item = True
         if not _is_service_order_item(item):
             has_partner_physical_item = True
 
@@ -737,6 +753,30 @@ def create_public_order(payload: dict, db: Session = Depends(get_db), authorizat
             raise HTTPException(status_code=400, detail="COD order requires customer name")
         if not customer_phone_digits:
             raise HTTPException(status_code=400, detail="COD order requires customer phone")
+
+    if has_restaurant_slot_item:
+        if not slot_datetime:
+            raise HTTPException(status_code=400, detail="Restaurant slot booking requires date and time")
+        if guest_count <= 0:
+            raise HTTPException(status_code=400, detail="Restaurant slot booking requires guest count")
+        restaurant_capacity_limit = None
+        for item in normalized_items:
+            template_key = str(item.get("service_template_key") or "").strip().lower()
+            if template_key not in RESTAURANT_SLOT_TEMPLATE_KEYS:
+                continue
+            product_id = str(item.get("product_id") or "").strip()
+            if not product_id:
+                continue
+            partner_product = db.query(PartnerProduct).filter(PartnerProduct.id == product_id).first()
+            if not partner_product:
+                continue
+            capacity = max(0, int(getattr(partner_product, "stock", 0) or 0))
+            restaurant_capacity_limit = capacity if restaurant_capacity_limit is None else min(restaurant_capacity_limit, capacity)
+        if restaurant_capacity_limit is not None and guest_count > restaurant_capacity_limit:
+            raise HTTPException(status_code=400, detail=f"Guest count exceeds seating capacity ({restaurant_capacity_limit})")
+        slot_summary = f"Restaurant Slot: {slot_datetime} | Guests: {guest_count}"
+        shipping_address = f"{slot_summary} | Note: {shipping_address}" if shipping_address else slot_summary
+
     row = PublicOrder(
         id=str(uuid.uuid4()),
         customer_user_id=customer_user_id,
