@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 import { Navigate } from "react-router-dom";
 import { Store, CheckCircle2, XCircle, Filter, Phone, MapPin, Mail, Copy, Loader2 } from "lucide-react";
@@ -16,11 +16,53 @@ const STATUS_STYLES = {
   rejected: "bg-red-100 text-red-800",
 };
 
+const REQUEST_SECTOR_FILTERS = [
+  { key: "", label: "All" },
+  { key: "products", label: "Products" },
+  { key: "delivery-partner", label: "Delivery" },
+  { key: "doorstep", label: "Doorstep" },
+  { key: "other-services", label: "Others" },
+];
+
+const normalizeText = (value) => String(value || "").trim().toLowerCase();
+
+const extractPrimarySector = (request) => {
+  const businessType = normalizeText(request?.business_type);
+  const description = String(request?.business_description || "");
+  const descriptionLower = normalizeText(description);
+  const metaMatch = description.match(/Primary Sector:\s*([^\n|]+)/i);
+  const primaryMeta = normalizeText(metaMatch?.[1] || "");
+  const source = [businessType, descriptionLower, primaryMeta].filter(Boolean).join(" ");
+
+  if (source.includes("delivery partner") || source.includes("delivery") || source.includes("courier") || source.includes("logistics")) {
+    return "delivery-partner";
+  }
+  if (source.includes("doorstep")) {
+    return "doorstep";
+  }
+  if (source.includes("other services") || source.includes("other service")) {
+    return "other-services";
+  }
+  if (source.includes("shop") || source.includes("product")) {
+    return "products";
+  }
+  return "other-services";
+};
+
+const formatSectorLabel = (sectorKey) => {
+  if (sectorKey === "delivery-partner") return "Delivery";
+  if (sectorKey === "doorstep") return "Doorstep";
+  if (sectorKey === "other-services") return "Others";
+  if (sectorKey === "products") return "Products";
+  return "Others";
+};
+
 export default function PartnerApprovalsPage() {
   const { user } = useAuth();
   const isAdmin = user && (user.role === "super_admin" || user.role === "company_admin");
   const [items, setItems] = useState([]);
   const [filter, setFilter] = useState("pending");
+  const [sectorFilter, setSectorFilter] = useState("");
   const [approveItem, setApproveItem] = useState(null);
   const [rejectItem, setRejectItem] = useState(null);
   const [reason, setReason] = useState("");
@@ -29,7 +71,6 @@ export default function PartnerApprovalsPage() {
 
   const load = () => api.get(`/admin/partner-requests${filter ? `?status_filter=${filter}` : ""}`).then(r => setItems(r.data)).catch(() => {});
   useEffect(() => { if (isAdmin) load(); /* eslint-disable-next-line */ }, [isAdmin, filter]);
-  if (!isAdmin) return <Navigate to="/app" replace />;
 
   const doApprove = async () => {
     setBusy(true);
@@ -55,6 +96,23 @@ export default function PartnerApprovalsPage() {
   const closeApprove = () => { setApproveItem(null); setResultCreds(null); };
 
   const pendingCount = items.filter(i => i.status === "pending").length;
+  const itemsWithSector = useMemo(
+    () => items.map((item) => ({ ...item, request_sector: extractPrimarySector(item) })),
+    [items]
+  );
+  const visibleItems = useMemo(() => {
+    if (!sectorFilter) return itemsWithSector;
+    return itemsWithSector.filter((item) => item.request_sector === sectorFilter);
+  }, [itemsWithSector, sectorFilter]);
+  const sectorCounts = useMemo(() => {
+    return itemsWithSector.reduce((acc, item) => {
+      const key = item.request_sector || "other-services";
+      acc[key] = (acc[key] || 0) + 1;
+      return acc;
+    }, { products: 0, "delivery-partner": 0, doorstep: 0, "other-services": 0 });
+  }, [itemsWithSector]);
+
+  if (!isAdmin) return <Navigate to="/app" replace />;
 
   return (
     <div className="space-y-6" data-testid="partner-approvals-page">
@@ -78,7 +136,21 @@ export default function PartnerApprovalsPage() {
         ))}
       </div>
 
-      {items.length === 0 ? (
+      <div className="flex items-center gap-2 flex-wrap">
+        <Filter className="w-4 h-4 text-slate-600" />
+        {REQUEST_SECTOR_FILTERS.map((sector) => (
+          <button
+            key={sector.key || "all-sectors"}
+            onClick={() => setSectorFilter(sector.key)}
+            className={`px-3 py-1.5 rounded-full text-xs font-bold uppercase tracking-widest transition ${sectorFilter === sector.key ? "bg-emerald-900 text-white" : "bg-white border border-border text-slate-600 hover:bg-emerald-50"}`}
+            data-testid={`pr-sector-${sector.key || "all"}`}
+          >
+            {sector.label} {sector.key ? `(${sectorCounts[sector.key] || 0})` : `(${itemsWithSector.length})`}
+          </button>
+        ))}
+      </div>
+
+      {visibleItems.length === 0 ? (
         <div className="bg-white rounded-xl border border-border p-10 text-center">
           <Store className="w-10 h-10 text-slate-400 mx-auto" />
           <p className="mt-3 font-semibold text-emerald-950">No {filter || ""} applications</p>
@@ -86,13 +158,14 @@ export default function PartnerApprovalsPage() {
         </div>
       ) : (
         <div className="space-y-3">
-          {items.map(p => (
+          {visibleItems.map(p => (
             <div key={p.id} className="bg-white rounded-xl border border-border p-5" data-testid={`pr-${p.id}`}>
               <div className="flex flex-wrap items-start justify-between gap-3">
                 <div className="min-w-0 flex-1">
                   <div className="flex items-center gap-2 flex-wrap">
                     <span className={`text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full ${STATUS_STYLES[p.status] || "bg-slate-100 text-slate-700"}`}>{p.status}</span>
                     <span className="text-[10px] font-bold uppercase tracking-wider bg-slate-100 text-slate-700 px-2 py-0.5 rounded-full">{p.business_type}</span>
+                    <span className="text-[10px] font-bold uppercase tracking-wider bg-emerald-100 text-emerald-800 px-2 py-0.5 rounded-full">{formatSectorLabel(p.request_sector)}</span>
                   </div>
                   <p className="font-display font-black text-emerald-950 mt-2 text-lg">{p.business_name}</p>
                   <p className="text-xs text-muted-foreground font-body">
