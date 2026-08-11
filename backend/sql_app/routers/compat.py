@@ -46,6 +46,23 @@ PARTNER_PRODUCT_UNITS_KEY = "partner_product_units"
 PARTNER_UNIT_OPTIONS = {"piece", "kg", "gram", "litre", "ml"}
 PARTNER_PRODUCT_META_KEY = "partner_product_meta"
 TRANSPORT_SERVICE_TEMPLATE_KEYS = {"cab_airport_drop", "car_rental_daily", "bike_rental_daily", "cargo_transport", "courier_pickup"}
+HOSPITALITY_SERVICE_TEMPLATE_KEYS = {
+    "hotel_standard_room",
+    "hotel_deluxe_room",
+    "hotel_suite_room",
+    "homestay_daily_stay",
+    "homestay_weekend_package",
+    "restaurant_table_booking",
+    "banquet_slot",
+    "restaurant_takeaway_slot",
+    "cafe_table_reservation",
+    "rental_house_monthly",
+    "flat_apartment_monthly",
+}
+HOSPITALITY_SERVICE_HINTS = {
+    "hotel", "homestay", "home stay", "guest house", "guesthouse", "resort", "restaurant", "resturent", "cafe",
+    "dining", "banquet", "stay", "takeaway", "food", "meal", "lounge", "apartment", "rental house", "flat",
+}
 ADMIN_ACCOUNTS_LEDGER_KEY = "admin_accounts_ledger"
 CUSTOMER_ORDER_CONTACT_KEY_PREFIX = "order_contact:"
 CUSTOMER_ORDER_OTP_KEY_PREFIX = "customer_mobile_otp:"
@@ -847,6 +864,52 @@ def _is_transport_service_listing(item: PartnerProduct | None, meta_map: dict[st
     if item_kind == "service" and any(k in haystack for k in transport_keywords):
         return True
     return False
+
+
+def _is_service_order_item(item: dict | None) -> bool:
+    row = item or {}
+    if bool(row.get("is_service") or row.get("service_booking_enabled")):
+        return True
+    listing_type = str(row.get("listing_type") or "").strip().lower()
+    item_kind = str(row.get("item_kind") or "").strip().lower()
+    return listing_type == "service" or item_kind == "service"
+
+
+def _is_hospitality_service_order_item(item: dict | None, meta_map: dict[str, dict] | None = None) -> bool:
+    row = item or {}
+    if not _is_service_order_item(row):
+        return False
+
+    template_key = str(row.get("service_template_key") or "").strip().lower()
+    product_id = str(row.get("product_id") or "").strip()
+    if not template_key and product_id and isinstance(meta_map, dict):
+        template_key = str((meta_map.get(product_id) or {}).get("service_template_key") or "").strip().lower()
+
+    if template_key in TRANSPORT_SERVICE_TEMPLATE_KEYS:
+        return False
+    if template_key in HOSPITALITY_SERVICE_TEMPLATE_KEYS:
+        return True
+
+    haystack = " ".join([
+        str(row.get("category") or "").lower(),
+        str(row.get("name") or "").lower(),
+        str(row.get("description") or "").lower(),
+    ])
+    return any(h in haystack for h in HOSPITALITY_SERVICE_HINTS)
+
+
+def _load_order_contact_phone_for_order(db: Session, order_id: str) -> str:
+    key = f"order_contact:{str(order_id or '').strip()}"
+    if key == "order_contact:":
+        return ""
+    row = db.query(AppSetting).filter(AppSetting.key == key).first()
+    if not row:
+        return ""
+    try:
+        payload = json.loads(row.value_json or "{}")
+    except Exception:
+        payload = {}
+    return "".join(ch for ch in str(payload.get("customer_phone") or "") if ch.isdigit())
 
 
 def _transport_partner_payment_profile(db: Session, partner: AssociatePartner, request: Request | None = None) -> dict:
@@ -4340,6 +4403,88 @@ def admin_transport_bookings(
     all_trips = _list_transport_trips(db, limit=100000)
     total = len(all_trips)
     page_items = all_trips[offset: offset + limit]
+    return {"total": total, "offset": offset, "limit": limit, "items": page_items}
+
+
+@router.get("/admin/stay-dining/bookings")
+def admin_stay_dining_bookings(
+    offset: int = Query(default=0, ge=0),
+    limit: int = Query(default=3, ge=1, le=100),
+    db: Session = Depends(get_db),
+    current_user=Depends(get_current_user),
+):
+    if getattr(current_user, "role", "") not in {"super_admin", "company_admin", "admin"}:
+        raise HTTPException(status_code=403, detail="Admin access only")
+
+    meta_map = _load_partner_product_meta(db)
+    partner_products = db.query(PartnerProduct.id, PartnerProduct.partner_id).all()
+    product_partner_map = {str(pid): str(partner_id) for pid, partner_id in partner_products if pid and partner_id}
+    partners = db.query(AssociatePartner.id, AssociatePartner.business_name, AssociatePartner.partner_code).all()
+    partner_name_map = {
+        str(pid): (str(name or "").strip() or str(code or "").strip() or "Partner")
+        for pid, name, code in partners
+        if pid
+    }
+
+    rows = db.query(PublicOrder).order_by(PublicOrder.created_at.desc()).limit(3000).all()
+    all_bookings: list[dict] = []
+    for row in rows:
+        try:
+            items = json.loads(row.items_json or "[]")
+        except Exception:
+            items = []
+        if not isinstance(items, list):
+            continue
+
+        selected_items: list[dict] = []
+        partner_names: list[str] = []
+        partner_seen: set[str] = set()
+
+        for item in items:
+            if not isinstance(item, dict):
+                continue
+            if str(item.get("product_type") or "").strip().lower() != "associate_partner":
+                continue
+            if not _is_hospitality_service_order_item(item, meta_map=meta_map):
+                continue
+
+            product_id = str(item.get("product_id") or "").strip()
+            partner_id = product_partner_map.get(product_id, "")
+            if partner_id and partner_id not in partner_seen:
+                partner_seen.add(partner_id)
+                partner_names.append(partner_name_map.get(partner_id, "Partner"))
+
+            selected_items.append(
+                {
+                    "product_id": product_id,
+                    "product_name": str(item.get("name") or "Service").strip() or "Service",
+                    "quantity": float(item.get("quantity") or 1),
+                    "subtotal": round(float(item.get("subtotal") or item.get("price") or 0), 2),
+                    "service_template_key": str(item.get("service_template_key") or "").strip(),
+                }
+            )
+
+        if not selected_items:
+            continue
+
+        all_bookings.append(
+            {
+                "id": row.id,
+                "order_no": f"ORD-{row.id[:8].upper()}",
+                "status": str(row.status or "pending_approval"),
+                "created_at": row.created_at.isoformat() if row.created_at else now_iso(),
+                "customer_name": str(row.payer_name or "Customer").strip() or "Customer",
+                "customer_phone": _load_order_contact_phone_for_order(db, row.id),
+                "booking_address": str(row.shipping_address or "").strip(),
+                "payment_method": str(row.payment_method or "").strip().lower(),
+                "total_amount": round(float(row.total_amount or 0), 2),
+                "partners": partner_names,
+                "items": selected_items,
+            }
+        )
+
+    total = len(all_bookings)
+    page_items = all_bookings[offset: offset + limit]
     return {"total": total, "offset": offset, "limit": limit, "items": page_items}
 
 
