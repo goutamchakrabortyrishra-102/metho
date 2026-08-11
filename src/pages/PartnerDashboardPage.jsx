@@ -1605,6 +1605,16 @@ export default function PartnerDashboardPage() {
                     onSaved={loadAll}
                     defaultListingType="service"
                     fixedListingType="service"
+                    allowedServiceSectors={["Restaurant"]}
+                    initialServiceSectorFilter="Restaurant"
+                    triggerLabel="Upload Menu"
+                    dialogTitle="Upload Restaurant Menu"
+                    dialogDescription="Upload restaurant menu, table booking, banquet, pickup slot, or cafe reservation listing here."
+                  />
+                  <PartnerProductForm
+                    onSaved={loadAll}
+                    defaultListingType="service"
+                    fixedListingType="service"
                     allowedServiceSectors={HOSPITALITY_SERVICE_SECTORS}
                     initialServiceSectorFilter="Hotel"
                     triggerLabel="Add Stay/Dining"

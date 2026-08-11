@@ -1512,7 +1512,7 @@ export default function PartnerShopPage() {
               <p className="text-sm text-slate-600 mt-3">Room stay, table booking, banquet, cafe and dining services এক জায়গায় দেখুন।</p>
               <div className="mt-6 flex flex-col lg:flex-row gap-3 lg:items-center">
                 <Button onClick={() => openGallery(hospitalitySearch, "stay-dining")} className="w-full lg:w-auto lg:min-w-[220px] bg-amber-600 hover:bg-amber-700 text-white rounded-full" data-testid="partner-stay-gallery-btn">
-                  <CalendarCheck2 className="w-4 h-4 mr-2" /> View Stay & Dining
+                  <CalendarCheck2 className="w-4 h-4 mr-2" /> Menu / Book Slot
                 </Button>
                 <div className="flex flex-1 gap-2" data-testid="partner-shop-hospitality-search-panel">
                   <Input
@@ -1543,7 +1543,7 @@ export default function PartnerShopPage() {
               </div>
               <div className="flex items-center gap-2 w-full md:w-auto">
                 <Button variant="outline" className="rounded-full shrink-0 border-amber-300 text-amber-900" onClick={() => openGallery(hospitalitySearch, "stay-dining")} data-testid="partner-shop-hospitality-view-all-link">
-                  View Stay & Dining
+                  Menu / Book Slot
                 </Button>
                 <div className="flex items-center gap-2 border border-amber-200 rounded-full px-3 h-11 bg-amber-50 w-full md:w-72">
                   <Search className="w-4 h-4 text-slate-500" />
