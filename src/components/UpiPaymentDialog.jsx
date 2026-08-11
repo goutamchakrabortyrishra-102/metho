@@ -53,6 +53,7 @@ const SERVICE_SLOT_TEMPLATE_KEYS = new Set([
   "video_shoot_edit",
 ]);
 const DELIVERY_PARTNER_TEMPLATE_KEYS = new Set(["courier_pickup", "cargo_transport"]);
+const TRANSPORT_TEMPLATE_KEYS = new Set(["cab_airport_drop", "car_rental_daily", "bike_rental_daily"]);
 
 const normalizeText = (value) => String(value || "").trim().toLowerCase().replace(/\s+/g, " ");
 
@@ -100,6 +101,22 @@ const loadRazorpayScript = () => new Promise((resolve) => {
   document.body.appendChild(script);
 });
 
+const extractApiErrorMessage = (err, fallback) => {
+  const detail = err?.response?.data?.detail;
+  if (typeof detail === "string" && detail.trim()) return detail;
+  if (detail && typeof detail === "object") {
+    const message = detail.message || detail.error;
+    if (typeof message === "string" && message.trim()) return message;
+  }
+  if (typeof err?.message === "string" && err.message.trim()) return err.message;
+  return fallback;
+};
+
+const extractSuggestedSlot = (message) => {
+  const match = String(message || "").match(/Try next slot:\s*([0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2})/i);
+  return match?.[1] || "";
+};
+
 /**
  * UpiPaymentDialog — shows admin's UPI QR + collects txn_id and screenshot.
  * onOrderPlaced callback fires with the created order after submit.
@@ -131,6 +148,8 @@ export default function UpiPaymentDialog({
   const [copied, setCopied] = useState(false);
   const [forceManualUpiFlow, setForceManualUpiFlow] = useState(false);
   const [qrImageFailed, setQrImageFailed] = useState(false);
+  const [memberLookupBusy, setMemberLookupBusy] = useState(false);
+  const [memberLookupInfo, setMemberLookupInfo] = useState(null);
   const codEnabled = paymentConfig ? paymentConfig.cod_enabled !== false : true;
   const normalizedPayerPhone = String(payerPhone || "").replace(/\D/g, "");
   const normalizedUserPhone = String(user?.phone || "").replace(/\D/g, "");
@@ -153,8 +172,12 @@ export default function UpiPaymentDialog({
     : false;
   const requiresServiceSlot = Array.isArray(items)
     ? items.some((item) => {
+      const listingHint = String(item?.listing_type || item?.item_kind || "").toLowerCase();
+      const isService = Boolean(item?.is_service || listingHint.includes("service"));
+      if (!isService) return false;
       const key = String(item?.service_template_key || "").trim().toLowerCase();
-      return SERVICE_SLOT_TEMPLATE_KEYS.has(key);
+      if (TRANSPORT_TEMPLATE_KEYS.has(key)) return false;
+      return true;
     })
     : false;
   const requiresDeliveryAreaCheck = Array.isArray(items)
@@ -220,6 +243,32 @@ export default function UpiPaymentDialog({
     });
   }, [isGuest, payerPhone, payerName, address]);
 
+  useEffect(() => {
+    const ref = String(memberRef || "").trim();
+    if (!open || !ref) {
+      setMemberLookupInfo(null);
+      return;
+    }
+    const timer = setTimeout(async () => {
+      setMemberLookupBusy(true);
+      try {
+        const { data } = await api.get(`/member-lookup/${encodeURIComponent(ref)}`);
+        setMemberLookupInfo(data);
+        if (!String(payerName || "").trim() && String(data?.name || "").trim()) {
+          setPayerName(String(data.name).trim());
+        }
+        if (!String(payerPhone || "").trim() && String(data?.phone || "").trim()) {
+          setPayerPhone(String(data.phone).trim());
+        }
+      } catch {
+        setMemberLookupInfo(null);
+      } finally {
+        setMemberLookupBusy(false);
+      }
+    }, 350);
+    return () => clearTimeout(timer);
+  }, [open, memberRef, payerName, payerPhone]);
+
   const copyUpi = async () => {
     if (!settings?.upi_id) return;
     try {
@@ -230,6 +279,17 @@ export default function UpiPaymentDialog({
     } catch {
       toast.error("Copy failed");
     }
+  };
+
+  const showCheckoutError = (err, fallbackMessage) => {
+    const message = extractApiErrorMessage(err, fallbackMessage);
+    const suggestedSlot = extractSuggestedSlot(message);
+    if (suggestedSlot && requiresServiceSlot) {
+      setSlotDateTime(suggestedSlot);
+      toast.error(`${message} Suggested slot filled automatically.`);
+      return;
+    }
+    toast.error(message);
   };
 
   const handleFile = async (e) => {
@@ -321,7 +381,7 @@ export default function UpiPaymentDialog({
       setSlotDateTime(""); setSlotGuestCount("1");
       setPaymentMode("upi");
     } catch (err) {
-      toast.error(err?.response?.data?.detail || "Order submit failed");
+      showCheckoutError(err, "Order submit failed");
     } finally {
       setSubmitting(false);
     }
@@ -460,7 +520,7 @@ export default function UpiPaymentDialog({
       rz.open();
     } catch (err) {
       setSubmitting(false);
-      toast.error(err?.response?.data?.detail || err?.message || "Razorpay checkout failed");
+      showCheckoutError(err, "Razorpay checkout failed");
     }
   };
 
@@ -631,6 +691,13 @@ export default function UpiPaymentDialog({
                 <p className="text-[11px] text-muted-foreground mt-1">
                   Leave blank for plain guest purchase. Provide Member ID/Code only if reward percentage attribution is needed.
                 </p>
+                {memberLookupBusy ? <p className="text-[11px] text-slate-500 mt-1">Checking member...</p> : null}
+                {memberLookupInfo ? (
+                  <p className="text-[11px] text-emerald-700 mt-1">
+                    Member found: {memberLookupInfo?.name || "Member"}
+                    {memberLookupInfo?.member_code ? ` · ${memberLookupInfo.member_code}` : ""}
+                  </p>
+                ) : null}
               </div>
             )}
 

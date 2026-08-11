@@ -1,5 +1,6 @@
 import json
 import uuid
+from datetime import datetime, timedelta
 import base64
 import hashlib
 import hmac
@@ -19,7 +20,7 @@ from ..database import get_db
 from ..models import AppSetting, AssociatePartner, PartnerProduct, Product, ProductMeta, PublicOrder, User
 from ..security import decode_token
 from ..storage import UPLOADED_OBJECTS_DIR
-from .auth import get_current_user
+from .auth import get_current_user, member_code_for_user
 from .settings import load_settings
 
 router = APIRouter(prefix="/api", tags=["checkout"])
@@ -70,6 +71,95 @@ SERVICE_SLOT_TEMPLATE_KEYS = {
     "photo_event_shoot",
     "video_shoot_edit",
 }
+TRANSPORT_TEMPLATE_KEYS = {
+    "cab_airport_drop",
+    "car_rental_daily",
+    "bike_rental_daily",
+}
+SLOT_INACTIVE_ORDER_STATUSES = {"cancelled", "rejected", "failed", "expired"}
+SLOT_SUGGESTION_INTERVAL_MINUTES = 30
+
+
+def _parse_slot_datetime(value: str | None) -> datetime | None:
+    raw = str(value or "").strip()
+    if not raw:
+        return None
+    candidates = [raw, raw.replace(" ", "T")]
+    if raw.endswith("Z"):
+        candidates.append(raw[:-1] + "+00:00")
+    for candidate in candidates:
+        try:
+            parsed = datetime.fromisoformat(candidate)
+            if parsed.tzinfo is not None:
+                parsed = parsed.replace(tzinfo=None)
+            return parsed.replace(second=0, microsecond=0)
+        except Exception:
+            continue
+    return None
+
+
+def _extract_slot_datetime_from_shipping_address(address: str | None) -> datetime | None:
+    text = str(address or "").strip()
+    if not text:
+        return None
+    slot_prefixes = ("Restaurant Slot:", "Service Slot:")
+    for prefix in slot_prefixes:
+        if text.startswith(prefix):
+            slot_raw = text[len(prefix):].split("|", 1)[0].strip()
+            return _parse_slot_datetime(slot_raw)
+    return None
+
+
+def _service_slot_product_ids_from_items(items: list[dict] | None) -> set[str]:
+    product_ids: set[str] = set()
+    for item in items or []:
+        if str(item.get("product_type") or "").strip() != "associate_partner":
+            continue
+        if not _is_service_order_item(item):
+            continue
+        template_key = str(item.get("service_template_key") or "").strip().lower()
+        if template_key in TRANSPORT_TEMPLATE_KEYS:
+            continue
+        product_id = str(item.get("product_id") or "").strip()
+        if product_id:
+            product_ids.add(product_id)
+    return product_ids
+
+
+def _next_available_service_slot_suggestion(db: Session, requested_slot: str, service_product_ids: set[str]) -> str:
+    requested_dt = _parse_slot_datetime(requested_slot)
+    if not requested_dt or not service_product_ids:
+        return ""
+
+    taken_slots: set[datetime] = set()
+    rows = db.query(PublicOrder).all()
+    for row in rows:
+        status = str(getattr(row, "status", "") or "").strip().lower()
+        if status in SLOT_INACTIVE_ORDER_STATUSES:
+            continue
+
+        booked_slot = _extract_slot_datetime_from_shipping_address(getattr(row, "shipping_address", ""))
+        if not booked_slot:
+            continue
+
+        try:
+            order_items = json.loads(getattr(row, "items_json", "[]") or "[]")
+        except Exception:
+            order_items = []
+        booked_service_ids = _service_slot_product_ids_from_items(order_items)
+        if not booked_service_ids.intersection(service_product_ids):
+            continue
+        taken_slots.add(booked_slot)
+
+    if requested_dt not in taken_slots:
+        return ""
+
+    probe = requested_dt
+    for _ in range(1, 49):
+        probe = probe + timedelta(minutes=SLOT_SUGGESTION_INTERVAL_MINUTES)
+        if probe not in taken_slots:
+            return probe.strftime("%Y-%m-%dT%H:%M")
+    return ""
 
 
 def _normalize_text(value: str | None) -> str:
@@ -116,6 +206,44 @@ def _build_partner_whatsapp_url(phone: str | None, message: str) -> str:
     if not digits:
         return ""
     return f"https://wa.me/{digits}?text={quote(message)}"
+
+
+def _resolve_member_user_by_ref(db: Session, member_ref: str) -> User | None:
+    ref = str(member_ref or "").strip().upper()
+    if not ref:
+        return None
+
+    by_id = db.query(User).filter(User.id == ref, User.role == "member").first()
+    if by_id:
+        return by_id
+
+    by_email = db.query(User).filter(User.email == ref, User.role == "member").first()
+    if by_email:
+        return by_email
+
+    if ref.startswith("MTH-"):
+        prefix = ref.replace("-", "")[3:9]
+        if prefix:
+            return (
+                db.query(User)
+                .filter(User.role == "member", User.id.ilike(f"{prefix}%"))
+                .order_by(User.created_at.asc())
+                .first()
+            )
+    return None
+
+
+@router.get("/member-lookup/{member_ref}")
+def member_lookup(member_ref: str, db: Session = Depends(get_db)):
+    user = _resolve_member_user_by_ref(db, member_ref)
+    if not user:
+        raise HTTPException(status_code=404, detail="Member not found")
+    return {
+        "id": user.id,
+        "name": str(user.name or "").strip(),
+        "phone": str(user.phone or "").strip(),
+        "member_code": member_code_for_user(user.id),
+    }
 
 
 def _order_contact_key(order_id: str) -> str:
@@ -815,10 +943,10 @@ def create_public_order(payload: dict, db: Session = Depends(get_db), authorizat
         template_key = str(item.get("service_template_key") or "").strip().lower()
         if template_key in {"courier_pickup", "parcel_delivery", "express_delivery", "same_day_delivery", "delivery_partner"}:
             has_delivery_partner_item = True
-        if template_key in SERVICE_SLOT_TEMPLATE_KEYS and _is_service_order_item(item):
-            has_service_slot_item = True
         if template_key in RESTAURANT_SLOT_TEMPLATE_KEYS and _is_service_order_item(item):
             has_restaurant_slot_item = True
+        elif _is_service_order_item(item) and template_key not in TRANSPORT_TEMPLATE_KEYS:
+            has_service_slot_item = True
         if not _is_service_order_item(item):
             has_partner_physical_item = True
 
@@ -862,6 +990,15 @@ def create_public_order(payload: dict, db: Session = Depends(get_db), authorizat
 
     if has_service_slot_item and not slot_datetime:
         raise HTTPException(status_code=400, detail="Service slot booking requires date and time")
+
+    if has_service_slot_item:
+        requested_slot_dt = _parse_slot_datetime(slot_datetime)
+        if not requested_slot_dt:
+            raise HTTPException(status_code=400, detail="Invalid slot date and time format")
+        slot_product_ids = _service_slot_product_ids_from_items(normalized_items)
+        suggested_slot = _next_available_service_slot_suggestion(db, slot_datetime, slot_product_ids)
+        if suggested_slot:
+            raise HTTPException(status_code=409, detail=f"Selected slot is already booked. Try next slot: {suggested_slot}")
 
     if has_restaurant_slot_item:
         if guest_count <= 0:
