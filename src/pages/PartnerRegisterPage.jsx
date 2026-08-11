@@ -49,6 +49,7 @@ const SERVICE_SECTOR_OPTIONS = [
   "Transport",
   "Delivery Partner",
   "Stay & Dining",
+  "Property Buy & Sell",
   "Doorstep",
   "Other Services",
 ];
@@ -63,7 +64,8 @@ const SHOP_SECTOR_OPTIONS = [
 const SERVICE_TEMPLATE_OPTIONS_BY_SECTOR = {
   Transport: ["Cab", "Car Rental", "Bike Rental", "Travel Agency"],
   "Delivery Partner": ["Courier", "Logistics", "Cargo", "Parcel", "Express Delivery", "Pickup & Drop"],
-  "Stay & Dining": ["Hotel", "Homestay", "Restaurant", "Cafe", "Banquet"],
+  "Stay & Dining": ["Hotel", "Homestay", "Restaurant", "Cafe", "Banquet", "House Rent", "Flat Rent", "Shop Rent", "Apartment Rent", "Anusthan Bari Vara", "Resort Vara", "Hall Vara"],
+  "Property Buy & Sell": ["Property Sale", "Flat Sale", "House Sale", "Shop Sale", "Plot Sale", "Commercial Property", "Property Broker", "Site Visit"],
   Doorstep: ["Home Service", "Laundry", "Cleaning", "Tailoring", "Beauty at Home", "Repair Center"],
   "Other Services": ["Doctor Clinic", "Diagnostic Center", "Education", "Fitness", "Legal", "Accounting", "Photography", "Internet Service", "Other Service"],
 };
@@ -93,7 +95,10 @@ const DELIVERY_REG_HINTS = [
   "delivery", "courier", "logistics", "cargo", "parcel", "shipment", "dispatch", "freight", "goods carrier", "pickup drop", "pickup and drop",
 ];
 const STAY_DINING_REG_HINTS = [
-  "hotel", "homestay", "home stay", "guest house", "resort", "restaurant", "resturent", "cafe", "dining", "sitbooking", "seat booking", "banquet", "rental house", "flat", "apartment", "stay",
+  "hotel", "homestay", "home stay", "guest house", "resort", "restaurant", "resturent", "cafe", "dining", "sitbooking", "seat booking", "banquet", "rental house", "flat", "apartment", "stay", "house rent", "flat rent", "shop rent", "apartment rent", "anusthan bari", "anusthanbari", "resort vara", "resort bhara", "hall vara", "hall bhara", "wedding hall", "event hall",
+];
+const PROPERTY_REG_HINTS = [
+  "property", "real estate", "realestate", "buy sell", "buy & sell", "plot sale", "flat sale", "house sale", "shop sale", "commercial property", "property broker", "broker", "brokerage", "site visit", "resale", "land", "jomi", "jami", "bari bikri", "flat bikri",
 ];
 const DOORSTEP_REG_HINTS = [
   "doorstep", "mistri", "mechanic", "plumber", "plumbing", "electrician", "repair", "cleaning", "laundry", "tailoring", "beauty at home", "home service",
@@ -116,10 +121,11 @@ const inferRegistrationSelection = (form) => {
   const looksTransport = includesAnyHint(combinedText, TRANSPORT_REG_HINTS);
   const looksDelivery = includesAnyHint(combinedText, DELIVERY_REG_HINTS);
   const looksStayDining = includesAnyHint(combinedText, STAY_DINING_REG_HINTS);
+  const looksProperty = includesAnyHint(combinedText, PROPERTY_REG_HINTS);
   const looksDoorstep = includesAnyHint(combinedText, DOORSTEP_REG_HINTS);
   const looksShop = includesAnyHint(combinedText, SHOP_REG_HINTS);
 
-  const inferredBusinessType = (looksDelivery || looksTransport || looksStayDining || looksDoorstep)
+  const inferredBusinessType = (looksDelivery || looksTransport || looksStayDining || looksProperty || looksDoorstep)
     ? "Service"
     : (looksShop ? "Shop" : String(form.business_type || "Shop"));
 
@@ -128,6 +134,7 @@ const inferRegistrationSelection = (form) => {
     if (looksDelivery) inferredServiceSector = "Delivery Partner";
     else if (looksTransport) inferredServiceSector = "Transport";
     else if (looksStayDining) inferredServiceSector = "Stay & Dining";
+    else if (looksProperty) inferredServiceSector = "Property Buy & Sell";
     else if (looksDoorstep) inferredServiceSector = "Doorstep";
     else inferredServiceSector = inferredServiceSector || "Other Services";
   }

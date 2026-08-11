@@ -2,6 +2,7 @@ const PRODUCT_SECTOR = "products";
 const TRANSPORT_SECTOR = "transport";
 const DELIVERY_PARTNER_SECTOR = "delivery-partner";
 const HOSPITALITY_SECTOR = "stay-dining";
+const PROPERTY_SECTOR = "property-buy-sell";
 const DOORSTEP_SECTOR = "doorstep";
 const OTHER_SERVICE_SECTOR = "other-services";
 
@@ -9,6 +10,7 @@ const SERVICE_SECTORS = [
   TRANSPORT_SECTOR,
   DELIVERY_PARTNER_SECTOR,
   HOSPITALITY_SECTOR,
+  PROPERTY_SECTOR,
   DOORSTEP_SECTOR,
   OTHER_SERVICE_SECTOR,
 ];
@@ -25,7 +27,33 @@ const normalizeHintText = (parts) => parts.map((value) => normalizeBusinessType(
 
 const TRANSPORT_TEMPLATE_KEYS = ["cab_airport_drop", "car_rental_daily", "bike_rental_daily"];
 const DELIVERY_TEMPLATE_KEYS = ["cargo_transport", "courier_pickup"];
-const HOSPITALITY_TEMPLATE_KEYS = ["hotel_standard_room", "hotel_deluxe_room", "hotel_suite_room", "homestay_daily_stay", "homestay_weekend_package", "restaurant_table_booking", "banquet_slot", "restaurant_takeaway_slot", "cafe_table_reservation", "rental_house_monthly", "flat_apartment_monthly"];
+const HOSPITALITY_TEMPLATE_KEYS = [
+  "hotel_standard_room",
+  "hotel_deluxe_room",
+  "hotel_suite_room",
+  "homestay_daily_stay",
+  "homestay_weekend_package",
+  "restaurant_table_booking",
+  "banquet_slot",
+  "restaurant_takeaway_slot",
+  "cafe_table_reservation",
+  "rental_house_monthly",
+  "flat_apartment_monthly",
+  "shop_rent_monthly",
+  "apartment_rent_monthly",
+  "anusthan_bari_booking",
+  "resort_vacation_booking",
+  "wedding_hall_booking",
+  "event_hall_booking",
+];
+const PROPERTY_TEMPLATE_KEYS = [
+  "property_site_visit",
+  "property_sale_listing",
+  "property_resale_listing",
+  "plot_sale_listing",
+  "commercial_shop_sale",
+  "property_broker_service",
+];
 const DOORSTEP_TEMPLATE_KEYS = ["ac_service_visit", "plumbing_repair", "electrician_visit", "appliance_repair", "laundry_kg_service", "dry_clean_service", "tailoring_stitching", "beauty_home_service", "courier_pickup", "house_deep_clean", "office_cleaning", "pest_control_visit"];
 
 const TRANSPORT_HINTS = [
@@ -103,6 +131,45 @@ const HOSPITALITY_HINTS = [
   "food",
   "meal",
   "lounge",
+  "house rent",
+  "flat rent",
+  "shop rent",
+  "apartment rent",
+  "anusthan bari",
+  "anusthanbari",
+  "resort vara",
+  "resort bhara",
+  "hall vara",
+  "hall bhara",
+  "wedding hall",
+  "community hall",
+  "party hall",
+  "event hall",
+];
+const PROPERTY_HINTS = [
+  "property",
+  "real estate",
+  "realestate",
+  "buy sell",
+  "buy & sell",
+  "sale deed",
+  "plot sale",
+  "flat sale",
+  "house sale",
+  "shop sale",
+  "commercial property",
+  "broker",
+  "brokerage",
+  "property dealer",
+  "apartment sale",
+  "villa sale",
+  "site visit",
+  "resale",
+  "land",
+  "jomi",
+  "jami",
+  "bari bikri",
+  "flat bikri",
 ];
 const DOORSTEP_HINTS = ["doorstep", "home service", "cleaning", "laundry", "plumbing", "electrician", "repair", "tailoring", "beauty", "courier", "pest control", "appliance", "ac service", "home repair", "dry clean"];
 const PRODUCT_HINTS = [
@@ -147,6 +214,13 @@ export const isHospitalityServiceLike = (item) => {
   return includesAny(haystack, HOSPITALITY_HINTS);
 };
 
+export const isPropertyServiceLike = (item) => {
+  const key = normalizeBusinessType(item?.service_template_key);
+  if (PROPERTY_TEMPLATE_KEYS.includes(key)) return true;
+  const haystack = normalizeHintText([item?.category, item?.name, item?.description]);
+  return includesAny(haystack, PROPERTY_HINTS);
+};
+
 export const isDoorstepServiceLike = (item) => {
   const key = normalizeBusinessType(item?.service_template_key);
   if (DOORSTEP_TEMPLATE_KEYS.includes(key)) return true;
@@ -162,12 +236,14 @@ export const inferPartnerPrimarySector = ({ businessType, businessName, counts }
   const transportCount = toCount(counts?.transport);
   const deliveryCount = toCount(counts?.delivery);
   const hospitalityCount = toCount(counts?.hospitality);
+  const propertyCount = toCount(counts?.property);
   const doorstepCount = toCount(counts?.doorstep);
   const otherServiceCount = toCount(counts?.otherServices);
 
   const looksLikeDelivery = includesAny(identity, DELIVERY_HINTS);
   const looksLikeTransport = includesAny(identity, TRANSPORT_HINTS);
   const looksLikeHospitality = includesAny(identity, HOSPITALITY_HINTS);
+  const looksLikeProperty = includesAny(identity, PROPERTY_HINTS);
   const looksLikeDoorstep = includesAny(identity, DOORSTEP_HINTS);
   const looksLikeProduct = includesAny(identity, PRODUCT_HINTS);
 
@@ -175,6 +251,7 @@ export const inferPartnerPrimarySector = ({ businessType, businessName, counts }
   if (looksLikeDelivery) return DELIVERY_PARTNER_SECTOR;
   if (looksLikeTransport) return TRANSPORT_SECTOR;
   if (looksLikeHospitality) return HOSPITALITY_SECTOR;
+  if (looksLikeProperty) return PROPERTY_SECTOR;
   if (looksLikeDoorstep) return DOORSTEP_SECTOR;
   if (looksLikeProduct) return PRODUCT_SECTOR;
 
@@ -183,18 +260,21 @@ export const inferPartnerPrimarySector = ({ businessType, businessName, counts }
     looksLikeDelivery ||
     looksLikeTransport ||
     looksLikeHospitality ||
+    looksLikeProperty ||
     looksLikeDoorstep;
 
   if (looksLikeServicePartner) {
     if (looksLikeDelivery && deliveryCount <= 0) return DELIVERY_PARTNER_SECTOR;
     if (looksLikeTransport && transportCount <= 0) return TRANSPORT_SECTOR;
     if (looksLikeHospitality && hospitalityCount <= 0) return HOSPITALITY_SECTOR;
+    if (looksLikeProperty && propertyCount <= 0) return PROPERTY_SECTOR;
     if (looksLikeDoorstep && doorstepCount <= 0) return DOORSTEP_SECTOR;
 
     const rankedServiceSectors = [
       { key: DELIVERY_PARTNER_SECTOR, count: deliveryCount },
       { key: TRANSPORT_SECTOR, count: transportCount },
       { key: HOSPITALITY_SECTOR, count: hospitalityCount },
+      { key: PROPERTY_SECTOR, count: propertyCount },
       { key: DOORSTEP_SECTOR, count: doorstepCount },
       { key: OTHER_SERVICE_SECTOR, count: otherServiceCount },
     ];
@@ -203,18 +283,20 @@ export const inferPartnerPrimarySector = ({ businessType, businessName, counts }
     if (looksLikeDelivery) return DELIVERY_PARTNER_SECTOR;
     if (looksLikeTransport) return TRANSPORT_SECTOR;
     if (looksLikeHospitality) return HOSPITALITY_SECTOR;
+    if (looksLikeProperty) return PROPERTY_SECTOR;
     if (looksLikeDoorstep) return DOORSTEP_SECTOR;
     return OTHER_SERVICE_SECTOR;
   }
 
   if (productCount > 0) return PRODUCT_SECTOR;
-  const serviceTotal = deliveryCount + transportCount + hospitalityCount + doorstepCount + otherServiceCount;
+  const serviceTotal = deliveryCount + transportCount + hospitalityCount + propertyCount + doorstepCount + otherServiceCount;
   if (serviceTotal <= 0) return OTHER_SERVICE_SECTOR;
 
   const rankedFallback = [
     { key: DELIVERY_PARTNER_SECTOR, count: deliveryCount },
     { key: TRANSPORT_SECTOR, count: transportCount },
     { key: HOSPITALITY_SECTOR, count: hospitalityCount },
+    { key: PROPERTY_SECTOR, count: propertyCount },
     { key: DOORSTEP_SECTOR, count: doorstepCount },
     { key: OTHER_SERVICE_SECTOR, count: otherServiceCount },
   ].sort((a, b) => b.count - a.count);
@@ -238,6 +320,7 @@ export const PARTNER_SECTOR_KEYS = {
   TRANSPORT_SECTOR,
   DELIVERY_PARTNER_SECTOR,
   HOSPITALITY_SECTOR,
+  PROPERTY_SECTOR,
   DOORSTEP_SECTOR,
   OTHER_SERVICE_SECTOR,
 };

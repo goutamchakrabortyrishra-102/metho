@@ -20,6 +20,7 @@ const REQUEST_SECTOR_FILTERS = [
   { key: "", label: "All" },
   { key: "products", label: "Products" },
   { key: "delivery-partner", label: "Delivery" },
+  { key: "property-buy-sell", label: "Property" },
   { key: "doorstep", label: "Doorstep" },
   { key: "other-services", label: "Others" },
 ];
@@ -40,6 +41,9 @@ const extractPrimarySector = (request) => {
   if (source.includes("doorstep")) {
     return "doorstep";
   }
+  if (source.includes("property") || source.includes("real estate") || source.includes("buy & sell") || source.includes("buy sell") || source.includes("broker")) {
+    return "property-buy-sell";
+  }
   if (source.includes("other services") || source.includes("other service")) {
     return "other-services";
   }
@@ -51,6 +55,7 @@ const extractPrimarySector = (request) => {
 
 const formatSectorLabel = (sectorKey) => {
   if (sectorKey === "delivery-partner") return "Delivery";
+  if (sectorKey === "property-buy-sell") return "Property";
   if (sectorKey === "doorstep") return "Doorstep";
   if (sectorKey === "other-services") return "Others";
   if (sectorKey === "products") return "Products";
@@ -109,7 +114,7 @@ export default function PartnerApprovalsPage() {
       const key = item.request_sector || "other-services";
       acc[key] = (acc[key] || 0) + 1;
       return acc;
-    }, { products: 0, "delivery-partner": 0, doorstep: 0, "other-services": 0 });
+    }, { products: 0, "delivery-partner": 0, "property-buy-sell": 0, doorstep: 0, "other-services": 0 });
   }, [itemsWithSector]);
 
   if (!isAdmin) return <Navigate to="/app" replace />;

@@ -13,7 +13,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { resolveAssetUrl } from "@/lib/utils";
 import { INDIAN_STATES } from "@/lib/indiaLocation";
-import { inferPartnerPrimarySector, getPartnerVisibleSectors, isDeliveryServiceLike, isDoorstepServiceLike, isHospitalityServiceLike, isTransportServiceLike, PARTNER_SECTOR_KEYS } from "@/lib/partnerSector";
+import { inferPartnerPrimarySector, getPartnerVisibleSectors, isDeliveryServiceLike, isDoorstepServiceLike, isHospitalityServiceLike, isPropertyServiceLike, isTransportServiceLike, PARTNER_SECTOR_KEYS } from "@/lib/partnerSector";
 
 const inr = (v) => `₹${(Number(v) || 0).toLocaleString("en-IN", { maximumFractionDigits: 2 })}`;
 const withUnit = (price, unitType) => {
@@ -39,6 +39,7 @@ const isTransportServiceListing = (item) => {
   return isTransportServiceLike(item);
 };
 const HOSPITALITY_SERVICE_SECTORS = ["Hotel", "Homestay", "Restaurant", "Cafe"];
+const PROPERTY_SERVICE_SECTORS = ["Property Buy & Sell", "Real Estate"];
 const RESTAURANT_SLOT_TEMPLATE_KEYS = new Set([
   "restaurant_table_booking",
   "banquet_slot",
@@ -78,6 +79,9 @@ const DOORSTEP_OTHER_SLOT_TEMPLATE_KEYS = new Set([
 const DOORSTEP_SERVICE_SECTORS = ["Home Service", "Laundry", "Beauty at Home", "Cleaning", "Courier", "Tailoring"];
 const isHospitalityServiceListing = (item) => {
   return isHospitalityServiceLike(item);
+};
+const isPropertyServiceListing = (item) => {
+  return isPropertyServiceLike(item);
 };
 const isDoorstepServiceListing = (item) => {
   return isDoorstepServiceLike(item);
@@ -355,8 +359,9 @@ export default function PartnerDashboardPage() {
   const transportItems = normalizedProducts.filter((p) => (String(p?.listing_type || p?.item_kind || "").toLowerCase().includes("service") || p?.is_service) && isTransportServiceListing(p));
   const deliveryItems = normalizedProducts.filter((p) => (String(p?.listing_type || p?.item_kind || "").toLowerCase().includes("service") || p?.is_service) && !isTransportServiceListing(p) && isDeliveryServiceLike(p));
   const hospitalityItems = normalizedProducts.filter((p) => (String(p?.listing_type || p?.item_kind || "").toLowerCase().includes("service") || p?.is_service) && !isTransportServiceListing(p) && !isDeliveryServiceLike(p) && isHospitalityServiceListing(p));
-  const doorstepItems = normalizedProducts.filter((p) => (String(p?.listing_type || p?.item_kind || "").toLowerCase().includes("service") || p?.is_service) && !isTransportServiceListing(p) && !isDeliveryServiceLike(p) && !isHospitalityServiceLike(p) && isDoorstepServiceListing(p));
-  const serviceItems = normalizedProducts.filter((p) => (String(p?.listing_type || p?.item_kind || "").toLowerCase().includes("service") || p?.is_service) && !isTransportServiceListing(p) && !isDeliveryServiceLike(p) && !isHospitalityServiceLike(p) && !isDoorstepServiceLike(p));
+  const propertyItems = normalizedProducts.filter((p) => (String(p?.listing_type || p?.item_kind || "").toLowerCase().includes("service") || p?.is_service) && !isTransportServiceListing(p) && !isDeliveryServiceLike(p) && !isHospitalityServiceLike(p) && isPropertyServiceListing(p));
+  const doorstepItems = normalizedProducts.filter((p) => (String(p?.listing_type || p?.item_kind || "").toLowerCase().includes("service") || p?.is_service) && !isTransportServiceListing(p) && !isDeliveryServiceLike(p) && !isHospitalityServiceLike(p) && !isPropertyServiceLike(p) && isDoorstepServiceListing(p));
+  const serviceItems = normalizedProducts.filter((p) => (String(p?.listing_type || p?.item_kind || "").toLowerCase().includes("service") || p?.is_service) && !isTransportServiceListing(p) && !isDeliveryServiceLike(p) && !isHospitalityServiceLike(p) && !isPropertyServiceLike(p) && !isDoorstepServiceLike(p));
   const deliveryDistrictOptions = (() => {
     const fromMeta = partnerDeliveryState ? (deliveryLocationMeta.districtsByState?.[partnerDeliveryState] || []) : [];
     return uniqueSorted([...(fromMeta || []), partnerDeliveryDistrict]);
@@ -383,6 +388,7 @@ export default function PartnerDashboardPage() {
       transport: transportItems.length,
       delivery: deliveryItems.length,
       hospitality: hospitalityItems.length,
+      property: propertyItems.length,
       doorstep: doorstepItems.length,
       otherServices: serviceItems.length,
     },
@@ -392,6 +398,7 @@ export default function PartnerDashboardPage() {
   const canViewTransportSector = visibleSectors.includes(PARTNER_SECTOR_KEYS.TRANSPORT_SECTOR);
   const canViewDeliveryPartnerSector = visibleSectors.includes(PARTNER_SECTOR_KEYS.DELIVERY_PARTNER_SECTOR);
   const canViewHospitalitySector = visibleSectors.includes(PARTNER_SECTOR_KEYS.HOSPITALITY_SECTOR);
+  const canViewPropertySector = visibleSectors.includes(PARTNER_SECTOR_KEYS.PROPERTY_SECTOR);
   const canViewDoorstepSector = visibleSectors.includes(PARTNER_SECTOR_KEYS.DOORSTEP_SECTOR);
   const canViewOtherServiceSector = visibleSectors.includes(PARTNER_SECTOR_KEYS.OTHER_SERVICE_SECTOR);
   const sectorTabs = [
@@ -399,6 +406,7 @@ export default function PartnerDashboardPage() {
     canViewTransportSector ? "transport" : null,
     canViewDeliveryPartnerSector ? "delivery-partner" : null,
     canViewHospitalitySector ? "stay-dining" : null,
+    canViewPropertySector ? "property-buy-sell" : null,
     canViewDoorstepSector ? "doorstep" : null,
     canViewOtherServiceSector ? "services" : null,
   ].filter(Boolean);
@@ -1964,7 +1972,7 @@ export default function PartnerDashboardPage() {
                   onSaved={loadAll}
                   defaultListingType="service"
                   fixedListingType="service"
-                  excludedServiceSectors={["Transport", "Logistics", ...HOSPITALITY_SERVICE_SECTORS, ...DOORSTEP_SERVICE_SECTORS]}
+                  excludedServiceSectors={["Transport", "Logistics", "Property Buy & Sell", "Real Estate", ...HOSPITALITY_SERVICE_SECTORS, ...DOORSTEP_SERVICE_SECTORS]}
                   triggerLabel="Add Other Service"
                   dialogTitle="New Other Service"
                   dialogDescription="Create only non-transport, non-hospitality, non-doorstep service listings here."
@@ -2025,12 +2033,79 @@ export default function PartnerDashboardPage() {
                         product={p}
                         onSaved={loadAll}
                         fixedListingType="service"
-                        excludedServiceSectors={["Transport", "Logistics", ...HOSPITALITY_SERVICE_SECTORS, ...DOORSTEP_SERVICE_SECTORS]}
+                        excludedServiceSectors={["Transport", "Logistics", "Property Buy & Sell", "Real Estate", ...HOSPITALITY_SERVICE_SECTORS, ...DOORSTEP_SERVICE_SECTORS]}
                         triggerLabel="Edit Other Service"
                         dialogTitle="Edit Other Service"
                         dialogDescription="Update only this other-service listing. Transport, stay-dining, and doorstep templates are hidden here."
                       />
                       <Button size="sm" variant="outline" className="rounded-full border-red-300 text-red-700 hover:bg-red-50 h-7 px-2 text-[11px]" onClick={() => deleteProduct(p.id)} data-testid={`del-my-product-${p.id}`}>Delete</Button>
+                    </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+
+        {tab === "property-buy-sell" && canViewPropertySector && (
+          <div className="bg-white rounded-xl border border-indigo-200 p-6" data-testid="partner-property-sector-tab">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="font-display font-bold text-emerald-950 text-lg">Property Buy & Sell Listings</h3>
+              <div className="flex items-center gap-2">
+                {summary?.partner_code && (
+                  <Link to={`/gallery/${summary.partner_code}?tab=property-buy-sell`} target="_blank">
+                    <Button size="sm" variant="outline" className="rounded-full border-indigo-300 text-indigo-900 hover:bg-indigo-50">
+                      <Images className="w-4 h-4 mr-1" /> View Property Services
+                    </Button>
+                  </Link>
+                )}
+                <PartnerProductForm
+                  onSaved={loadAll}
+                  defaultListingType="service"
+                  fixedListingType="service"
+                  allowedServiceSectors={PROPERTY_SERVICE_SECTORS}
+                  initialServiceSectorFilter="Property Buy & Sell"
+                  triggerLabel="Add Property Service"
+                  dialogTitle="New Property Buy & Sell Service"
+                  dialogDescription="Create property sale, resale, broker, and site-visit listings here."
+                />
+              </div>
+            </div>
+            <p className="mb-4 text-xs text-slate-600">
+              এখানে property buy-sell, flat/house/plot sale, broker assistance, এবং site visit related service listing manage করুন।
+            </p>
+            {propertyItems.length === 0 ? (
+              <p className="text-sm text-muted-foreground">No property service yet. Click "Add Property Service" to create one.</p>
+            ) : (
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                {propertyItems.map((p) => (
+                  <div key={p.id} className="rounded-lg border border-indigo-200 overflow-hidden bg-white">
+                    <div className="aspect-square bg-secondary relative">
+                      <img src={getPreviewImageUrl(p) || undefined} alt={p.name} className="w-full h-full object-cover" />
+                      {getPdfUrl(p) ? (
+                        <button
+                          type="button"
+                          onClick={() => window.open(getPdfUrl(p), "_blank")}
+                          className="absolute left-2 top-2 rounded-full bg-white/90 text-emerald-900 px-2.5 py-1 text-[10px] font-bold"
+                        >
+                          Open Preview
+                        </button>
+                      ) : null}
+                    </div>
+                    <div className="p-3"><p className="font-semibold text-sm text-emerald-950">{p.name}</p><p className="text-xs text-muted-foreground">{p.category}</p><p className="font-display font-black text-emerald-800 mt-1">{withUnit(p.price, p.unit_type)}</p><p className="text-[10px] text-slate-500">{String(p?.service_invoice_mode || "detailed").replace(/_/g, " ")}</p>
+                    <div className="flex gap-1 mt-2">
+                      <PartnerProductForm
+                        product={p}
+                        onSaved={loadAll}
+                        fixedListingType="service"
+                        allowedServiceSectors={PROPERTY_SERVICE_SECTORS}
+                        initialServiceSectorFilter="Property Buy & Sell"
+                        triggerLabel="Edit Property"
+                        dialogTitle="Edit Property Service"
+                        dialogDescription="Update only this property buy-sell service listing."
+                      />
+                      <Button size="sm" variant="outline" className="rounded-full border-red-300 text-red-700 hover:bg-red-50 h-7 px-2 text-[11px]" onClick={() => deleteProduct(p.id)} data-testid={`del-my-property-${p.id}`}>Delete</Button>
                     </div>
                     </div>
                   </div>

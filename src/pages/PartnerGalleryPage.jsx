@@ -13,7 +13,7 @@ import UpiPaymentDialog from "@/components/UpiPaymentDialog";
 import { useAuth } from "@/contexts/AuthContext";
 import { resolveAssetUrl, getAssetImageFallbackCandidates } from "@/lib/utils";
 import { Input } from "@/components/ui/input";
-import { inferPartnerPrimarySector, getPartnerVisibleSectors, isDeliveryServiceLike, isDoorstepServiceLike, isHospitalityServiceLike, isTransportServiceLike, PARTNER_SECTOR_KEYS } from "@/lib/partnerSector";
+import { inferPartnerPrimarySector, getPartnerVisibleSectors, isDeliveryServiceLike, isDoorstepServiceLike, isHospitalityServiceLike, isPropertyServiceLike, isTransportServiceLike, PARTNER_SECTOR_KEYS } from "@/lib/partnerSector";
 
 const FALLBACK = "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 400 400'><rect width='400' height='400' fill='%23e2e8f0'/><text x='50%25' y='50%25' dominant-baseline='middle' text-anchor='middle' fill='%23475569' font-size='20' font-family='Arial'>No Image</text></svg>";
 const PDF_PREVIEW = "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 400 400'><rect width='400' height='400' fill='%23f1f5f9'/><rect x='80' y='50' width='240' height='300' rx='14' fill='%23ffffff' stroke='%2394a3b8' stroke-width='4'/><text x='200' y='190' text-anchor='middle' fill='%23dc2626' font-size='46' font-family='Arial' font-weight='bold'>PDF</text><text x='200' y='228' text-anchor='middle' fill='%23334155' font-size='16' font-family='Arial'>Tap to Open</text></svg>";
@@ -192,6 +192,9 @@ const isHospitalityServiceListing = (item) => {
 };
 const isDoorstepServiceListing = (item) => {
   return isDoorstepServiceLike(item);
+};
+const isPropertyServiceListing = (item) => {
+  return isPropertyServiceLike(item);
 };
 
 const getUnitType = (item) => {
@@ -489,8 +492,9 @@ export default function PartnerGalleryPage() {
   const transportListings = useMemo(() => serviceListings.filter((item) => isTransportServiceListing(item)), [serviceListings]);
   const deliveryListings = useMemo(() => serviceListings.filter((item) => !isTransportServiceListing(item) && isDeliveryServiceLike(item)), [serviceListings]);
   const hospitalityListings = useMemo(() => serviceListings.filter((item) => !isTransportServiceListing(item) && !isDeliveryServiceLike(item) && isHospitalityServiceListing(item)), [serviceListings]);
-  const doorstepListings = useMemo(() => serviceListings.filter((item) => !isTransportServiceListing(item) && !isDeliveryServiceLike(item) && !isHospitalityServiceListing(item) && isDoorstepServiceListing(item)), [serviceListings]);
-  const regularServiceListings = useMemo(() => serviceListings.filter((item) => !isTransportServiceListing(item) && !isDeliveryServiceLike(item) && !isHospitalityServiceListing(item) && !isDoorstepServiceListing(item)), [serviceListings]);
+  const propertyListings = useMemo(() => serviceListings.filter((item) => !isTransportServiceListing(item) && !isDeliveryServiceLike(item) && !isHospitalityServiceListing(item) && isPropertyServiceListing(item)), [serviceListings]);
+  const doorstepListings = useMemo(() => serviceListings.filter((item) => !isTransportServiceListing(item) && !isDeliveryServiceLike(item) && !isHospitalityServiceListing(item) && !isPropertyServiceListing(item) && isDoorstepServiceListing(item)), [serviceListings]);
+  const regularServiceListings = useMemo(() => serviceListings.filter((item) => !isTransportServiceListing(item) && !isDeliveryServiceLike(item) && !isHospitalityServiceListing(item) && !isPropertyServiceListing(item) && !isDoorstepServiceListing(item)), [serviceListings]);
   const primarySector = useMemo(() => inferPartnerPrimarySector({
     businessType: partner?.business_type,
     businessName: partner?.business_name,
@@ -499,6 +503,7 @@ export default function PartnerGalleryPage() {
       transport: transportListings.length,
         delivery: deliveryListings.length,
       hospitality: hospitalityListings.length,
+      property: propertyListings.length,
       doorstep: doorstepListings.length,
       otherServices: regularServiceListings.length,
     },
@@ -509,6 +514,7 @@ export default function PartnerGalleryPage() {
     transportListings.length,
     deliveryListings.length,
     hospitalityListings.length,
+    propertyListings.length,
     doorstepListings.length,
     regularServiceListings.length,
   ]);
@@ -519,6 +525,7 @@ export default function PartnerGalleryPage() {
     if (visibleSectors.includes(PARTNER_SECTOR_KEYS.TRANSPORT_SECTOR)) tabs.push("transport");
     if (visibleSectors.includes(PARTNER_SECTOR_KEYS.DELIVERY_PARTNER_SECTOR)) tabs.push("delivery-partner");
     if (visibleSectors.includes(PARTNER_SECTOR_KEYS.HOSPITALITY_SECTOR)) tabs.push("stay-dining");
+    if (visibleSectors.includes(PARTNER_SECTOR_KEYS.PROPERTY_SECTOR)) tabs.push("property-buy-sell");
     if (visibleSectors.includes(PARTNER_SECTOR_KEYS.DOORSTEP_SECTOR)) tabs.push("doorstep");
     if (visibleSectors.includes(PARTNER_SECTOR_KEYS.OTHER_SERVICE_SECTOR)) tabs.push("other-services");
     return tabs.length ? tabs : ["products"];
@@ -531,9 +538,72 @@ export default function PartnerGalleryPage() {
       ? deliveryListings
     : (activeTab === "stay-dining"
       ? hospitalityListings
+      : (activeTab === "property-buy-sell"
+        ? propertyListings
       : (activeTab === "doorstep"
         ? doorstepListings
-        : (activeTab === "other-services" ? regularServiceListings : productListings))));
+        : (activeTab === "other-services" ? regularServiceListings : productListings)))));
+
+  const tabLabelMap = {
+    products: "Products",
+    transport: "Transport",
+    "delivery-partner": "Delivery",
+    "stay-dining": "Stay & Dining",
+    "property-buy-sell": "Property",
+    doorstep: "Doorstep",
+    "other-services": "Other Services",
+  };
+  const searchLabelMap = {
+    products: "Search Product",
+    transport: "Search Transport",
+    "delivery-partner": "Search Delivery Service",
+    "stay-dining": "Search Stay & Dining",
+    "property-buy-sell": "Search Property Service",
+    doorstep: "Search Doorstep Service",
+    "other-services": "Search Other Service",
+  };
+  const searchPlaceholderMap = {
+    products: "Search by product name or category",
+    transport: "Search by cab, rental, bike, cargo",
+    "delivery-partner": "Search by parcel, pickup, same day delivery",
+    "stay-dining": "Search hotel, homestay, restaurant",
+    "property-buy-sell": "Search by plot, flat, house, broker",
+    doorstep: "Search cleaning, repair, courier",
+    "other-services": "Search by other service name or category",
+  };
+  const emptyMatchMap = {
+    products: "No matching products found",
+    transport: "No matching transport service found",
+    "delivery-partner": "No matching delivery service found",
+    "stay-dining": "No matching stay/dining service found",
+    "property-buy-sell": "No matching property service found",
+    doorstep: "No matching doorstep service found",
+    "other-services": "No matching other service found",
+  };
+  const emptyDefaultMap = {
+    products: "No products yet",
+    transport: "No transport service yet",
+    "delivery-partner": "No delivery service yet",
+    "stay-dining": "No stay/dining service yet",
+    "property-buy-sell": "No property service yet",
+    doorstep: "No doorstep service yet",
+    "other-services": "No other service yet",
+  };
+  const sectionLabelMap = {
+    products: "Product Gallery",
+    transport: "Transport Gallery",
+    "delivery-partner": "Delivery Service Gallery",
+    "stay-dining": "Stay & Dining Gallery",
+    "property-buy-sell": "Property Service Gallery",
+    doorstep: "Doorstep Services Gallery",
+    "other-services": "Other Services Gallery",
+  };
+  const activeTabLabel = tabLabelMap[activeTab] || tabLabelMap.products;
+  const activeSearchLabel = searchLabelMap[activeTab] || searchLabelMap.products;
+  const activeSearchPlaceholder = searchPlaceholderMap[activeTab] || searchPlaceholderMap.products;
+  const activeEmptyMessage = (gallerySearch ? emptyMatchMap : emptyDefaultMap)[activeTab] || (gallerySearch ? emptyMatchMap.products : emptyDefaultMap.products);
+  const activeSectionLabel = sectionLabelMap[activeTab] || sectionLabelMap.products;
+
   const isBookNowRole = !user || ["member", "customer"].includes(String(user?.role || "").toLowerCase());
   const canAccessProductPdf = ["partner", "admin", "super_admin", "company_admin"].includes(String(user?.role || "").toLowerCase());
   const getStock = (product) => Math.max(0, Number(product?.stock ?? 0));
@@ -692,12 +762,7 @@ export default function PartnerGalleryPage() {
     const productLines = visibleProducts.slice(0, 8).map(p =>
       `• ${p.name} — ₹${p.price}${(p.image_url || getPdfUrl(p)) ? `\n  ${p.image_url || getPdfUrl(p)}` : ""}`
     ).join("\n");
-    const sectionLabel = activeTab === "transport"
-      ? "Transport Gallery"
-      : (activeTab === "stay-dining"
-        ? "Stay & Dining Gallery"
-        : (activeTab === "doorstep" ? "Doorstep Services Gallery" : (activeTab === "other-services" ? "Other Services Gallery" : "Product Gallery")));
-    const msg = `🛍️ *${partner.business_name}* এর ${sectionLabel}\n\n${productLines}\n\n👉 সব দেখুন ও Order করুন:\n${galleryUrl}?tab=${activeTab}`;
+    const msg = `🛍️ *${partner.business_name}* এর ${activeSectionLabel}\n\n${productLines}\n\n👉 সব দেখুন ও Order করুন:\n${galleryUrl}?tab=${activeTab}`;
     window.open(`https://wa.me/?text=${encodeURIComponent(msg)}`, "_blank");
   };
 
@@ -943,7 +1008,7 @@ export default function PartnerGalleryPage() {
             </p>
           </div>
           <div className="text-right">
-            <p className="text-[10px] text-amber-400 uppercase font-bold">{activeTab === "transport" ? "Transport" : (activeTab === "stay-dining" ? "Stay & Dining" : (activeTab === "doorstep" ? "Doorstep" : (activeTab === "other-services" ? "Other Services" : "Products")))}</p>
+            <p className="text-[10px] text-amber-400 uppercase font-bold">{activeTabLabel}</p>
             <p className="font-display font-black text-3xl">{activeListings.length}</p>
           </div>
           {partnerChatUrl ? (
@@ -1009,6 +1074,20 @@ export default function PartnerGalleryPage() {
             </Button>
           </Link>
           ) : null}
+          {allowedTabs.includes("delivery-partner") ? (
+          <Link to={`/gallery/${partnerCode}?tab=delivery-partner${gallerySearch ? `&q=${encodeURIComponent(gallerySearch)}` : ""}`}>
+            <Button variant={activeTab === "delivery-partner" ? "default" : "outline"} size="sm" className={`rounded-full text-xs ${activeTab === "delivery-partner" ? "bg-cyan-700 hover:bg-cyan-800 text-white" : "border-cyan-300 text-cyan-900 hover:bg-cyan-50"}`}>
+              Delivery
+            </Button>
+          </Link>
+          ) : null}
+          {allowedTabs.includes("property-buy-sell") ? (
+          <Link to={`/gallery/${partnerCode}?tab=property-buy-sell${gallerySearch ? `&q=${encodeURIComponent(gallerySearch)}` : ""}`}>
+            <Button variant={activeTab === "property-buy-sell" ? "default" : "outline"} size="sm" className={`rounded-full text-xs ${activeTab === "property-buy-sell" ? "bg-indigo-700 hover:bg-indigo-800 text-white" : "border-indigo-300 text-indigo-900 hover:bg-indigo-50"}`}>
+              Property
+            </Button>
+          </Link>
+          ) : null}
           {allowedTabs.includes("doorstep") ? (
           <Link to={`/gallery/${partnerCode}?tab=doorstep${gallerySearch ? `&q=${encodeURIComponent(gallerySearch)}` : ""}`}>
             <Button variant={activeTab === "doorstep" ? "default" : "outline"} size="sm" className={`rounded-full text-xs ${activeTab === "doorstep" ? "bg-violet-700 hover:bg-violet-800 text-white" : "border-violet-300 text-violet-900 hover:bg-violet-50"}`}>
@@ -1045,12 +1124,12 @@ export default function PartnerGalleryPage() {
       <div className="max-w-4xl mx-auto px-4 pb-4">
         <div className="bg-white rounded-xl border border-border p-4 flex flex-col md:flex-row gap-2 md:items-center">
           <div className="flex items-center gap-2 text-emerald-900 font-semibold text-sm shrink-0">
-            <Search className="w-4 h-4" /> {activeTab === "transport" ? "Search Transport" : (activeTab === "stay-dining" ? "Search Stay & Dining" : (activeTab === "doorstep" ? "Search Doorstep Service" : (activeTab === "other-services" ? "Search Other Service" : "Search Product")))}
+            <Search className="w-4 h-4" /> {activeSearchLabel}
           </div>
           <Input
             value={gallerySearch}
             onChange={(e) => setGallerySearch(e.target.value)}
-            placeholder={activeTab === "transport" ? "Search by cab, rental, bike, cargo" : (activeTab === "stay-dining" ? "Search hotel, homestay, restaurant" : (activeTab === "doorstep" ? "Search cleaning, repair, courier" : (activeTab === "other-services" ? "Search by other service name or category" : "Search by product name or category")))}
+            placeholder={activeSearchPlaceholder}
             className="rounded-full"
           />
           {gallerySearch ? (
@@ -1071,11 +1150,7 @@ export default function PartnerGalleryPage() {
         {visibleProducts.length === 0 ? (
           <div className="text-center py-16 bg-white rounded-xl border border-border">
             <Store className="w-10 h-10 text-slate-400 mx-auto" />
-            <p className="mt-3 font-semibold text-emerald-950">
-              {gallerySearch
-                ? (activeTab === "transport" ? "No matching transport service found" : (activeTab === "stay-dining" ? "No matching stay/dining service found" : (activeTab === "doorstep" ? "No matching doorstep service found" : (activeTab === "other-services" ? "No matching other service found" : "No matching products found"))))
-                : (activeTab === "transport" ? "No transport service yet" : (activeTab === "stay-dining" ? "No stay/dining service yet" : (activeTab === "doorstep" ? "No doorstep service yet" : (activeTab === "other-services" ? "No other service yet" : "No products yet"))))}
-            </p>
+            <p className="mt-3 font-semibold text-emerald-950">{activeEmptyMessage}</p>
           </div>
         ) : (
           <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
