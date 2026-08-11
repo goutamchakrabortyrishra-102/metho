@@ -47,6 +47,7 @@ const SERVICE_CATEGORY_OPTIONS = [
 
 const SERVICE_SECTOR_OPTIONS = [
   "Transport",
+  "Delivery Partner",
   "Stay & Dining",
   "Doorstep",
   "Other Services",
@@ -60,7 +61,8 @@ const SHOP_SECTOR_OPTIONS = [
 ];
 
 const SERVICE_TEMPLATE_OPTIONS_BY_SECTOR = {
-  Transport: ["Cab", "Car Rental", "Bike Rental", "Courier", "Logistics", "Travel Agency"],
+  Transport: ["Cab", "Car Rental", "Bike Rental", "Travel Agency"],
+  "Delivery Partner": ["Courier", "Logistics", "Cargo", "Parcel", "Express Delivery", "Pickup & Drop"],
   "Stay & Dining": ["Hotel", "Homestay", "Restaurant", "Cafe", "Banquet"],
   Doorstep: ["Home Service", "Laundry", "Cleaning", "Tailoring", "Beauty at Home", "Repair Center"],
   "Other Services": ["Doctor Clinic", "Diagnostic Center", "Education", "Fitness", "Legal", "Accounting", "Photography", "Internet Service", "Other Service"],
@@ -85,7 +87,10 @@ const ALL_SHOP_TEMPLATE_OPTIONS = Array.from(
 );
 
 const TRANSPORT_REG_HINTS = [
-  "transport", "cab", "taxi", "car", "car rental", "bike", "bike rental", "duchaka", "truck", "lorry", "logistics", "courier", "travel", "cargo", "vehicle",
+  "transport", "cab", "taxi", "car", "car rental", "bike", "bike rental", "duchaka", "truck", "lorry", "travel", "vehicle",
+];
+const DELIVERY_REG_HINTS = [
+  "delivery", "courier", "logistics", "cargo", "parcel", "shipment", "dispatch", "freight", "goods carrier", "pickup drop", "pickup and drop",
 ];
 const STAY_DINING_REG_HINTS = [
   "hotel", "homestay", "home stay", "guest house", "resort", "restaurant", "resturent", "cafe", "dining", "sitbooking", "seat booking", "banquet", "rental house", "flat", "apartment", "stay",
@@ -109,17 +114,19 @@ const inferRegistrationSelection = (form) => {
   ].map(normalizeText).join(" ");
 
   const looksTransport = includesAnyHint(combinedText, TRANSPORT_REG_HINTS);
+  const looksDelivery = includesAnyHint(combinedText, DELIVERY_REG_HINTS);
   const looksStayDining = includesAnyHint(combinedText, STAY_DINING_REG_HINTS);
   const looksDoorstep = includesAnyHint(combinedText, DOORSTEP_REG_HINTS);
   const looksShop = includesAnyHint(combinedText, SHOP_REG_HINTS);
 
-  const inferredBusinessType = (looksTransport || looksStayDining || looksDoorstep)
+  const inferredBusinessType = (looksDelivery || looksTransport || looksStayDining || looksDoorstep)
     ? "Service"
     : (looksShop ? "Shop" : String(form.business_type || "Shop"));
 
   let inferredServiceSector = String(form.service_sector || "");
   if (inferredBusinessType === "Service") {
-    if (looksTransport) inferredServiceSector = "Transport";
+    if (looksDelivery) inferredServiceSector = "Delivery Partner";
+    else if (looksTransport) inferredServiceSector = "Transport";
     else if (looksStayDining) inferredServiceSector = "Stay & Dining";
     else if (looksDoorstep) inferredServiceSector = "Doorstep";
     else inferredServiceSector = inferredServiceSector || "Other Services";
