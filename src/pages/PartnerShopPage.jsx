@@ -387,6 +387,8 @@ export default function PartnerShopPage() {
     travel_date: "",
     notes: "",
   });
+  const [transportMemberLookupBusy, setTransportMemberLookupBusy] = useState(false);
+  const [transportMemberLookupInfo, setTransportMemberLookupInfo] = useState(null);
   const [transportFareEstimate, setTransportFareEstimate] = useState(null);
   const [transportFareEstimateLoading, setTransportFareEstimateLoading] = useState(false);
   const transportEstimateRequestRef = useRef(0);
@@ -640,6 +642,34 @@ export default function PartnerShopPage() {
       cancelled = true;
     };
   }, [selectedFarePresetId, selectedTransportPreset, transportForm.destination, transportForm.pickup, transportService]);
+
+  useEffect(() => {
+    const ref = String(guestMemberRef || "").trim();
+    if (transportActiveTab !== "booking" || !ref) {
+      setTransportMemberLookupInfo(null);
+      setTransportMemberLookupBusy(false);
+      return;
+    }
+
+    const timer = window.setTimeout(async () => {
+      setTransportMemberLookupBusy(true);
+      try {
+        const { data } = await api.get(`/member-lookup/${encodeURIComponent(ref)}`);
+        setTransportMemberLookupInfo(data || null);
+        setTransportForm((prev) => ({
+          ...prev,
+          customer_name: String(prev.customer_name || "").trim() || String(data?.name || "").trim(),
+          customer_phone: String(prev.customer_phone || "").trim() || String(data?.phone || "").trim(),
+        }));
+      } catch {
+        setTransportMemberLookupInfo(null);
+      } finally {
+        setTransportMemberLookupBusy(false);
+      }
+    }, 350);
+
+    return () => window.clearTimeout(timer);
+  }, [guestMemberRef, transportActiveTab]);
   const hasHospitalityListings = hospitalityListings.length > 0;
   const hasPropertyListings = propertyListings.length > 0;
   const hasDoorstepListings = doorstepListings.length > 0;
@@ -737,8 +767,8 @@ export default function PartnerShopPage() {
     setTransportServiceSearch("");
     setTransportBookingMode("route");
     setTransportForm({
-      customer_name: isMemberOrCustomer ? (user?.name || "") : "",
-      customer_phone: isMemberOrCustomer ? (user?.phone || "") : "",
+      customer_name: "",
+      customer_phone: "",
       pickup: "",
       destination: "",
       travel_date: "",
@@ -1353,6 +1383,8 @@ export default function PartnerShopPage() {
                     <Input value={transportForm.customer_phone} onChange={(e) => setTransportForm((prev) => ({ ...prev, customer_phone: e.target.value }))} placeholder="Mobile number" className="h-10" />
                   </div>
                   <Input value={guestMemberRef} onChange={(e) => setGuestMemberRef(e.target.value)} placeholder="Member ID/Code (optional for reward %)" className="h-10" />
+                  {transportMemberLookupBusy ? <p className="text-[11px] text-slate-500">Member lookup চলছে...</p> : null}
+                  {!transportMemberLookupBusy && transportMemberLookupInfo ? <p className="text-[11px] text-emerald-700">Member found: {transportMemberLookupInfo?.name || "Member"}{transportMemberLookupInfo?.member_code ? ` · ${transportMemberLookupInfo.member_code}` : ""}</p> : null}
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                     <Input value={transportForm.pickup} onChange={(e) => setTransportForm((prev) => ({ ...prev, pickup: e.target.value }))} placeholder="Pickup point" className="h-10" />
                     <Input

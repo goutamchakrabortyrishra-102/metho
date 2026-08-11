@@ -520,6 +520,8 @@ export default function PartnerGalleryPage() {
     travel_date: "",
     notes: "",
   });
+  const [deliveryMemberLookupBusy, setDeliveryMemberLookupBusy] = useState(false);
+  const [deliveryMemberLookupInfo, setDeliveryMemberLookupInfo] = useState(null);
   const [deliveryFareEstimate, setDeliveryFareEstimate] = useState(null);
   const [deliveryFareEstimateLoading, setDeliveryFareEstimateLoading] = useState(false);
   const deliveryEstimateRequestRef = useRef(0);
@@ -914,13 +916,41 @@ export default function PartnerGalleryPage() {
     };
   }, [deliveryBookingOpen, deliveryBookingService, deliveryBookingForm.destination, deliveryBookingForm.pickup]);
 
+  useEffect(() => {
+    const ref = String(guestMemberRef || "").trim();
+    if (!deliveryBookingOpen || !ref) {
+      setDeliveryMemberLookupInfo(null);
+      setDeliveryMemberLookupBusy(false);
+      return;
+    }
+
+    const timer = window.setTimeout(async () => {
+      setDeliveryMemberLookupBusy(true);
+      try {
+        const { data } = await api.get(`/member-lookup/${encodeURIComponent(ref)}`);
+        setDeliveryMemberLookupInfo(data || null);
+        setDeliveryBookingForm((prev) => ({
+          ...prev,
+          customer_name: String(prev.customer_name || "").trim() || String(data?.name || "").trim(),
+          customer_phone: String(prev.customer_phone || "").trim() || String(data?.phone || "").trim(),
+        }));
+      } catch {
+        setDeliveryMemberLookupInfo(null);
+      } finally {
+        setDeliveryMemberLookupBusy(false);
+      }
+    }, 350);
+
+    return () => window.clearTimeout(timer);
+  }, [deliveryBookingOpen, guestMemberRef]);
+
   const handleBookNow = (listing) => {
     if (!listing?.id) return;
     if (activeTab === "delivery-partner" || isDeliveryServiceLike(listing)) {
       setDeliveryBookingService(listing);
       setDeliveryBookingForm({
-        customer_name: String(user?.name || "").trim(),
-        customer_phone: String(user?.phone || "").trim(),
+        customer_name: "",
+        customer_phone: "",
         pickup: "",
         destination: "",
         travel_date: "",
@@ -1477,8 +1507,8 @@ export default function PartnerGalleryPage() {
                             if (activeTab === "delivery-partner" || isDeliveryServiceLike(p)) {
                               setDeliveryBookingService(p);
                               setDeliveryBookingForm({
-                                customer_name: String(user?.name || "").trim(),
-                                customer_phone: String(user?.phone || "").trim(),
+                                customer_name: "",
+                                customer_phone: "",
                                 pickup: "",
                                 destination: "",
                                 travel_date: "",
@@ -1650,6 +1680,8 @@ export default function PartnerGalleryPage() {
               <Input value={deliveryBookingForm.customer_phone} onChange={(e) => setDeliveryBookingForm((prev) => ({ ...prev, customer_phone: e.target.value }))} placeholder="Mobile number" className="h-11" />
             </div>
             <Input value={guestMemberRef} onChange={(e) => setGuestMemberRef(e.target.value)} placeholder="Member ID/Code (optional for reward %)" className="h-11 mt-3" />
+            {deliveryMemberLookupBusy ? <p className="text-[11px] text-slate-500 mt-1">Member lookup চলছে...</p> : null}
+            {!deliveryMemberLookupBusy && deliveryMemberLookupInfo ? <p className="text-[11px] text-emerald-700 mt-1">Member found: {deliveryMemberLookupInfo?.name || "Member"}{deliveryMemberLookupInfo?.member_code ? ` · ${deliveryMemberLookupInfo.member_code}` : ""}</p> : null}
             <div className="mt-3 grid grid-cols-1 md:grid-cols-2 gap-3">
               <Input value={deliveryBookingForm.pickup} onChange={(e) => setDeliveryBookingForm((prev) => ({ ...prev, pickup: e.target.value }))} placeholder="Pickup point" className="h-11" />
               <Input value={deliveryBookingForm.destination} onChange={(e) => setDeliveryBookingForm((prev) => ({ ...prev, destination: e.target.value }))} placeholder="Destination" className="h-11" />
