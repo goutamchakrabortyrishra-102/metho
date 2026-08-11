@@ -175,6 +175,76 @@ const normalizePartnerPayload = (payload) => {
   };
 };
 
+const haversineKm = (lat1, lon1, lat2, lon2) => {
+  const toRad = (value) => (value * Math.PI) / 180;
+  const earthRadiusKm = 6371;
+  const dLat = toRad(lat2 - lat1);
+  const dLon = toRad(lon2 - lon1);
+  const a = Math.sin(dLat / 2) ** 2 + Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLon / 2) ** 2;
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  return earthRadiusKm * c;
+};
+
+const geocodeAddress = async (address) => {
+  const query = String(address || "").trim();
+  if (!query) return null;
+  try {
+    const response = await fetch(`https://nominatim.openstreetmap.org/search?format=jsonv2&limit=1&q=${encodeURIComponent(query)}`, {
+      headers: { Accept: "application/json" },
+    });
+    if (!response.ok) return null;
+    const data = await response.json();
+    const first = Array.isArray(data) ? data[0] : null;
+    if (!first) return null;
+    const lat = Number(first.lat);
+    const lon = Number(first.lon);
+    if (!Number.isFinite(lat) || !Number.isFinite(lon)) return null;
+    return { lat, lon };
+  } catch {
+    return null;
+  }
+};
+
+const getDeliveryRatePerKm = (service) => {
+  const candidates = [
+    service?.delivery_rate_per_km,
+    service?.transport_rate_per_km,
+    service?.rate_per_km,
+    service?.per_km_rate,
+    service?.price_per_km,
+    service?.transport_rate,
+    service?.km_rate,
+    service?.price,
+  ];
+  for (const value of candidates) {
+    const parsed = Number(value);
+    if (Number.isFinite(parsed) && parsed > 0) return parsed;
+  }
+  return 20;
+};
+
+const estimateDeliveryFareFromRoute = async (pickup, destination, service) => {
+  const origin = String(pickup || "").trim();
+  const dest = String(destination || "").trim();
+  if (!origin || !dest) return null;
+  try {
+    const [originCoords, destCoords] = await Promise.all([geocodeAddress(origin), geocodeAddress(dest)]);
+    if (!originCoords || !destCoords) return null;
+    const distanceKm = haversineKm(originCoords.lat, originCoords.lon, destCoords.lat, destCoords.lon);
+    if (!Number.isFinite(distanceKm) || distanceKm <= 0) return null;
+    const ratePerKm = getDeliveryRatePerKm(service);
+    const amount = Math.max(1, Math.round(distanceKm * ratePerKm));
+    return {
+      amount,
+      distanceKm,
+      ratePerKm,
+      source: "route",
+    };
+  } catch {
+    return null;
+  }
+};
+
 const isServiceListing = (item) => {
   if (!item) return false;
   const hint = [item?.listing_type, item?.item_kind, item?.kind, item?.type, item?.product_kind]
@@ -438,6 +508,21 @@ export default function PartnerGalleryPage() {
   const searchText = String(searchParams.get("q") || "").trim();
   const requestedTab = String(searchParams.get("tab") || "products").toLowerCase();
   const [gallerySearch, setGallerySearch] = useState(searchText);
+  const [deliveryBookingService, setDeliveryBookingService] = useState(null);
+  const [deliveryBookingOpen, setDeliveryBookingOpen] = useState(false);
+  const [deliveryBookingBusy, setDeliveryBookingBusy] = useState(false);
+  const [deliveryBooking, setDeliveryBooking] = useState(null);
+  const [deliveryBookingForm, setDeliveryBookingForm] = useState({
+    customer_name: "",
+    customer_phone: "",
+    pickup: "",
+    destination: "",
+    travel_date: "",
+    notes: "",
+  });
+  const [deliveryFareEstimate, setDeliveryFareEstimate] = useState(null);
+  const [deliveryFareEstimateLoading, setDeliveryFareEstimateLoading] = useState(false);
+  const deliveryEstimateRequestRef = useRef(0);
 
   useEffect(() => {
     setGallerySearch(searchText);
@@ -788,8 +873,64 @@ export default function PartnerGalleryPage() {
     normalizeFacebookUrl(partner?.business_youtube_url) ||
     normalizeFacebookUrl(paymentProfile?.business_youtube_url);
 
+  useEffect(() => {
+    if (!deliveryBookingOpen || !deliveryBookingService?.id) {
+      setDeliveryFareEstimate(null);
+      setDeliveryFareEstimateLoading(false);
+      return;
+    }
+
+    const pickup = String(deliveryBookingForm.pickup || "").trim();
+    const destination = String(deliveryBookingForm.destination || "").trim();
+    if (!pickup || !destination) {
+      setDeliveryFareEstimate(null);
+      setDeliveryFareEstimateLoading(false);
+      return;
+    }
+
+    const requestId = deliveryEstimateRequestRef.current + 1;
+    deliveryEstimateRequestRef.current = requestId;
+    setDeliveryFareEstimateLoading(true);
+
+    let cancelled = false;
+    void estimateDeliveryFareFromRoute(pickup, destination, deliveryBookingService)
+      .then((estimate) => {
+        if (cancelled || requestId !== deliveryEstimateRequestRef.current) return;
+        setDeliveryFareEstimate(estimate || null);
+      })
+      .catch(() => {
+        if (!cancelled && requestId === deliveryEstimateRequestRef.current) {
+          setDeliveryFareEstimate(null);
+        }
+      })
+      .finally(() => {
+        if (!cancelled && requestId === deliveryEstimateRequestRef.current) {
+          setDeliveryFareEstimateLoading(false);
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [deliveryBookingOpen, deliveryBookingService, deliveryBookingForm.destination, deliveryBookingForm.pickup]);
+
   const handleBookNow = (listing) => {
     if (!listing?.id) return;
+    if (activeTab === "delivery-partner" || isDeliveryServiceLike(listing)) {
+      setDeliveryBookingService(listing);
+      setDeliveryBookingForm({
+        customer_name: String(user?.name || "").trim(),
+        customer_phone: String(user?.phone || "").trim(),
+        pickup: "",
+        destination: "",
+        travel_date: "",
+        notes: "",
+      });
+      setDeliveryBooking(null);
+      setDeliveryBookingOpen(true);
+      setSelected(null);
+      return;
+    }
     setCart((prev) => ({ ...prev, [listing.id]: 1 }));
     setSelected(null);
     if (!user && isServiceListing(listing) && !guestServiceHintRef.current) {
@@ -797,6 +938,76 @@ export default function PartnerGalleryPage() {
       toast.info("Guest mode: reward attribution-এর জন্য checkout-এ Member ID/Code দিন");
     }
     toast.success(`${listing.name || "Service"} added to cart`);
+  };
+
+  const submitDeliveryBooking = async () => {
+    const bookingService = deliveryBookingService || deliveryListings[0] || null;
+    const pickup = String(deliveryBookingForm.pickup || "").trim();
+    const destination = String(deliveryBookingForm.destination || "").trim();
+    const customerName = String(deliveryBookingForm.customer_name || "").trim();
+    const customerPhone = String(deliveryBookingForm.customer_phone || "").trim();
+    if (!bookingService?.id) {
+      toast.error("Delivery service select করুন");
+      return;
+    }
+    if (!customerName) {
+      toast.error("Customer name দিন");
+      return;
+    }
+    if (!customerPhone) {
+      toast.error("Mobile number দিন");
+      return;
+    }
+    if (!pickup) {
+      toast.error("Pickup দিন");
+      return;
+    }
+    if (!destination) {
+      toast.error("Destination দিন");
+      return;
+    }
+
+    const estimate = deliveryFareEstimate || await estimateDeliveryFareFromRoute(pickup, destination, bookingService);
+    setDeliveryBookingBusy(true);
+    try {
+      const manualMemberRef = String(guestMemberRef || "").trim();
+      const autoMemberRef = String(user?.role || "").toLowerCase() === "member" ? String(user?.id || "").trim() : "";
+      const { data } = await api.post("/delivery/bookings", {
+        partner_code: partnerCode,
+        service_product_id: bookingService.id,
+        customer_name: customerName,
+        customer_phone: customerPhone,
+        pickup,
+        destination,
+        travel_date: String(deliveryBookingForm.travel_date || "").trim(),
+        notes: String(deliveryBookingForm.notes || "").trim(),
+        member_ref: manualMemberRef || autoMemberRef,
+        estimated_fare: estimate?.amount || null,
+      });
+      setDeliveryBooking(data?.booking || null);
+      toast.success("Delivery booking submitted. Partner will confirm the final rate.");
+    } catch (err) {
+      toast.error(err?.response?.data?.detail || "Delivery booking failed");
+    } finally {
+      setDeliveryBookingBusy(false);
+    }
+  };
+
+  const refreshDeliveryBooking = async () => {
+    const id = String(deliveryBooking?.id || "").trim();
+    if (!id) return;
+    try {
+      const phone = String(deliveryBookingForm?.customer_phone || deliveryBooking?.customer_phone || "").trim();
+      const { data } = await api.get(`/delivery/bookings/${id}`, {
+        params: !user ? { customer_phone: phone } : undefined,
+      });
+      setDeliveryBooking(data?.booking || null);
+      if (String(data?.booking?.status || "") === "confirmed") {
+        toast.success("Delivery booking confirmed by partner");
+      }
+    } catch (err) {
+      toast.error(err?.response?.data?.detail || "Refresh failed");
+    }
   };
 
   const shareWhatsApp = () => {
@@ -1263,12 +1474,26 @@ export default function PartnerGalleryPage() {
                           type="button"
                           onClick={e => {
                             e.stopPropagation();
+                            if (activeTab === "delivery-partner" || isDeliveryServiceLike(p)) {
+                              setDeliveryBookingService(p);
+                              setDeliveryBookingForm({
+                                customer_name: String(user?.name || "").trim(),
+                                customer_phone: String(user?.phone || "").trim(),
+                                pickup: "",
+                                destination: "",
+                                travel_date: "",
+                                notes: "",
+                              });
+                              setDeliveryBooking(null);
+                              setDeliveryBookingOpen(true);
+                              return;
+                            }
                             handleBookNow(p);
                           }}
                           className={`w-full rounded-full h-9 text-white ${isTransport ? "bg-sky-700 hover:bg-sky-800" : "bg-emerald-900 hover:bg-emerald-950"}`}
                           data-testid={`quick-add-${p.id}`}
                         >
-                          Book Now
+                          {activeTab === "delivery-partner" || isDeliveryServiceLike(p) ? "Book Delivery" : "Book Now"}
                         </Button>
                       </div>
                     ) : qty > 0 ? (
@@ -1395,6 +1620,72 @@ export default function PartnerGalleryPage() {
           setSelected(null);
         }}
       />
+
+      {deliveryBookingOpen ? (
+        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4" onClick={() => setDeliveryBookingOpen(false)}>
+          <div className="w-full max-w-2xl rounded-2xl bg-white shadow-2xl border border-cyan-200 p-5 md:p-6" onClick={(e) => e.stopPropagation()}>
+            <div className="flex flex-wrap items-start justify-between gap-3">
+              <div>
+                <p className="text-[10px] uppercase tracking-widest text-cyan-700 font-semibold">Delivery Booking Preset</p>
+                <h3 className="font-display font-black text-emerald-950 text-xl mt-1">Pickup, Destination & Rate Confirm</h3>
+                <p className="text-sm text-slate-600 mt-1">Rate estimate দেখুন। Agree করলে submit করুন, না হলে partner final rate confirm করবে.</p>
+              </div>
+              <Button type="button" variant="outline" className="rounded-full" onClick={() => setDeliveryBookingOpen(false)}>
+                Close
+              </Button>
+            </div>
+
+            {deliveryBooking?.id ? (
+              <div className="mt-4 rounded-lg border border-emerald-200 bg-emerald-50 p-3">
+                <p className="text-xs text-emerald-900 font-semibold">Booking ID: {deliveryBooking.trip_code || deliveryBooking.id}</p>
+                <p className="text-xs text-slate-700 mt-1">Status: <span className="font-semibold uppercase">{deliveryBooking.status}</span></p>
+                <p className="text-xs text-slate-700">Quoted Fare: ₹{Number(deliveryBooking.fare_quote || 0).toLocaleString("en-IN")}</p>
+                <p className="text-xs text-slate-700">Final Fare: {Number(deliveryBooking.fare_final || 0) > 0 ? `₹${Number(deliveryBooking.fare_final).toLocaleString("en-IN")}` : "Partner will confirm the final fare"}</p>
+                <p className="text-xs text-slate-700">Route: {deliveryBooking.pickup} → {deliveryBooking.destination}</p>
+              </div>
+            ) : null}
+
+            <div className="mt-4 grid grid-cols-1 md:grid-cols-2 gap-3">
+              <Input value={deliveryBookingForm.customer_name} onChange={(e) => setDeliveryBookingForm((prev) => ({ ...prev, customer_name: e.target.value }))} placeholder="Customer name" className="h-11" />
+              <Input value={deliveryBookingForm.customer_phone} onChange={(e) => setDeliveryBookingForm((prev) => ({ ...prev, customer_phone: e.target.value }))} placeholder="Mobile number" className="h-11" />
+            </div>
+            <Input value={guestMemberRef} onChange={(e) => setGuestMemberRef(e.target.value)} placeholder="Member ID/Code (optional for reward %)" className="h-11 mt-3" />
+            <div className="mt-3 grid grid-cols-1 md:grid-cols-2 gap-3">
+              <Input value={deliveryBookingForm.pickup} onChange={(e) => setDeliveryBookingForm((prev) => ({ ...prev, pickup: e.target.value }))} placeholder="Pickup point" className="h-11" />
+              <Input value={deliveryBookingForm.destination} onChange={(e) => setDeliveryBookingForm((prev) => ({ ...prev, destination: e.target.value }))} placeholder="Destination" className="h-11" />
+            </div>
+
+            <div className="mt-4 rounded-lg border border-cyan-200 bg-cyan-50 p-3">
+              <p className="text-[11px] font-semibold text-cyan-900">Estimated delivery fare</p>
+              <p className="text-xs text-slate-700 mt-1">
+                {deliveryFareEstimateLoading ? "Calculating route rate..." : deliveryFareEstimate ? `₹${Number(deliveryFareEstimate.amount).toLocaleString("en-IN")} · ${Number(deliveryFareEstimate.distanceKm).toFixed(1)} km × ₹${Number(deliveryFareEstimate.ratePerKm).toLocaleString("en-IN")}/km` : "Pickup/destination দিলে dynamic rate show হবে"}
+              </p>
+              <p className="text-[11px] text-slate-600 mt-1">If you agree, submit now. If not, continue the conversation with the partner and finalize later.</p>
+            </div>
+
+            <div className="mt-3 rounded-lg border border-dashed border-cyan-200 bg-white p-3">
+              <p className="text-[11px] text-slate-600 mb-1">Travel date and note</p>
+              <Input type="datetime-local" value={deliveryBookingForm.travel_date} onChange={(e) => setDeliveryBookingForm((prev) => ({ ...prev, travel_date: e.target.value }))} className="h-11" />
+              <Input value={deliveryBookingForm.notes} onChange={(e) => setDeliveryBookingForm((prev) => ({ ...prev, notes: e.target.value }))} placeholder="Notes (optional)" className="h-11 mt-3" />
+            </div>
+
+            <div className="mt-4 flex flex-wrap gap-2">
+              <Button type="button" className="rounded-full bg-cyan-700 hover:bg-cyan-800 text-white" onClick={submitDeliveryBooking} disabled={deliveryBookingBusy || !deliveryBookingService?.id}>
+                {deliveryBookingBusy ? "Submitting..." : "Confirm & Submit"}
+              </Button>
+              <Button type="button" variant="outline" className="rounded-full" onClick={async () => {
+                const link = waUrl(partner);
+                if (link) window.open(link, "_blank", "noopener,noreferrer");
+              }}>
+                Negotiate with Partner
+              </Button>
+              {deliveryBooking?.id ? (
+                <Button type="button" variant="outline" className="rounded-full" onClick={refreshDeliveryBooking}>Refresh Status</Button>
+              ) : null}
+            </div>
+          </div>
+        </div>
+      ) : null}
     </div>
   );
 }

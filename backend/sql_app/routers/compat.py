@@ -819,6 +819,10 @@ def _transport_trip_key(trip_id: str) -> str:
     return f"transport_trip:{trip_id}"
 
 
+def _delivery_trip_key(trip_id: str) -> str:
+    return f"delivery_trip:{trip_id}"
+
+
 def _transport_fare_presets_key(partner_id: str) -> str:
     return f"transport_fare_presets:{partner_id}"
 
@@ -993,6 +997,23 @@ def _save_transport_trip(db: Session, trip: dict) -> dict:
     return payload
 
 
+def _save_delivery_trip(db: Session, trip: dict) -> dict:
+    trip_id = str((trip or {}).get("id") or "").strip()
+    if not trip_id:
+        raise HTTPException(status_code=400, detail="Trip id missing")
+    payload = dict(trip or {})
+    payload["id"] = trip_id
+    payload["updated_at"] = now_iso()
+    row = db.query(AppSetting).filter(AppSetting.key == _delivery_trip_key(trip_id)).first()
+    if not row:
+        db.add(AppSetting(key=_delivery_trip_key(trip_id), value_json=json.dumps(payload), updated_at=datetime.now(timezone.utc)))
+    else:
+        row.value_json = json.dumps(payload)
+        row.updated_at = datetime.now(timezone.utc)
+    db.commit()
+    return payload
+
+
 def _load_admin_accounts_ledger(db: Session) -> dict:
     row = db.query(AppSetting).filter(AppSetting.key == ADMIN_ACCOUNTS_LEDGER_KEY).first()
     if not row:
@@ -1122,6 +1143,7 @@ def _clear_current_admin_transaction_data(db: Session) -> dict:
     cleared_admin_ledger = db.query(AppSetting).filter(AppSetting.key == ADMIN_ACCOUNTS_LEDGER_KEY).delete(synchronize_session=False)
     cleared_partner_topups = db.query(AppSetting).filter(AppSetting.key.like("partner_topup:%")).delete(synchronize_session=False)
     cleared_transport_bookings = db.query(AppSetting).filter(AppSetting.key.like("transport_trip:%")).delete(synchronize_session=False)
+    cleared_delivery_bookings = db.query(AppSetting).filter(AppSetting.key.like("delivery_trip:%")).delete(synchronize_session=False)
 
     cleared_store_invoices = 0
     for owner_id in owner_ids:
@@ -1138,6 +1160,7 @@ def _clear_current_admin_transaction_data(db: Session) -> dict:
         "cleared_admin_ledger": int(cleared_admin_ledger or 0),
         "cleared_partner_topups": int(cleared_partner_topups or 0),
         "cleared_transport_bookings": int(cleared_transport_bookings or 0),
+        "cleared_delivery_bookings": int(cleared_delivery_bookings or 0),
         "cleared_store_invoice_sets": int(cleared_store_invoices or 0),
         "cleared_withdrawals": int(withdrawal_count or 0),
         "cleared_mps_claims": int(mps_claim_count or 0),
@@ -1156,8 +1179,37 @@ def _load_transport_trip(db: Session, trip_id: str) -> dict | None:
     return payload if isinstance(payload, dict) else None
 
 
+def _load_delivery_trip(db: Session, trip_id: str) -> dict | None:
+    row = db.query(AppSetting).filter(AppSetting.key == _delivery_trip_key(trip_id)).first()
+    if not row:
+        return None
+    try:
+        payload = json.loads(row.value_json or "{}")
+    except Exception:
+        payload = {}
+    return payload if isinstance(payload, dict) else None
+
+
 def _list_transport_trips(db: Session, partner_id: str | None = None, limit: int = 200) -> list[dict]:
     rows = db.query(AppSetting).filter(AppSetting.key.like("transport_trip:%")).order_by(AppSetting.updated_at.desc()).all()
+    out: list[dict] = []
+    for row in rows:
+        try:
+            payload = json.loads(row.value_json or "{}")
+        except Exception:
+            continue
+        if not isinstance(payload, dict):
+            continue
+        if partner_id and str(payload.get("partner_id") or "") != str(partner_id):
+            continue
+        out.append(payload)
+        if len(out) >= max(1, int(limit)):
+            break
+    return out
+
+
+def _list_delivery_trips(db: Session, partner_id: str | None = None, limit: int = 200) -> list[dict]:
+    rows = db.query(AppSetting).filter(AppSetting.key.like("delivery_trip:%")).order_by(AppSetting.updated_at.desc()).all()
     out: list[dict] = []
     for row in rows:
         try:
@@ -4466,6 +4518,328 @@ def get_transport_booking(trip_id: str, request: Request, customer_phone: str | 
         "ok": True,
         "booking": trip,
         "payment_profile": payment_profile if str(trip.get("status") or "") in {"completed", "paid"} else {"upi_id": "", "payee_name": "", "qr_url": ""},
+    }
+
+
+@router.post("/delivery/bookings")
+def create_delivery_booking(payload: dict, request: Request, db: Session = Depends(get_db), current_user=Depends(get_current_user_optional)):
+    partner_code = str((payload or {}).get("partner_code") or "").strip()
+    service_product_id = str((payload or {}).get("service_product_id") or "").strip()
+    pickup = str((payload or {}).get("pickup") or "").strip()
+    destination = str((payload or {}).get("destination") or "").strip()
+    customer_name = str((payload or {}).get("customer_name") or getattr(current_user, "name", "Customer") or "Customer").strip() or "Customer"
+    customer_phone = str((payload or {}).get("customer_phone") or getattr(current_user, "phone", "") or "").strip()
+    member_ref = str((payload or {}).get("member_ref") or "").strip()
+    notes = str((payload or {}).get("notes") or "").strip()
+    travel_date = str((payload or {}).get("travel_date") or "").strip()
+    estimated_fare_raw = (payload or {}).get("estimated_fare")
+
+    if not partner_code:
+        raise HTTPException(status_code=400, detail="partner_code is required")
+    if not service_product_id:
+        raise HTTPException(status_code=400, detail="service_product_id is required")
+    if not pickup:
+        raise HTTPException(status_code=400, detail="pickup is required")
+    if not destination:
+        raise HTTPException(status_code=400, detail="destination is required")
+    if not customer_phone:
+        raise HTTPException(status_code=400, detail="customer_phone is required")
+
+    partner = db.query(AssociatePartner).filter(AssociatePartner.partner_code == partner_code, AssociatePartner.active.is_(True)).first()
+    if not partner:
+        raise HTTPException(status_code=404, detail="Partner not found")
+
+    service = (
+        db.query(PartnerProduct)
+        .filter(
+            PartnerProduct.id == service_product_id,
+            PartnerProduct.partner_id == partner.id,
+            PartnerProduct.active.is_(True),
+            PartnerProduct.approval_status == "approved",
+        )
+        .first()
+    )
+    if not service:
+        raise HTTPException(status_code=404, detail="Delivery service not found")
+
+    meta_map = _load_partner_product_meta(db)
+    if not _is_delivery_service_listing(service, meta_map):
+        raise HTTPException(status_code=400, detail="Selected service is not configured as delivery")
+
+    fare_quote = round(max(1.0, float(service.price or 0)), 2)
+    try:
+        estimated_fare = round(max(1.0, float(estimated_fare_raw or 0)), 2)
+    except Exception:
+        estimated_fare = 0
+    if estimated_fare > 0:
+        fare_quote = estimated_fare
+
+    meta = meta_map.get(str(service.id), {}) if isinstance(meta_map, dict) else {}
+    template_key = str(meta.get("service_template_key") or "").strip().lower()
+
+    trip_id = str(uuid.uuid4())
+    order_row = PublicOrder(
+        id=str(uuid.uuid4()),
+        customer_user_id=str(getattr(current_user, "id", "") or ""),
+        member_ref=member_ref,
+        shipping_address=f"Delivery Trip: {pickup} -> {destination}",
+        payment_method="upi",
+        txn_id="",
+        payment_screenshot_url="",
+        payer_name=customer_name,
+        items_json=json.dumps(
+            [
+                {
+                    "product_id": service.id,
+                    "name": service.name,
+                    "price": fare_quote,
+                    "unit_base_price": fare_quote,
+                    "mrp": fare_quote,
+                    "discount_percent": 0,
+                    "gst_percent": 0,
+                    "gst_amount": 0,
+                    "pre_tax": fare_quote,
+                    "quantity": 1,
+                    "subtotal": fare_quote,
+                    "product_type": "associate_partner",
+                    "unit_type": "piece",
+                    "unit_label": "piece",
+                    "quantity_step": 1,
+                    "image_url": str(service.image_url or ""),
+                    "pricing_tiers": [],
+                    "tier_breakdown": [{"qty": 1, "count": 1, "price": fare_quote}],
+                    "listing_type": "service",
+                    "item_kind": "service",
+                    "is_service": True,
+                    "service_booking_enabled": True,
+                    "service_invoice_mode": "summary_total",
+                    "service_template_key": template_key,
+                }
+            ]
+        ),
+        total_amount=fare_quote,
+        status="pending_approval",
+    )
+    db.add(order_row)
+    db.commit()
+    db.refresh(order_row)
+
+    _customer_phone_digits = "".join(ch for ch in customer_phone if ch.isdigit())
+    if _customer_phone_digits:
+        _contact_key = f"order_contact:{order_row.id}"
+        _contact_row = db.query(AppSetting).filter(AppSetting.key == _contact_key).first()
+        if not _contact_row:
+            db.add(AppSetting(key=_contact_key, value_json=json.dumps({"customer_phone": _customer_phone_digits})))
+        else:
+            _contact_row.value_json = json.dumps({"customer_phone": _customer_phone_digits})
+        db.commit()
+
+    trip = {
+        "id": trip_id,
+        "trip_code": f"DLV-{trip_id[:8].upper()}",
+        "partner_id": partner.id,
+        "partner_code": partner.partner_code,
+        "business_name": partner.business_name,
+        "service_product_id": service.id,
+        "service_name": service.name,
+        "service_template_key": template_key,
+        "pickup": pickup,
+        "destination": destination,
+        "travel_date": travel_date,
+        "notes": notes,
+        "customer_name": customer_name,
+        "customer_phone": customer_phone,
+        "member_ref": member_ref,
+        "customer_user_id": str(getattr(current_user, "id", "") or ""),
+        "fare_quote": fare_quote,
+        "fare_final": 0,
+        "required_commission_reserve": 0,
+        "status": "booked",
+        "payment_status": "unpaid",
+        "order_id": order_row.id,
+        "created_at": now_iso(),
+    }
+    saved = _save_delivery_trip(db, trip)
+    return {
+        "ok": True,
+        "booking": saved,
+        "order": {"id": order_row.id, "order_no": f"ORD-{order_row.id[:8].upper()}", "status": order_row.status, "auto_approved": False},
+        "next_step": "Booking created with pickup and destination. Partner will set the final delivery fare first; then commission will be credited and booking auto-approved on confirm.",
+        "reward_note": member_ref and "Member reference captured for reward attribution." or "Guest booking created without member reward attribution.",
+        "partner_whatsapp_url": "",
+    }
+
+
+@router.get("/delivery/bookings/{trip_id}")
+def get_delivery_booking(trip_id: str, request: Request, customer_phone: str | None = Query(default=None), db: Session = Depends(get_db), current_user=Depends(get_current_user_optional)):
+    trip = _load_delivery_trip(db, trip_id)
+    if not trip:
+        raise HTTPException(status_code=404, detail="Booking not found")
+
+    role = str(getattr(current_user, "role", "") or "")
+    user_id = str(getattr(current_user, "id", "") or "")
+
+    def _digits(value: str | None) -> str:
+        return "".join(ch for ch in str(value or "") if ch.isdigit())
+
+    if role not in {"super_admin", "company_admin", "admin"}:
+        if role == "partner":
+            partner = _resolve_partner_for_user(db, current_user)
+            if not partner or str(trip.get("partner_id") or "") != str(partner.id):
+                raise HTTPException(status_code=403, detail="Not your booking")
+        elif user_id:
+            if str(trip.get("customer_user_id") or "") != user_id:
+                raise HTTPException(status_code=403, detail="Not your booking")
+        else:
+            if not _digits(customer_phone) or _digits(customer_phone) != _digits(trip.get("customer_phone")):
+                raise HTTPException(status_code=403, detail="Guest access requires matching customer phone")
+
+    partner = db.query(AssociatePartner).filter(AssociatePartner.id == str(trip.get("partner_id") or "")).first()
+    payment_profile = _transport_partner_payment_profile(db, partner, request) if partner else {"upi_id": "", "payee_name": "", "qr_url": ""}
+    return {
+        "ok": True,
+        "booking": trip,
+        "payment_profile": payment_profile if str(trip.get("status") or "") in {"completed", "paid"} else {"upi_id": "", "payee_name": "", "qr_url": ""},
+    }
+
+
+@router.get("/partner/delivery/bookings")
+def partner_delivery_bookings(db: Session = Depends(get_db), current_user=Depends(get_current_user)):
+    if getattr(current_user, "role", "") != "partner":
+        raise HTTPException(status_code=403, detail="Partner access only")
+    partner = _resolve_partner_for_user(db, current_user)
+    if not partner:
+        raise HTTPException(status_code=404, detail="Partner profile not found")
+    wallet = _load_partner_wallet(db, partner.id)
+    trips = _list_delivery_trips(db, partner_id=partner.id, limit=300)
+    return {
+        "partner_id": partner.id,
+        "partner_code": partner.partner_code,
+        "wallet": wallet,
+        "items": trips,
+    }
+
+
+@router.post("/partner/delivery/bookings/{trip_id}/fare")
+def partner_delivery_update_fare(trip_id: str, payload: dict, db: Session = Depends(get_db), current_user=Depends(get_current_user)):
+    if getattr(current_user, "role", "") != "partner":
+        raise HTTPException(status_code=403, detail="Partner access only")
+    partner = _resolve_partner_for_user(db, current_user)
+    if not partner:
+        raise HTTPException(status_code=404, detail="Partner profile not found")
+    trip = _load_delivery_trip(db, trip_id)
+    if not trip:
+        raise HTTPException(status_code=404, detail="Booking not found")
+    if str(trip.get("partner_id") or "") != str(partner.id):
+        raise HTTPException(status_code=403, detail="Not your booking")
+    if str(trip.get("status") or "") not in {"booked"}:
+        raise HTTPException(status_code=400, detail="Fare can be updated only before booking start")
+
+    try:
+        new_fare = round(max(1.0, float((payload or {}).get("fare_final") or 0)), 2)
+    except Exception:
+        raise HTTPException(status_code=400, detail="Valid fare_final required")
+
+    trip["fare_final"] = new_fare
+    trip["required_commission_reserve"] = round(new_fare * (max(0.0, float(partner.commission_percent or 0)) / 100.0), 2)
+    saved = _save_delivery_trip(db, trip)
+
+    order_id = str(trip.get("order_id") or "")
+    row = db.query(PublicOrder).filter(PublicOrder.id == order_id).first()
+    if row:
+      	try:
+            items = json.loads(row.items_json or "[]")
+        except Exception:
+            items = []
+        if isinstance(items, list) and items:
+            it = dict(items[0] or {})
+            it["price"] = new_fare
+            it["unit_base_price"] = new_fare
+            it["mrp"] = new_fare
+            it["pre_tax"] = new_fare
+            it["subtotal"] = new_fare
+            items[0] = it
+            row.items_json = json.dumps(items)
+        row.total_amount = new_fare
+        db.commit()
+
+    return {"ok": True, "booking": saved}
+
+
+@router.post("/partner/delivery/bookings/{trip_id}/confirm")
+def partner_delivery_confirm_booking(trip_id: str, db: Session = Depends(get_db), current_user=Depends(get_current_user)):
+    if getattr(current_user, "role", "") != "partner":
+        raise HTTPException(status_code=403, detail="Partner access only")
+    partner = _resolve_partner_for_user(db, current_user)
+    if not partner:
+        raise HTTPException(status_code=404, detail="Partner profile not found")
+    trip = _load_delivery_trip(db, trip_id)
+    if not trip:
+        raise HTTPException(status_code=404, detail="Booking not found")
+    if str(trip.get("partner_id") or "") != str(partner.id):
+        raise HTTPException(status_code=403, detail="Not your booking")
+    if str(trip.get("status") or "") not in {"booked"}:
+        raise HTTPException(status_code=400, detail="Booking can be confirmed only once before start")
+
+    order_id = str(trip.get("order_id") or "")
+    row = db.query(PublicOrder).filter(PublicOrder.id == order_id).first()
+    if not row:
+        raise HTTPException(status_code=404, detail="Order not found")
+
+    fare_final = round(float(trip.get("fare_final") or 0), 2)
+    if fare_final <= 0:
+        raise HTTPException(status_code=400, detail="Set final fare first before confirming booking")
+
+    required = round(float(trip.get("required_commission_reserve") or 0), 2)
+    if required <= 0:
+        required = round(fare_final * (max(0.0, float(partner.commission_percent or 0)) / 100.0), 2)
+        trip["required_commission_reserve"] = required
+
+    wallet = _load_partner_wallet(db, partner.id)
+    available = round(float(wallet.get("balance") or 0), 2)
+    if available + 1e-9 < required:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Commission reserve wallet insufficient. Required ₹{required}, available ₹{available}. Top up first.",
+        )
+
+    fare_final = round(float(trip.get("fare_final") or row.total_amount or 0), 2)
+    order_items = []
+    try:
+        order_items = json.loads(row.items_json or "[]")
+    except Exception:
+        order_items = []
+    if isinstance(order_items, list) and order_items:
+        item = dict(order_items[0] or {})
+        item["price"] = fare_final
+        item["unit_base_price"] = fare_final
+        item["mrp"] = fare_final
+        item["pre_tax"] = fare_final
+        item["subtotal"] = fare_final
+        order_items[0] = item
+        row.items_json = json.dumps(order_items)
+    row.total_amount = fare_final
+    row.status = "pending_approval"
+    db.commit()
+
+    auto_result = admin_approve_order(
+        order_id=order_id,
+        payload={"note": "Auto-approved delivery booking after final fare confirmation"},
+        db=db,
+        current_user=SimpleNamespace(role="super_admin"),
+    )
+
+    trip["status"] = "confirmed"
+    trip["confirmed_at"] = now_iso()
+    trip["order_status"] = "paid"
+    saved = _save_delivery_trip(db, trip)
+
+    return {
+        "ok": True,
+        "booking": saved,
+        "order": {"id": order_id, "order_no": f"ORD-{order_id[:8].upper()}", "status": "paid", "auto_approved": True},
+        "rewards_earned": auto_result.get("rewards_earned", {}),
+        "commission_split": auto_result.get("commission_split", {}),
     }
 
 
