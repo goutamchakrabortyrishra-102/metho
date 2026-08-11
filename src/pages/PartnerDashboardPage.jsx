@@ -28,6 +28,16 @@ const paymentModeLabel = (mode) => {
   if (!normalized) return "NOT SET";
   return normalized.toUpperCase();
 };
+const buildNearestDeliveryPartnerUrl = (summary) => {
+  const params = new URLSearchParams();
+  params.set("business_type", "Service");
+  params.set("q", "service delivery partner");
+  const city = String(summary?.city || summary?.delivery_city || "").trim();
+  const pincode = String(summary?.pincode || summary?.delivery_pincode || "").replace(/\D/g, "").slice(0, 6);
+  if (city) params.set("city", city);
+  if (pincode) params.set("pincode", pincode);
+  return `/directory?${params.toString()}`;
+};
 const routeMapsUrl = (pickup, destination) => {
   const origin = String(pickup || "").trim();
   const dest = String(destination || "").trim();
@@ -1151,6 +1161,11 @@ export default function PartnerDashboardPage() {
             </div>
           </div>
           <div className="flex items-center gap-3">
+            <Link to={buildNearestDeliveryPartnerUrl(summary)}>
+              <Button variant="outline" size="sm" className="border-cyan-300 bg-cyan-500/10 text-cyan-100 hover:bg-cyan-400/20 hover:text-white rounded-full" data-testid="partner-nearest-delivery-btn">
+                <ExternalLink className="w-4 h-4 mr-1" /> Nearest Delivery Partner
+              </Button>
+            </Link>
             <div className="text-right hidden md:block">
               <p className={`text-[10px] uppercase font-bold ${dashboardTheme.chipClass}`}>Partner Code</p>
               <p className="font-mono text-sm">{summary?.partner_code}</p>
