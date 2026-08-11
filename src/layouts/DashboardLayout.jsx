@@ -1,9 +1,11 @@
 import React, { useState } from "react";
 import { Outlet, NavLink, useLocation, useNavigate } from "react-router-dom";
-import { LayoutDashboard, Wallet, Users, Network, Package, ShoppingCart, TrendingUp, User, LogOut, Menu, X, Bell, Search, Settings, Sparkles, BadgeIndianRupee, Calculator, Shield, Store, Compass, Trophy, Send, CheckCircle2, Upload, Bot, ClipboardList, Activity, Warehouse, BookOpenCheck, CarTaxiFront, UtensilsCrossed, Building2 } from "lucide-react";
+import { LayoutDashboard, Wallet, Users, Network, Package, ShoppingCart, TrendingUp, User, LogOut, Menu, X, Bell, Search, Settings, Sparkles, BadgeIndianRupee, Calculator, Shield, Store, Compass, Trophy, Send, CheckCircle2, Upload, Bot, ClipboardList, Activity, Warehouse, BookOpenCheck, CarTaxiFront, UtensilsCrossed, Building2, Trash2 } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { Logo } from "@/components/Logo";
 import { Button } from "@/components/ui/button";
+import { toast } from "sonner";
+import api from "@/services/api";
 
 const ownerRoles = ["store_owner", "metho_store_owner", "owner"];
 
@@ -44,8 +46,10 @@ export default function DashboardLayout() {
   const { user, logout } = useAuth();
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [headerSearch, setHeaderSearch] = useState("");
+  const [clearingCurrentData, setClearingCurrentData] = useState(false);
   const nav = useNavigate();
   const location = useLocation();
+  const isAdmin = user?.role === "super_admin" || user?.role === "company_admin" || user?.role === "admin";
 
   React.useEffect(() => {
     if (!String(location.pathname || "").startsWith("/app/partners")) return;
@@ -63,6 +67,29 @@ export default function DashboardLayout() {
     const params = new URLSearchParams();
     if (term) params.set("search", term);
     nav({ pathname: "/app/partners", search: params.toString() ? `?${params.toString()}` : "" });
+  };
+
+  const clearCurrentTestData = async () => {
+    if (!isAdmin || clearingCurrentData) return;
+    const ok = window.confirm("Clear current test/wrong transaction entries now? This removes current order/payment/booking history for a clean state.");
+    if (!ok) return;
+    const confirmText = window.prompt("Type CLEAR_CURRENT_DATA to confirm:", "");
+    if (String(confirmText || "").trim() !== "CLEAR_CURRENT_DATA") {
+      toast.error("Cleanup cancelled: confirmation text did not match");
+      return;
+    }
+
+    setClearingCurrentData(true);
+    try {
+      const { data } = await api.post("/admin/reset-current-data", {});
+      const deletedOrders = Number(data?.result?.deleted_public_orders || 0);
+      const deletedTrips = Number(data?.result?.cleared_transport_bookings || 0);
+      toast.success(`Current data cleared. Orders: ${deletedOrders}, transport bookings: ${deletedTrips}`);
+    } catch (err) {
+      toast.error(err?.response?.data?.detail || "Reset failed");
+    } finally {
+      setClearingCurrentData(false);
+    }
   };
 
   return (
@@ -146,6 +173,18 @@ export default function DashboardLayout() {
               </div>
             </div>
             <div className="flex items-center gap-3">
+              {isAdmin ? (
+                <Button
+                  type="button"
+                  onClick={clearCurrentTestData}
+                  disabled={clearingCurrentData}
+                  variant="outline"
+                  className="hidden md:inline-flex rounded-full border-red-200 text-red-700 hover:bg-red-50"
+                  data-testid="header-clear-current-data"
+                >
+                  <Trash2 className="w-4 h-4 mr-2" /> {clearingCurrentData ? "Clearing..." : "Clear Test Data"}
+                </Button>
+              ) : null}
               <button className="relative p-2 rounded-lg hover:bg-secondary" data-testid="notification-button">
                 <Bell className="w-5 h-5 text-slate-700" />
                 <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-amber-500 rounded-full" />

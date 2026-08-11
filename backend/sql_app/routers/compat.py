@@ -2941,6 +2941,9 @@ def analytics_top_products(period: str = "month", limit: int = 10, db: Session =
     for row in rows:
         if start and row.created_at and row.created_at < start:
             continue
+        if str(getattr(row, "status", "") or "").strip().lower() != "paid":
+            # Leaderboard must only include orders after commission credit path is completed.
+            continue
         try:
             items = json.loads(row.items_json or "[]")
         except Exception:
@@ -2984,6 +2987,9 @@ def analytics_top_partners(period: str = "month", limit: int = 10, db: Session =
     totals: dict[str, dict] = {}
     for row in rows:
         if start and row.created_at and row.created_at < start:
+            continue
+        if str(getattr(row, "status", "") or "").strip().lower() != "paid":
+            # Commission not credited yet; keep it out of top-partner leaderboard.
             continue
         try:
             items = json.loads(row.items_json or "[]")

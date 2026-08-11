@@ -44,6 +44,8 @@ export default function LeaderboardPage() {
   const [topProducts, setTopProducts] = useState([]);
   const [topPartners, setTopPartners] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [clearingTestData, setClearingTestData] = useState(false);
+  const isAdminView = ["admin", "super_admin", "company_admin"].includes(String(user?.role || "").toLowerCase());
 
   useEffect(() => {
     setLoading(true);
@@ -57,6 +59,35 @@ export default function LeaderboardPage() {
 
   const me = data.leaders.find(l => l.user_id === user?.id);
   const myRank = me ? data.leaders.findIndex(l => l.user_id === user?.id) + 1 : null;
+
+  const clearCurrentTestData = async () => {
+    if (!isAdminView || clearingTestData) return;
+    const proceed = window.confirm("Clear current test/temporary order-booking data now? This keeps partner/member master profiles but removes current transaction history.");
+    if (!proceed) return;
+    const confirmText = window.prompt("Type CLEAR_CURRENT_DATA to confirm:", "");
+    if (String(confirmText || "").trim() !== "CLEAR_CURRENT_DATA") {
+      return;
+    }
+    setClearingTestData(true);
+    try {
+      const { data: resetData } = await api.post("/admin/reset-current-data", {});
+      const deletedOrders = Number(resetData?.result?.deleted_public_orders || 0);
+      const clearedTrips = Number(resetData?.result?.cleared_transport_bookings || 0);
+      window.alert(`Current test data cleared. Orders removed: ${deletedOrders}, transport bookings removed: ${clearedTrips}.`);
+      setLoading(true);
+      await Promise.all([
+        api.get(`/leaderboard/referrals?period=${period}&limit=25`).then(r => setData(r.data)).catch(() => setData({ leaders: [] })),
+        api.get(`/leaderboard/rank-ups?period=${period}&limit=12`).then(r => setRankUps(r.data.promotions || [])).catch(() => setRankUps([])),
+        api.get(`/analytics/top-products?period=${period}&limit=8`).then(r => setTopProducts(r.data.products || [])).catch(() => setTopProducts([])),
+        api.get(`/analytics/top-partners?period=${period}&limit=8`).then(r => setTopPartners(r.data.partners || [])).catch(() => setTopPartners([])),
+      ]);
+    } catch (err) {
+      window.alert(err?.response?.data?.detail || "Reset failed");
+    } finally {
+      setClearingTestData(false);
+      setLoading(false);
+    }
+  };
 
   return (
     <div className="space-y-6" data-testid="leaderboard-page">
@@ -136,6 +167,24 @@ export default function LeaderboardPage() {
             </div>
           )}
         </div>
+      </div>
+
+      <div className="bg-cyan-50 border border-cyan-200 rounded-xl p-4" data-testid="leaderboard-paid-only-note">
+        <p className="text-xs text-cyan-900 font-semibold">Leaderboard metrics are now shown only after commission credit is completed (paid orders).</p>
+        <p className="text-[11px] text-cyan-800 mt-1">Pending approval, pending payment, rejected, and draft/test flow data are excluded automatically.</p>
+        {isAdminView ? (
+          <div className="mt-3">
+            <Button
+              type="button"
+              onClick={clearCurrentTestData}
+              disabled={clearingTestData}
+              className="rounded-full bg-red-600 hover:bg-red-700 text-white"
+              data-testid="leaderboard-clear-current-data"
+            >
+              {clearingTestData ? "Clearing..." : "Delete Current Test Transaction Data"}
+            </Button>
+          </div>
+        ) : null}
       </div>
 
       <div className="bg-gradient-to-br from-emerald-900 to-emerald-950 rounded-2xl p-1 shadow-xl">
