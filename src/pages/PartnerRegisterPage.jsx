@@ -64,7 +64,7 @@ const SHOP_SECTOR_OPTIONS = [
 const SERVICE_TEMPLATE_OPTIONS_BY_SECTOR = {
   Transport: ["Cab", "Car Rental", "Bike Rental", "Travel Agency"],
   "Delivery Partner": ["Courier", "Logistics", "Cargo", "Parcel", "Express Delivery", "Pickup & Drop"],
-  "Stay & Dining": ["Hotel", "Homestay", "Restaurant", "Cafe", "Banquet", "House Rent", "Flat Rent", "Shop Rent", "Apartment Rent", "Anusthan Bari Vara", "Resort Vara", "Hall Vara"],
+  "Stay & Dining": ["Hotel", "Homestay", "Restaurant", "Cafe", "Banquet", "House Rent", "Flat Rent", "Shop Rent", "Apartment Rent", "Event Venue Rental", "Resort Rental", "Hall Rental"],
   "Property Buy & Sell": ["Property Sale", "Flat Sale", "House Sale", "Shop Sale", "Plot Sale", "Commercial Property", "Property Broker", "Site Visit"],
   Doorstep: ["Home Service", "Laundry", "Cleaning", "Tailoring", "Beauty at Home", "Repair Center"],
   "Other Services": ["Doctor Clinic", "Diagnostic Center", "Education", "Fitness", "Legal", "Accounting", "Photography", "Internet Service", "Other Service"],
@@ -95,7 +95,7 @@ const DELIVERY_REG_HINTS = [
   "delivery", "courier", "logistics", "cargo", "parcel", "shipment", "dispatch", "freight", "goods carrier", "pickup drop", "pickup and drop",
 ];
 const STAY_DINING_REG_HINTS = [
-  "hotel", "homestay", "home stay", "guest house", "resort", "restaurant", "resturent", "cafe", "dining", "sitbooking", "seat booking", "banquet", "rental house", "stay", "house rent", "flat rent", "shop rent", "apartment rent", "anusthan bari", "anusthanbari", "resort vara", "resort bhara", "hall vara", "hall bhara", "wedding hall", "event hall",
+  "hotel", "homestay", "home stay", "guest house", "resort", "restaurant", "resturent", "cafe", "dining", "sitbooking", "seat booking", "banquet", "rental house", "stay", "house rent", "flat rent", "shop rent", "apartment rent", "anusthan bari", "anusthanbari", "event venue rental", "resort rental", "hall rental", "resort vara", "resort bhara", "hall vara", "hall bhara", "wedding hall", "event hall",
 ];
 const PROPERTY_REG_HINTS = [
   "property", "real estate", "realestate", "buy sell", "buy & sell", "plot sale", "flat sale", "house sale", "shop sale", "commercial property", "property broker", "broker", "brokerage", "site visit", "resale", "land", "jomi", "jami", "bari bikri", "flat bikri",

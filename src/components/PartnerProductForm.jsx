@@ -189,12 +189,12 @@ const SERVICE_TEMPLATES = [
   {
     key: "anusthan_bari_booking",
     sector: "Restaurant",
-    name: "Anusthan Bari Booking",
+    name: "Event Venue Booking",
     category: "Service / Event Venue",
     price: 9000,
     stock: 3,
     service_invoice_mode: "summary_total",
-    description: "Anusthan bari / অনুষ্ঠান বাড়ি date-based booking template.",
+    description: "Date-based event venue booking template for ceremony and function halls.",
   },
   {
     key: "resort_vacation_booking",
