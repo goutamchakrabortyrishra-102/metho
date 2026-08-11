@@ -482,8 +482,8 @@ export default function PartnerShopPage() {
   const products = useMemo(() => data?.products || [], [data?.products]);
   const productListings = useMemo(() => products.filter((item) => !isServiceListing(item)), [products]);
   const serviceListings = useMemo(() => products.filter((item) => isServiceListing(item)), [products]);
-  const transportListings = useMemo(() => serviceListings.filter((item) => isTransportServiceListing(item)), [serviceListings]);
-  const deliveryListings = useMemo(() => serviceListings.filter((item) => !isTransportServiceListing(item) && isDeliveryServiceLike(item)), [serviceListings]);
+  const deliveryListings = useMemo(() => serviceListings.filter((item) => isDeliveryServiceLike(item)), [serviceListings]);
+  const transportListings = useMemo(() => serviceListings.filter((item) => !isDeliveryServiceLike(item) && isTransportServiceListing(item)), [serviceListings]);
   const hospitalityListings = useMemo(() => serviceListings.filter((item) => !isTransportServiceListing(item) && !isDeliveryServiceLike(item) && isHospitalityServiceListing(item)), [serviceListings]);
   const propertyListings = useMemo(() => serviceListings.filter((item) => !isTransportServiceListing(item) && !isDeliveryServiceLike(item) && !isHospitalityServiceListing(item) && isPropertyServiceLike(item)), [serviceListings]);
   const doorstepListings = useMemo(() => serviceListings.filter((item) => !isTransportServiceListing(item) && !isDeliveryServiceLike(item) && !isHospitalityServiceListing(item) && !isPropertyServiceLike(item) && isDoorstepServiceListing(item)), [serviceListings]);
