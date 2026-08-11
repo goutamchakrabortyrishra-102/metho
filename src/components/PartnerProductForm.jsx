@@ -655,8 +655,11 @@ export default function PartnerProductForm({
     const preferred = serviceSectorOptions.includes(initialServiceSectorFilter)
       ? initialServiceSectorFilter
       : fallbackFilter;
-    setServiceSectorFilter(preferred);
-  }, [initialServiceSectorFilter, fixedListingType, allowedServiceSectors, excludedServiceSectors, serviceSectorOptions]);
+    setServiceSectorFilter((prev) => {
+      if (serviceSectorOptions.includes(prev)) return prev;
+      return preferred;
+    });
+  }, [initialServiceSectorFilter, serviceSectorOptions]);
 
   const visibleServiceTemplates = serviceTemplatePool.filter((tpl) => serviceSectorFilter === "All" || tpl.sector === serviceSectorFilter);
   const activeListingType = hasFixedListingType ? forcedListingType : form.listing_type;
