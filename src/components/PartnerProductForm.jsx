@@ -892,6 +892,11 @@ export default function PartnerProductForm({
                     <p className="text-[10px] uppercase tracking-widest text-emerald-700 font-semibold">{tpl.sector}</p>
                     <p className="font-semibold text-emerald-950 text-sm mt-0.5">{tpl.name}</p>
                     <p className="text-[11px] text-slate-600 mt-0.5">₹{tpl.price} · Slots {tpl.stock}</p>
+                    <div className="mt-2 flex justify-end">
+                      <span className="inline-flex items-center rounded-full border border-emerald-300 bg-emerald-100 px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider text-emerald-900">
+                        Create From Template
+                      </span>
+                    </div>
                   </button>
                 ))}
               </div>
