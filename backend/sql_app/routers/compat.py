@@ -4529,6 +4529,8 @@ def create_delivery_booking(payload: dict, request: Request, db: Session = Depen
     destination = str((payload or {}).get("destination") or "").strip()
     customer_name = str((payload or {}).get("customer_name") or getattr(current_user, "name", "Customer") or "Customer").strip() or "Customer"
     customer_phone = str((payload or {}).get("customer_phone") or getattr(current_user, "phone", "") or "").strip()
+    receiver_name = str((payload or {}).get("receiver_name") or "").strip()
+    receiver_phone = str((payload or {}).get("receiver_phone") or "").strip()
     member_ref = str((payload or {}).get("member_ref") or "").strip()
     notes = str((payload or {}).get("notes") or "").strip()
     travel_date = str((payload or {}).get("travel_date") or "").strip()
@@ -4544,6 +4546,10 @@ def create_delivery_booking(payload: dict, request: Request, db: Session = Depen
         raise HTTPException(status_code=400, detail="destination is required")
     if not customer_phone:
         raise HTTPException(status_code=400, detail="customer_phone is required")
+    if not receiver_name:
+        raise HTTPException(status_code=400, detail="receiver_name is required")
+    if not receiver_phone:
+        raise HTTPException(status_code=400, detail="receiver_phone is required")
 
     partner = db.query(AssociatePartner).filter(AssociatePartner.partner_code == partner_code, AssociatePartner.active.is_(True)).first()
     if not partner:
@@ -4649,6 +4655,8 @@ def create_delivery_booking(payload: dict, request: Request, db: Session = Depen
         "notes": notes,
         "customer_name": customer_name,
         "customer_phone": customer_phone,
+        "receiver_name": receiver_name,
+        "receiver_phone": receiver_phone,
         "member_ref": member_ref,
         "customer_user_id": str(getattr(current_user, "id", "") or ""),
         "fare_quote": fare_quote,
@@ -4840,6 +4848,46 @@ def partner_delivery_confirm_booking(trip_id: str, db: Session = Depends(get_db)
         "order": {"id": order_id, "order_no": f"ORD-{order_id[:8].upper()}", "status": "paid", "auto_approved": True},
         "rewards_earned": auto_result.get("rewards_earned", {}),
         "commission_split": auto_result.get("commission_split", {}),
+    }
+
+
+@router.post("/partner/delivery/bookings/{trip_id}/complete")
+def partner_delivery_complete_booking(trip_id: str, db: Session = Depends(get_db), current_user=Depends(get_current_user)):
+    if getattr(current_user, "role", "") != "partner":
+        raise HTTPException(status_code=403, detail="Partner access only")
+    partner = _resolve_partner_for_user(db, current_user)
+    if not partner:
+        raise HTTPException(status_code=404, detail="Partner profile not found")
+    trip = _load_delivery_trip(db, trip_id)
+    if not trip:
+        raise HTTPException(status_code=404, detail="Booking not found")
+    if str(trip.get("partner_id") or "") != str(partner.id):
+        raise HTTPException(status_code=403, detail="Not your booking")
+    if str(trip.get("status") or "") not in {"confirmed", "completed", "paid"}:
+        raise HTTPException(status_code=400, detail="Delivery can be completed only after confirmation")
+
+    trip["status"] = "completed"
+    trip["completed_at"] = now_iso()
+    saved = _save_delivery_trip(db, trip)
+
+    customer_phone_digits = "".join(ch for ch in str(trip.get("customer_phone") or "") if ch.isdigit())
+    receiver_name = str(trip.get("receiver_name") or "Receiver").strip() or "Receiver"
+    destination = str(trip.get("destination") or "Destination").strip() or "Destination"
+    partner_name = str(partner.business_name or partner.partner_code or "Partner").strip() or "Partner"
+    partner_phone = "".join(ch for ch in str(partner.whatsapp_no or partner.phone or "") if ch.isdigit())
+    trip_code = str(trip.get("trip_code") or trip.get("id") or "").strip()
+
+    delivered_msg = (
+        f"Delivery completed. Booking {trip_code} delivered to {receiver_name} at {destination}. "
+        f"Partner: {partner_name} ({partner_phone or 'phone not set'})."
+    )
+    customer_whatsapp_delivered_url = _build_partner_whatsapp_url(customer_phone_digits, delivered_msg)
+
+    return {
+        "ok": True,
+        "booking": saved,
+        "customer_whatsapp_delivered_url": customer_whatsapp_delivered_url,
+        "message": "Delivery marked completed. Share delivered update with customer from partner WhatsApp.",
     }
 
 

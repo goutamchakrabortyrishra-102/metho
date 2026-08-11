@@ -515,6 +515,8 @@ export default function PartnerGalleryPage() {
   const [deliveryBookingForm, setDeliveryBookingForm] = useState({
     customer_name: "",
     customer_phone: "",
+    receiver_name: "",
+    receiver_phone: "",
     pickup: "",
     destination: "",
     travel_date: "",
@@ -933,6 +935,8 @@ export default function PartnerGalleryPage() {
           ...prev,
           customer_name: String(prev.customer_name || "").trim() || String(data?.name || "").trim(),
           customer_phone: String(prev.customer_phone || "").trim() || String(data?.phone || "").trim(),
+          receiver_name: String(prev.receiver_name || "").trim() || String(data?.name || "").trim(),
+          receiver_phone: String(prev.receiver_phone || "").trim() || String(data?.phone || "").trim(),
         }));
       } catch {
         setDeliveryMemberLookupInfo(null);
@@ -951,6 +955,8 @@ export default function PartnerGalleryPage() {
       setDeliveryBookingForm({
         customer_name: "",
         customer_phone: "",
+        receiver_name: "",
+        receiver_phone: "",
         pickup: "",
         destination: "",
         travel_date: "",
@@ -976,6 +982,8 @@ export default function PartnerGalleryPage() {
     const destination = String(deliveryBookingForm.destination || "").trim();
     const customerName = String(deliveryBookingForm.customer_name || "").trim();
     const customerPhone = String(deliveryBookingForm.customer_phone || "").trim();
+    const receiverName = String(deliveryBookingForm.receiver_name || "").trim();
+    const receiverPhone = String(deliveryBookingForm.receiver_phone || "").trim();
     if (!bookingService?.id) {
       toast.error("Delivery service select করুন");
       return;
@@ -986,6 +994,14 @@ export default function PartnerGalleryPage() {
     }
     if (!customerPhone) {
       toast.error("Mobile number দিন");
+      return;
+    }
+    if (!receiverName) {
+      toast.error("Receiver name দিন");
+      return;
+    }
+    if (!receiverPhone) {
+      toast.error("Receiver mobile number দিন");
       return;
     }
     if (!pickup) {
@@ -1007,6 +1023,8 @@ export default function PartnerGalleryPage() {
         service_product_id: bookingService.id,
         customer_name: customerName,
         customer_phone: customerPhone,
+        receiver_name: receiverName,
+        receiver_phone: receiverPhone,
         pickup,
         destination,
         travel_date: String(deliveryBookingForm.travel_date || "").trim(),
@@ -1509,6 +1527,8 @@ export default function PartnerGalleryPage() {
                               setDeliveryBookingForm({
                                 customer_name: "",
                                 customer_phone: "",
+                                receiver_name: "",
+                                receiver_phone: "",
                                 pickup: "",
                                 destination: "",
                                 travel_date: "",
@@ -1678,6 +1698,10 @@ export default function PartnerGalleryPage() {
             <div className="mt-4 grid grid-cols-1 md:grid-cols-2 gap-3">
               <Input value={deliveryBookingForm.customer_name} onChange={(e) => setDeliveryBookingForm((prev) => ({ ...prev, customer_name: e.target.value }))} placeholder="Customer name" className="h-11" />
               <Input value={deliveryBookingForm.customer_phone} onChange={(e) => setDeliveryBookingForm((prev) => ({ ...prev, customer_phone: e.target.value }))} placeholder="Mobile number" className="h-11" />
+            </div>
+            <div className="mt-3 grid grid-cols-1 md:grid-cols-2 gap-3">
+              <Input value={deliveryBookingForm.receiver_name} onChange={(e) => setDeliveryBookingForm((prev) => ({ ...prev, receiver_name: e.target.value }))} placeholder="Receiver name" className="h-11" />
+              <Input value={deliveryBookingForm.receiver_phone} onChange={(e) => setDeliveryBookingForm((prev) => ({ ...prev, receiver_phone: e.target.value }))} placeholder="Receiver mobile number" className="h-11" />
             </div>
             <Input value={guestMemberRef} onChange={(e) => setGuestMemberRef(e.target.value)} placeholder="Member ID/Code (optional for reward %)" className="h-11 mt-3" />
             {deliveryMemberLookupBusy ? <p className="text-[11px] text-slate-500 mt-1">Member lookup চলছে...</p> : null}
