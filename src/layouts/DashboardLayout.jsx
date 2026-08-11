@@ -1,6 +1,6 @@
 import React, { useState } from "react";
 import { Outlet, NavLink, useLocation, useNavigate } from "react-router-dom";
-import { LayoutDashboard, Wallet, Users, Network, Package, ShoppingCart, TrendingUp, User, LogOut, Menu, X, Bell, Search, Settings, Sparkles, BadgeIndianRupee, Calculator, Shield, Store, Compass, Trophy, Send, CheckCircle2, Upload, Bot, ClipboardList, Activity, Warehouse, BookOpenCheck } from "lucide-react";
+import { LayoutDashboard, Wallet, Users, Network, Package, ShoppingCart, TrendingUp, User, LogOut, Menu, X, Bell, Search, Settings, Sparkles, BadgeIndianRupee, Calculator, Shield, Store, Compass, Trophy, Send, CheckCircle2, Upload, Bot, ClipboardList, Activity, Warehouse, BookOpenCheck, CarTaxiFront } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { Logo } from "@/components/Logo";
 import { Button } from "@/components/ui/button";
@@ -27,6 +27,7 @@ const links = [
   { to: "/app/pending-payments", icon: BadgeIndianRupee, label: "Pending Payments", testId: "nav-pending-payments", adminOnly: true },
   { to: "/app/accounts", icon: Calculator, label: "Accounts", testId: "nav-accounts", adminOnly: true },
   { to: "/app/withdrawals", icon: Send, label: "Withdrawals", testId: "nav-withdrawals", adminOnly: true },
+  { to: "/app/transport-bookings", icon: CarTaxiFront, label: "Transport Bookings", testId: "nav-transport-bookings", adminOnly: true },
   { to: "/app/settlement", icon: Calculator, label: "Settlement", testId: "nav-settlement", adminOnly: true },
   { to: "/app/mps-claims", icon: Shield, label: "MPS Claims", testId: "nav-mps-claims", adminOnly: true },
   { to: "/app/ai-upgrade", icon: Bot, label: "AI Upgrade", testId: "nav-ai-upgrade", adminOnly: true },
