@@ -35,6 +35,8 @@ export default function DirectoryPage() {
   const [category, setCategory] = useState("");
   const [shopSector, setShopSector] = useState("");
   const [q, setQ] = useState("");
+  const [deliveryCitySearch, setDeliveryCitySearch] = useState("");
+  const [deliveryPincodeSearch, setDeliveryPincodeSearch] = useState("");
   const [loading, setLoading] = useState(true);
   const [featured, setFeatured] = useState([]);
 
@@ -123,7 +125,38 @@ export default function DirectoryPage() {
     return Object.entries(map).sort((a, b) => b[1].length - a[1].length);
   }, [partners]);
 
+  const isDeliveryFocus = String(type || "").toLowerCase() === "service"
+    && String(q || "").toLowerCase().includes("delivery");
+
+  const runDeliveryGlobalSearch = () => {
+    const nextCity = String(deliveryCitySearch || "").trim();
+    const nextPincode = normalizePincode(deliveryPincodeSearch || "");
+    setType("Service");
+    setQ("service delivery partner");
+    setCategory("");
+    setShopSector("");
+    setCity(nextCity);
+    setPincode(nextPincode);
+  };
+
+  const clearDeliveryGlobalSearch = () => {
+    setDeliveryCitySearch("");
+    setDeliveryPincodeSearch("");
+    setCity("");
+    setPincode("");
+    setType("All");
+    setCategory("");
+    setShopSector("");
+    setQ("");
+  };
+
   const showGrouped = !city && !pincode && !type.replace("All", "") && !category && !shopSector && !q;
+  const deliveryComparisonRows = useMemo(() => {
+    if (!isDeliveryFocus) return [];
+    return [...partners]
+      .filter((p) => Number.isFinite(Number(p?.delivery_min_rate)) && Number(p?.delivery_min_rate) > 0)
+      .sort((a, b) => Number(a.delivery_min_rate) - Number(b.delivery_min_rate));
+  }, [isDeliveryFocus, partners]);
 
   return (
     <div className="min-h-screen bg-slate-50" data-testid="directory-page">
@@ -192,6 +225,49 @@ export default function DirectoryPage() {
             </select>
           </div>
 
+          <div className="mt-4 rounded-xl border border-cyan-300/40 bg-cyan-500/10 p-3 md:p-4" data-testid="delivery-global-search-box">
+            <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+              <div>
+                <p className="text-[10px] uppercase tracking-widest text-cyan-200 font-bold">Delivery Sector Global Search</p>
+                <p className="text-xs text-cyan-100/90 mt-1">Search city or pincode to find partners who have delivery service, then open their delivery tab directly.</p>
+              </div>
+              <div className="grid w-full md:w-auto gap-2 md:grid-cols-[1fr_130px_auto_auto]">
+                <Input
+                  value={deliveryCitySearch}
+                  onChange={(e) => setDeliveryCitySearch(e.target.value)}
+                  placeholder="City (e.g. Rishra)"
+                  className="h-10 bg-white text-slate-900"
+                  data-testid="delivery-global-city"
+                />
+                <Input
+                  value={deliveryPincodeSearch}
+                  onChange={(e) => setDeliveryPincodeSearch(normalizePincode(e.target.value))}
+                  placeholder="Pincode"
+                  maxLength={6}
+                  className="h-10 bg-white text-slate-900 font-mono"
+                  data-testid="delivery-global-pincode"
+                />
+                <Button
+                  type="button"
+                  onClick={runDeliveryGlobalSearch}
+                  className="h-10 rounded-full bg-cyan-600 hover:bg-cyan-700 text-white"
+                  data-testid="delivery-global-search-btn"
+                >
+                  Search Delivery
+                </Button>
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={clearDeliveryGlobalSearch}
+                  className="h-10 rounded-full border-cyan-200 text-cyan-100 hover:bg-cyan-500/20"
+                  data-testid="delivery-global-clear-btn"
+                >
+                  Clear
+                </Button>
+              </div>
+            </div>
+          </div>
+
           {/* Quick city chips */}
           {cities.length > 0 && (
             <div className="mt-4 flex flex-wrap gap-2">
@@ -219,6 +295,59 @@ export default function DirectoryPage() {
       </div>
 
       <main className="max-w-6xl mx-auto px-4 py-8">
+        {isDeliveryFocus && partners.length > 1 ? (
+          <section className="mb-6 rounded-xl border border-cyan-200 bg-white p-4" data-testid="delivery-rate-compare-box">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <div>
+                <p className="text-[10px] uppercase tracking-widest text-cyan-700 font-semibold">Same Area Delivery Rate Compare</p>
+                <p className="text-xs text-slate-600 mt-1">একই city/pincode area-তে যাদের delivery আছে, তাদের starting rate compare করুন।</p>
+              </div>
+            </div>
+
+            {deliveryComparisonRows.length > 0 ? (
+              <div className="mt-3 overflow-x-auto">
+                <table className="min-w-full text-sm">
+                  <thead>
+                    <tr className="border-b border-cyan-100 text-left text-xs uppercase tracking-widest text-cyan-700">
+                      <th className="py-2 pr-3">Partner</th>
+                      <th className="py-2 pr-3">City</th>
+                      <th className="py-2 pr-3">Pincode</th>
+                      <th className="py-2 pr-3">Starting Rate</th>
+                      <th className="py-2 pr-3">Average</th>
+                      <th className="py-2 pr-3">Max</th>
+                      <th className="py-2 pr-3">Delivery Services</th>
+                      <th className="py-2 pr-0">Open</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {deliveryComparisonRows.map((p) => (
+                      <tr key={`delivery-rate-${p.id}`} className="border-b border-slate-100 last:border-b-0">
+                        <td className="py-2 pr-3 font-semibold text-emerald-950">{p.business_name}</td>
+                        <td className="py-2 pr-3 text-slate-600">{p.city || "-"}</td>
+                        <td className="py-2 pr-3 text-slate-600">{p.pincode || "-"}</td>
+                        <td className="py-2 pr-3 font-bold text-emerald-900">₹{Number(p.delivery_min_rate).toLocaleString("en-IN")}</td>
+                        <td className="py-2 pr-3 text-slate-700">{Number.isFinite(Number(p.delivery_avg_rate)) ? `₹${Number(p.delivery_avg_rate).toLocaleString("en-IN")}` : "-"}</td>
+                        <td className="py-2 pr-3 text-slate-700">{Number.isFinite(Number(p.delivery_max_rate)) ? `₹${Number(p.delivery_max_rate).toLocaleString("en-IN")}` : "-"}</td>
+                        <td className="py-2 pr-3 text-slate-700">{Number(p.delivery_service_count || 0)}</td>
+                        <td className="py-2 pr-0">
+                          <Link
+                            to={`/gallery/${p.partner_code}?tab=delivery-partner`}
+                            className="inline-flex items-center rounded-full bg-cyan-600 px-3 py-1 text-xs font-bold text-white hover:bg-cyan-700"
+                          >
+                            Open
+                          </Link>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            ) : (
+              <p className="mt-3 text-xs text-slate-600">এই area-তে delivery partner আছে, কিন্তু compare করার মতো rate data পাওয়া যায়নি।</p>
+            )}
+          </section>
+        ) : null}
+
         {/* Featured Partner of the Week */}
         {featured.length > 0 && !city && !pincode && !q && (
           <section className="mb-8" data-testid="featured-partners-section">
@@ -270,6 +399,7 @@ export default function DirectoryPage() {
             <p className="text-sm text-muted-foreground mb-4 font-body">
               Found <span className="font-bold text-emerald-900">{partners.length}</span> partner{partners.length !== 1 ? "s" : ""}
               {city && <> in <span className="font-bold text-emerald-900">{city}</span></>}
+              {isDeliveryFocus && <span className="ml-1 text-cyan-700 font-semibold">for Delivery Service</span>}
             </p>
 
             {showGrouped ? (
@@ -285,13 +415,13 @@ export default function DirectoryPage() {
                     </button>
                   </div>
                   <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                    {list.map(p => <PartnerCard key={p.id} p={p} />)}
+                    {list.map(p => <PartnerCard key={p.id} p={p} openDeliveryTab={isDeliveryFocus} showDeliveryRate={isDeliveryFocus} />)}
                   </div>
                 </section>
               ))
             ) : (
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                {partners.map(p => <PartnerCard key={p.id} p={p} />)}
+                {partners.map(p => <PartnerCard key={p.id} p={p} openDeliveryTab={isDeliveryFocus} showDeliveryRate={isDeliveryFocus} />)}
               </div>
             )}
           </>
@@ -301,9 +431,15 @@ export default function DirectoryPage() {
   );
 }
 
-function PartnerCard({ p }) {
+function PartnerCard({ p, openDeliveryTab = false, showDeliveryRate = false }) {
   const addr = [p.address, p.city, p.state, p.pincode].filter(Boolean).join(", ");
   const wa = waUrl(p);
+  const shopLink = openDeliveryTab
+    ? `/gallery/${p.partner_code}?tab=delivery-partner`
+    : `/partner-shop/${p.partner_code}`;
+  const minRate = Number(p?.delivery_min_rate || 0);
+  const maxRate = Number(p?.delivery_max_rate || 0);
+  const hasRate = Number.isFinite(minRate) && minRate > 0;
   return (
     <div className="bg-white rounded-xl border border-border p-5 hover:shadow-lg hover:border-amber-400 transition-all group relative" data-testid={`partner-card-${p.partner_code}`}>
       {p.is_featured && (
@@ -311,7 +447,7 @@ function PartnerCard({ p }) {
           <Star className="w-2.5 h-2.5 fill-amber-500 text-amber-500" /> Featured
         </div>
       )}
-      <Link to={`/partner-shop/${p.partner_code}`} className="block">
+      <Link to={shopLink} className="block">
         <div className="flex items-start gap-3">
           <div className="w-12 h-12 rounded-xl bg-emerald-100 flex items-center justify-center shrink-0 overflow-hidden">
             {p.logo_url ? <img src={resolveAssetUrl(p.logo_url)} alt="" className="w-full h-full object-cover" /> : <Building2 className="w-6 h-6 text-emerald-800" />}
@@ -328,6 +464,21 @@ function PartnerCard({ p }) {
             <span className="line-clamp-2">{addr}</span>
           </p>
         )}
+        {showDeliveryRate ? (
+          <div className="mt-3 rounded-lg border border-cyan-200 bg-cyan-50 px-2.5 py-2">
+            {hasRate ? (
+              <>
+                <p className="text-[10px] uppercase tracking-widest text-cyan-700 font-semibold">Delivery Rate</p>
+                <p className="text-xs text-emerald-950 font-bold mt-0.5">
+                  Starting ₹{minRate.toLocaleString("en-IN")}
+                  {Number.isFinite(maxRate) && maxRate > minRate ? ` · Up to ₹${maxRate.toLocaleString("en-IN")}` : ""}
+                </p>
+              </>
+            ) : (
+              <p className="text-xs text-slate-600">Delivery rate compare data unavailable</p>
+            )}
+          </div>
+        ) : null}
       </Link>
 
       <div className="mt-4 pt-3 border-t border-border grid grid-cols-4 gap-1.5">
@@ -361,11 +512,11 @@ function PartnerCard({ p }) {
           <Navigation className="w-4 h-4" /> Directions
         </a>
         <Link
-          to={`/partner-shop/${p.partner_code}`}
+          to={shopLink}
           className="flex flex-col items-center gap-1 text-[10px] font-bold text-white bg-emerald-900 hover:bg-emerald-950 rounded-lg py-2 transition"
           data-testid={`partner-shop-btn-${p.partner_code}`}
         >
-          <ShoppingBag className="w-4 h-4" /> Shop
+          <ShoppingBag className="w-4 h-4" /> {openDeliveryTab ? "Delivery" : "Shop"}
         </Link>
       </div>
     </div>

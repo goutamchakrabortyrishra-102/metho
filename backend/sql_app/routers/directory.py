@@ -59,6 +59,22 @@ SHOP_SECTOR_KEYWORDS = {
     "cosmetics-beauty": ["cosmetic", "cosmetics", "beauty", "makeup", "skincare", "personal care"],
     "others": ["electronics", "hardware", "stationery", "household", "fashion", "general"],
 }
+DELIVERY_RATE_HINTS = {
+    "delivery",
+    "courier",
+    "logistics",
+    "cargo",
+    "parcel",
+    "shipment",
+    "dispatch",
+    "freight",
+    "goods carrier",
+    "pickup",
+    "drop",
+    "delivery partner",
+    "courier_pickup",
+    "cargo_transport",
+}
 
 
 def _load_partner_product_units(db: Session) -> dict[str, dict]:
@@ -202,6 +218,31 @@ def _partner_to_dict(p: AssociatePartner):
     }
 
 
+def _is_delivery_service_product(product: PartnerProduct, meta_map: dict[str, dict]) -> bool:
+    meta = _service_meta_for_product(meta_map, str(getattr(product, "id", "") or ""))
+    if not meta.get("is_service"):
+        return False
+    haystack = " ".join(
+        [
+            str(getattr(product, "name", "") or ""),
+            str(getattr(product, "category", "") or ""),
+            str(getattr(product, "description", "") or ""),
+            str(meta.get("service_template_key") or ""),
+        ]
+    ).lower()
+    return any(hint in haystack for hint in DELIVERY_RATE_HINTS)
+
+
+def _is_delivery_focus_query(business_type: str | None, q: str | None) -> bool:
+    type_tokens = _search_tokens(business_type)
+    q_tokens = _search_tokens(q)
+    type_joined = " ".join(type_tokens)
+    q_joined = " ".join(q_tokens)
+    looks_service = "service" in type_joined
+    looks_delivery = any(hint in q_joined for hint in DELIVERY_RATE_HINTS)
+    return looks_service and looks_delivery
+
+
 @router.get("/directory/partners")
 def partner_directory(
     city: str | None = None,
@@ -281,7 +322,62 @@ def partner_directory(
                 return []
 
     rows = query.order_by(AssociatePartner.is_featured.desc(), AssociatePartner.business_name.asc()).all()
-    return [_partner_to_dict(p) for p in rows]
+    payload = [_partner_to_dict(p) for p in rows]
+
+    if not rows or not _is_delivery_focus_query(business_type, q):
+        return payload
+
+    partner_ids = [str(p.id) for p in rows if str(getattr(p, "id", "") or "").strip()]
+    if not partner_ids:
+        return payload
+
+    meta_map = _load_partner_product_meta(db)
+    products = (
+        db.query(PartnerProduct)
+        .filter(
+            PartnerProduct.active.is_(True),
+            PartnerProduct.partner_id.in_(partner_ids),
+        )
+        .all()
+    )
+
+    delivery_prices_by_partner: dict[str, list[float]] = {}
+    delivery_count_by_partner: dict[str, int] = {}
+    for product in products:
+        pid = str(getattr(product, "partner_id", "") or "")
+        if not pid:
+            continue
+        if not _is_delivery_service_product(product, meta_map):
+            continue
+        delivery_count_by_partner[pid] = int(delivery_count_by_partner.get(pid, 0)) + 1
+        try:
+            price_value = float(getattr(product, "price", 0) or 0)
+        except Exception:
+            price_value = 0
+        if price_value > 0:
+            delivery_prices_by_partner.setdefault(pid, []).append(round(price_value, 2))
+
+    for partner_payload in payload:
+        pid = str(partner_payload.get("id") or "")
+        prices = delivery_prices_by_partner.get(pid, [])
+        service_count = int(delivery_count_by_partner.get(pid, 0))
+        if prices:
+            min_rate = round(min(prices), 2)
+            max_rate = round(max(prices), 2)
+            avg_rate = round(sum(prices) / len(prices), 2)
+        else:
+            min_rate = None
+            max_rate = None
+            avg_rate = None
+
+        partner_payload["delivery_service_count"] = service_count
+        partner_payload["delivery_min_rate"] = min_rate
+        partner_payload["delivery_max_rate"] = max_rate
+        partner_payload["delivery_avg_rate"] = avg_rate
+        partner_payload["delivery_has_services"] = service_count > 0
+        partner_payload["delivery_rate_currency"] = "INR"
+
+    return payload
 
 
 @router.get("/directory/featured-partners")

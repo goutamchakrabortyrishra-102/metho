@@ -609,14 +609,56 @@ export default function PartnerGalleryPage() {
   const getStock = (product) => Math.max(0, Number(product?.stock ?? 0));
   const visibleProducts = useMemo(() => {
     const source = gallerySearch ? activeListings.filter((p) => {
-      const q = gallerySearch.toLowerCase();
-      const haystack = [p?.name, p?.category, p?.description]
+      const q = String(gallerySearch || "").trim().toLowerCase();
+      const qDigits = q.replace(/\D/g, "");
+
+      const deliveryLocationFields = activeTab === "delivery-partner"
+        ? [
+          partner?.city,
+          partner?.state,
+          partner?.pincode,
+          p?.city,
+          p?.state,
+          p?.pincode,
+          p?.delivery_city,
+          p?.delivery_state,
+          p?.delivery_pincode,
+          p?.service_city,
+          p?.service_state,
+          p?.service_pincode,
+          p?.service_area,
+          p?.area,
+          p?.locality,
+          p?.pickup,
+          p?.destination,
+          p?.notes,
+        ]
+        : [];
+
+      const haystackParts = [
+        p?.name,
+        p?.category,
+        p?.description,
+        ...deliveryLocationFields,
+      ];
+
+      const haystack = haystackParts
         .map((v) => String(v || "").toLowerCase())
         .join(" ");
-      return haystack.includes(q);
+
+      if (haystack.includes(q)) return true;
+
+      if (qDigits) {
+        const pincodeDigits = haystackParts
+          .map((v) => String(v || "").replace(/\D/g, ""))
+          .join(" ");
+        return pincodeDigits.includes(qDigits);
+      }
+
+      return false;
     }) : activeListings;
     return source;
-  }, [activeListings, gallerySearch]);
+  }, [activeListings, activeTab, gallerySearch, partner?.city, partner?.pincode, partner?.state]);
   const canDownloadPdf = ["partner", "admin", "super_admin", "company_admin"].includes(String(user?.role || "").toLowerCase());
   const guestServiceHintRef = useRef(false);
 
