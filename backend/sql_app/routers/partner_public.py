@@ -12,7 +12,7 @@ router = APIRouter(prefix="/api", tags=["partner-public"])
 
 TRANSPORT_HINTS = {"transport", "cab", "taxi", "car", "car rental", "bike", "bike rental", "travel", "vehicle", "auto", "rickshaw", "e-rickshaw", "autorickshaw"}
 DELIVERY_HINTS = {"delivery", "courier", "logistics", "cargo", "parcel", "shipment", "dispatch", "freight", "goods carrier", "delivery partner"}
-STAY_DINING_HINTS = {"hotel", "homestay", "home stay", "guest house", "resort", "restaurant", "resturent", "cafe", "dining", "seat booking", "sitbooking", "banquet", "rental house", "flat", "apartment", "stay", "house rent", "flat rent", "shop rent", "apartment rent", "anusthan bari", "anusthanbari", "resort vara", "resort bhara", "hall vara", "hall bhara", "wedding hall", "event hall"}
+STAY_DINING_HINTS = {"hotel", "homestay", "home stay", "guest house", "resort", "restaurant", "resturent", "cafe", "dining", "seat booking", "sitbooking", "banquet", "rental house", "stay", "house rent", "flat rent", "shop rent", "apartment rent", "anusthan bari", "anusthanbari", "resort vara", "resort bhara", "hall vara", "hall bhara", "wedding hall", "event hall"}
 PROPERTY_HINTS = {"property", "real estate", "realestate", "buy sell", "buy & sell", "plot sale", "flat sale", "house sale", "shop sale", "commercial property", "property broker", "broker", "brokerage", "site visit", "resale", "land", "jomi", "jami", "bari bikri", "flat bikri"}
 DOORSTEP_HINTS = {"doorstep", "mistri", "mechanic", "plumber", "plumbing", "electrician", "repair", "cleaning", "laundry", "tailoring", "beauty at home", "home service"}
 SHOP_HINTS = {"shop", "store", "mart", "grocery", "vegetable", "cosmetics", "beauty", "product", "retail", "kirana", "pharmacy"}
@@ -55,12 +55,12 @@ def _infer_registration_sector_fields(payload: dict) -> tuple[str, str, str]:
     if sector == "Service":
         if looks_delivery:
             service_sector = "Delivery Partner"
-        if looks_transport:
+        elif looks_transport:
             service_sector = "Transport"
-        elif looks_stay_dining:
-            service_sector = "Stay & Dining"
         elif looks_property:
             service_sector = "Property Buy & Sell"
+        elif looks_stay_dining:
+            service_sector = "Stay & Dining"
         elif looks_doorstep:
             service_sector = "Doorstep"
         elif not service_sector:

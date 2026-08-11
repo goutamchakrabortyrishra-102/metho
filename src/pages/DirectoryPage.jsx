@@ -59,16 +59,18 @@ export default function DirectoryPage() {
 
     if (!quick) return;
     const quickMap = {
-      products: { q: "", type: "All", shop_sector: "" },
-      vegetables: { q: "", type: "All", shop_sector: "Vegetables" },
-      vegetabels: { q: "", type: "All", shop_sector: "Vegetables" },
-      grocery: { q: "", type: "All", shop_sector: "Grocery" },
-      "cosmetics-beauty": { q: "", type: "All", shop_sector: "Cosmetics & Beauty" },
-      others: { q: "", type: "All", shop_sector: "Others" },
-      transport: { q: "transport cab taxi rental bike logistics", type: "Service Provider" },
-      "stay-dining": { q: "hotel homestay restaurant cafe", type: "Service Provider" },
-      doorstep: { q: "home service cleaning repair laundry courier", type: "Service Provider" },
-      "other-services": { q: "clinic education legal accounting fitness photography travel", type: "Service Provider" },
+      products: { q: "shop", type: "Shop", shop_sector: "" },
+      vegetables: { q: "shop vegetables", type: "Shop", shop_sector: "Vegetables" },
+      vegetabels: { q: "shop vegetables", type: "Shop", shop_sector: "Vegetables" },
+      grocery: { q: "shop grocery", type: "Shop", shop_sector: "Grocery" },
+      "cosmetics-beauty": { q: "shop cosmetics beauty", type: "Shop", shop_sector: "Cosmetics & Beauty" },
+      others: { q: "shop", type: "Shop", shop_sector: "Others" },
+      transport: { q: "service transport", type: "Service" },
+      "delivery-partner": { q: "service delivery partner", type: "Service" },
+      "stay-dining": { q: "service stay dining", type: "Service" },
+      "property-buy-sell": { q: "service property buy sell", type: "Service" },
+      doorstep: { q: "service doorstep", type: "Service" },
+      "other-services": { q: "service other services", type: "Service" },
     };
     const preset = quickMap[quick];
     if (!preset) return;

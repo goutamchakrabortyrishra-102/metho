@@ -95,7 +95,7 @@ const DELIVERY_REG_HINTS = [
   "delivery", "courier", "logistics", "cargo", "parcel", "shipment", "dispatch", "freight", "goods carrier", "pickup drop", "pickup and drop",
 ];
 const STAY_DINING_REG_HINTS = [
-  "hotel", "homestay", "home stay", "guest house", "resort", "restaurant", "resturent", "cafe", "dining", "sitbooking", "seat booking", "banquet", "rental house", "flat", "apartment", "stay", "house rent", "flat rent", "shop rent", "apartment rent", "anusthan bari", "anusthanbari", "resort vara", "resort bhara", "hall vara", "hall bhara", "wedding hall", "event hall",
+  "hotel", "homestay", "home stay", "guest house", "resort", "restaurant", "resturent", "cafe", "dining", "sitbooking", "seat booking", "banquet", "rental house", "stay", "house rent", "flat rent", "shop rent", "apartment rent", "anusthan bari", "anusthanbari", "resort vara", "resort bhara", "hall vara", "hall bhara", "wedding hall", "event hall",
 ];
 const PROPERTY_REG_HINTS = [
   "property", "real estate", "realestate", "buy sell", "buy & sell", "plot sale", "flat sale", "house sale", "shop sale", "commercial property", "property broker", "broker", "brokerage", "site visit", "resale", "land", "jomi", "jami", "bari bikri", "flat bikri",
@@ -133,8 +133,8 @@ const inferRegistrationSelection = (form) => {
   if (inferredBusinessType === "Service") {
     if (looksDelivery) inferredServiceSector = "Delivery Partner";
     else if (looksTransport) inferredServiceSector = "Transport";
-    else if (looksStayDining) inferredServiceSector = "Stay & Dining";
     else if (looksProperty) inferredServiceSector = "Property Buy & Sell";
+    else if (looksStayDining) inferredServiceSector = "Stay & Dining";
     else if (looksDoorstep) inferredServiceSector = "Doorstep";
     else inferredServiceSector = inferredServiceSector || "Other Services";
   }
