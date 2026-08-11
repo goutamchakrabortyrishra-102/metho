@@ -44,6 +44,36 @@ const RESTAURANT_SLOT_TEMPLATE_KEYS = new Set([
   "restaurant_takeaway_slot",
   "cafe_table_reservation",
 ]);
+const DOORSTEP_OTHER_SLOT_TEMPLATE_KEYS = new Set([
+  "ac_service_visit",
+  "plumbing_repair",
+  "electrician_visit",
+  "appliance_repair",
+  "laundry_kg_service",
+  "dry_clean_service",
+  "tailoring_stitching",
+  "beauty_home_service",
+  "courier_pickup",
+  "house_deep_clean",
+  "office_cleaning",
+  "pest_control_visit",
+  "doctor_consultation",
+  "diagnostic_visit",
+  "tele_consultation",
+  "dental_checkup",
+  "pathology_test_slot",
+  "ultrasound_slot",
+  "yoga_class_slot",
+  "tuition_monthly_batch",
+  "coaching_mock_test",
+  "salon_haircut",
+  "salon_grooming_package",
+  "salon_bridal_package",
+  "spa_session",
+  "gym_personal_training",
+  "photo_event_shoot",
+  "video_shoot_edit",
+]);
 const DOORSTEP_SERVICE_SECTORS = ["Home Service", "Laundry", "Beauty at Home", "Cleaning", "Courier", "Tailoring"];
 const isHospitalityServiceListing = (item) => {
   return isHospitalityServiceLike(item);
@@ -54,6 +84,16 @@ const isDoorstepServiceListing = (item) => {
 const isRestaurantSlotService = (item) => {
   const key = String(item?.service_template_key || "").trim().toLowerCase();
   return RESTAURANT_SLOT_TEMPLATE_KEYS.has(key);
+};
+const isDoorstepOrOtherSlotService = (item) => {
+  const key = String(item?.service_template_key || "").trim().toLowerCase();
+  return DOORSTEP_OTHER_SLOT_TEMPLATE_KEYS.has(key);
+};
+const serviceRateLabel = (item) => {
+  const key = String(item?.service_template_key || "").trim().toLowerCase();
+  if (key === "ac_service_visit") return "AC Rate";
+  if (key.includes("monthly")) return "Monthly Rate";
+  return "Service Rate";
 };
 const TRANSPORT_STATUS_META = {
   booked: { label: "New Request", tone: "bg-sky-100 text-sky-800 border-sky-200" },
@@ -278,6 +318,8 @@ export default function PartnerDashboardPage() {
   const [restaurantRateDrafts, setRestaurantRateDrafts] = useState({});
   const [restaurantCapacityDrafts, setRestaurantCapacityDrafts] = useState({});
   const [restaurantConfigBusy, setRestaurantConfigBusy] = useState({});
+  const [serviceSlotRateDrafts, setServiceSlotRateDrafts] = useState({});
+  const [serviceSlotConfigBusy, setServiceSlotConfigBusy] = useState({});
   const [ordersShortcutPinned, setOrdersShortcutPinned] = useState(false);
   const normalizedProducts = Array.isArray(products) ? products : [];
   const normalizedLedger = Array.isArray(ledger) ? ledger : [];
@@ -415,6 +457,24 @@ export default function PartnerDashboardPage() {
       toast.error(err?.response?.data?.detail || "Update failed");
     } finally {
       setRestaurantConfigBusy((prev) => ({ ...prev, [productId]: false }));
+    }
+  };
+
+  const saveServiceSlotRate = async (productId, fallbackPrice) => {
+    const rate = Number(serviceSlotRateDrafts?.[productId] ?? fallbackPrice ?? 0);
+    if (rate <= 0) {
+      toast.error("Valid rate দিন");
+      return;
+    }
+    setServiceSlotConfigBusy((prev) => ({ ...prev, [productId]: true }));
+    try {
+      await api.put(`/partner/products/${productId}`, { price: rate });
+      toast.success("Service rate updated");
+      loadAll();
+    } catch (err) {
+      toast.error(err?.response?.data?.detail || "Update failed");
+    } finally {
+      setServiceSlotConfigBusy((prev) => ({ ...prev, [productId]: false }));
     }
   };
 
@@ -1697,6 +1757,33 @@ export default function PartnerDashboardPage() {
                       ) : null}
                     </div>
                     <div className="p-3"><p className="font-semibold text-sm text-emerald-950">{p.name}</p><p className="text-xs text-muted-foreground">{p.category}</p><p className="font-display font-black text-emerald-800 mt-1">{withUnit(p.price, p.unit_type)}</p><p className="text-[10px] text-slate-500">{String(p?.service_invoice_mode || "detailed").replace(/_/g, " ")}</p>
+                    {isDoorstepOrOtherSlotService(p) ? (
+                      <div className="mt-2 rounded-lg border border-emerald-200 bg-emerald-50 p-2 space-y-2">
+                        <p className="text-[10px] font-semibold uppercase tracking-wider text-emerald-800">Slot Rate Control</p>
+                        <div>
+                          <Label className="text-[10px] text-slate-600">{serviceRateLabel(p)} (INR)</Label>
+                          <Input
+                            type="number"
+                            min="1"
+                            step="1"
+                            value={serviceSlotRateDrafts?.[p.id] ?? String(Number(p?.price || 0))}
+                            onChange={(e) => setServiceSlotRateDrafts((prev) => ({ ...prev, [p.id]: e.target.value }))}
+                            className="h-8 mt-1 text-xs"
+                            data-testid={`service-slot-rate-${p.id}`}
+                          />
+                        </div>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="rounded-full h-7 px-2 text-[11px] border-emerald-300 text-emerald-900 hover:bg-emerald-100 w-full"
+                          disabled={!!serviceSlotConfigBusy?.[p.id]}
+                          onClick={() => saveServiceSlotRate(p.id, p?.price)}
+                          data-testid={`service-slot-save-rate-${p.id}`}
+                        >
+                          {serviceSlotConfigBusy?.[p.id] ? "Saving..." : "Save Rate"}
+                        </Button>
+                      </div>
+                    ) : null}
                     <div className="flex gap-1 mt-2">
                       <PartnerProductForm
                         product={p}
@@ -1763,6 +1850,33 @@ export default function PartnerDashboardPage() {
                       ) : null}
                     </div>
                     <div className="p-3"><p className="font-semibold text-sm text-emerald-950">{p.name}</p><p className="text-xs text-muted-foreground">{p.category}</p><p className="font-display font-black text-emerald-800 mt-1">{withUnit(p.price, p.unit_type)}</p><p className="text-[10px] text-slate-500">{String(p?.service_invoice_mode || "detailed").replace(/_/g, " ")}</p>
+                    {isDoorstepOrOtherSlotService(p) ? (
+                      <div className="mt-2 rounded-lg border border-emerald-200 bg-emerald-50 p-2 space-y-2">
+                        <p className="text-[10px] font-semibold uppercase tracking-wider text-emerald-800">Slot Rate Control</p>
+                        <div>
+                          <Label className="text-[10px] text-slate-600">{serviceRateLabel(p)} (INR)</Label>
+                          <Input
+                            type="number"
+                            min="1"
+                            step="1"
+                            value={serviceSlotRateDrafts?.[p.id] ?? String(Number(p?.price || 0))}
+                            onChange={(e) => setServiceSlotRateDrafts((prev) => ({ ...prev, [p.id]: e.target.value }))}
+                            className="h-8 mt-1 text-xs"
+                            data-testid={`service-slot-rate-${p.id}`}
+                          />
+                        </div>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="rounded-full h-7 px-2 text-[11px] border-emerald-300 text-emerald-900 hover:bg-emerald-100 w-full"
+                          disabled={!!serviceSlotConfigBusy?.[p.id]}
+                          onClick={() => saveServiceSlotRate(p.id, p?.price)}
+                          data-testid={`service-slot-save-rate-${p.id}`}
+                        >
+                          {serviceSlotConfigBusy?.[p.id] ? "Saving..." : "Save Rate"}
+                        </Button>
+                      </div>
+                    ) : null}
                     <div className="flex gap-1 mt-2">
                       <PartnerProductForm
                         product={p}

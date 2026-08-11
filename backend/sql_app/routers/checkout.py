@@ -36,6 +36,40 @@ RESTAURANT_SLOT_TEMPLATE_KEYS = {
     "restaurant_takeaway_slot",
     "cafe_table_reservation",
 }
+SERVICE_SLOT_TEMPLATE_KEYS = {
+    "restaurant_table_booking",
+    "banquet_slot",
+    "restaurant_takeaway_slot",
+    "cafe_table_reservation",
+    "ac_service_visit",
+    "plumbing_repair",
+    "electrician_visit",
+    "appliance_repair",
+    "laundry_kg_service",
+    "dry_clean_service",
+    "tailoring_stitching",
+    "beauty_home_service",
+    "courier_pickup",
+    "house_deep_clean",
+    "office_cleaning",
+    "pest_control_visit",
+    "doctor_consultation",
+    "diagnostic_visit",
+    "tele_consultation",
+    "dental_checkup",
+    "pathology_test_slot",
+    "ultrasound_slot",
+    "yoga_class_slot",
+    "tuition_monthly_batch",
+    "coaching_mock_test",
+    "salon_haircut",
+    "salon_grooming_package",
+    "salon_bridal_package",
+    "spa_session",
+    "gym_personal_training",
+    "photo_event_shoot",
+    "video_shoot_edit",
+}
 
 
 def _build_partner_whatsapp_url(phone: str | None, message: str) -> str:
@@ -732,12 +766,15 @@ def create_public_order(payload: dict, db: Session = Depends(get_db), authorizat
 
     has_partner_item = False
     has_partner_physical_item = False
+    has_service_slot_item = False
     has_restaurant_slot_item = False
     for item in normalized_items:
         if str(item.get("product_type") or "").strip() != "associate_partner":
             continue
         has_partner_item = True
         template_key = str(item.get("service_template_key") or "").strip().lower()
+        if template_key in SERVICE_SLOT_TEMPLATE_KEYS and _is_service_order_item(item):
+            has_service_slot_item = True
         if template_key in RESTAURANT_SLOT_TEMPLATE_KEYS and _is_service_order_item(item):
             has_restaurant_slot_item = True
         if not _is_service_order_item(item):
@@ -754,9 +791,10 @@ def create_public_order(payload: dict, db: Session = Depends(get_db), authorizat
         if not customer_phone_digits:
             raise HTTPException(status_code=400, detail="COD order requires customer phone")
 
+    if has_service_slot_item and not slot_datetime:
+        raise HTTPException(status_code=400, detail="Service slot booking requires date and time")
+
     if has_restaurant_slot_item:
-        if not slot_datetime:
-            raise HTTPException(status_code=400, detail="Restaurant slot booking requires date and time")
         if guest_count <= 0:
             raise HTTPException(status_code=400, detail="Restaurant slot booking requires guest count")
         restaurant_capacity_limit = None
@@ -775,6 +813,9 @@ def create_public_order(payload: dict, db: Session = Depends(get_db), authorizat
         if restaurant_capacity_limit is not None and guest_count > restaurant_capacity_limit:
             raise HTTPException(status_code=400, detail=f"Guest count exceeds seating capacity ({restaurant_capacity_limit})")
         slot_summary = f"Restaurant Slot: {slot_datetime} | Guests: {guest_count}"
+        shipping_address = f"{slot_summary} | Note: {shipping_address}" if shipping_address else slot_summary
+    elif has_service_slot_item:
+        slot_summary = f"Service Slot: {slot_datetime}"
         shipping_address = f"{slot_summary} | Note: {shipping_address}" if shipping_address else slot_summary
 
     row = PublicOrder(
