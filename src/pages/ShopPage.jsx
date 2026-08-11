@@ -1,7 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import { ArrowLeft, Minus, Plus, ShoppingCart, Images, Search, X } from "lucide-react";
-import { jsPDF } from "jspdf";
 import { toast } from "sonner";
 import api from "@/services/api";
 import { Logo } from "@/components/Logo";
@@ -258,59 +257,64 @@ export default function ShopPage() {
 
   const total = items.reduce((sum, i) => sum + i.subtotal, 0);
 
-  const downloadCatalogPdf = useCallback(() => {
+  const downloadCatalogPdf = useCallback(async () => {
     if (!visibleProducts.length) {
       toast.error("No products available for PDF");
       return;
     }
-    const doc = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
-    const W = doc.internal.pageSize.getWidth();
+    try {
+      const { jsPDF } = await import("jspdf");
+      const doc = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
+      const W = doc.internal.pageSize.getWidth();
 
-    doc.setFillColor(5, 46, 22);
-    doc.rect(0, 0, W, 24, "F");
-    doc.setTextColor(251, 191, 36);
-    doc.setFont("helvetica", "bold");
-    doc.setFontSize(15);
-    doc.text("METHO Product Catalog", 10, 11);
-    doc.setTextColor(255, 255, 255);
-    doc.setFont("helvetica", "normal");
-    doc.setFontSize(8);
-    doc.text(new Date().toLocaleDateString("en-IN"), W - 10, 11, { align: "right" });
-    doc.setTextColor(21, 128, 61);
-    doc.textWithLink("Open Shop & Add to Cart", W - 10, 18, { url: `${window.location.origin}/shop` });
-
-    let y = 30;
-    visibleProducts.forEach((p, idx) => {
-      if (y > 282) {
-        doc.addPage();
-        y = 12;
-      }
-      doc.setDrawColor(226, 232, 240);
-      doc.line(10, y + 2, W - 10, y + 2);
+      doc.setFillColor(5, 46, 22);
+      doc.rect(0, 0, W, 24, "F");
+      doc.setTextColor(251, 191, 36);
       doc.setFont("helvetica", "bold");
-      doc.setFontSize(9);
-      doc.setTextColor(5, 46, 22);
-      doc.text(`${idx + 1}. ${p.name || "Product"}`, 10, y + 8);
+      doc.setFontSize(15);
+      doc.text("METHO Product Catalog", 10, 11);
+      doc.setTextColor(255, 255, 255);
       doc.setFont("helvetica", "normal");
       doc.setFontSize(8);
-      doc.setTextColor(71, 85, 105);
-      doc.text(`${p.category || "General"} | Stock: ${p.stock ?? 0}`, 10, y + 13);
-      doc.setFont("helvetica", "bold");
-      doc.setTextColor(5, 46, 22);
-      doc.text(`INR ${Number(p.price || 0).toLocaleString("en-IN")}`, W - 10, y + 8, { align: "right" });
-      y += 16;
-    });
+      doc.text(new Date().toLocaleDateString("en-IN"), W - 10, 11, { align: "right" });
+      doc.setTextColor(21, 128, 61);
+      doc.textWithLink("Open Shop & Add to Cart", W - 10, 18, { url: `${window.location.origin}/shop` });
 
-    const totalPages = doc.internal.getNumberOfPages();
-    for (let pg = 1; pg <= totalPages; pg++) {
-      doc.setPage(pg);
-      doc.setFontSize(7);
-      doc.setTextColor(148, 163, 184);
-      doc.text(`METHO Catalog · Page ${pg}/${totalPages}`, W / 2, 292, { align: "center" });
+      let y = 30;
+      visibleProducts.forEach((p, idx) => {
+        if (y > 282) {
+          doc.addPage();
+          y = 12;
+        }
+        doc.setDrawColor(226, 232, 240);
+        doc.line(10, y + 2, W - 10, y + 2);
+        doc.setFont("helvetica", "bold");
+        doc.setFontSize(9);
+        doc.setTextColor(5, 46, 22);
+        doc.text(`${idx + 1}. ${p.name || "Product"}`, 10, y + 8);
+        doc.setFont("helvetica", "normal");
+        doc.setFontSize(8);
+        doc.setTextColor(71, 85, 105);
+        doc.text(`${p.category || "General"} | Stock: ${p.stock ?? 0}`, 10, y + 13);
+        doc.setFont("helvetica", "bold");
+        doc.setTextColor(5, 46, 22);
+        doc.text(`INR ${Number(p.price || 0).toLocaleString("en-IN")}`, W - 10, y + 8, { align: "right" });
+        y += 16;
+      });
+
+      const totalPages = doc.internal.getNumberOfPages();
+      for (let pg = 1; pg <= totalPages; pg++) {
+        doc.setPage(pg);
+        doc.setFontSize(7);
+        doc.setTextColor(148, 163, 184);
+        doc.text(`METHO Catalog · Page ${pg}/${totalPages}`, W / 2, 292, { align: "center" });
+      }
+
+      doc.save("METHO_Product_Catalog.pdf");
+      toast.success("PDF downloaded");
+    } catch {
+      toast.error("PDF could not be generated right now");
     }
-
-    doc.save("METHO_Product_Catalog.pdf");
-    toast.success("PDF downloaded");
   }, [visibleProducts]);
 
   useEffect(() => {

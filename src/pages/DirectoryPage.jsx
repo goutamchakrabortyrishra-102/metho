@@ -9,6 +9,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useSettings } from "@/contexts/SettingsContext";
 import { resolveAssetUrl } from "@/lib/utils";
 import { isCompletePincode, normalizePincode } from "@/lib/indiaLocation";
+import useDebouncedValue from "@/hooks/useDebouncedValue";
 
 const TYPES = ["All", "Retail Shop", "Super Market", "Pharmacy", "Restaurant", "Service Provider", "Distributor", "Wholesaler", "Online Seller"];
 
@@ -39,6 +40,12 @@ export default function DirectoryPage() {
   const [deliveryPincodeSearch, setDeliveryPincodeSearch] = useState("");
   const [loading, setLoading] = useState(true);
   const [featured, setFeatured] = useState([]);
+  const debouncedCity = useDebouncedValue(city, 280);
+  const debouncedPincode = useDebouncedValue(pincode, 280);
+  const debouncedType = useDebouncedValue(type, 280);
+  const debouncedCategory = useDebouncedValue(category, 280);
+  const debouncedShopSector = useDebouncedValue(shopSector, 280);
+  const debouncedQuery = useDebouncedValue(q, 280);
 
   useEffect(() => {
     const quick = String(searchParams.get("quick") || "").trim().toLowerCase();
@@ -93,20 +100,20 @@ export default function DirectoryPage() {
   useEffect(() => {
     setLoading(true);
     const params = new URLSearchParams();
-    if (city) params.set("city", city);
-    if (pincode) params.set("pincode", pincode);
-    if (type && type !== "All") params.set("business_type", type);
-    if (category) params.set("category", category);
-    if (shopSector) params.set("shop_sector", shopSector);
-    if (q) params.set("q", q);
+    if (debouncedCity) params.set("city", debouncedCity);
+    if (debouncedPincode) params.set("pincode", debouncedPincode);
+    if (debouncedType && debouncedType !== "All") params.set("business_type", debouncedType);
+    if (debouncedCategory) params.set("category", debouncedCategory);
+    if (debouncedShopSector) params.set("shop_sector", debouncedShopSector);
+    if (debouncedQuery) params.set("q", debouncedQuery);
     api.get(`/directory/partners?${params.toString()}`)
       .then(r => setPartners(r.data))
       .catch(() => setPartners([]))
       .finally(() => setLoading(false));
-  }, [city, pincode, type, category, shopSector, q]);
+  }, [debouncedCity, debouncedPincode, debouncedType, debouncedCategory, debouncedShopSector, debouncedQuery]);
 
   useEffect(() => {
-    const pin = normalizePincode(pincode);
+    const pin = normalizePincode(debouncedPincode);
     if (!isCompletePincode(pin)) return;
     api.get(`/directory/pincode-lookup?pincode=${encodeURIComponent(pin)}`)
       .then((r) => {
@@ -114,7 +121,7 @@ export default function DirectoryPage() {
         if (nextCity) setCity(nextCity);
       })
       .catch(() => {});
-  }, [pincode]);
+  }, [debouncedPincode]);
 
   const grouped = useMemo(() => {
     const map = {};
@@ -125,8 +132,8 @@ export default function DirectoryPage() {
     return Object.entries(map).sort((a, b) => b[1].length - a[1].length);
   }, [partners]);
 
-  const isDeliveryFocus = String(type || "").toLowerCase() === "service"
-    && String(q || "").toLowerCase().includes("delivery");
+  const isDeliveryFocus = String(debouncedType || "").toLowerCase() === "service"
+    && String(debouncedQuery || "").toLowerCase().includes("delivery");
 
   const runDeliveryGlobalSearch = () => {
     const nextCity = String(deliveryCitySearch || "").trim();

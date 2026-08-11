@@ -4747,7 +4747,7 @@ def partner_delivery_update_fare(trip_id: str, payload: dict, db: Session = Depe
     order_id = str(trip.get("order_id") or "")
     row = db.query(PublicOrder).filter(PublicOrder.id == order_id).first()
     if row:
-      	try:
+        try:
             items = json.loads(row.items_json or "[]")
         except Exception:
             items = []

@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { Building2, MapPin, MessageCircle, Navigation, Search } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -42,7 +42,7 @@ const waUrl = (partner) => {
 
 export default function MethoStorePage() {
   const { settings } = useSettings();
-  const [partners, setPartners] = useState([]);
+  const [allPartners, setAllPartners] = useState([]);
   const [cities, setCities] = useState([]);
   const [q, setQ] = useState("");
   const [city, setCity] = useState("");
@@ -57,19 +57,21 @@ export default function MethoStorePage() {
     setLoading(true);
     methoStoreApi.publicListStoreListings()
       .then((data) => {
-        const rows = normalizeCollection(data);
-        const next = rows.filter((item) => {
-          const active = (item?.is_active ?? item?.active ?? item?.approved ?? true) !== false;
-          const matchesQ = !q || [item?.store_name, item?.business_name, item?.owner_code, item?.code].filter(Boolean).join(" ").toLowerCase().includes(q.toLowerCase());
-          const matchesCity = !city || String(item?.city || "").toLowerCase() === String(city || "").toLowerCase();
-          const matchesPincode = !pincode || String(item?.pincode || "").trim() === String(pincode).trim();
-          return active && matchesQ && matchesCity && matchesPincode;
-        });
-        setPartners(next);
+        setAllPartners(normalizeCollection(data));
       })
-      .catch(() => setPartners([]))
+      .catch(() => setAllPartners([]))
       .finally(() => setLoading(false));
-  }, [q, city, pincode]);
+  }, []);
+
+  const partners = useMemo(() => {
+    return allPartners.filter((item) => {
+      const active = (item?.is_active ?? item?.active ?? item?.approved ?? true) !== false;
+      const matchesQ = !q || [item?.store_name, item?.business_name, item?.owner_code, item?.code].filter(Boolean).join(" ").toLowerCase().includes(q.toLowerCase());
+      const matchesCity = !city || String(item?.city || "").toLowerCase() === String(city || "").toLowerCase();
+      const matchesPincode = !pincode || String(item?.pincode || "").trim() === String(pincode).trim();
+      return active && matchesQ && matchesCity && matchesPincode;
+    });
+  }, [allPartners, q, city, pincode]);
 
   useEffect(() => {
     const pin = normalizePincode(pincode);

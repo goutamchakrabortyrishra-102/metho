@@ -120,22 +120,30 @@ const RouteWarmup = () => {
     const constrainedNetwork = saveDataEnabled || effectiveType === "slow-2g" || effectiveType === "2g" || effectiveType === "3g";
     if (constrainedNetwork) return;
 
-    const publicTargets = [
-      loadLandingPage,
+    const authTargets = [
       loadLoginPage,
       loadRegisterPage,
       loadPartnerRegisterPage,
+    ];
+
+    const discoveryTargets = [
       loadDirectoryPage,
       loadMethoStorePage,
-      loadShopPage,
       loadCustomerOrdersAccessPage,
     ];
+
     const appTargets = [
       loadDashboardLayout,
       loadDashboardHome,
       loadProductsPage,
     ];
-    const targets = pathname.startsWith("/app") ? [...publicTargets, ...appTargets] : publicTargets;
+
+    let targets = authTargets;
+    if (pathname.startsWith("/app")) {
+      targets = [...authTargets, ...appTargets];
+    } else if (pathname.startsWith("/directory") || pathname.startsWith("/metho-store") || pathname.startsWith("/customer-orders")) {
+      targets = [...authTargets, ...discoveryTargets];
+    }
 
     const runPrefetch = () => {
       targets.forEach((loader) => prefetchChunk(loader));

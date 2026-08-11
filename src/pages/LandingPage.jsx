@@ -10,6 +10,7 @@ import { methoStoreApi, normalizeCollection } from "@/services/methoStore";
 import { useSettings } from "@/contexts/SettingsContext";
 import { resolveAssetUrl, getAssetImageFallbackCandidates } from "@/lib/utils";
 import { isCompletePincode, normalizePincode } from "@/lib/indiaLocation";
+import useDebouncedValue from "@/hooks/useDebouncedValue";
 
 function ReferralEntryStrip() {
   const [params] = useSearchParams();
@@ -895,6 +896,12 @@ const AssociatePartnerFinder = () => {
   const [businessType, setBusinessType] = React.useState("All");
   const [serviceQuery, setServiceQuery] = React.useState("");
   const [category, setCategory] = React.useState("");
+  const debouncedNameQuery = useDebouncedValue(nameQuery, 280);
+  const debouncedServiceQuery = useDebouncedValue(serviceQuery, 280);
+  const debouncedCity = useDebouncedValue(city, 280);
+  const debouncedPincode = useDebouncedValue(pincode, 280);
+  const debouncedBusinessType = useDebouncedValue(businessType, 280);
+  const debouncedCategory = useDebouncedValue(category, 280);
 
   useEffect(() => {
     if (!isSectionActive) return;
@@ -905,18 +912,18 @@ const AssociatePartnerFinder = () => {
   useEffect(() => {
     if (!isSectionActive) return;
     const params = new URLSearchParams();
-    const q = [nameQuery, serviceQuery].map((v) => String(v || "").trim()).filter(Boolean).join(" ").trim();
+    const q = [debouncedNameQuery, debouncedServiceQuery].map((v) => String(v || "").trim()).filter(Boolean).join(" ").trim();
     if (q) params.set("q", q);
-    if (city) params.set("city", city);
-    if (pincode) params.set("pincode", pincode);
-    if (businessType && businessType !== "All") params.set("business_type", businessType);
-    if (category) params.set("category", category);
+    if (debouncedCity) params.set("city", debouncedCity);
+    if (debouncedPincode) params.set("pincode", debouncedPincode);
+    if (debouncedBusinessType && debouncedBusinessType !== "All") params.set("business_type", debouncedBusinessType);
+    if (debouncedCategory) params.set("category", debouncedCategory);
 
     setLoading(true);
     api.get(`/directory/partners?${params.toString()}`)
       .then((r) => {
         const rows = Array.isArray(r.data) ? r.data : [];
-        const hasSearchFilters = Boolean(q || city || pincode || (businessType && businessType !== "All") || category);
+        const hasSearchFilters = Boolean(q || debouncedCity || debouncedPincode || (debouncedBusinessType && debouncedBusinessType !== "All") || debouncedCategory);
         if (hasSearchFilters) {
           setResults(rows.slice(0, 6));
           return;
@@ -928,11 +935,11 @@ const AssociatePartnerFinder = () => {
       })
       .catch(() => setResults([]))
       .finally(() => setLoading(false));
-  }, [nameQuery, city, pincode, businessType, serviceQuery, category, featuredPartnerIds, isSectionActive]);
+  }, [debouncedNameQuery, debouncedCity, debouncedPincode, debouncedBusinessType, debouncedServiceQuery, debouncedCategory, featuredPartnerIds, isSectionActive]);
 
   useEffect(() => {
     if (!isSectionActive) return;
-    const pin = normalizePincode(pincode);
+    const pin = normalizePincode(debouncedPincode);
     if (!isCompletePincode(pin)) return;
     api.get(`/directory/pincode-lookup?pincode=${encodeURIComponent(pin)}`)
       .then((r) => {
@@ -940,7 +947,7 @@ const AssociatePartnerFinder = () => {
         if (nextCity) setCity(nextCity);
       })
       .catch(() => {});
-  }, [pincode, isSectionActive]);
+  }, [debouncedPincode, isSectionActive]);
 
   if (!showPartnerShop) return null;
 
