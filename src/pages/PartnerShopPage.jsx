@@ -10,7 +10,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useSettings } from "@/contexts/SettingsContext";
 import UpiPaymentDialog from "@/components/UpiPaymentDialog";
 import { resolveAssetUrl, getAssetImageFallbackCandidates } from "@/lib/utils";
-import { inferPartnerPrimarySector, getPartnerVisibleSectors, isDoorstepServiceLike, isHospitalityServiceLike, isTransportServiceLike, PARTNER_SECTOR_KEYS } from "@/lib/partnerSector";
+import { inferPartnerPrimarySector, getPartnerVisibleSectors, isDeliveryServiceLike, isDoorstepServiceLike, isHospitalityServiceLike, isTransportServiceLike, PARTNER_SECTOR_KEYS } from "@/lib/partnerSector";
 
 const normalizeYoutubeUrl = (value) => {
   const raw = String(value || "").trim();
@@ -482,15 +482,17 @@ export default function PartnerShopPage() {
   const productListings = useMemo(() => products.filter((item) => !isServiceListing(item)), [products]);
   const serviceListings = useMemo(() => products.filter((item) => isServiceListing(item)), [products]);
   const transportListings = useMemo(() => serviceListings.filter((item) => isTransportServiceListing(item)), [serviceListings]);
-  const hospitalityListings = useMemo(() => serviceListings.filter((item) => !isTransportServiceListing(item) && isHospitalityServiceListing(item)), [serviceListings]);
-  const doorstepListings = useMemo(() => serviceListings.filter((item) => !isTransportServiceListing(item) && !isHospitalityServiceListing(item) && isDoorstepServiceListing(item)), [serviceListings]);
-  const regularServiceListings = useMemo(() => serviceListings.filter((item) => !isTransportServiceListing(item) && !isHospitalityServiceListing(item) && !isDoorstepServiceListing(item)), [serviceListings]);
+  const deliveryListings = useMemo(() => serviceListings.filter((item) => !isTransportServiceListing(item) && isDeliveryServiceLike(item)), [serviceListings]);
+  const hospitalityListings = useMemo(() => serviceListings.filter((item) => !isTransportServiceListing(item) && !isDeliveryServiceLike(item) && isHospitalityServiceListing(item)), [serviceListings]);
+  const doorstepListings = useMemo(() => serviceListings.filter((item) => !isTransportServiceListing(item) && !isDeliveryServiceLike(item) && !isHospitalityServiceListing(item) && isDoorstepServiceListing(item)), [serviceListings]);
+  const regularServiceListings = useMemo(() => serviceListings.filter((item) => !isTransportServiceListing(item) && !isDeliveryServiceLike(item) && !isHospitalityServiceListing(item) && !isDoorstepServiceListing(item)), [serviceListings]);
   const primarySector = useMemo(() => inferPartnerPrimarySector({
     businessType: data?.partner?.business_type,
     businessName: data?.partner?.business_name,
     counts: {
       products: productListings.length,
       transport: transportListings.length,
+        delivery: deliveryListings.length,
       hospitality: hospitalityListings.length,
       doorstep: doorstepListings.length,
       otherServices: regularServiceListings.length,
@@ -507,6 +509,7 @@ export default function PartnerShopPage() {
   const visibleSectors = useMemo(() => getPartnerVisibleSectors(primarySector), [primarySector]);
   const canShowProducts = visibleSectors.includes(PARTNER_SECTOR_KEYS.PRODUCT_SECTOR);
   const canShowTransport = visibleSectors.includes(PARTNER_SECTOR_KEYS.TRANSPORT_SECTOR);
+  const canShowDeliveryPartner = visibleSectors.includes(PARTNER_SECTOR_KEYS.DELIVERY_PARTNER_SECTOR);
   const canShowHospitality = visibleSectors.includes(PARTNER_SECTOR_KEYS.HOSPITALITY_SECTOR);
   const canShowDoorstep = visibleSectors.includes(PARTNER_SECTOR_KEYS.DOORSTEP_SECTOR);
   const canShowOtherServices = visibleSectors.includes(PARTNER_SECTOR_KEYS.OTHER_SERVICE_SECTOR);
@@ -514,9 +517,11 @@ export default function PartnerShopPage() {
   const isMemberOrCustomer = normalizedRole === "member" || normalizedRole === "customer";
   const defaultGalleryTab = canShowTransport
     ? "transport"
-    : (canShowHospitality
-      ? "stay-dining"
-      : (canShowDoorstep ? "doorstep" : (canShowOtherServices ? "other-services" : "products")));
+    : (canShowDeliveryPartner
+      ? "delivery-partner"
+      : (canShowHospitality
+        ? "stay-dining"
+        : (canShowDoorstep ? "doorstep" : (canShowOtherServices ? "other-services" : "products"))));
   const featuredImages = useMemo(() => normalizeFeaturedImages(data?.featured_images), [data?.featured_images]);
   const featuredDisplayImages = useMemo(
     () => [0, 1, 2, 3, 4].map((slot) => featuredImages[slot] || ""),
@@ -1497,6 +1502,23 @@ export default function PartnerShopPage() {
             )}
           </section>
         </>
+      ) : null}
+
+      {canShowDeliveryPartner && deliveryListings.length > 0 ? (
+        <div className="mb-8">
+          <div className="bg-white rounded-xl border border-cyan-200 p-6" data-testid="partner-shop-delivery-panel">
+            <div className="flex items-start gap-2 mb-1">
+              <p className="text-[10px] uppercase tracking-widest text-cyan-700 font-semibold">Delivery Partner Services</p>
+            </div>
+            <h3 className="font-display font-bold text-emerald-950 text-lg mt-1">Courier, logistics and parcel services</h3>
+            <p className="text-sm text-slate-600 mt-3">Delivery listings are kept separate from transport rides.</p>
+            <div className="mt-6 flex flex-col lg:flex-row gap-3 lg:items-center">
+              <Button onClick={() => openGallery("", "delivery-partner")} className="w-full lg:w-auto lg:min-w-[220px] bg-cyan-700 hover:bg-cyan-800 text-white rounded-full" data-testid="partner-delivery-gallery-btn">
+                <CalendarCheck2 className="w-4 h-4 mr-2" /> Book / Add to Cart
+              </Button>
+            </div>
+          </div>
+        </div>
       ) : null}
 
       </div>

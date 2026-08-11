@@ -13,7 +13,7 @@ import UpiPaymentDialog from "@/components/UpiPaymentDialog";
 import { useAuth } from "@/contexts/AuthContext";
 import { resolveAssetUrl, getAssetImageFallbackCandidates } from "@/lib/utils";
 import { Input } from "@/components/ui/input";
-import { inferPartnerPrimarySector, getPartnerVisibleSectors, isDoorstepServiceLike, isHospitalityServiceLike, isTransportServiceLike, PARTNER_SECTOR_KEYS } from "@/lib/partnerSector";
+import { inferPartnerPrimarySector, getPartnerVisibleSectors, isDeliveryServiceLike, isDoorstepServiceLike, isHospitalityServiceLike, isTransportServiceLike, PARTNER_SECTOR_KEYS } from "@/lib/partnerSector";
 
 const FALLBACK = "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 400 400'><rect width='400' height='400' fill='%23e2e8f0'/><text x='50%25' y='50%25' dominant-baseline='middle' text-anchor='middle' fill='%23475569' font-size='20' font-family='Arial'>No Image</text></svg>";
 const PDF_PREVIEW = "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 400 400'><rect width='400' height='400' fill='%23f1f5f9'/><rect x='80' y='50' width='240' height='300' rx='14' fill='%23ffffff' stroke='%2394a3b8' stroke-width='4'/><text x='200' y='190' text-anchor='middle' fill='%23dc2626' font-size='46' font-family='Arial' font-weight='bold'>PDF</text><text x='200' y='228' text-anchor='middle' fill='%23334155' font-size='16' font-family='Arial'>Tap to Open</text></svg>";
@@ -464,15 +464,17 @@ export default function PartnerGalleryPage() {
   const productListings = useMemo(() => products.filter((item) => !isServiceListing(item)), [products]);
   const serviceListings = useMemo(() => products.filter((item) => isServiceListing(item)), [products]);
   const transportListings = useMemo(() => serviceListings.filter((item) => isTransportServiceListing(item)), [serviceListings]);
-  const hospitalityListings = useMemo(() => serviceListings.filter((item) => !isTransportServiceListing(item) && isHospitalityServiceListing(item)), [serviceListings]);
-  const doorstepListings = useMemo(() => serviceListings.filter((item) => !isTransportServiceListing(item) && !isHospitalityServiceListing(item) && isDoorstepServiceListing(item)), [serviceListings]);
-  const regularServiceListings = useMemo(() => serviceListings.filter((item) => !isTransportServiceListing(item) && !isHospitalityServiceListing(item) && !isDoorstepServiceListing(item)), [serviceListings]);
+  const deliveryListings = useMemo(() => serviceListings.filter((item) => !isTransportServiceListing(item) && isDeliveryServiceLike(item)), [serviceListings]);
+  const hospitalityListings = useMemo(() => serviceListings.filter((item) => !isTransportServiceListing(item) && !isDeliveryServiceLike(item) && isHospitalityServiceListing(item)), [serviceListings]);
+  const doorstepListings = useMemo(() => serviceListings.filter((item) => !isTransportServiceListing(item) && !isDeliveryServiceLike(item) && !isHospitalityServiceListing(item) && isDoorstepServiceListing(item)), [serviceListings]);
+  const regularServiceListings = useMemo(() => serviceListings.filter((item) => !isTransportServiceListing(item) && !isDeliveryServiceLike(item) && !isHospitalityServiceListing(item) && !isDoorstepServiceListing(item)), [serviceListings]);
   const primarySector = useMemo(() => inferPartnerPrimarySector({
     businessType: partner?.business_type,
     businessName: partner?.business_name,
     counts: {
       products: productListings.length,
       transport: transportListings.length,
+        delivery: deliveryListings.length,
       hospitality: hospitalityListings.length,
       doorstep: doorstepListings.length,
       otherServices: regularServiceListings.length,
@@ -491,6 +493,7 @@ export default function PartnerGalleryPage() {
     const tabs = [];
     if (visibleSectors.includes(PARTNER_SECTOR_KEYS.PRODUCT_SECTOR)) tabs.push("products");
     if (visibleSectors.includes(PARTNER_SECTOR_KEYS.TRANSPORT_SECTOR)) tabs.push("transport");
+    if (visibleSectors.includes(PARTNER_SECTOR_KEYS.DELIVERY_PARTNER_SECTOR)) tabs.push("delivery-partner");
     if (visibleSectors.includes(PARTNER_SECTOR_KEYS.HOSPITALITY_SECTOR)) tabs.push("stay-dining");
     if (visibleSectors.includes(PARTNER_SECTOR_KEYS.DOORSTEP_SECTOR)) tabs.push("doorstep");
     if (visibleSectors.includes(PARTNER_SECTOR_KEYS.OTHER_SERVICE_SECTOR)) tabs.push("other-services");
@@ -500,11 +503,13 @@ export default function PartnerGalleryPage() {
   const activeTab = allowedTabs.includes(requestedTab) ? requestedTab : defaultTab;
   const activeListings = activeTab === "transport"
     ? transportListings
+    : (activeTab === "delivery-partner"
+      ? deliveryListings
     : (activeTab === "stay-dining"
       ? hospitalityListings
       : (activeTab === "doorstep"
         ? doorstepListings
-        : (activeTab === "other-services" ? regularServiceListings : productListings)));
+        : (activeTab === "other-services" ? regularServiceListings : productListings))));
   const isBookNowRole = !user || ["member", "customer"].includes(String(user?.role || "").toLowerCase());
   const canAccessProductPdf = ["partner", "admin", "super_admin", "company_admin"].includes(String(user?.role || "").toLowerCase());
   const getStock = (product) => Math.max(0, Number(product?.stock ?? 0));

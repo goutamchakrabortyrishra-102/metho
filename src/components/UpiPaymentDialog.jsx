@@ -52,6 +52,23 @@ const SERVICE_SLOT_TEMPLATE_KEYS = new Set([
   "photo_event_shoot",
   "video_shoot_edit",
 ]);
+const DELIVERY_PARTNER_TEMPLATE_KEYS = new Set(["courier_pickup", "cargo_transport"]);
+
+const normalizeText = (value) => String(value || "").trim().toLowerCase().replace(/\s+/g, " ");
+
+const extractPincodeFromAddress = (value) => {
+  const digits = String(value || "").replace(/\D/g, "");
+  return digits.length >= 6 ? digits.slice(-6) : "";
+};
+
+const extractCityFromAddress = (value) => {
+  const parts = normalizeText(value).replace(/;/g, ",").split(",").map((part) => part.trim()).filter(Boolean);
+  if (parts.length === 0) return "";
+  for (let index = parts.length - 1; index >= 0; index -= 1) {
+    if (!/\d/.test(parts[index])) return parts[index];
+  }
+  return parts[parts.length - 1];
+};
 
 const readGuestCheckoutPrefs = () => {
   try {
@@ -139,6 +156,16 @@ export default function UpiPaymentDialog({
       const key = String(item?.service_template_key || "").trim().toLowerCase();
       return SERVICE_SLOT_TEMPLATE_KEYS.has(key);
     })
+    : false;
+  const requiresDeliveryAreaCheck = Array.isArray(items)
+    ? items.some((item) => DELIVERY_PARTNER_TEMPLATE_KEYS.has(String(item?.service_template_key || "").trim().toLowerCase()))
+    : false;
+  const configuredDeliveryCity = normalizeText(paymentConfig?.delivery_city || "");
+  const configuredDeliveryPincode = String(paymentConfig?.delivery_pincode || "").replace(/\D/g, "");
+  const customerCity = extractCityFromAddress(address);
+  const customerPincode = extractPincodeFromAddress(address);
+  const deliveryAreaMismatch = requiresDeliveryAreaCheck && (configuredDeliveryCity || configuredDeliveryPincode)
+    ? Boolean((configuredDeliveryCity && customerCity && configuredDeliveryCity !== customerCity) || (configuredDeliveryPincode && customerPincode && configuredDeliveryPincode !== customerPincode))
     : false;
 
   useEffect(() => {
@@ -233,6 +260,7 @@ export default function UpiPaymentDialog({
     if (paymentMode === "cod" && !resolvedCustomerPhone) return toast.error("COD order-এর জন্য Mobile Number দিন");
     if (paymentMode === "cod" && !resolvedPayerName) return toast.error("COD order-এর জন্য Customer Name দিন");
     if (!existingOrderId && requiresShippingAddress && !address.trim()) return toast.error("Please enter shipping address");
+    if (!existingOrderId && deliveryAreaMismatch) return toast.error(`Delivery is available only in ${[paymentConfig?.delivery_city, paymentConfig?.delivery_pincode].filter(Boolean).join(", ")}`);
     if (!existingOrderId && requiresServiceSlot && !slotDateTime.trim()) return toast.error("Service slot date and time দিন");
     if (!existingOrderId && requiresRestaurantSlot && Number(slotGuestCount || 0) <= 0) return toast.error("Guest count দিন");
     if (paymentMode === "upi") {
@@ -650,6 +678,15 @@ export default function UpiPaymentDialog({
                   data-testid="upi-shipping-input"
                   className="mt-1.5 min-h-[70px]"
                 />
+                {deliveryAreaMismatch ? (
+                  <p className="text-[11px] text-red-700 mt-1">
+                    Delivery is currently limited to {[paymentConfig?.delivery_city, paymentConfig?.delivery_pincode].filter(Boolean).join(", ")}.
+                  </p>
+                ) : paymentConfig?.delivery_city || paymentConfig?.delivery_pincode ? (
+                  <p className="text-[11px] text-muted-foreground mt-1">
+                    Delivery area: {[paymentConfig?.delivery_city, paymentConfig?.delivery_pincode].filter(Boolean).join(", ")}.
+                  </p>
+                ) : null}
               </div>
             )}
 

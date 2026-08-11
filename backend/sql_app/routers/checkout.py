@@ -72,6 +72,45 @@ SERVICE_SLOT_TEMPLATE_KEYS = {
 }
 
 
+def _normalize_text(value: str | None) -> str:
+    return " ".join(str(value or "").strip().lower().split())
+
+
+def _extract_pincode_from_address(address: str | None) -> str:
+    digits = "".join(ch for ch in str(address or "") if ch.isdigit())
+    if len(digits) >= 6:
+        return digits[-6:]
+    return ""
+
+
+def _extract_city_from_address(address: str | None) -> str:
+    text = _normalize_text(address)
+    if not text:
+        return ""
+    parts = [part.strip() for part in text.replace(";", ",").split(",") if part.strip()]
+    if not parts:
+        return text
+    for part in reversed(parts):
+        if not any(ch.isdigit() for ch in part):
+            return part
+    return parts[-1]
+
+
+def _delivery_area_matches(address: str | None, city: str | None, pincode: str | None) -> bool:
+    expected_city = _normalize_text(city)
+    expected_pincode = "".join(ch for ch in str(pincode or "") if ch.isdigit())
+    if not expected_city and not expected_pincode:
+        return True
+
+    actual_pincode = _extract_pincode_from_address(address)
+    actual_city = _extract_city_from_address(address)
+    if expected_pincode and actual_pincode and expected_pincode != actual_pincode:
+        return False
+    if expected_city and actual_city and expected_city != actual_city:
+        return False
+    return True
+
+
 def _build_partner_whatsapp_url(phone: str | None, message: str) -> str:
     digits = "".join(ch for ch in str(phone or "") if ch.isdigit())
     if not digits:
@@ -766,6 +805,7 @@ def create_public_order(payload: dict, db: Session = Depends(get_db), authorizat
 
     has_partner_item = False
     has_partner_physical_item = False
+    has_delivery_partner_item = False
     has_service_slot_item = False
     has_restaurant_slot_item = False
     for item in normalized_items:
@@ -773,6 +813,8 @@ def create_public_order(payload: dict, db: Session = Depends(get_db), authorizat
             continue
         has_partner_item = True
         template_key = str(item.get("service_template_key") or "").strip().lower()
+        if template_key in {"courier_pickup", "parcel_delivery", "express_delivery", "same_day_delivery", "delivery_partner"}:
+            has_delivery_partner_item = True
         if template_key in SERVICE_SLOT_TEMPLATE_KEYS and _is_service_order_item(item):
             has_service_slot_item = True
         if template_key in RESTAURANT_SLOT_TEMPLATE_KEYS and _is_service_order_item(item):
@@ -784,6 +826,33 @@ def create_public_order(payload: dict, db: Session = Depends(get_db), authorizat
         raise HTTPException(status_code=400, detail="Partner order requires customer mobile number")
     if has_partner_physical_item and not shipping_address:
         raise HTTPException(status_code=400, detail="Delivery address is required for partner product orders")
+
+    if has_delivery_partner_item:
+        delivery_city = ""
+        delivery_pincode = ""
+        for item in normalized_items:
+            if str(item.get("product_type") or "").strip() != "associate_partner":
+                continue
+            template_key = str(item.get("service_template_key") or "").strip().lower()
+            if template_key not in {"courier_pickup", "parcel_delivery", "express_delivery", "same_day_delivery", "delivery_partner"}:
+                continue
+            product_id = str(item.get("product_id") or "").strip()
+            if not product_id:
+                continue
+            partner_product = db.query(PartnerProduct).filter(PartnerProduct.id == product_id).first()
+            if not partner_product or not partner_product.partner_id:
+                continue
+            partner = db.query(AssociatePartner).filter(AssociatePartner.id == partner_product.partner_id).first()
+            if not partner:
+                continue
+            checkout_pref = _load_partner_checkout_pref(db, partner.id)
+            delivery_city = str(checkout_pref.get("delivery_city") or "").strip()
+            delivery_pincode = str(checkout_pref.get("delivery_pincode") or "").strip()
+            if delivery_city or delivery_pincode:
+                break
+        if (delivery_city or delivery_pincode) and not _delivery_area_matches(shipping_address, delivery_city, delivery_pincode):
+            area_label = ", ".join([part for part in [delivery_city, delivery_pincode] if part])
+            raise HTTPException(status_code=400, detail=f"Delivery is available only in {area_label}")
 
     if payment_method == "cod":
         if not customer_name or customer_name == "Customer":

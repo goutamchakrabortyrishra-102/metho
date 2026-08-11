@@ -45,7 +45,8 @@ PRODUCT_IMAGE_MAX_UPLOAD_BYTES = 5 * 1024 * 1024
 PARTNER_PRODUCT_UNITS_KEY = "partner_product_units"
 PARTNER_UNIT_OPTIONS = {"piece", "kg", "gram", "litre", "ml"}
 PARTNER_PRODUCT_META_KEY = "partner_product_meta"
-TRANSPORT_SERVICE_TEMPLATE_KEYS = {"cab_airport_drop", "car_rental_daily", "bike_rental_daily", "cargo_transport", "courier_pickup"}
+TRANSPORT_SERVICE_TEMPLATE_KEYS = {"cab_airport_drop", "car_rental_daily", "bike_rental_daily"}
+DELIVERY_SERVICE_TEMPLATE_KEYS = {"cargo_transport", "courier_pickup"}
 HOSPITALITY_SERVICE_TEMPLATE_KEYS = {
     "hotel_standard_room",
     "hotel_deluxe_room",
@@ -647,7 +648,7 @@ def _save_partner_offer_popup(db: Session, partner_id: str, payload: dict | None
 
 
 def _load_partner_checkout_pref(db: Session, partner_id: str) -> dict:
-    defaults = {"cod_enabled": True}
+    defaults = {"cod_enabled": True, "delivery_city": "", "delivery_pincode": ""}
     key = _partner_checkout_pref_key(partner_id)
     row = db.query(AppSetting).filter(AppSetting.key == key).first()
     if not row:
@@ -658,6 +659,8 @@ def _load_partner_checkout_pref(db: Session, partner_id: str) -> dict:
             return defaults
         return {
             "cod_enabled": bool(payload.get("cod_enabled", True)),
+            "delivery_city": str(payload.get("delivery_city") or "").strip(),
+            "delivery_pincode": str(payload.get("delivery_pincode") or "").strip(),
         }
     except Exception:
         return defaults
@@ -668,6 +671,8 @@ def _save_partner_checkout_pref(db: Session, partner_id: str, payload: dict | No
     incoming = payload or {}
     next_payload = {
         "cod_enabled": bool(incoming.get("cod_enabled", current.get("cod_enabled", True))),
+        "delivery_city": str(incoming.get("delivery_city") if incoming.get("delivery_city") is not None else current.get("delivery_city", "")).strip(),
+        "delivery_pincode": str(incoming.get("delivery_pincode") if incoming.get("delivery_pincode") is not None else current.get("delivery_pincode", "")).strip(),
     }
     key = _partner_checkout_pref_key(partner_id)
     row = db.query(AppSetting).filter(AppSetting.key == key).first()
@@ -856,12 +861,33 @@ def _is_transport_service_listing(item: PartnerProduct | None, meta_map: dict[st
     transport_keywords = [
         "transport", "cab", "car", "car rental", "bike", "motorbike", "vehicle", "rental", "taxi", "cargo", "logistics", "carrier",
         "goods carrier", "ride", "auto", "auto rental", "auto rickshaw", "autorickshaw",
-        "courier", "travel", "travel agency", "tour",
         "e-rickshaw", "erickshaw", "rickshaw", "truck", "pickup van", "van rental", "scooter rental",
     ]
     if listing_type == "service" and any(k in haystack for k in transport_keywords):
         return True
     if item_kind == "service" and any(k in haystack for k in transport_keywords):
+        return True
+    return False
+
+
+def _is_delivery_service_listing(item: PartnerProduct | None, meta_map: dict[str, dict] | None = None) -> bool:
+    if not item:
+        return False
+    meta = (meta_map or {}).get(str(item.id), {}) if isinstance(meta_map, dict) else {}
+    template_key = str(meta.get("service_template_key") or "").strip().lower()
+    if template_key in DELIVERY_SERVICE_TEMPLATE_KEYS:
+        return True
+    listing_type = str(meta.get("listing_type") or "").strip().lower()
+    item_kind = str(meta.get("item_kind") or "").strip().lower()
+    haystack = " ".join([
+        str(item.category or "").lower(),
+        str(item.name or "").lower(),
+        str(item.description or "").lower(),
+    ])
+    delivery_keywords = ["delivery", "courier", "logistics", "cargo", "parcel", "shipment", "dispatch", "freight", "goods carrier"]
+    if listing_type == "service" and any(k in haystack for k in delivery_keywords):
+        return True
+    if item_kind == "service" and any(k in haystack for k in delivery_keywords):
         return True
     return False
 
@@ -4075,6 +4101,8 @@ def partner_payment_profile(request: Request, db: Session = Depends(get_db), cur
         "business_name": partner.business_name,
         "partner_upi_id": partner.upi_id,
         "cod_enabled": bool(checkout_pref.get("cod_enabled", True)),
+        "delivery_city": str(checkout_pref.get("delivery_city") or "").strip(),
+        "delivery_pincode": str(checkout_pref.get("delivery_pincode") or "").strip(),
         "offer_popup": offer_popup,
         "business_youtube_url": business_youtube_url,
         "business_facebook_url": business_facebook_url,
@@ -4129,6 +4157,8 @@ def partner_payment_profile_update(payload: dict, db: Session = Depends(get_db),
         "ok": True,
         "partner_upi_id": str(partner.upi_id or "").strip(),
         "cod_enabled": bool(saved_pref.get("cod_enabled", True)),
+        "delivery_city": str(saved_pref.get("delivery_city") or "").strip(),
+        "delivery_pincode": str(saved_pref.get("delivery_pincode") or "").strip(),
         "offer_popup": saved_offer,
         "business_youtube_url": saved_business_youtube_url,
         "business_facebook_url": saved_business_facebook_url,
@@ -4156,6 +4186,8 @@ def partner_public_payment_profile(partner_code: str, request: Request, db: Sess
         "business_name": partner.business_name,
         "upi_id": str(partner.upi_id or "").strip(),
         "cod_enabled": bool(checkout_pref.get("cod_enabled", True)),
+        "delivery_city": str(checkout_pref.get("delivery_city") or "").strip(),
+        "delivery_pincode": str(checkout_pref.get("delivery_pincode") or "").strip(),
         "offer_popup": offer_popup,
         "business_youtube_url": business_youtube_url,
         "business_facebook_url": business_facebook_url,

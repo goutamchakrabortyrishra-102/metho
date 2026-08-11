@@ -12,7 +12,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { resolveAssetUrl } from "@/lib/utils";
-import { inferPartnerPrimarySector, getPartnerVisibleSectors, isDoorstepServiceLike, isHospitalityServiceLike, isTransportServiceLike, PARTNER_SECTOR_KEYS } from "@/lib/partnerSector";
+import { inferPartnerPrimarySector, getPartnerVisibleSectors, isDeliveryServiceLike, isDoorstepServiceLike, isHospitalityServiceLike, isTransportServiceLike, PARTNER_SECTOR_KEYS } from "@/lib/partnerSector";
 
 const inr = (v) => `₹${(Number(v) || 0).toLocaleString("en-IN", { maximumFractionDigits: 2 })}`;
 const withUnit = (price, unitType) => {
@@ -231,6 +231,7 @@ const Tab = ({ id, active, onClick, children, activeClassName, idleClassName }) 
 const DASHBOARD_SECTOR_LABEL = {
   [PARTNER_SECTOR_KEYS.PRODUCT_SECTOR]: "Products",
   [PARTNER_SECTOR_KEYS.TRANSPORT_SECTOR]: "Transport",
+  [PARTNER_SECTOR_KEYS.DELIVERY_PARTNER_SECTOR]: "Delivery Partner",
   [PARTNER_SECTOR_KEYS.HOSPITALITY_SECTOR]: "Stay & Dining",
   [PARTNER_SECTOR_KEYS.DOORSTEP_SECTOR]: "Doorstep",
   [PARTNER_SECTOR_KEYS.OTHER_SERVICE_SECTOR]: "Other Services",
@@ -247,6 +248,18 @@ const getDashboardTheme = (primarySector) => {
       overviewHeroClass: "border-sky-300 bg-sky-50",
       overviewTitle: "Transport Control Center",
       overviewDesc: "Trip request, fare locking, and transport listing management একসাথে এখানে করুন।",
+    };
+  }
+  if (primarySector === PARTNER_SECTOR_KEYS.DELIVERY_PARTNER_SECTOR) {
+    return {
+      headerClass: "bg-cyan-950 text-white",
+      chipClass: "text-cyan-300",
+      metricHighlightClass: "bg-gradient-to-br from-cyan-100 to-sky-100 border-cyan-300",
+      tabActiveClass: "bg-cyan-900 text-white border-cyan-900",
+      tabIdleClass: "bg-white text-cyan-900 border-cyan-200 hover:bg-cyan-50",
+      overviewHeroClass: "border-cyan-300 bg-cyan-50",
+      overviewTitle: "Delivery Partner Operations Desk",
+      overviewDesc: "Courier, logistics, and delivery partner listing management আলাদা panel-এ করুন।",
     };
   }
   if (primarySector === PARTNER_SECTOR_KEYS.HOSPITALITY_SECTOR) {
@@ -299,6 +312,8 @@ export default function PartnerDashboardPage() {
   const [partnerUpiId, setPartnerUpiId] = useState("");
   const [partnerBusinessYoutubeUrl, setPartnerBusinessYoutubeUrl] = useState("");
   const [partnerBusinessFacebookUrl, setPartnerBusinessFacebookUrl] = useState("");
+  const [partnerDeliveryCity, setPartnerDeliveryCity] = useState("");
+  const [partnerDeliveryPincode, setPartnerDeliveryPincode] = useState("");
   const [partnerCodEnabled, setPartnerCodEnabled] = useState(true);
   const [offerPopupEnabled, setOfferPopupEnabled] = useState(false);
   const [offerPopupTitle, setOfferPopupTitle] = useState("");
@@ -326,9 +341,10 @@ export default function PartnerDashboardPage() {
   const normalizedOrders = Array.isArray(orders) ? orders : [];
   const productItems = normalizedProducts.filter((p) => !(String(p?.listing_type || p?.item_kind || "").toLowerCase().includes("service") || p?.is_service));
   const transportItems = normalizedProducts.filter((p) => (String(p?.listing_type || p?.item_kind || "").toLowerCase().includes("service") || p?.is_service) && isTransportServiceListing(p));
-  const hospitalityItems = normalizedProducts.filter((p) => (String(p?.listing_type || p?.item_kind || "").toLowerCase().includes("service") || p?.is_service) && !isTransportServiceListing(p) && isHospitalityServiceListing(p));
-  const doorstepItems = normalizedProducts.filter((p) => (String(p?.listing_type || p?.item_kind || "").toLowerCase().includes("service") || p?.is_service) && !isTransportServiceListing(p) && !isHospitalityServiceListing(p) && isDoorstepServiceListing(p));
-  const serviceItems = normalizedProducts.filter((p) => (String(p?.listing_type || p?.item_kind || "").toLowerCase().includes("service") || p?.is_service) && !isTransportServiceListing(p) && !isHospitalityServiceListing(p) && !isDoorstepServiceListing(p));
+  const deliveryItems = normalizedProducts.filter((p) => (String(p?.listing_type || p?.item_kind || "").toLowerCase().includes("service") || p?.is_service) && !isTransportServiceListing(p) && isDeliveryServiceLike(p));
+  const hospitalityItems = normalizedProducts.filter((p) => (String(p?.listing_type || p?.item_kind || "").toLowerCase().includes("service") || p?.is_service) && !isTransportServiceListing(p) && !isDeliveryServiceLike(p) && isHospitalityServiceListing(p));
+  const doorstepItems = normalizedProducts.filter((p) => (String(p?.listing_type || p?.item_kind || "").toLowerCase().includes("service") || p?.is_service) && !isTransportServiceListing(p) && !isDeliveryServiceLike(p) && !isHospitalityServiceLike(p) && isDoorstepServiceListing(p));
+  const serviceItems = normalizedProducts.filter((p) => (String(p?.listing_type || p?.item_kind || "").toLowerCase().includes("service") || p?.is_service) && !isTransportServiceListing(p) && !isDeliveryServiceLike(p) && !isHospitalityServiceLike(p) && !isDoorstepServiceLike(p));
   const featuredProductFallbacks = productItems
     .map((item) => getPartnerProductImageUrl(item))
     .filter(Boolean)
@@ -343,6 +359,7 @@ export default function PartnerDashboardPage() {
     counts: {
       products: productItems.length,
       transport: transportItems.length,
+      delivery: deliveryItems.length,
       hospitality: hospitalityItems.length,
       doorstep: doorstepItems.length,
       otherServices: serviceItems.length,
@@ -351,12 +368,14 @@ export default function PartnerDashboardPage() {
   const visibleSectors = getPartnerVisibleSectors(primarySector);
   const canViewProductsSector = visibleSectors.includes(PARTNER_SECTOR_KEYS.PRODUCT_SECTOR);
   const canViewTransportSector = visibleSectors.includes(PARTNER_SECTOR_KEYS.TRANSPORT_SECTOR);
+  const canViewDeliveryPartnerSector = visibleSectors.includes(PARTNER_SECTOR_KEYS.DELIVERY_PARTNER_SECTOR);
   const canViewHospitalitySector = visibleSectors.includes(PARTNER_SECTOR_KEYS.HOSPITALITY_SECTOR);
   const canViewDoorstepSector = visibleSectors.includes(PARTNER_SECTOR_KEYS.DOORSTEP_SECTOR);
   const canViewOtherServiceSector = visibleSectors.includes(PARTNER_SECTOR_KEYS.OTHER_SERVICE_SECTOR);
   const sectorTabs = [
     canViewProductsSector ? "products" : null,
     canViewTransportSector ? "transport" : null,
+    canViewDeliveryPartnerSector ? "delivery-partner" : null,
     canViewHospitalitySector ? "stay-dining" : null,
     canViewDoorstepSector ? "doorstep" : null,
     canViewOtherServiceSector ? "services" : null,
@@ -612,6 +631,8 @@ export default function PartnerDashboardPage() {
     setPartnerUpiId(paymentProfile?.partner_upi_id || "");
     setPartnerBusinessYoutubeUrl(String(paymentProfile?.business_youtube_url || ""));
     setPartnerBusinessFacebookUrl(String(paymentProfile?.business_facebook_url || ""));
+    setPartnerDeliveryCity(String(paymentProfile?.delivery_city || ""));
+    setPartnerDeliveryPincode(String(paymentProfile?.delivery_pincode || ""));
     setPartnerCodEnabled(paymentProfile?.cod_enabled !== false);
     setOfferPopupEnabled(paymentProfile?.offer_popup?.enabled === true);
     setOfferPopupTitle(String(paymentProfile?.offer_popup?.title || ""));
@@ -919,6 +940,8 @@ export default function PartnerDashboardPage() {
         business_youtube_url: String(partnerBusinessYoutubeUrl || "").trim(),
         business_facebook_url: String(partnerBusinessFacebookUrl || "").trim(),
         cod_enabled: !!partnerCodEnabled,
+        delivery_city: String(partnerDeliveryCity || "").trim(),
+        delivery_pincode: String(partnerDeliveryPincode || "").trim(),
         offer_popup: {
           enabled: !!offerPopupEnabled,
           title: String(offerPopupTitle || "").trim(),
@@ -1059,6 +1082,7 @@ export default function PartnerDashboardPage() {
           <Tab id="overview" active={tab} onClick={setTab} activeClassName={dashboardTheme.tabActiveClass} idleClassName={dashboardTheme.tabIdleClass}>Overview</Tab>
           {canViewProductsSector ? <Tab id="products" active={tab} onClick={setTab} activeClassName={dashboardTheme.tabActiveClass} idleClassName={dashboardTheme.tabIdleClass}>Products ({productItems.length})</Tab> : null}
           {canViewTransportSector ? <Tab id="transport" active={tab} onClick={setTab} activeClassName={dashboardTheme.tabActiveClass} idleClassName={dashboardTheme.tabIdleClass}>Transport ({transportItems.length})</Tab> : null}
+          {canViewDeliveryPartnerSector ? <Tab id="delivery-partner" active={tab} onClick={setTab} activeClassName={dashboardTheme.tabActiveClass} idleClassName={dashboardTheme.tabIdleClass}>Delivery Partner ({deliveryItems.length})</Tab> : null}
           {canViewHospitalitySector ? <Tab id="stay-dining" active={tab} onClick={setTab} activeClassName={dashboardTheme.tabActiveClass} idleClassName={dashboardTheme.tabIdleClass}>Stay & Dining ({hospitalityItems.length})</Tab> : null}
           {canViewDoorstepSector ? <Tab id="doorstep" active={tab} onClick={setTab} activeClassName={dashboardTheme.tabActiveClass} idleClassName={dashboardTheme.tabIdleClass}>Doorstep ({doorstepItems.length})</Tab> : null}
           {canViewOtherServiceSector ? <Tab id="services" active={tab} onClick={setTab} activeClassName={dashboardTheme.tabActiveClass} idleClassName={dashboardTheme.tabIdleClass}>Other Services ({serviceItems.length})</Tab> : null}
@@ -1269,6 +1293,28 @@ export default function PartnerDashboardPage() {
                     </Button>
                   </div>
                 </div>
+                <div className="mt-3 grid grid-cols-1 sm:grid-cols-2 gap-2">
+                  <div>
+                    <Label htmlFor="partner-delivery-city">Delivery City</Label>
+                    <Input
+                      id="partner-delivery-city"
+                      value={partnerDeliveryCity}
+                      onChange={(e) => setPartnerDeliveryCity(e.target.value)}
+                      placeholder="e.g. Kolkata"
+                      className="mt-1.5 h-10"
+                    />
+                  </div>
+                  <div>
+                    <Label htmlFor="partner-delivery-pincode">Delivery Pincode</Label>
+                    <Input
+                      id="partner-delivery-pincode"
+                      value={partnerDeliveryPincode}
+                      onChange={(e) => setPartnerDeliveryPincode(e.target.value)}
+                      placeholder="e.g. 700001"
+                      className="mt-1.5 h-10"
+                    />
+                  </div>
+                </div>
                 <div className="mt-3">
                   <Label htmlFor="partner-business-youtube">Business YouTube Link</Label>
                   <div className="mt-1.5 flex flex-col sm:flex-row gap-2">
@@ -1401,6 +1447,7 @@ export default function PartnerDashboardPage() {
                   </div>
                 </div>
                 <p className="font-mono text-xs text-emerald-900 mt-2">Current UPI: {paymentProfile?.partner_upi_id || "Not set"}</p>
+                <p className="text-xs text-slate-600 mt-1">Current Delivery Area: {(paymentProfile?.delivery_city || paymentProfile?.delivery_pincode) ? [paymentProfile?.delivery_city, paymentProfile?.delivery_pincode].filter(Boolean).join(", ") : "Not set"}</p>
                 <p className="text-xs text-slate-600 mt-1">Current Business Video: {paymentProfile?.business_youtube_url ? "Set" : "Not set"}</p>
                 <p className="text-xs text-slate-600 mt-1">Current Business Facebook: {paymentProfile?.business_facebook_url ? "Set" : "Not set"}</p>
                 <p className="text-xs text-slate-600 mt-1">Current COD: {paymentProfile?.cod_enabled === false ? "Disabled" : "Enabled"}</p>
@@ -1912,6 +1959,91 @@ export default function PartnerDashboardPage() {
             <div className="rounded-2xl border border-sky-200/80 bg-white/90 p-4 md:p-5 flex flex-wrap items-center justify-between gap-3">
               <div>
                 <p className="text-[10px] uppercase tracking-[0.18em] text-sky-700 font-semibold">Transport Operations</p>
+
+            {tab === "delivery-partner" && canViewDeliveryPartnerSector && (
+              <div className="rounded-2xl border border-cyan-200 bg-gradient-to-br from-cyan-50 via-white to-sky-50 p-6" data-testid="partner-delivery-tab">
+                <div className="rounded-2xl border border-cyan-200/80 bg-white/90 p-4 md:p-5 flex flex-wrap items-center justify-between gap-3">
+                  <div>
+                    <p className="text-[10px] uppercase tracking-[0.18em] text-cyan-700 font-semibold">Delivery Partner Operations</p>
+                    <h3 className="font-display font-black text-emerald-950 text-xl mt-1 inline-flex items-center gap-2">Courier / Logistics / Delivery Partner Control Room</h3>
+                    <p className="text-xs text-slate-600 mt-1">Courier, cargo, parcel, and delivery partner listings আলাদা panel-এ manage করুন।</p>
+                  </div>
+                  <div className="rounded-lg border border-cyan-200 bg-cyan-50 px-3 py-2 text-xs text-cyan-900 inline-flex items-center gap-2">
+                    <Wallet className="w-4 h-4" /> Listings: {deliveryItems.length}
+                  </div>
+                </div>
+
+                <div className="mt-4 grid grid-cols-1 xl:grid-cols-[1.15fr_0.85fr] gap-4">
+                  <div className="rounded-xl border border-cyan-200 bg-cyan-50/70 p-4">
+                    <div className="flex items-center justify-between gap-3 flex-wrap">
+                      <div>
+                        <p className="text-[10px] uppercase tracking-widest text-cyan-700 font-semibold">Delivery Listings</p>
+                        <h4 className="font-display font-bold text-emerald-950 text-base mt-1">Add and manage delivery services only</h4>
+                        <p className="text-xs text-slate-600 mt-1">এখান থেকে courier, cargo, parcel, logistics ধরনের delivery partner listing manage করুন। Transport ride flow আলাদা থাকবে।</p>
+                      </div>
+                      <PartnerProductForm
+                        onSaved={loadAll}
+                        defaultListingType="service"
+                        fixedListingType="service"
+                        allowedServiceSectors={["Delivery Partner"]}
+                        initialServiceSectorFilter="Delivery Partner"
+                        triggerLabel="Add Delivery Partner"
+                        dialogTitle="New Delivery Partner Listing"
+                        dialogDescription="Create only delivery partner listings here. Transport ride flow stays in the transport tab."
+                      />
+                    </div>
+                    {deliveryItems.length === 0 ? (
+                      <div className="mt-4 rounded-lg border border-dashed border-cyan-300 bg-white px-4 py-8 text-center text-sm text-slate-500">
+                        No delivery partner listing yet. Use Add Delivery Partner to create courier or cargo service.
+                      </div>
+                    ) : (
+                      <div className="mt-4 grid grid-cols-2 md:grid-cols-4 gap-4">
+                        {deliveryItems.map((p) => (
+                          <div key={p.id} className="rounded-lg border border-cyan-200 overflow-hidden bg-white shadow-sm">
+                            <div className="aspect-square bg-secondary relative">
+                              <img src={getPreviewImageUrl(p) || undefined} alt={p.name} className="w-full h-full object-cover" />
+                              <span className="absolute right-2 top-2 rounded-full bg-cyan-100 text-cyan-900 px-2 py-0.5 text-[10px] font-bold">Delivery</span>
+                            </div>
+                            <div className="p-3">
+                              <p className="font-semibold text-sm text-emerald-950">{p.name}</p>
+                              <p className="text-xs text-muted-foreground">{p.category}</p>
+                              <p className="font-display font-black text-emerald-800 mt-1">{withUnit(p.price, p.unit_type)}</p>
+                              <div className="flex gap-1 mt-2">
+                                <PartnerProductForm
+                                  product={p}
+                                  onSaved={loadAll}
+                                  fixedListingType="service"
+                                  allowedServiceSectors={["Delivery Partner"]}
+                                  initialServiceSectorFilter="Delivery Partner"
+                                  triggerLabel="Edit Delivery"
+                                  dialogTitle="Edit Delivery Partner Listing"
+                                  dialogDescription="Update only this delivery partner listing. Transport ride flow stays separate."
+                                />
+                                <Button size="sm" variant="outline" className="rounded-full border-red-300 text-red-700 hover:bg-red-50 h-7 px-2 text-[11px]" onClick={() => deleteProduct(p.id)} data-testid={`del-my-delivery-${p.id}`}>Delete</Button>
+                              </div>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="rounded-xl border border-cyan-200 bg-white p-4">
+                    <p className="text-[10px] uppercase tracking-widest text-cyan-800 font-semibold">How Delivery Partner Works</p>
+                    <div className="mt-3 space-y-3 text-xs text-cyan-900">
+                      <div className="rounded-lg border border-cyan-200 bg-cyan-50 px-3 py-2">
+                        <p className="font-semibold">Courier and logistics only</p>
+                        <p className="mt-1">Transport rides stay in the transport tab; delivery items stay here.</p>
+                      </div>
+                      <div className="rounded-lg border border-cyan-200 bg-cyan-50 px-3 py-2">
+                        <p className="font-semibold">Public page uses same add-to-cart flow</p>
+                        <p className="mt-1">Customers can open the delivery sector listing and checkout the same way as other services.</p>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
                 <h3 className="font-display font-black text-emerald-950 text-xl mt-1 inline-flex items-center gap-2"><CarTaxiFront className="w-5 h-5" /> Cab / Car Rental / Bike Rental Control Room</h3>
                 <p className="text-xs text-slate-600 mt-1">Transport listing, fare lock, reserve check, and trip lifecycle execution - all in one professional panel.</p>
               </div>
@@ -1926,17 +2058,17 @@ export default function PartnerDashboardPage() {
                   <div>
                     <p className="text-[10px] uppercase tracking-widest text-sky-700 font-semibold">Transport Listings</p>
                     <h4 className="font-display font-bold text-emerald-950 text-base mt-1">Add and manage ride/rental services only</h4>
-                    <p className="text-xs text-slate-600 mt-1">এখান থেকে শুধু cab, car rental, bike rental, mini cargo ধরনের transport listing manage করুন। এগুলো service tab-এ যাবে না।</p>
+                    <p className="text-xs text-slate-600 mt-1">এখান থেকে শুধু cab, car rental, bike rental ধরনের transport listing manage করুন। এগুলো service tab-এ যাবে না।</p>
                   </div>
                   <PartnerProductForm
                     onSaved={loadAll}
                     defaultListingType="service"
                     fixedListingType="service"
-                    allowedServiceSectors={["Transport", "Logistics"]}
+                    allowedServiceSectors={["Transport"]}
                     initialServiceSectorFilter="Transport"
                     triggerLabel="Add Transport"
                     dialogTitle="New Transport Listing"
-                    dialogDescription="Create only transport listings here. Final fare and trip flow will be managed from the same transport tab."
+                    dialogDescription="Create only transport ride listings here. Final fare and trip flow will be managed from the same transport tab."
                   />
                 </div>
                 <div className="mt-4 grid grid-cols-1 md:grid-cols-2 gap-3">
@@ -1988,7 +2120,7 @@ export default function PartnerDashboardPage() {
                               product={p}
                               onSaved={loadAll}
                               fixedListingType="service"
-                              allowedServiceSectors={["Transport", "Logistics"]}
+                              allowedServiceSectors={["Transport"]}
                               initialServiceSectorFilter="Transport"
                               triggerLabel={noRealImage ? "Upload Image" : "Edit"}
                               dialogTitle="Edit Transport Listing"
