@@ -620,6 +620,7 @@ export default function PartnerProductForm({
   const [uploadingImage, setUploadingImage] = useState(false);
   const [localPreviewUrl, setLocalPreviewUrl] = useState("");
   const [serviceSectorFilter, setServiceSectorFilter] = useState(initialServiceSectorFilter);
+  const [customTemplateTypeName, setCustomTemplateTypeName] = useState("");
   const fileRef = useRef(null);
   const normalizedAllowedServiceSectors = Array.isArray(allowedServiceSectors) && allowedServiceSectors.length
     ? allowedServiceSectors.filter(Boolean)
@@ -678,6 +679,36 @@ export default function PartnerProductForm({
       service_invoice_mode: String(tpl.service_invoice_mode || prev.service_invoice_mode || "detailed").toLowerCase(),
     }));
     toast.success(`${tpl.sector} template applied`);
+  };
+
+  const applyCustomTemplateType = () => {
+    const nextName = String(customTemplateTypeName || "").trim();
+    if (!nextName) {
+      toast.error("New template type name দিন");
+      return;
+    }
+    const inferredSector = serviceSectorFilter && serviceSectorFilter !== "All"
+      ? serviceSectorFilter
+      : "Other Service";
+    setForm((prev) => ({
+      ...prev,
+      listing_type: "service",
+      name: nextName,
+      category: String(prev.category || `Service / ${inferredSector}`),
+      service_template_key: "",
+      stock: String(prev.stock || "1"),
+      service_invoice_mode: String(prev.service_invoice_mode || "detailed").toLowerCase(),
+    }));
+    toast.success("Custom service type applied. এখন fields edit করে save করুন");
+  };
+
+  const convertSelectedTemplateToCustom = () => {
+    if (!String(form.service_template_key || "").trim()) {
+      toast.error("আগে একটি template select করুন");
+      return;
+    }
+    setForm((prev) => ({ ...prev, service_template_key: "" }));
+    toast.success("Template editable custom mode-এ নেয়া হয়েছে");
   };
 
   useEffect(() => () => {
@@ -884,6 +915,33 @@ export default function PartnerProductForm({
                   ))}
                 </select>
               </div>
+              <div className="grid grid-cols-1 md:grid-cols-[1fr_auto_auto] gap-2">
+                <Input
+                  value={customTemplateTypeName}
+                  onChange={(e) => setCustomTemplateTypeName(e.target.value)}
+                  placeholder="New type name (e.g. Aquarium Cleaning Service)"
+                  className="h-9 bg-white"
+                  data-testid="service-template-new-type-input"
+                />
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={applyCustomTemplateType}
+                  className="h-9 rounded-full"
+                  data-testid="service-template-apply-new-type"
+                >
+                  New Type Apply
+                </Button>
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={convertSelectedTemplateToCustom}
+                  className="h-9 rounded-full"
+                  data-testid="service-template-edit-as-custom"
+                >
+                  Edit As New Type
+                </Button>
+              </div>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
                 {visibleServiceTemplates.map((tpl) => (
                   <button
@@ -897,7 +955,7 @@ export default function PartnerProductForm({
                     <p className="text-[11px] text-slate-600 mt-0.5">₹{tpl.price} · Slots {tpl.stock}</p>
                     <div className="mt-2 flex justify-end">
                       <span className="inline-flex items-center rounded-full border border-emerald-300 bg-emerald-100 px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider text-emerald-900">
-                        Create From Template
+                        Use Template
                       </span>
                     </div>
                   </button>
