@@ -1521,7 +1521,7 @@ export default function PartnerShopPage() {
         </>
       ) : null}
 
-      {canShowDeliveryPartner && deliveryListings.length > 0 ? (
+      {canShowDeliveryPartner ? (
         <div className="mb-8">
           <div className="bg-white rounded-xl border border-cyan-200 p-6" data-testid="partner-shop-delivery-panel">
             <div className="flex items-start gap-2 mb-1">
@@ -1540,7 +1540,7 @@ export default function PartnerShopPage() {
 
       </div>
 
-      {canShowHospitality && hasHospitalityListings ? (
+      {canShowHospitality ? (
         <>
           <div className="mb-8">
             <div className="bg-white rounded-xl border border-amber-200 p-6" data-testid="partner-shop-hospitality-panel">
@@ -1648,7 +1648,7 @@ export default function PartnerShopPage() {
         </>
       ) : null}
 
-      {canShowDoorstep && hasDoorstepListings ? (
+      {canShowDoorstep ? (
         <>
           <div className="mb-8">
             <div className="bg-white rounded-xl border border-violet-200 p-6" data-testid="partner-shop-doorstep-panel">
@@ -1756,7 +1756,7 @@ export default function PartnerShopPage() {
         </>
       ) : null}
 
-      {canShowProperty && hasPropertyListings ? (
+      {canShowProperty ? (
         <>
           <div className="mb-8">
             <div className="bg-white rounded-xl border border-indigo-200 p-6" data-testid="partner-shop-property-panel">
@@ -1883,7 +1883,7 @@ export default function PartnerShopPage() {
         </>
       ) : null}
 
-      {canShowOtherServices && hasServiceListings ? (
+      {canShowOtherServices ? (
         <>
           <div className="mb-8">
             <div className="bg-white rounded-xl border border-border p-6" data-testid="partner-shop-left-services-panel">
