@@ -502,6 +502,7 @@ export default function PartnerShopPage() {
     data?.partner?.business_name,
     productListings.length,
     transportListings.length,
+    deliveryListings.length,
     hospitalityListings.length,
     doorstepListings.length,
     regularServiceListings.length,

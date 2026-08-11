@@ -424,6 +424,8 @@ export default function PartnerGalleryPage() {
   const autoPdfTriggered = useRef(false);
   const [data, setData] = useState(null);
   const [paymentProfile, setPaymentProfile] = useState(null);
+  const [offerPopup, setOfferPopup] = useState(null);
+  const [showOfferPopup, setShowOfferPopup] = useState(false);
   const [err, setErr] = useState(null);
   const [cart, setCart] = useState({});
   const [cartUnits, setCartUnits] = useState({});
@@ -446,9 +448,30 @@ export default function PartnerGalleryPage() {
 
   useEffect(() => {
     api.get(`/partner/public-payment-profile/${partnerCode}`)
-      .then((r) => setPaymentProfile(r.data))
-      .catch(() => setPaymentProfile(null));
+      .then((r) => {
+        setPaymentProfile(r.data);
+        setOfferPopup(r.data?.offer_popup || null);
+      })
+      .catch(() => {
+        setPaymentProfile(null);
+        setOfferPopup(null);
+      });
   }, [partnerCode]);
+
+  useEffect(() => {
+    const enabled = offerPopup?.enabled === true;
+    const title = String(offerPopup?.title || "").trim();
+    const message = String(offerPopup?.message || "").trim();
+    if (!enabled || (!title && !message)) {
+      setShowOfferPopup(false);
+      return;
+    }
+    setShowOfferPopup(true);
+  }, [offerPopup, partnerCode]);
+
+  const closeOfferPopup = () => {
+    setShowOfferPopup(false);
+  };
 
   // Auto-open product from URL param ?p=productId
   useEffect(() => {
@@ -484,6 +507,7 @@ export default function PartnerGalleryPage() {
     partner?.business_name,
     productListings.length,
     transportListings.length,
+    deliveryListings.length,
     hospitalityListings.length,
     doorstepListings.length,
     regularServiceListings.length,
@@ -866,6 +890,40 @@ export default function PartnerGalleryPage() {
           </div>
         </div>
       </header>
+
+      {showOfferPopup && offerPopup?.enabled ? (
+        <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4" onClick={closeOfferPopup}>
+          <div className="w-full max-w-md rounded-2xl bg-white border border-emerald-200 shadow-2xl p-5" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <p className="text-[10px] uppercase tracking-widest text-emerald-700 font-bold">Special Offer</p>
+                <h3 className="font-display font-black text-xl text-emerald-950 mt-1">{offerPopup?.title || "Offer"}</h3>
+              </div>
+              <button
+                type="button"
+                onClick={closeOfferPopup}
+                className="w-8 h-8 rounded-full bg-slate-100 text-slate-600 hover:bg-slate-200 flex items-center justify-center"
+                aria-label="Close offer popup"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+            {offerPopup?.message ? <p className="text-sm text-slate-700 mt-3">{offerPopup.message}</p> : null}
+            {offerPopup?.coupon_code ? (
+              <div className="mt-4 rounded-lg border border-amber-300 bg-amber-50 px-3 py-2">
+                <p className="text-[10px] uppercase tracking-widest text-amber-700 font-bold">Coupon Code</p>
+                <p className="font-mono font-bold text-amber-900 mt-1">{offerPopup.coupon_code}</p>
+              </div>
+            ) : null}
+            <div className="mt-4 flex gap-2 justify-end">
+              <Button type="button" variant="outline" onClick={closeOfferPopup} className="rounded-full">Later</Button>
+              <Button type="button" onClick={closeOfferPopup} className="rounded-full bg-emerald-900 hover:bg-emerald-950 text-white">
+                {offerPopup?.cta_text || "Shop Now"}
+              </Button>
+            </div>
+          </div>
+        </div>
+      ) : null}
 
       {/* Partner info strip */}
       <div className={`bg-gradient-to-r from-emerald-900 to-emerald-800 text-white ${items.length > 0 ? "mt-20 md:mt-0" : ""}`}>
