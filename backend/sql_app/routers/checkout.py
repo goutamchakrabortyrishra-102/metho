@@ -78,6 +78,8 @@ TRANSPORT_TEMPLATE_KEYS = {
 }
 SLOT_INACTIVE_ORDER_STATUSES = {"cancelled", "rejected", "failed", "expired"}
 SLOT_SUGGESTION_INTERVAL_MINUTES = 30
+SLOT_SUGGESTION_INTERVAL_MIN_MINUTES = 5
+SLOT_SUGGESTION_INTERVAL_MAX_MINUTES = 180
 
 
 def _parse_slot_datetime(value: str | None) -> datetime | None:
@@ -126,10 +128,48 @@ def _service_slot_product_ids_from_items(items: list[dict] | None) -> set[str]:
     return product_ids
 
 
-def _next_available_service_slot_suggestion(db: Session, requested_slot: str, service_product_ids: set[str]) -> str:
+def _normalize_slot_interval_minutes(value, default_value: int = SLOT_SUGGESTION_INTERVAL_MINUTES) -> int:
+    try:
+        minutes = int(value)
+    except Exception:
+        minutes = int(default_value)
+    return max(SLOT_SUGGESTION_INTERVAL_MIN_MINUTES, min(SLOT_SUGGESTION_INTERVAL_MAX_MINUTES, minutes))
+
+
+def _partner_slot_suggestion_interval_minutes(db: Session, partner_id: str) -> int:
+    key = f"partner_checkout_pref:{str(partner_id or '').strip()}"
+    row = db.query(AppSetting).filter(AppSetting.key == key).first()
+    if not row:
+        return SLOT_SUGGESTION_INTERVAL_MINUTES
+    try:
+        payload = json.loads(row.value_json or "{}")
+    except Exception:
+        payload = {}
+    if not isinstance(payload, dict):
+        payload = {}
+    return _normalize_slot_interval_minutes(payload.get("slot_suggestion_interval_minutes"), SLOT_SUGGESTION_INTERVAL_MINUTES)
+
+
+def _resolve_slot_suggestion_interval_minutes(db: Session, service_product_ids: set[str]) -> int:
+    if not service_product_ids:
+        return SLOT_SUGGESTION_INTERVAL_MINUTES
+    intervals: list[int] = []
+    for product_id in service_product_ids:
+        product = db.query(PartnerProduct).filter(PartnerProduct.id == product_id).first()
+        if not product or not getattr(product, "partner_id", ""):
+            continue
+        intervals.append(_partner_slot_suggestion_interval_minutes(db, product.partner_id))
+    if not intervals:
+        return SLOT_SUGGESTION_INTERVAL_MINUTES
+    return min(intervals)
+
+
+def _next_available_service_slot_suggestion(db: Session, requested_slot: str, service_product_ids: set[str], interval_minutes: int = SLOT_SUGGESTION_INTERVAL_MINUTES) -> str:
     requested_dt = _parse_slot_datetime(requested_slot)
     if not requested_dt or not service_product_ids:
         return ""
+
+    slot_interval_minutes = _normalize_slot_interval_minutes(interval_minutes, SLOT_SUGGESTION_INTERVAL_MINUTES)
 
     taken_slots: set[datetime] = set()
     rows = db.query(PublicOrder).all()
@@ -156,7 +196,7 @@ def _next_available_service_slot_suggestion(db: Session, requested_slot: str, se
 
     probe = requested_dt
     for _ in range(1, 49):
-        probe = probe + timedelta(minutes=SLOT_SUGGESTION_INTERVAL_MINUTES)
+        probe = probe + timedelta(minutes=slot_interval_minutes)
         if probe not in taken_slots:
             return probe.strftime("%Y-%m-%dT%H:%M")
     return ""
@@ -996,7 +1036,8 @@ def create_public_order(payload: dict, db: Session = Depends(get_db), authorizat
         if not requested_slot_dt:
             raise HTTPException(status_code=400, detail="Invalid slot date and time format")
         slot_product_ids = _service_slot_product_ids_from_items(normalized_items)
-        suggested_slot = _next_available_service_slot_suggestion(db, slot_datetime, slot_product_ids)
+        slot_interval_minutes = _resolve_slot_suggestion_interval_minutes(db, slot_product_ids)
+        suggested_slot = _next_available_service_slot_suggestion(db, slot_datetime, slot_product_ids, slot_interval_minutes)
         if suggested_slot:
             raise HTTPException(status_code=409, detail=f"Selected slot is already booked. Try next slot: {suggested_slot}")
 

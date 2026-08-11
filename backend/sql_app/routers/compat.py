@@ -655,6 +655,7 @@ def _load_partner_checkout_pref(db: Session, partner_id: str) -> dict:
         "delivery_city": "",
         "delivery_pincode": "",
         "delivery_radius_km": 0,
+        "slot_suggestion_interval_minutes": 30,
     }
     key = _partner_checkout_pref_key(partner_id)
     row = db.query(AppSetting).filter(AppSetting.key == key).first()
@@ -671,6 +672,7 @@ def _load_partner_checkout_pref(db: Session, partner_id: str) -> dict:
             "delivery_city": str(payload.get("delivery_city") or "").strip(),
             "delivery_pincode": str(payload.get("delivery_pincode") or "").strip(),
             "delivery_radius_km": max(0, int(payload.get("delivery_radius_km") or 0)),
+            "slot_suggestion_interval_minutes": max(5, min(180, int(payload.get("slot_suggestion_interval_minutes") or 30))),
         }
     except Exception:
         return defaults
@@ -686,6 +688,7 @@ def _save_partner_checkout_pref(db: Session, partner_id: str, payload: dict | No
         "delivery_city": str(incoming.get("delivery_city") if incoming.get("delivery_city") is not None else current.get("delivery_city", "")).strip(),
         "delivery_pincode": str(incoming.get("delivery_pincode") if incoming.get("delivery_pincode") is not None else current.get("delivery_pincode", "")).strip(),
         "delivery_radius_km": max(0, int(incoming.get("delivery_radius_km") if incoming.get("delivery_radius_km") is not None else current.get("delivery_radius_km", 0))),
+        "slot_suggestion_interval_minutes": max(5, min(180, int(incoming.get("slot_suggestion_interval_minutes") if incoming.get("slot_suggestion_interval_minutes") is not None else current.get("slot_suggestion_interval_minutes", 30)))),
     }
     key = _partner_checkout_pref_key(partner_id)
     row = db.query(AppSetting).filter(AppSetting.key == key).first()
@@ -4119,6 +4122,7 @@ def partner_payment_profile(request: Request, db: Session = Depends(get_db), cur
         "delivery_city": str(checkout_pref.get("delivery_city") or "").strip(),
         "delivery_pincode": str(checkout_pref.get("delivery_pincode") or "").strip(),
         "delivery_radius_km": max(0, int(checkout_pref.get("delivery_radius_km") or 0)),
+        "slot_suggestion_interval_minutes": max(5, min(180, int(checkout_pref.get("slot_suggestion_interval_minutes") or 30))),
         "offer_popup": offer_popup,
         "business_youtube_url": business_youtube_url,
         "business_facebook_url": business_facebook_url,
@@ -4154,6 +4158,18 @@ def partner_payment_profile_update(payload: dict, db: Session = Depends(get_db),
     next_pref = _load_partner_checkout_pref(db, partner.id)
     if "cod_enabled" in body:
         next_pref["cod_enabled"] = bool(body.get("cod_enabled"))
+    if "delivery_state" in body:
+        next_pref["delivery_state"] = str(body.get("delivery_state") or "").strip()
+    if "delivery_district" in body:
+        next_pref["delivery_district"] = str(body.get("delivery_district") or "").strip()
+    if "delivery_city" in body:
+        next_pref["delivery_city"] = str(body.get("delivery_city") or "").strip()
+    if "delivery_pincode" in body:
+        next_pref["delivery_pincode"] = str(body.get("delivery_pincode") or "").strip()
+    if "delivery_radius_km" in body:
+        next_pref["delivery_radius_km"] = max(0, int(body.get("delivery_radius_km") or 0))
+    if "slot_suggestion_interval_minutes" in body:
+        next_pref["slot_suggestion_interval_minutes"] = max(5, min(180, int(body.get("slot_suggestion_interval_minutes") or 30)))
     next_offer = _load_partner_offer_popup(db, partner.id)
     next_business_youtube_url = _load_partner_business_youtube(db, partner.id)
     next_business_facebook_url = _load_partner_business_facebook(db, partner.id)
@@ -4178,6 +4194,7 @@ def partner_payment_profile_update(payload: dict, db: Session = Depends(get_db),
         "delivery_city": str(saved_pref.get("delivery_city") or "").strip(),
         "delivery_pincode": str(saved_pref.get("delivery_pincode") or "").strip(),
         "delivery_radius_km": max(0, int(saved_pref.get("delivery_radius_km") or 0)),
+        "slot_suggestion_interval_minutes": max(5, min(180, int(saved_pref.get("slot_suggestion_interval_minutes") or 30))),
         "offer_popup": saved_offer,
         "business_youtube_url": saved_business_youtube_url,
         "business_facebook_url": saved_business_facebook_url,
@@ -4210,6 +4227,7 @@ def partner_public_payment_profile(partner_code: str, request: Request, db: Sess
         "delivery_city": str(checkout_pref.get("delivery_city") or "").strip(),
         "delivery_pincode": str(checkout_pref.get("delivery_pincode") or "").strip(),
         "delivery_radius_km": max(0, int(checkout_pref.get("delivery_radius_km") or 0)),
+        "slot_suggestion_interval_minutes": max(5, min(180, int(checkout_pref.get("slot_suggestion_interval_minutes") or 30))),
         "offer_popup": offer_popup,
         "business_youtube_url": business_youtube_url,
         "business_facebook_url": business_facebook_url,

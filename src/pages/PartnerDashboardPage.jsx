@@ -319,6 +319,7 @@ export default function PartnerDashboardPage() {
   const [partnerDeliveryCity, setPartnerDeliveryCity] = useState("");
   const [partnerDeliveryPincode, setPartnerDeliveryPincode] = useState("");
   const [partnerDeliveryRadiusKm, setPartnerDeliveryRadiusKm] = useState("0");
+  const [partnerSlotSuggestionIntervalMinutes, setPartnerSlotSuggestionIntervalMinutes] = useState("30");
   const [deliveryMetaBusy, setDeliveryMetaBusy] = useState(false);
   const [deliveryLocationMeta, setDeliveryLocationMeta] = useState({
     states: [...INDIAN_STATES],
@@ -713,6 +714,7 @@ export default function PartnerDashboardPage() {
     setPartnerDeliveryCity(String(paymentProfile?.delivery_city || ""));
     setPartnerDeliveryPincode(String(paymentProfile?.delivery_pincode || ""));
     setPartnerDeliveryRadiusKm(String(paymentProfile?.delivery_radius_km ?? 0));
+    setPartnerSlotSuggestionIntervalMinutes(String(paymentProfile?.slot_suggestion_interval_minutes ?? 30));
     setPartnerCodEnabled(paymentProfile?.cod_enabled !== false);
     setOfferPopupEnabled(paymentProfile?.offer_popup?.enabled === true);
     setOfferPopupTitle(String(paymentProfile?.offer_popup?.title || ""));
@@ -1025,6 +1027,7 @@ export default function PartnerDashboardPage() {
         delivery_city: String(partnerDeliveryCity || "").trim(),
         delivery_pincode: String(partnerDeliveryPincode || "").trim(),
         delivery_radius_km: Math.max(0, Number(partnerDeliveryRadiusKm || 0)),
+        slot_suggestion_interval_minutes: Math.max(5, Math.min(180, Number(partnerSlotSuggestionIntervalMinutes || 30))),
         offer_popup: {
           enabled: !!offerPopupEnabled,
           title: String(offerPopupTitle || "").trim(),
@@ -2182,6 +2185,21 @@ export default function PartnerDashboardPage() {
                       />
                     </div>
                   </div>
+                  <div>
+                    <Label htmlFor="slot-suggestion-interval-input">Next Slot Suggestion Interval (minutes)</Label>
+                    <Input
+                      id="slot-suggestion-interval-input"
+                      type="number"
+                      min="5"
+                      max="180"
+                      step="5"
+                      value={partnerSlotSuggestionIntervalMinutes}
+                      onChange={(e) => setPartnerSlotSuggestionIntervalMinutes(e.target.value)}
+                      placeholder="e.g. 30"
+                      className="mt-1.5 h-10"
+                    />
+                    <p className="text-[11px] text-slate-500 mt-1">Slot taken হলে customer-কে এই interval অনুযায়ী next available time suggest করা হবে (5-180 মিনিট).</p>
+                  </div>
                 </div>
                 <Button
                   type="button"
@@ -2195,6 +2213,7 @@ export default function PartnerDashboardPage() {
                 <div className="rounded-lg border border-cyan-200 bg-cyan-50 px-3 py-2 text-xs text-cyan-900">
                   Current Area: {[paymentProfile?.delivery_state, paymentProfile?.delivery_district, paymentProfile?.delivery_city, paymentProfile?.delivery_pincode].filter(Boolean).join(", ") || "Not set"}
                   {Number(paymentProfile?.delivery_radius_km || 0) > 0 ? ` · Radius ${Number(paymentProfile?.delivery_radius_km || 0)} KM` : ""}
+                  {` · Next Slot Interval ${Number(paymentProfile?.slot_suggestion_interval_minutes || 30)} min`}
                 </div>
               </div>
             </div>
