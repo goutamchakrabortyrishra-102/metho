@@ -12,6 +12,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { resolveAssetUrl } from "@/lib/utils";
+import { INDIAN_STATES } from "@/lib/indiaLocation";
 import { inferPartnerPrimarySector, getPartnerVisibleSectors, isDeliveryServiceLike, isDoorstepServiceLike, isHospitalityServiceLike, isTransportServiceLike, PARTNER_SECTOR_KEYS } from "@/lib/partnerSector";
 
 const inr = (v) => `₹${(Number(v) || 0).toLocaleString("en-IN", { maximumFractionDigits: 2 })}`;
@@ -95,6 +96,7 @@ const serviceRateLabel = (item) => {
   if (key.includes("monthly")) return "Monthly Rate";
   return "Service Rate";
 };
+const uniqueSorted = (items) => Array.from(new Set(items.map((value) => String(value || "").trim()).filter(Boolean))).sort((a, b) => a.localeCompare(b));
 const TRANSPORT_STATUS_META = {
   booked: { label: "New Request", tone: "bg-sky-100 text-sky-800 border-sky-200" },
   confirmed: { label: "Confirmed", tone: "bg-emerald-100 text-emerald-800 border-emerald-200" },
@@ -312,8 +314,17 @@ export default function PartnerDashboardPage() {
   const [partnerUpiId, setPartnerUpiId] = useState("");
   const [partnerBusinessYoutubeUrl, setPartnerBusinessYoutubeUrl] = useState("");
   const [partnerBusinessFacebookUrl, setPartnerBusinessFacebookUrl] = useState("");
+  const [partnerDeliveryState, setPartnerDeliveryState] = useState("");
+  const [partnerDeliveryDistrict, setPartnerDeliveryDistrict] = useState("");
   const [partnerDeliveryCity, setPartnerDeliveryCity] = useState("");
   const [partnerDeliveryPincode, setPartnerDeliveryPincode] = useState("");
+  const [partnerDeliveryRadiusKm, setPartnerDeliveryRadiusKm] = useState("0");
+  const [deliveryMetaBusy, setDeliveryMetaBusy] = useState(false);
+  const [deliveryLocationMeta, setDeliveryLocationMeta] = useState({
+    states: [...INDIAN_STATES],
+    districtsByState: {},
+    citiesByStateDistrict: {},
+  });
   const [partnerCodEnabled, setPartnerCodEnabled] = useState(true);
   const [offerPopupEnabled, setOfferPopupEnabled] = useState(false);
   const [offerPopupTitle, setOfferPopupTitle] = useState("");
@@ -345,6 +356,16 @@ export default function PartnerDashboardPage() {
   const hospitalityItems = normalizedProducts.filter((p) => (String(p?.listing_type || p?.item_kind || "").toLowerCase().includes("service") || p?.is_service) && !isTransportServiceListing(p) && !isDeliveryServiceLike(p) && isHospitalityServiceListing(p));
   const doorstepItems = normalizedProducts.filter((p) => (String(p?.listing_type || p?.item_kind || "").toLowerCase().includes("service") || p?.is_service) && !isTransportServiceListing(p) && !isDeliveryServiceLike(p) && !isHospitalityServiceLike(p) && isDoorstepServiceListing(p));
   const serviceItems = normalizedProducts.filter((p) => (String(p?.listing_type || p?.item_kind || "").toLowerCase().includes("service") || p?.is_service) && !isTransportServiceListing(p) && !isDeliveryServiceLike(p) && !isHospitalityServiceLike(p) && !isDoorstepServiceLike(p));
+  const deliveryDistrictOptions = (() => {
+    const fromMeta = partnerDeliveryState ? (deliveryLocationMeta.districtsByState?.[partnerDeliveryState] || []) : [];
+    return uniqueSorted([...(fromMeta || []), partnerDeliveryDistrict]);
+  })();
+  const deliveryCityOptions = (() => {
+    if (!partnerDeliveryState || !partnerDeliveryDistrict) return uniqueSorted([partnerDeliveryCity]);
+    const key = `${String(partnerDeliveryState || "").toLowerCase()}||${String(partnerDeliveryDistrict || "").toLowerCase()}`;
+    const fromMeta = deliveryLocationMeta.citiesByStateDistrict?.[key] || [];
+    return uniqueSorted([...(fromMeta || []), partnerDeliveryCity]);
+  })();
   const featuredProductFallbacks = productItems
     .map((item) => getPartnerProductImageUrl(item))
     .filter(Boolean)
@@ -627,12 +648,71 @@ export default function PartnerDashboardPage() {
   }, [tab, listingDefaultTab, sectorTabs]);
 
   useEffect(() => {
+    let cancelled = false;
+    setDeliveryMetaBusy(true);
+    import("indian-pincodes")
+      .then((mod) => {
+        if (cancelled) return;
+        const pkg = mod?.default || mod;
+        const allRows = typeof pkg?.getAllPincodes === "function" ? pkg.getAllPincodes() : [];
+        const rows = Array.isArray(allRows) ? allRows : [];
+        const statesSet = new Set();
+        const districtsMap = {};
+        const citiesMap = {};
+
+        rows.forEach((row) => {
+          const state = String(row?.state || "").trim();
+          const district = String(row?.district || "").trim();
+          const city = String(row?.name || "").trim();
+          if (!state || !district) return;
+          statesSet.add(state);
+          if (!districtsMap[state]) districtsMap[state] = new Set();
+          districtsMap[state].add(district);
+          if (city) {
+            const key = `${state.toLowerCase()}||${district.toLowerCase()}`;
+            if (!citiesMap[key]) citiesMap[key] = new Set();
+            citiesMap[key].add(city);
+          }
+        });
+
+        const states = Array.from(statesSet).sort((a, b) => a.localeCompare(b));
+        const districtsByState = Object.fromEntries(
+          Object.entries(districtsMap).map(([state, districts]) => [state, Array.from(districts).sort((a, b) => a.localeCompare(b))])
+        );
+        const citiesByStateDistrict = Object.fromEntries(
+          Object.entries(citiesMap).map(([key, citySet]) => [key, Array.from(citySet).sort((a, b) => a.localeCompare(b))])
+        );
+
+        setDeliveryLocationMeta({
+          states: states.length ? states : [...INDIAN_STATES],
+          districtsByState,
+          citiesByStateDistrict,
+        });
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setDeliveryLocationMeta({ states: [...INDIAN_STATES], districtsByState: {}, citiesByStateDistrict: {} });
+        }
+      })
+      .finally(() => {
+        if (!cancelled) setDeliveryMetaBusy(false);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  useEffect(() => {
     if (!paymentProfile) return;
     setPartnerUpiId(paymentProfile?.partner_upi_id || "");
     setPartnerBusinessYoutubeUrl(String(paymentProfile?.business_youtube_url || ""));
     setPartnerBusinessFacebookUrl(String(paymentProfile?.business_facebook_url || ""));
+    setPartnerDeliveryState(String(paymentProfile?.delivery_state || ""));
+    setPartnerDeliveryDistrict(String(paymentProfile?.delivery_district || ""));
     setPartnerDeliveryCity(String(paymentProfile?.delivery_city || ""));
     setPartnerDeliveryPincode(String(paymentProfile?.delivery_pincode || ""));
+    setPartnerDeliveryRadiusKm(String(paymentProfile?.delivery_radius_km ?? 0));
     setPartnerCodEnabled(paymentProfile?.cod_enabled !== false);
     setOfferPopupEnabled(paymentProfile?.offer_popup?.enabled === true);
     setOfferPopupTitle(String(paymentProfile?.offer_popup?.title || ""));
@@ -940,8 +1020,11 @@ export default function PartnerDashboardPage() {
         business_youtube_url: String(partnerBusinessYoutubeUrl || "").trim(),
         business_facebook_url: String(partnerBusinessFacebookUrl || "").trim(),
         cod_enabled: !!partnerCodEnabled,
+        delivery_state: String(partnerDeliveryState || "").trim(),
+        delivery_district: String(partnerDeliveryDistrict || "").trim(),
         delivery_city: String(partnerDeliveryCity || "").trim(),
         delivery_pincode: String(partnerDeliveryPincode || "").trim(),
+        delivery_radius_km: Math.max(0, Number(partnerDeliveryRadiusKm || 0)),
         offer_popup: {
           enabled: !!offerPopupEnabled,
           title: String(offerPopupTitle || "").trim(),
@@ -1954,96 +2037,175 @@ export default function PartnerDashboardPage() {
           </div>
         )}
 
+        {tab === "delivery-partner" && canViewDeliveryPartnerSector && (
+          <div className="rounded-2xl border border-cyan-200 bg-gradient-to-br from-cyan-50 via-white to-sky-50 p-6" data-testid="partner-delivery-tab">
+            <div className="rounded-2xl border border-cyan-200/80 bg-white/90 p-4 md:p-5 flex flex-wrap items-center justify-between gap-3">
+              <div>
+                <p className="text-[10px] uppercase tracking-[0.18em] text-cyan-700 font-semibold">Delivery Partner Operations</p>
+                <h3 className="font-display font-black text-emerald-950 text-xl mt-1 inline-flex items-center gap-2">Courier / Logistics / Delivery Partner Control Room</h3>
+                <p className="text-xs text-slate-600 mt-1">Courier, cargo, parcel, and delivery partner listings আলাদা panel-এ manage করুন।</p>
+              </div>
+              <div className="rounded-lg border border-cyan-200 bg-cyan-50 px-3 py-2 text-xs text-cyan-900 inline-flex items-center gap-2">
+                <Wallet className="w-4 h-4" /> Listings: {deliveryItems.length}
+              </div>
+            </div>
+
+            <div className="mt-4 grid grid-cols-1 xl:grid-cols-[1.15fr_0.85fr] gap-4">
+              <div className="rounded-xl border border-cyan-200 bg-cyan-50/70 p-4">
+                <div className="flex items-center justify-between gap-3 flex-wrap">
+                  <div>
+                    <p className="text-[10px] uppercase tracking-widest text-cyan-700 font-semibold">Delivery Listings</p>
+                    <h4 className="font-display font-bold text-emerald-950 text-base mt-1">Add and manage delivery services only</h4>
+                    <p className="text-xs text-slate-600 mt-1">এখান থেকে courier, cargo, parcel, logistics ধরনের delivery partner listing manage করুন। Transport ride flow আলাদা থাকবে।</p>
+                  </div>
+                  <PartnerProductForm
+                    onSaved={loadAll}
+                    defaultListingType="service"
+                    fixedListingType="service"
+                    allowedServiceSectors={["Delivery Partner"]}
+                    initialServiceSectorFilter="Delivery Partner"
+                    triggerLabel="Add Delivery Partner"
+                    dialogTitle="New Delivery Partner Listing"
+                    dialogDescription="Create only delivery partner listings here. Transport ride flow stays in the transport tab."
+                  />
+                </div>
+                {deliveryItems.length === 0 ? (
+                  <div className="mt-4 rounded-lg border border-dashed border-cyan-300 bg-white px-4 py-8 text-center text-sm text-slate-500">
+                    No delivery partner listing yet. Use Add Delivery Partner to create courier or cargo service.
+                  </div>
+                ) : (
+                  <div className="mt-4 grid grid-cols-2 md:grid-cols-4 gap-4">
+                    {deliveryItems.map((p) => (
+                      <div key={p.id} className="rounded-lg border border-cyan-200 overflow-hidden bg-white shadow-sm">
+                        <div className="aspect-square bg-secondary relative">
+                          <img src={getPreviewImageUrl(p) || undefined} alt={p.name} className="w-full h-full object-cover" />
+                          <span className="absolute right-2 top-2 rounded-full bg-cyan-100 text-cyan-900 px-2 py-0.5 text-[10px] font-bold">Delivery</span>
+                        </div>
+                        <div className="p-3">
+                          <p className="font-semibold text-sm text-emerald-950">{p.name}</p>
+                          <p className="text-xs text-muted-foreground">{p.category}</p>
+                          <p className="font-display font-black text-emerald-800 mt-1">{withUnit(p.price, p.unit_type)}</p>
+                          <div className="flex gap-1 mt-2">
+                            <PartnerProductForm
+                              product={p}
+                              onSaved={loadAll}
+                              fixedListingType="service"
+                              allowedServiceSectors={["Delivery Partner"]}
+                              initialServiceSectorFilter="Delivery Partner"
+                              triggerLabel="Edit Delivery"
+                              dialogTitle="Edit Delivery Partner Listing"
+                              dialogDescription="Update only this delivery partner listing. Transport ride flow stays separate."
+                            />
+                            <Button size="sm" variant="outline" className="rounded-full border-red-300 text-red-700 hover:bg-red-50 h-7 px-2 text-[11px]" onClick={() => deleteProduct(p.id)} data-testid={`del-my-delivery-${p.id}`}>Delete</Button>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              <div className="rounded-xl border border-cyan-200 bg-white p-4 space-y-3">
+                <p className="text-[10px] uppercase tracking-widest text-cyan-800 font-semibold">Delivery Coverage Settings</p>
+                <div className="grid grid-cols-1 gap-2">
+                  <div>
+                    <Label htmlFor="delivery-state-select">State</Label>
+                    <select
+                      id="delivery-state-select"
+                      value={partnerDeliveryState}
+                      onChange={(e) => {
+                        setPartnerDeliveryState(e.target.value);
+                        setPartnerDeliveryDistrict("");
+                        setPartnerDeliveryCity("");
+                      }}
+                      className="mt-1.5 h-10 w-full rounded-md border border-input bg-white px-3 text-sm"
+                    >
+                      <option value="">Select state</option>
+                      {(deliveryLocationMeta.states.length ? deliveryLocationMeta.states : INDIAN_STATES).map((state) => (
+                        <option key={state} value={state}>{state}</option>
+                      ))}
+                    </select>
+                  </div>
+                  <div>
+                    <Label htmlFor="delivery-district-select">District</Label>
+                    <select
+                      id="delivery-district-select"
+                      value={partnerDeliveryDistrict}
+                      onChange={(e) => {
+                        setPartnerDeliveryDistrict(e.target.value);
+                        setPartnerDeliveryCity("");
+                      }}
+                      className="mt-1.5 h-10 w-full rounded-md border border-input bg-white px-3 text-sm"
+                    >
+                      <option value="">Select district</option>
+                      {deliveryDistrictOptions.map((district) => (
+                        <option key={district} value={district}>{district}</option>
+                      ))}
+                    </select>
+                  </div>
+                  <div>
+                    <Label htmlFor="delivery-city-select">City</Label>
+                    <select
+                      id="delivery-city-select"
+                      value={partnerDeliveryCity}
+                      onChange={(e) => setPartnerDeliveryCity(e.target.value)}
+                      className="mt-1.5 h-10 w-full rounded-md border border-input bg-white px-3 text-sm"
+                    >
+                      <option value="">Select city</option>
+                      {deliveryCityOptions.map((city) => (
+                        <option key={city} value={city}>{city}</option>
+                      ))}
+                    </select>
+                  </div>
+                  <div className="grid grid-cols-2 gap-2">
+                    <div>
+                      <Label htmlFor="delivery-pin-input">Pincode</Label>
+                      <Input
+                        id="delivery-pin-input"
+                        value={partnerDeliveryPincode}
+                        onChange={(e) => setPartnerDeliveryPincode(e.target.value)}
+                        placeholder="e.g. 700001"
+                        className="mt-1.5 h-10"
+                      />
+                    </div>
+                    <div>
+                      <Label htmlFor="delivery-radius-input">Area (KM)</Label>
+                      <Input
+                        id="delivery-radius-input"
+                        type="number"
+                        min="0"
+                        step="1"
+                        value={partnerDeliveryRadiusKm}
+                        onChange={(e) => setPartnerDeliveryRadiusKm(e.target.value)}
+                        placeholder="e.g. 10"
+                        className="mt-1.5 h-10"
+                      />
+                    </div>
+                  </div>
+                </div>
+                <Button
+                  type="button"
+                  onClick={() => savePartnerUpiId()}
+                  disabled={savingPartnerUpi}
+                  className="rounded-full bg-cyan-700 hover:bg-cyan-800 text-white w-full"
+                >
+                  {savingPartnerUpi ? "Saving..." : "Save Delivery Coverage"}
+                </Button>
+                {deliveryMetaBusy ? <p className="text-[11px] text-slate-500">Loading state/district/city options...</p> : null}
+                <div className="rounded-lg border border-cyan-200 bg-cyan-50 px-3 py-2 text-xs text-cyan-900">
+                  Current Area: {[paymentProfile?.delivery_state, paymentProfile?.delivery_district, paymentProfile?.delivery_city, paymentProfile?.delivery_pincode].filter(Boolean).join(", ") || "Not set"}
+                  {Number(paymentProfile?.delivery_radius_km || 0) > 0 ? ` · Radius ${Number(paymentProfile?.delivery_radius_km || 0)} KM` : ""}
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
         {tab === "transport" && canViewTransportSector && (
           <div className="rounded-2xl border border-sky-200 bg-gradient-to-br from-sky-50 via-white to-cyan-50 p-6" data-testid="partner-transport-tab">
             <div className="rounded-2xl border border-sky-200/80 bg-white/90 p-4 md:p-5 flex flex-wrap items-center justify-between gap-3">
               <div>
                 <p className="text-[10px] uppercase tracking-[0.18em] text-sky-700 font-semibold">Transport Operations</p>
-
-            {tab === "delivery-partner" && canViewDeliveryPartnerSector && (
-              <div className="rounded-2xl border border-cyan-200 bg-gradient-to-br from-cyan-50 via-white to-sky-50 p-6" data-testid="partner-delivery-tab">
-                <div className="rounded-2xl border border-cyan-200/80 bg-white/90 p-4 md:p-5 flex flex-wrap items-center justify-between gap-3">
-                  <div>
-                    <p className="text-[10px] uppercase tracking-[0.18em] text-cyan-700 font-semibold">Delivery Partner Operations</p>
-                    <h3 className="font-display font-black text-emerald-950 text-xl mt-1 inline-flex items-center gap-2">Courier / Logistics / Delivery Partner Control Room</h3>
-                    <p className="text-xs text-slate-600 mt-1">Courier, cargo, parcel, and delivery partner listings আলাদা panel-এ manage করুন।</p>
-                  </div>
-                  <div className="rounded-lg border border-cyan-200 bg-cyan-50 px-3 py-2 text-xs text-cyan-900 inline-flex items-center gap-2">
-                    <Wallet className="w-4 h-4" /> Listings: {deliveryItems.length}
-                  </div>
-                </div>
-
-                <div className="mt-4 grid grid-cols-1 xl:grid-cols-[1.15fr_0.85fr] gap-4">
-                  <div className="rounded-xl border border-cyan-200 bg-cyan-50/70 p-4">
-                    <div className="flex items-center justify-between gap-3 flex-wrap">
-                      <div>
-                        <p className="text-[10px] uppercase tracking-widest text-cyan-700 font-semibold">Delivery Listings</p>
-                        <h4 className="font-display font-bold text-emerald-950 text-base mt-1">Add and manage delivery services only</h4>
-                        <p className="text-xs text-slate-600 mt-1">এখান থেকে courier, cargo, parcel, logistics ধরনের delivery partner listing manage করুন। Transport ride flow আলাদা থাকবে।</p>
-                      </div>
-                      <PartnerProductForm
-                        onSaved={loadAll}
-                        defaultListingType="service"
-                        fixedListingType="service"
-                        allowedServiceSectors={["Delivery Partner"]}
-                        initialServiceSectorFilter="Delivery Partner"
-                        triggerLabel="Add Delivery Partner"
-                        dialogTitle="New Delivery Partner Listing"
-                        dialogDescription="Create only delivery partner listings here. Transport ride flow stays in the transport tab."
-                      />
-                    </div>
-                    {deliveryItems.length === 0 ? (
-                      <div className="mt-4 rounded-lg border border-dashed border-cyan-300 bg-white px-4 py-8 text-center text-sm text-slate-500">
-                        No delivery partner listing yet. Use Add Delivery Partner to create courier or cargo service.
-                      </div>
-                    ) : (
-                      <div className="mt-4 grid grid-cols-2 md:grid-cols-4 gap-4">
-                        {deliveryItems.map((p) => (
-                          <div key={p.id} className="rounded-lg border border-cyan-200 overflow-hidden bg-white shadow-sm">
-                            <div className="aspect-square bg-secondary relative">
-                              <img src={getPreviewImageUrl(p) || undefined} alt={p.name} className="w-full h-full object-cover" />
-                              <span className="absolute right-2 top-2 rounded-full bg-cyan-100 text-cyan-900 px-2 py-0.5 text-[10px] font-bold">Delivery</span>
-                            </div>
-                            <div className="p-3">
-                              <p className="font-semibold text-sm text-emerald-950">{p.name}</p>
-                              <p className="text-xs text-muted-foreground">{p.category}</p>
-                              <p className="font-display font-black text-emerald-800 mt-1">{withUnit(p.price, p.unit_type)}</p>
-                              <div className="flex gap-1 mt-2">
-                                <PartnerProductForm
-                                  product={p}
-                                  onSaved={loadAll}
-                                  fixedListingType="service"
-                                  allowedServiceSectors={["Delivery Partner"]}
-                                  initialServiceSectorFilter="Delivery Partner"
-                                  triggerLabel="Edit Delivery"
-                                  dialogTitle="Edit Delivery Partner Listing"
-                                  dialogDescription="Update only this delivery partner listing. Transport ride flow stays separate."
-                                />
-                                <Button size="sm" variant="outline" className="rounded-full border-red-300 text-red-700 hover:bg-red-50 h-7 px-2 text-[11px]" onClick={() => deleteProduct(p.id)} data-testid={`del-my-delivery-${p.id}`}>Delete</Button>
-                              </div>
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-
-                  <div className="rounded-xl border border-cyan-200 bg-white p-4">
-                    <p className="text-[10px] uppercase tracking-widest text-cyan-800 font-semibold">How Delivery Partner Works</p>
-                    <div className="mt-3 space-y-3 text-xs text-cyan-900">
-                      <div className="rounded-lg border border-cyan-200 bg-cyan-50 px-3 py-2">
-                        <p className="font-semibold">Courier and logistics only</p>
-                        <p className="mt-1">Transport rides stay in the transport tab; delivery items stay here.</p>
-                      </div>
-                      <div className="rounded-lg border border-cyan-200 bg-cyan-50 px-3 py-2">
-                        <p className="font-semibold">Public page uses same add-to-cart flow</p>
-                        <p className="mt-1">Customers can open the delivery sector listing and checkout the same way as other services.</p>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            )}
                 <h3 className="font-display font-black text-emerald-950 text-xl mt-1 inline-flex items-center gap-2"><CarTaxiFront className="w-5 h-5" /> Cab / Car Rental / Bike Rental Control Room</h3>
                 <p className="text-xs text-slate-600 mt-1">Transport listing, fare lock, reserve check, and trip lifecycle execution - all in one professional panel.</p>
               </div>

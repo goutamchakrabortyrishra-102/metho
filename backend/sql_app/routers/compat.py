@@ -648,7 +648,14 @@ def _save_partner_offer_popup(db: Session, partner_id: str, payload: dict | None
 
 
 def _load_partner_checkout_pref(db: Session, partner_id: str) -> dict:
-    defaults = {"cod_enabled": True, "delivery_city": "", "delivery_pincode": ""}
+    defaults = {
+        "cod_enabled": True,
+        "delivery_state": "",
+        "delivery_district": "",
+        "delivery_city": "",
+        "delivery_pincode": "",
+        "delivery_radius_km": 0,
+    }
     key = _partner_checkout_pref_key(partner_id)
     row = db.query(AppSetting).filter(AppSetting.key == key).first()
     if not row:
@@ -659,8 +666,11 @@ def _load_partner_checkout_pref(db: Session, partner_id: str) -> dict:
             return defaults
         return {
             "cod_enabled": bool(payload.get("cod_enabled", True)),
+            "delivery_state": str(payload.get("delivery_state") or "").strip(),
+            "delivery_district": str(payload.get("delivery_district") or "").strip(),
             "delivery_city": str(payload.get("delivery_city") or "").strip(),
             "delivery_pincode": str(payload.get("delivery_pincode") or "").strip(),
+            "delivery_radius_km": max(0, int(payload.get("delivery_radius_km") or 0)),
         }
     except Exception:
         return defaults
@@ -671,8 +681,11 @@ def _save_partner_checkout_pref(db: Session, partner_id: str, payload: dict | No
     incoming = payload or {}
     next_payload = {
         "cod_enabled": bool(incoming.get("cod_enabled", current.get("cod_enabled", True))),
+        "delivery_state": str(incoming.get("delivery_state") if incoming.get("delivery_state") is not None else current.get("delivery_state", "")).strip(),
+        "delivery_district": str(incoming.get("delivery_district") if incoming.get("delivery_district") is not None else current.get("delivery_district", "")).strip(),
         "delivery_city": str(incoming.get("delivery_city") if incoming.get("delivery_city") is not None else current.get("delivery_city", "")).strip(),
         "delivery_pincode": str(incoming.get("delivery_pincode") if incoming.get("delivery_pincode") is not None else current.get("delivery_pincode", "")).strip(),
+        "delivery_radius_km": max(0, int(incoming.get("delivery_radius_km") if incoming.get("delivery_radius_km") is not None else current.get("delivery_radius_km", 0))),
     }
     key = _partner_checkout_pref_key(partner_id)
     row = db.query(AppSetting).filter(AppSetting.key == key).first()
@@ -4101,8 +4114,11 @@ def partner_payment_profile(request: Request, db: Session = Depends(get_db), cur
         "business_name": partner.business_name,
         "partner_upi_id": partner.upi_id,
         "cod_enabled": bool(checkout_pref.get("cod_enabled", True)),
+        "delivery_state": str(checkout_pref.get("delivery_state") or "").strip(),
+        "delivery_district": str(checkout_pref.get("delivery_district") or "").strip(),
         "delivery_city": str(checkout_pref.get("delivery_city") or "").strip(),
         "delivery_pincode": str(checkout_pref.get("delivery_pincode") or "").strip(),
+        "delivery_radius_km": max(0, int(checkout_pref.get("delivery_radius_km") or 0)),
         "offer_popup": offer_popup,
         "business_youtube_url": business_youtube_url,
         "business_facebook_url": business_facebook_url,
@@ -4157,8 +4173,11 @@ def partner_payment_profile_update(payload: dict, db: Session = Depends(get_db),
         "ok": True,
         "partner_upi_id": str(partner.upi_id or "").strip(),
         "cod_enabled": bool(saved_pref.get("cod_enabled", True)),
+        "delivery_state": str(saved_pref.get("delivery_state") or "").strip(),
+        "delivery_district": str(saved_pref.get("delivery_district") or "").strip(),
         "delivery_city": str(saved_pref.get("delivery_city") or "").strip(),
         "delivery_pincode": str(saved_pref.get("delivery_pincode") or "").strip(),
+        "delivery_radius_km": max(0, int(saved_pref.get("delivery_radius_km") or 0)),
         "offer_popup": saved_offer,
         "business_youtube_url": saved_business_youtube_url,
         "business_facebook_url": saved_business_facebook_url,
@@ -4186,8 +4205,11 @@ def partner_public_payment_profile(partner_code: str, request: Request, db: Sess
         "business_name": partner.business_name,
         "upi_id": str(partner.upi_id or "").strip(),
         "cod_enabled": bool(checkout_pref.get("cod_enabled", True)),
+        "delivery_state": str(checkout_pref.get("delivery_state") or "").strip(),
+        "delivery_district": str(checkout_pref.get("delivery_district") or "").strip(),
         "delivery_city": str(checkout_pref.get("delivery_city") or "").strip(),
         "delivery_pincode": str(checkout_pref.get("delivery_pincode") or "").strip(),
+        "delivery_radius_km": max(0, int(checkout_pref.get("delivery_radius_km") or 0)),
         "offer_popup": offer_popup,
         "business_youtube_url": business_youtube_url,
         "business_facebook_url": business_facebook_url,
