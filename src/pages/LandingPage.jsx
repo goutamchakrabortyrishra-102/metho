@@ -936,14 +936,11 @@ const AssociatePartnerFinder = () => {
               aria-hidden="true"
             />
           ) : null}
+
           <div className="relative rounded-3xl border border-emerald-200/70 bg-gradient-to-b from-white via-emerald-50/30 to-white p-4 md:p-5 shadow-md">
             <p className="text-[10px] uppercase tracking-[0.28em] text-emerald-800 font-bold">Landing Partner Shops</p>
-            <div className="mt-2 flex flex-wrap items-center justify-between gap-3">
-              <div>
-                <h3 className="font-display font-black text-2xl leading-tight text-emerald-950">Featured Partner Shop List</h3>
-                <p className="mt-1 text-xs text-slate-600 font-body">Admin-selected partner shop list with more room for cards.</p>
-              </div>
-            </div>
+            <h3 className="mt-2 font-display font-black text-2xl leading-tight text-emerald-950">Featured Partner Shop List</h3>
+            <p className="mt-1 text-xs text-slate-600 font-body">Admin-selected partner shop list with more room for cards.</p>
 
             <div className="mt-4 grid md:grid-cols-2 xl:grid-cols-6 gap-2.5 rounded-2xl border border-emerald-300/70 bg-gradient-to-r from-emerald-100/90 via-emerald-50/95 to-amber-50/85 p-3 shadow-inner">
               <div className="xl:col-span-2 relative">
@@ -1029,14 +1026,14 @@ const AssociatePartnerFinder = () => {
                 </div>
               )}
             </div>
+
             <div className="mt-4">
-              <Link to="/directory" className="inline-flex" data-testid="landing-find-partner-open-all-partners">
-                <Button variant="outline" className="rounded-full border-emerald-300 bg-white text-emerald-900 hover:bg-emerald-50 font-bold">
-                  View All Partner Services <ChevronRight className="ml-1 w-4 h-4" />
+              <Link to="/directory?quick=vegetables&business_type=Shop&shop_sector=Vegetables" className="inline-flex" data-testid="landing-open-metho-vegetable-cta">
+                <Button className="rounded-full bg-red-600 hover:bg-red-700 text-white font-bold px-5">
+                  Open METHO Vegetable
                 </Button>
               </Link>
             </div>
-          </div>
           </div>
         </div>
       </div>
