@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { useAuth } from "@/contexts/AuthContext";
 import api from "@/services/api";
+import { openWhatsAppShare } from "@/lib/utils";
 
 const FALLBACK_TEMPLATE =
 `🌟 I joined METHOO STORE!
@@ -61,8 +62,7 @@ export default function ReferralCard({ downlineCount }) {
   };
 
   const shareWhatsApp = () => {
-    const url = `https://wa.me/?text=${encodeURIComponent(message)}`;
-    window.open(url, "_blank", "noopener,noreferrer");
+    openWhatsAppShare({ text: message });
   };
 
   const shareNative = async () => {

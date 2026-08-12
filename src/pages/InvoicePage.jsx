@@ -5,6 +5,7 @@ import api from "@/services/api";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
 import { useAuth } from "@/contexts/AuthContext";
+import { openWhatsAppShare } from "@/lib/utils";
 
 const inr = (v) => (Number(v) || 0).toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 const words = (n) => { // Basic number → Indian words for grand total (rounded rupees)
@@ -95,7 +96,7 @@ export default function InvoicePage() {
       a.remove();
 
       const msg = `Invoice ${inv.invoice_no} downloaded. Please attach the PDF in WhatsApp and send.`;
-      window.open(`https://wa.me/?text=${encodeURIComponent(msg)}`, "_blank", "noopener,noreferrer");
+      openWhatsAppShare({ text: msg });
       toast.success("PDF downloaded. Attach it in WhatsApp.");
     } catch {
       toast.error("WhatsApp share failed");

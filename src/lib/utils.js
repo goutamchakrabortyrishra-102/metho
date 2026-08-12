@@ -169,3 +169,26 @@ export function getAssetImageFallbackCandidates(rawUrl, extras = []) {
   return unique;
 }
 
+export function buildWhatsAppShareUrl({ text = "", phone = "" } = {}) {
+  const cleanText = String(text || "").trim();
+  const digits = String(phone || "").replace(/\D/g, "");
+  const encodedText = encodeURIComponent(cleanText);
+
+  if (digits) {
+    return `https://wa.me/${digits}${encodedText ? `?text=${encodedText}` : ""}`;
+  }
+
+  return `https://api.whatsapp.com/send?text=${encodedText}`;
+}
+
+export function openWhatsAppShare({ text = "", phone = "" } = {}) {
+  const url = buildWhatsAppShareUrl({ text, phone });
+  if (typeof window === "undefined") return url;
+
+  const popup = window.open(url, "_blank", "noopener,noreferrer");
+  if (!popup) {
+    window.location.href = url;
+  }
+  return url;
+}
+

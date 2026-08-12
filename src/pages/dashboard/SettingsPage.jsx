@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { resolveAssetUrl } from "@/lib/utils";
+import { resolveAssetUrl, openWhatsAppShare } from "@/lib/utils";
 
 const isAdmin = (u) => u && (u.role === "super_admin" || u.role === "company_admin");
 const BRANDING_IMAGE_MAX_UPLOAD_BYTES = 2 * 1024 * 1024;
@@ -423,7 +423,7 @@ function InstallShareSection() {
   };
 
   const shareWhatsapp = () => {
-    window.open(`https://wa.me/?text=${encodeURIComponent(shareText)}`, "_blank", "noopener,noreferrer");
+    openWhatsAppShare({ text: shareText });
   };
 
   const shareNative = async () => {

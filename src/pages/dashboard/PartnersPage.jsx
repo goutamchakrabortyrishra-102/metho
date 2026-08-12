@@ -11,7 +11,7 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 import api from "@/services/api";
 import { useAuth } from "@/contexts/AuthContext";
 import OfflineBillingPanel from "@/components/OfflineBillingPanel";
-import { resolveAssetUrl } from "@/lib/utils";
+import { resolveAssetUrl, openWhatsAppShare } from "@/lib/utils";
 import { INDIAN_STATES, isCompletePincode, normalizePincode } from "@/lib/indiaLocation";
 
 const inr = (v) => `₹${(Number(v) || 0).toLocaleString("en-IN", { maximumFractionDigits: 2 })}`;
@@ -478,7 +478,7 @@ export default function PartnersPage() {
       toast.error("Message empty");
       return;
     }
-    window.open(`https://wa.me/${phone}?text=${encodeURIComponent(messageDraft.trim())}`, "_blank");
+    openWhatsAppShare({ phone, text: messageDraft.trim() });
     setMessageTarget(null);
   };
 

@@ -4,6 +4,7 @@ import { Download, Share2, Copy, CheckCircle2, Smartphone } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Logo } from "@/components/Logo";
 import { toast } from "sonner";
+import { openWhatsAppShare } from "@/lib/utils";
 
 const isStandalone = () => window.matchMedia("(display-mode: standalone)").matches || window.navigator.standalone;
 
@@ -63,7 +64,7 @@ export default function InstallPage() {
       } catch {}
       return;
     }
-    window.open(`https://wa.me/?text=${encodeURIComponent(`Install METHOO STORE: ${currentUrl}`)}`, "_blank");
+    openWhatsAppShare({ text: `Install METHOO STORE: ${currentUrl}` });
   };
 
   return (

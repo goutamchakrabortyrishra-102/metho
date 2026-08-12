@@ -11,7 +11,7 @@ import { Button } from "@/components/ui/button";
 import { Logo } from "@/components/Logo";
 import UpiPaymentDialog from "@/components/UpiPaymentDialog";
 import { useAuth } from "@/contexts/AuthContext";
-import { resolveAssetUrl, getAssetImageFallbackCandidates } from "@/lib/utils";
+import { resolveAssetUrl, getAssetImageFallbackCandidates, openWhatsAppShare } from "@/lib/utils";
 import { Input } from "@/components/ui/input";
 import { inferPartnerPrimarySector, getPartnerVisibleSectors, isDeliveryServiceLike, isDoorstepServiceLike, isHospitalityServiceLike, isPropertyServiceLike, isTransportServiceLike, PARTNER_SECTOR_KEYS } from "@/lib/partnerSector";
 
@@ -472,7 +472,7 @@ function ProductModal({ product, onClose, onAdd, onDec, qty, galleryUrl, isBookN
             )}
             {/* Share this product on WhatsApp */}
             <button
-              onClick={() => window.open(`https://wa.me/?text=${encodeURIComponent(waMsg)}`, '_blank')}
+              onClick={() => openWhatsAppShare({ text: waMsg })}
               className="w-full flex items-center justify-center gap-2 bg-green-500 hover:bg-green-600 text-white rounded-full py-2.5 text-sm font-bold"
             >
               <MessageCircle className="w-4 h-4" /> Share this product on WhatsApp
@@ -1064,7 +1064,7 @@ export default function PartnerGalleryPage() {
       `• ${p.name} — ₹${p.price}${(p.image_url || getPdfUrl(p)) ? `\n  ${p.image_url || getPdfUrl(p)}` : ""}`
     ).join("\n");
     const msg = `🛍️ *${partner.business_name}* এর ${activeSectionLabel}\n\n${productLines}\n\n👉 সব দেখুন ও Order করুন:\n${galleryUrl}?tab=${activeTab}`;
-    window.open(`https://wa.me/?text=${encodeURIComponent(msg)}`, "_blank");
+    openWhatsAppShare({ text: msg });
   };
 
   const copyLink = async () => {

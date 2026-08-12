@@ -11,7 +11,7 @@ import OfflineBillingPanel from "@/components/OfflineBillingPanel";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { resolveAssetUrl } from "@/lib/utils";
+import { resolveAssetUrl, openWhatsAppShare, buildWhatsAppShareUrl } from "@/lib/utils";
 import { INDIAN_STATES } from "@/lib/indiaLocation";
 import { inferPartnerPrimarySector, getPartnerVisibleSectors, isDeliveryServiceLike, isDoorstepServiceLike, isHospitalityServiceLike, isPropertyServiceLike, isTransportServiceLike, PARTNER_SECTOR_KEYS } from "@/lib/partnerSector";
 
@@ -757,7 +757,7 @@ export default function PartnerDashboardPage() {
   const sharePublicShopOnWhatsApp = () => {
     if (!publicShopUrl || !summary) return;
     const message = `Visit ${summary.business_name} on METHO AAY-UPAY\n${publicShopUrl}`;
-    window.open(`https://wa.me/?text=${encodeURIComponent(message)}`, "_blank", "noopener,noreferrer");
+    openWhatsAppShare({ text: message });
   };
 
   const sendInvoicePdfOnWhatsApp = async (order) => {
@@ -790,13 +790,14 @@ export default function PartnerDashboardPage() {
 
       let whatsappUrl = "";
       if (phoneDigits) {
-        whatsappUrl = `https://wa.me/${phoneDigits}?text=${encodeURIComponent(message)}`;
+        whatsappUrl = buildWhatsAppShareUrl({ phone: phoneDigits, text: message });
       } else if (backendUrl) {
         whatsappUrl = backendUrl;
       }
 
       if (whatsappUrl) {
-        window.open(whatsappUrl, "_blank", "noopener,noreferrer");
+        const popup = window.open(whatsappUrl, "_blank", "noopener,noreferrer");
+        if (!popup) window.location.href = whatsappUrl;
         toast.success("PDF downloaded and customer WhatsApp chat opened.");
       } else {
         toast.success("PDF downloaded. Customer WhatsApp number not found, attach and send manually.");
@@ -1682,7 +1683,7 @@ export default function PartnerDashboardPage() {
                     onClick={() => {
                       const pdfLink = `${window.location.origin}/gallery/${summary.partner_code}?autoPdf=1`;
                       const text = `METHO Product PDF Catalog\n\n${pdfLink}`;
-                      window.open(`https://wa.me/?text=${encodeURIComponent(text)}`, "_blank", "noopener,noreferrer");
+                      openWhatsAppShare({ text });
                     }}
                     data-testid="share-gallery-pdf-whatsapp"
                   >
