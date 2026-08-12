@@ -329,14 +329,14 @@ const Hero = () => {
                   onChange={(e) => setShopSearch(e.target.value)}
                   onKeyDown={onSearchKeyDown}
                   placeholder="Search METHO products"
-                  className="pl-9 h-12 rounded-full border-emerald-900/20 bg-white shadow-sm"
+                  className="pl-9 h-12 rounded-full border-emerald-900/25 bg-emerald-100/90 shadow-sm"
                   data-testid="hero-shop-search-input"
                 />
               </div>
               <Button
                 type="button"
                 variant="outline"
-                className="h-12 rounded-full border-emerald-900/20 bg-white/95 shadow-sm hover:bg-emerald-50 hover:text-emerald-900"
+                className="h-12 rounded-full border-emerald-900/25 bg-emerald-100 text-emerald-900 shadow-sm hover:bg-emerald-200 hover:text-emerald-950"
                 onClick={openShopWithSearch}
                 data-testid="hero-shop-search-button"
               >
