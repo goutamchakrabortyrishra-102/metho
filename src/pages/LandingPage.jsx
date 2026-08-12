@@ -442,6 +442,16 @@ const Hero = () => {
         </motion.div>
 
         <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} transition={{ duration: 0.8, delay: 0.2 }} className="lg:col-span-5 relative">
+          <Link
+            to="/directory?quick=vegetables&shop_sector=Vegetables"
+            className="mb-3 block"
+            data-testid="landing-highlight-vegetables"
+          >
+            <Button className="rounded-full bg-red-600 hover:bg-red-700 text-white font-bold px-5 shadow-[0_16px_34px_rgba(185,28,28,0.22)]">
+              Open METHO Vegetable
+            </Button>
+          </Link>
+
           <div className="relative">
             <div className="absolute -top-4 -left-4 w-28 h-28 bg-amber-300/30 rounded-full blur-3xl" />
             <div className="absolute -bottom-4 -right-4 w-40 h-40 bg-emerald-500/15 rounded-full blur-3xl" />
@@ -459,25 +469,6 @@ const Hero = () => {
                 <div className="absolute inset-0 bg-gradient-to-br from-emerald-950 via-emerald-900 to-emerald-950" />
 
                 <div className="relative z-10 p-4 md:p-5 h-full flex flex-col">
-                  <Link
-                    to="/directory?quick=vegetables&shop_sector=Vegetables"
-                    className="mb-3 block"
-                    data-testid="landing-highlight-vegetables"
-                  >
-                    <div className="rounded-[26px] border border-red-300 bg-gradient-to-r from-red-700 via-red-600 to-red-500 px-5 py-4 text-white shadow-[0_20px_44px_rgba(185,28,28,0.28)] transition-transform hover:-translate-y-0.5 w-full">
-                      <div className="flex items-center justify-between gap-3">
-                        <div>
-                          <p className="text-[10px] uppercase tracking-[0.24em] text-red-100 font-bold">Product Sector</p>
-                          <p className="mt-1 font-display font-black text-xl leading-tight">Vegetables</p>
-                          <p className="mt-1 text-sm text-red-50/90">Fresh vegetable partner shops quickly browse করুন.</p>
-                        </div>
-                        <div className="shrink-0 rounded-2xl border border-white/20 bg-white/10 p-3">
-                          <ArrowRight className="w-5 h-5" />
-                        </div>
-                      </div>
-                    </div>
-                  </Link>
-
                   <div className="flex items-start justify-between gap-3">
                     <div className="max-w-[78%]">
                       <p className="text-[9px] uppercase tracking-[0.3em] text-amber-300 font-bold">Quick Access</p>
@@ -905,7 +896,11 @@ const AssociatePartnerFinder = () => {
         const keyOf = (item) => String(item?.id || item?.partner_code || "").trim();
         const byId = new Map(rows.map((item) => [keyOf(item), item]));
         const selected = featuredPartnerIds.map((id) => byId.get(id)).filter(Boolean);
-        setResults((selected.length > 0 ? selected : rows).slice(0, LANDING_PARTNER_CARD_LIMIT));
+        const selectedKeys = new Set(selected.map((item) => keyOf(item)));
+        const mergedRows = selected.length > 0
+          ? [...selected, ...rows.filter((item) => !selectedKeys.has(keyOf(item)))]
+          : rows;
+        setResults(mergedRows.slice(0, LANDING_PARTNER_CARD_LIMIT));
       })
       .catch(() => setResults([]))
       .finally(() => setLoading(false));
@@ -1001,13 +996,13 @@ const AssociatePartnerFinder = () => {
               </select>
             </div>
 
-            <div className="mt-3 rounded-2xl border border-emerald-200/70 bg-gradient-to-b from-emerald-50/65 to-white p-3 shadow-inner max-h-[430px] overflow-auto">
+            <div className="mt-3 rounded-2xl border border-emerald-200/70 bg-gradient-to-b from-emerald-50/65 to-white p-3 shadow-inner max-h-[430px] overflow-y-auto">
               {loading ? (
                 <p className="text-sm text-slate-500">Searching verified partner shops...</p>
               ) : results.length === 0 ? (
                 <p className="text-sm text-slate-500">No matching partner found. Try a nearby city or a broader category.</p>
               ) : (
-                <div className="grid sm:grid-cols-2 xl:grid-cols-3 gap-2.5">
+                <div className="grid grid-cols-1 gap-2.5">
                   {results.slice(0, LANDING_PARTNER_CARD_LIMIT).map((p) => (
                     <Link
                       key={p.id || p.partner_code}
