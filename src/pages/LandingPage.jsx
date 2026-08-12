@@ -443,7 +443,7 @@ const Hero = () => {
 
         <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} transition={{ duration: 0.8, delay: 0.2 }} className="lg:col-span-5 relative">
           <Link
-            to="/directory?quick=vegetables&shop_sector=Vegetables"
+            to="/partner-shop/MTH-PARTNER-004"
             className="mb-3 block"
             data-testid="landing-highlight-vegetables"
           >

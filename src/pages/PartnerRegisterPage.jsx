@@ -291,6 +291,7 @@ export default function PartnerRegisterPage() {
     () => mergeUniqueInOrder(...Object.values(shopTemplateOptionsBySector)),
     [shopTemplateOptionsBySector]
   );
+  const isVegetableShop = isShop && String(form.shop_sector || "").trim().toLowerCase() === "vegetables";
   const suggestedServiceTemplates = isService
     ? (serviceTemplateOptionsBySector[form.service_sector] || allServiceTemplateOptions)
     : [];
@@ -567,9 +568,15 @@ export default function PartnerRegisterPage() {
           <p className="mt-4 text-xs text-slate-500 font-body">
             Once approved by admin, sign in using the username and password you set in this form.
           </p>
-          <Link to="/directory" className="mt-6 inline-block">
-            <Button className="bg-emerald-900 hover:bg-emerald-950 text-white rounded-full">View All Partners/Services</Button>
-          </Link>
+          {isVegetableShop ? (
+            <Link to="/partner-shop/MTH-PARTNER-004" className="mt-6 inline-block">
+              <Button className="bg-emerald-900 hover:bg-emerald-950 text-white rounded-full">Open Metho Vegetable Public Page</Button>
+            </Link>
+          ) : (
+            <Link to="/directory" className="mt-6 inline-block">
+              <Button className="bg-emerald-900 hover:bg-emerald-950 text-white rounded-full">View All Partners/Services</Button>
+            </Link>
+          )}
         </div>
       </div>
     );
