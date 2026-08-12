@@ -918,6 +918,14 @@ const AssociatePartnerFinder = () => {
       .catch(() => {});
   }, [debouncedPincode, isSectionActive]);
 
+  const isServicePartner = (partner) => {
+    const type = String(partner?.business_type || "").trim().toLowerCase();
+    return type.includes("service");
+  };
+
+  const productPartners = results.filter((partner) => !isServicePartner(partner));
+  const servicePartners = results.filter((partner) => isServicePartner(partner));
+
   if (!showPartnerShop) return null;
 
   return (
@@ -996,30 +1004,66 @@ const AssociatePartnerFinder = () => {
               </select>
             </div>
 
-            <div className="mt-3 rounded-2xl border border-emerald-200/70 bg-gradient-to-b from-emerald-50/65 to-white p-3 shadow-inner max-h-[430px] overflow-y-auto">
-              {loading ? (
-                <p className="text-sm text-slate-500">Searching verified partner shops...</p>
-              ) : results.length === 0 ? (
-                <p className="text-sm text-slate-500">No matching partner found. Try a nearby city or a broader category.</p>
-              ) : (
-                <div className="grid grid-cols-1 gap-2.5">
-                  {results.slice(0, LANDING_PARTNER_CARD_LIMIT).map((p) => (
-                    <Link
-                      key={p.id || p.partner_code}
-                      to={`/partner-shop/${p.partner_code}`}
-                      className="rounded-xl border border-emerald-300/45 bg-white hover:bg-emerald-50/70 p-3 shadow-sm transition-colors"
-                      data-testid={`landing-partner-result-${p.partner_code}`}
-                    >
-                      <div className="mb-2 inline-flex items-center rounded-full bg-emerald-100 text-emerald-900 px-2 py-0.5">
-                        <p className="text-[10px] uppercase tracking-widest font-bold">{p.partner_code}</p>
-                      </div>
-                      <p className="font-display font-bold text-emerald-950 mt-0.5 line-clamp-1">{p.business_name}</p>
-                      <p className="text-xs text-slate-600 mt-1 flex items-center gap-1"><MapPin className="w-3.5 h-3.5 text-emerald-700" /> {p.city || "Unknown city"}</p>
-                      <p className="text-[11px] text-slate-500 mt-0.5 line-clamp-1">{p.business_type || "Business"}</p>
-                    </Link>
-                  ))}
+            <div className="mt-3 grid gap-3 lg:grid-cols-2">
+              <div className="rounded-2xl border border-emerald-200/70 bg-gradient-to-b from-emerald-50/65 to-white p-3 shadow-inner max-h-[430px] overflow-y-auto">
+                <div className="mb-3 flex items-center justify-between gap-2">
+                  <p className="text-[10px] uppercase tracking-[0.22em] text-emerald-800 font-bold">Product Shops</p>
+                  <span className="text-[10px] text-slate-500 font-semibold">{productPartners.length} found</span>
                 </div>
-              )}
+                {loading ? (
+                  <p className="text-sm text-slate-500">Searching product shops...</p>
+                ) : productPartners.length === 0 ? (
+                  <p className="text-sm text-slate-500">No product shop found.</p>
+                ) : (
+                  <div className="grid grid-cols-1 gap-2.5">
+                    {productPartners.slice(0, LANDING_PARTNER_CARD_LIMIT).map((p) => (
+                      <Link
+                        key={p.id || p.partner_code}
+                        to={`/partner-shop/${p.partner_code}`}
+                        className="rounded-xl border border-emerald-300/45 bg-white hover:bg-emerald-50/70 p-3 shadow-sm transition-colors"
+                        data-testid={`landing-partner-result-product-${p.partner_code}`}
+                      >
+                        <div className="mb-2 inline-flex items-center rounded-full bg-emerald-100 text-emerald-900 px-2 py-0.5">
+                          <p className="text-[10px] uppercase tracking-widest font-bold">{p.partner_code}</p>
+                        </div>
+                        <p className="font-display font-bold text-emerald-950 mt-0.5 line-clamp-1">{p.business_name}</p>
+                        <p className="text-xs text-slate-600 mt-1 flex items-center gap-1"><MapPin className="w-3.5 h-3.5 text-emerald-700" /> {p.city || "Unknown city"}</p>
+                        <p className="text-[11px] text-slate-500 mt-0.5 line-clamp-1">{p.business_type || "Business"}</p>
+                      </Link>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              <div className="rounded-2xl border border-emerald-200/70 bg-gradient-to-b from-emerald-50/65 to-white p-3 shadow-inner max-h-[430px] overflow-y-auto">
+                <div className="mb-3 flex items-center justify-between gap-2">
+                  <p className="text-[10px] uppercase tracking-[0.22em] text-emerald-800 font-bold">Service Shops</p>
+                  <span className="text-[10px] text-slate-500 font-semibold">{servicePartners.length} found</span>
+                </div>
+                {loading ? (
+                  <p className="text-sm text-slate-500">Searching service shops...</p>
+                ) : servicePartners.length === 0 ? (
+                  <p className="text-sm text-slate-500">No service shop found.</p>
+                ) : (
+                  <div className="grid grid-cols-1 gap-2.5">
+                    {servicePartners.slice(0, LANDING_PARTNER_CARD_LIMIT).map((p) => (
+                      <Link
+                        key={p.id || p.partner_code}
+                        to={`/partner-shop/${p.partner_code}`}
+                        className="rounded-xl border border-emerald-300/45 bg-white hover:bg-emerald-50/70 p-3 shadow-sm transition-colors"
+                        data-testid={`landing-partner-result-service-${p.partner_code}`}
+                      >
+                        <div className="mb-2 inline-flex items-center rounded-full bg-emerald-100 text-emerald-900 px-2 py-0.5">
+                          <p className="text-[10px] uppercase tracking-widest font-bold">{p.partner_code}</p>
+                        </div>
+                        <p className="font-display font-bold text-emerald-950 mt-0.5 line-clamp-1">{p.business_name}</p>
+                        <p className="text-xs text-slate-600 mt-1 flex items-center gap-1"><MapPin className="w-3.5 h-3.5 text-emerald-700" /> {p.city || "Unknown city"}</p>
+                        <p className="text-[11px] text-slate-500 mt-0.5 line-clamp-1">{p.business_type || "Business"}</p>
+                      </Link>
+                    ))}
+                  </div>
+                )}
+              </div>
             </div>
 
             <div className="mt-4">
