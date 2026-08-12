@@ -182,6 +182,17 @@ const getMeasureUnitStep = (measureUnit) => {
   return 1;
 };
 
+const convertQtyBetweenUnits = (qty, fromUnit, toUnit) => {
+  const amount = Number(qty || 0);
+  if (!Number.isFinite(amount) || amount <= 0) return 0;
+  if (fromUnit === toUnit) return amount;
+  if (fromUnit === "kg" && toUnit === "gram") return amount * 1000;
+  if (fromUnit === "gram" && toUnit === "kg") return amount / 1000;
+  if (fromUnit === "litre" && toUnit === "ml") return amount * 1000;
+  if (fromUnit === "ml" && toUnit === "litre") return amount / 1000;
+  return amount;
+};
+
 const getQtyStep = (item, measureUnit = "") => {
   const unit = getUnitType(item);
   const resolvedMeasureUnit = ["kg", "gram", "litre", "ml", "piece"].includes(String(measureUnit || "").trim().toLowerCase())
