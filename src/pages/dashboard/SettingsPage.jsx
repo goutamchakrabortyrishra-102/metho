@@ -697,6 +697,8 @@ export default function SettingsPage() {
   const [form, setForm] = useState(null);
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [landingPartnerOptions, setLandingPartnerOptions] = useState([]);
+  const [landingPartnerOptionsLoading, setLandingPartnerOptionsLoading] = useState(false);
 
   const dedupeImageFields = [
     "site_logo_url",
@@ -711,7 +713,47 @@ export default function SettingsPage() {
     api.get("/settings").then((r) => setForm(r.data)).finally(() => setLoading(false));
   }, []);
 
+  useEffect(() => {
+    let active = true;
+    setLandingPartnerOptionsLoading(true);
+    api.get("/directory/partners")
+      .then((r) => {
+        if (!active) return;
+        const rows = Array.isArray(r?.data) ? r.data : [];
+        const options = rows
+          .map((item) => {
+            const id = String(item?.id || item?.partner_code || "").trim();
+            if (!id) return null;
+            const code = String(item?.partner_code || "").trim();
+            const name = String(item?.business_name || "").trim() || "Partner Shop";
+            return {
+              id,
+              label: code ? `${name} (${code})` : name,
+            };
+          })
+          .filter(Boolean)
+          .sort((a, b) => a.label.localeCompare(b.label));
+        setLandingPartnerOptions(options);
+      })
+      .catch(() => {
+        if (active) setLandingPartnerOptions([]);
+      })
+      .finally(() => {
+        if (active) setLandingPartnerOptionsLoading(false);
+      });
+
+    return () => {
+      active = false;
+    };
+  }, []);
+
   const setF = (k) => (v) => setForm((prev) => ({ ...prev, [k]: v }));
+  const setLandingFeaturedPartnerSlot = (slotIndex, nextValue) => {
+    setForm((prev) => ({
+      ...prev,
+      landing_featured_partner_ids: updateSlotList(prev?.landing_featured_partner_ids, slotIndex, nextValue, 12),
+    }));
+  };
 
   const splitSum = form
     ? Number(form.commission_split_member_pool || 0) +
@@ -925,6 +967,7 @@ export default function SettingsPage() {
     company_facebook_url: source.company_facebook_url || "",
     // Landing product/partner/store picks are managed from dedicated pages.
     // Do not overwrite those lists from Settings save to avoid stale page-state clobber.
+    landing_featured_partner_ids: normalizeIdList(source.landing_featured_partner_ids, 12),
     landing_show_metho_store: source.landing_show_metho_store !== false,
     landing_show_partner_shop: source.landing_show_partner_shop !== false,
     product_placeholder_image_url: "",
@@ -1008,6 +1051,7 @@ export default function SettingsPage() {
   if (loading || !form) return <div className="text-muted-foreground">Loading settings...</div>;
 
   const readOnly = !isAdmin(user);
+  const landingFeaturedPartnerIds = normalizeIdList(form?.landing_featured_partner_ids, 12);
   return (
     <div className="space-y-6" data-testid="settings-page">
       <div className="flex items-start justify-between gap-4">
@@ -1660,8 +1704,8 @@ export default function SettingsPage() {
               />
             </div>
             <div className="md:col-span-2 rounded-xl border border-amber-200 bg-amber-50 p-3 text-xs text-amber-900">
-              Landing Hero / Directory Hero / Product Placeholder এবং Landing Featured Picks settings থেকে সরানো হয়েছে।
-              Landing এখন product ও partner data থেকে auto-select mode-এ চলবে যাতে broken references না থাকে।
+              Landing Hero / Directory Hero / Product Placeholder settings থেকে সরানো হয়েছে।
+              Landing partner list-এর visible picks নিচের control থেকে update করুন।
               <div className="mt-2">
                 <Button
                   type="button"
@@ -1673,6 +1717,31 @@ export default function SettingsPage() {
                   Product Upload / Top Product Control এ যান
                 </Button>
               </div>
+            </div>
+            <div className="md:col-span-2 rounded-xl border border-emerald-200 bg-emerald-50/40 p-4" data-testid="settings-landing-featured-partners">
+              <p className="text-sm font-semibold text-emerald-950">Landing Featured Partner Shops</p>
+              <p className="text-[11px] text-muted-foreground mt-1">Landing partner section-এর left side list-এ কোন partner shop দেখাবেন তা select করুন (max 12)।</p>
+              <div className="mt-3 grid md:grid-cols-2 gap-3">
+                {Array.from({ length: 12 }).map((_, index) => (
+                  <div key={`landing-partner-slot-${index}`}>
+                    <Label className="text-xs">Partner Slot {index + 1}</Label>
+                    <select
+                      value={landingFeaturedPartnerIds[index] || ""}
+                      onChange={(e) => setLandingFeaturedPartnerSlot(index, e.target.value)}
+                      className="mt-1 h-10 w-full rounded-lg border border-emerald-200 bg-white px-3 text-sm"
+                      data-testid={`settings-landing-partner-slot-${index + 1}`}
+                    >
+                      <option value="">Auto / Not selected</option>
+                      {landingPartnerOptions.map((option) => (
+                        <option key={option.id} value={option.id}>{option.label}</option>
+                      ))}
+                    </select>
+                  </div>
+                ))}
+              </div>
+              {landingPartnerOptionsLoading ? (
+                <p className="mt-2 text-[11px] text-muted-foreground">Partner list loading...</p>
+              ) : null}
             </div>
             <Field
               label="Landing Tagline"

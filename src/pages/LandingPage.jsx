@@ -841,6 +841,7 @@ const ASSOCIATE_TYPES = [
   "Wholesaler",
   "Online Seller",
 ];
+const LANDING_PARTNER_CARD_LIMIT = 12;
 
 const AssociatePartnerFinder = () => {
   const { settings } = useSettings();
@@ -898,13 +899,13 @@ const AssociatePartnerFinder = () => {
         const rows = Array.isArray(r.data) ? r.data : [];
         const hasSearchFilters = Boolean(q || debouncedCity || debouncedPincode || (debouncedBusinessType && debouncedBusinessType !== "All") || debouncedCategory);
         if (hasSearchFilters) {
-          setResults(rows.slice(0, 6));
+          setResults(rows.slice(0, LANDING_PARTNER_CARD_LIMIT));
           return;
         }
         const keyOf = (item) => String(item?.id || item?.partner_code || "").trim();
         const byId = new Map(rows.map((item) => [keyOf(item), item]));
         const selected = featuredPartnerIds.map((id) => byId.get(id)).filter(Boolean);
-        setResults((selected.length > 0 ? selected : rows).slice(0, 4));
+        setResults((selected.length > 0 ? selected : rows).slice(0, LANDING_PARTNER_CARD_LIMIT));
       })
       .catch(() => setResults([]))
       .finally(() => setLoading(false));
@@ -936,29 +937,43 @@ const AssociatePartnerFinder = () => {
             />
           ) : null}
           <div className="relative grid lg:grid-cols-12 gap-5">
-          <div className="lg:col-span-4 rounded-3xl border border-emerald-900/10 bg-gradient-to-br from-emerald-950 via-emerald-900 to-emerald-800 text-white p-6 md:p-7 shadow-xl shadow-emerald-900/20">
-            <p className="text-[10px] uppercase tracking-[0.28em] text-amber-300 font-bold">Associate Partner</p>
-            <h3 className="mt-2 font-display font-black text-3xl leading-tight">Find partner shops and services near you</h3>
-            <p className="mt-3 text-sm text-emerald-100/85 font-body">
-              Search by city, category, business type or service name. Every listing is built for fast discovery and direct shopping.
-            </p>
-            <div className="mt-4 flex flex-wrap gap-2 text-[11px]">
-              <span className="rounded-full border border-white/25 bg-white/10 px-2.5 py-1 font-semibold text-emerald-50">Verified profile list</span>
-              <span className="rounded-full border border-white/25 bg-white/10 px-2.5 py-1 font-semibold text-emerald-50">City + pincode lookup</span>
-            </div>
-            <div className="mt-5 space-y-2 text-xs text-emerald-100/85 font-semibold">
-              <p>• Verified partner listings</p>
-              <p>• City-wise filtering in seconds</p>
-              <p>• Direct visit and order flow</p>
-            </div>
-            <div className="mt-6 flex flex-wrap gap-3">
-              <Link to="/directory" className="inline-flex" data-testid="landing-find-partner-open-directory">
-                <Button className="rounded-full bg-amber-400 text-emerald-950 hover:bg-amber-500 font-bold">
-                  Open Partner Directory <ChevronRight className="ml-1 w-4 h-4" />
+          <div className="lg:col-span-4 rounded-3xl border border-emerald-200/70 bg-gradient-to-b from-white via-emerald-50/30 to-white p-4 md:p-5 shadow-md">
+            <p className="text-[10px] uppercase tracking-[0.28em] text-emerald-800 font-bold">Landing Partner Shops</p>
+            <h3 className="mt-2 font-display font-black text-2xl leading-tight text-emerald-950">Featured Partner Shop List</h3>
+            <p className="mt-2 text-xs text-slate-600 font-body">Admin থেকে selected partner গুলো এখানে দেখাবে।</p>
+            <div className="mt-3">
+              <Link to="/directory?quick=vegetables&business_type=Shop&shop_sector=Vegetables" className="inline-flex w-full" data-testid="landing-open-metho-vegetable-cta">
+                <Button className="w-full rounded-full bg-red-600 hover:bg-red-700 text-white font-bold">
+                  Open METHO Vegetable
                 </Button>
               </Link>
+            </div>
+            <div className="mt-4 grid gap-2 max-h-[500px] overflow-auto pr-1">
+              {loading ? (
+                <p className="text-sm text-slate-500">Loading partner shops...</p>
+              ) : results.length === 0 ? (
+                <p className="text-sm text-slate-500">No partner shop available right now.</p>
+              ) : (
+                results.slice(0, LANDING_PARTNER_CARD_LIMIT).map((p) => (
+                  <Link
+                    key={`finder-featured-${p.id || p.partner_code}`}
+                    to={`/partner-shop/${p.partner_code}`}
+                    className="rounded-xl border border-emerald-300/50 bg-white p-3 hover:bg-emerald-50/70 transition-colors shadow-sm"
+                    data-testid={`landing-partner-featured-${p.partner_code}`}
+                  >
+                    <div className="flex items-center justify-between gap-2">
+                      <p className="font-display font-bold text-emerald-950 line-clamp-1">{p.business_name || "Partner Shop"}</p>
+                      <span className="shrink-0 rounded-full bg-emerald-100 text-emerald-900 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider">{p.partner_code || "N/A"}</span>
+                    </div>
+                    <p className="mt-1 text-xs text-slate-600 flex items-center gap-1"><MapPin className="w-3.5 h-3.5 text-emerald-700" /> {p.city || "Unknown city"}</p>
+                    <p className="text-[11px] text-slate-500 mt-0.5 line-clamp-1">{p.business_type || "Business"}</p>
+                  </Link>
+                ))
+              )}
+            </div>
+            <div className="mt-4">
               <Link to="/directory" className="inline-flex" data-testid="landing-find-partner-open-all-partners">
-                <Button variant="outline" className="rounded-full border-white/20 bg-white/10 text-white hover:bg-white/20 font-bold">
+                <Button variant="outline" className="rounded-full border-emerald-300 bg-white text-emerald-900 hover:bg-emerald-50 font-bold">
                   View All Partner Services <ChevronRight className="ml-1 w-4 h-4" />
                 </Button>
               </Link>
