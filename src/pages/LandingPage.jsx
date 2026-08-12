@@ -315,34 +315,7 @@ const Hero = () => {
           <p className="mt-5 inline-flex items-center rounded-full border border-emerald-200 bg-white/95 px-4 py-2 text-sm font-semibold tracking-wide text-emerald-900 shadow-sm">
             Powered By Metho Logistics Private Limited
           </p>
-          <div className="mt-6 grid gap-2.5 sm:grid-cols-2 lg:grid-cols-4 max-w-3xl">
-            {[
-              "Member and partner onboarding",
-              "METHO Store and partner shop flow",
-              "Smart earnings and payout control",
-              "Leadership-ready reporting lens",
-            ].map((item) => (
-              <div key={item} className="rounded-xl border border-emerald-900/10 bg-white/85 backdrop-blur px-4 py-3 text-[13px] font-semibold text-slate-700 shadow-sm">
-                {item}
-              </div>
-            ))}
-          </div>
           <div className="mt-8 flex flex-wrap items-center gap-3 rounded-[1.75rem] border border-emerald-900/10 bg-gradient-to-r from-white/95 via-emerald-50/75 to-white/95 p-2.5 shadow-sm">
-            <Link to="/register" className="w-full sm:w-auto" data-testid="hero-cta-register">
-              <Button size="lg" className="bg-gradient-to-r from-emerald-900 to-emerald-800 hover:from-emerald-950 hover:to-emerald-900 text-white rounded-full px-7 h-12 text-base font-semibold w-full sm:w-auto shadow-lg shadow-emerald-900/20">
-                Member Registration <ArrowRight className="ml-2 w-4 h-4" />
-              </Button>
-            </Link>
-            <Link to="/partner-register" className="hidden sm:inline-flex" data-testid="hero-cta-partner-register">
-              <Button size="lg" variant="outline" className="rounded-full px-7 h-12 text-base border-emerald-900/20 bg-white/95 shadow-sm hover:bg-emerald-50 hover:text-emerald-900">
-                Partner Register <Building2 className="ml-1 w-4 h-4" />
-              </Button>
-            </Link>
-            <Link to="/login" className="hidden sm:inline-flex" data-testid="hero-cta-partner-login">
-              <Button size="lg" variant="outline" className="rounded-full px-7 h-12 text-base border-emerald-900/20 bg-white/95 shadow-sm hover:bg-emerald-50 hover:text-emerald-900">
-                Partner Login <ChevronRight className="ml-1 w-4 h-4" />
-              </Button>
-            </Link>
             <Link to="/shop" className="w-full sm:w-auto" data-testid="hero-cta-shop">
               <Button size="lg" variant="outline" className="rounded-full px-7 h-12 text-base border-emerald-900/20 bg-white/95 shadow-sm hover:bg-emerald-50 hover:text-emerald-900 w-full sm:w-auto">
                 Browse METHO Products <ChevronRight className="ml-1 w-4 h-4" />
