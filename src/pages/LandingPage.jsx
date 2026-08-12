@@ -444,10 +444,10 @@ const Hero = () => {
         <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} transition={{ duration: 0.8, delay: 0.2 }} className="lg:col-span-5 relative">
           <Link
             to="/directory?quick=vegetables&shop_sector=Vegetables"
-            className="mb-4 block"
+            className="mb-2 block"
             data-testid="landing-highlight-vegetables"
           >
-            <div className="rounded-[26px] border border-red-300 bg-gradient-to-r from-red-700 via-red-600 to-red-500 px-5 py-4 text-white shadow-[0_20px_44px_rgba(185,28,28,0.28)] transition-transform hover:-translate-y-0.5">
+            <div className="rounded-[26px] border border-red-300 bg-gradient-to-r from-red-700 via-red-600 to-red-500 px-5 py-4 text-white shadow-[0_20px_44px_rgba(185,28,28,0.28)] transition-transform hover:-translate-y-0.5 w-full">
               <div className="flex items-center justify-between gap-3">
                 <div>
                   <p className="text-[10px] uppercase tracking-[0.24em] text-red-100 font-bold">Product Sector</p>
@@ -1001,7 +1001,7 @@ const AssociatePartnerFinder = () => {
               </select>
             </div>
 
-            <div className="mt-3 rounded-2xl border border-emerald-200/70 bg-gradient-to-b from-emerald-50/65 to-white p-3 shadow-inner">
+            <div className="mt-3 rounded-2xl border border-emerald-200/70 bg-gradient-to-b from-emerald-50/65 to-white p-3 shadow-inner max-h-[430px] overflow-auto">
               {loading ? (
                 <p className="text-sm text-slate-500">Searching verified partner shops...</p>
               ) : results.length === 0 ? (
