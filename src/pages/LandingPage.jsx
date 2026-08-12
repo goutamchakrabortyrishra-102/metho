@@ -415,7 +415,7 @@ const Hero = () => {
                   <span className="text-[10px] text-slate-500">4 parts</span>
                 </div>
                 <div className="mt-2 grid grid-cols-2 gap-2">
-                  <Link to="/directory?quick=vegetables&shop_sector=Vegetables" className="rounded-lg border border-emerald-200 bg-emerald-50/50 px-2.5 py-2 text-sm font-semibold hover:bg-emerald-100 transition-colors" data-testid="hero-product-vegetables">
+                  <Link to="/partner-shop/MTH-PARTNER-004" className="rounded-lg border border-emerald-200 bg-emerald-50/50 px-2.5 py-2 text-sm font-semibold hover:bg-emerald-100 transition-colors" data-testid="hero-product-vegetables">
                     Vegetables
                   </Link>
                   <Link to="/directory?quick=grocery" className="rounded-lg border border-emerald-200 bg-emerald-50/50 px-2.5 py-2 text-sm font-semibold hover:bg-emerald-100 transition-colors" data-testid="hero-product-grocery">
@@ -1067,7 +1067,7 @@ const AssociatePartnerFinder = () => {
             </div>
 
             <div className="mt-4">
-              <Link to="/directory?quick=vegetables&business_type=Shop&shop_sector=Vegetables" className="inline-flex" data-testid="landing-open-metho-vegetable-cta">
+              <Link to="/partner-shop/MTH-PARTNER-004" className="inline-flex" data-testid="landing-open-metho-vegetable-cta">
                 <Button className="rounded-full bg-red-600 hover:bg-red-700 text-white font-bold px-5">
                   Open METHO Vegetable
                 </Button>
