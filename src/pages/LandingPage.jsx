@@ -442,25 +442,6 @@ const Hero = () => {
         </motion.div>
 
         <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} transition={{ duration: 0.8, delay: 0.2 }} className="lg:col-span-5 relative">
-          <Link
-            to="/directory?quick=vegetables&shop_sector=Vegetables"
-            className="mb-2 block"
-            data-testid="landing-highlight-vegetables"
-          >
-            <div className="rounded-[26px] border border-red-300 bg-gradient-to-r from-red-700 via-red-600 to-red-500 px-5 py-4 text-white shadow-[0_20px_44px_rgba(185,28,28,0.28)] transition-transform hover:-translate-y-0.5 w-full">
-              <div className="flex items-center justify-between gap-3">
-                <div>
-                  <p className="text-[10px] uppercase tracking-[0.24em] text-red-100 font-bold">Product Sector</p>
-                  <p className="mt-1 font-display font-black text-xl leading-tight">Vegetables</p>
-                  <p className="mt-1 text-sm text-red-50/90">Fresh vegetable partner shops quickly browse করুন.</p>
-                </div>
-                <div className="shrink-0 rounded-2xl border border-white/20 bg-white/10 p-3">
-                  <ArrowRight className="w-5 h-5" />
-                </div>
-              </div>
-            </div>
-          </Link>
-
           <div className="relative">
             <div className="absolute -top-4 -left-4 w-28 h-28 bg-amber-300/30 rounded-full blur-3xl" />
             <div className="absolute -bottom-4 -right-4 w-40 h-40 bg-emerald-500/15 rounded-full blur-3xl" />
@@ -478,6 +459,25 @@ const Hero = () => {
                 <div className="absolute inset-0 bg-gradient-to-br from-emerald-950 via-emerald-900 to-emerald-950" />
 
                 <div className="relative z-10 p-4 md:p-5 h-full flex flex-col">
+                  <Link
+                    to="/directory?quick=vegetables&shop_sector=Vegetables"
+                    className="mb-3 block"
+                    data-testid="landing-highlight-vegetables"
+                  >
+                    <div className="rounded-[26px] border border-red-300 bg-gradient-to-r from-red-700 via-red-600 to-red-500 px-5 py-4 text-white shadow-[0_20px_44px_rgba(185,28,28,0.28)] transition-transform hover:-translate-y-0.5 w-full">
+                      <div className="flex items-center justify-between gap-3">
+                        <div>
+                          <p className="text-[10px] uppercase tracking-[0.24em] text-red-100 font-bold">Product Sector</p>
+                          <p className="mt-1 font-display font-black text-xl leading-tight">Vegetables</p>
+                          <p className="mt-1 text-sm text-red-50/90">Fresh vegetable partner shops quickly browse করুন.</p>
+                        </div>
+                        <div className="shrink-0 rounded-2xl border border-white/20 bg-white/10 p-3">
+                          <ArrowRight className="w-5 h-5" />
+                        </div>
+                      </div>
+                    </div>
+                  </Link>
+
                   <div className="flex items-start justify-between gap-3">
                     <div className="max-w-[78%]">
                       <p className="text-[9px] uppercase tracking-[0.3em] text-amber-300 font-bold">Quick Access</p>
