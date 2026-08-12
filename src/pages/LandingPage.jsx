@@ -114,6 +114,9 @@ const DEFAULT_POLICY = {
 
 let landingProductsPromise = null;
 
+const LANDING_CART_STORAGE_KEY = "metho_shared_cart_v1";
+const getProductStock = (product) => Math.max(0, Number(product?.stock ?? 0));
+
 const useSectionActivation = (rootMargin = "240px 0px") => {
   const sectionRef = useRef(null);
   const [isActive, setIsActive] = useState(false);
@@ -233,6 +236,8 @@ const Hero = () => {
   const nav = useNavigate();
   const [shopSearch, setShopSearch] = useState("");
   const [bestProducts, setBestProducts] = useState([]);
+  const [cartQty, setCartQty] = useState({});
+  const cartHydratedRef = useRef(false);
   const hasBestProducts = bestProducts.length > 0;
   const LANDING_TOP_PRODUCTS_LIMIT = 10;
   const flowStats = [
@@ -285,6 +290,71 @@ const Hero = () => {
     }
     nav(`/shop?q=${encodeURIComponent(q)}`);
   };
+
+  useEffect(() => {
+    if (cartHydratedRef.current) return;
+    cartHydratedRef.current = true;
+    try {
+      const raw = localStorage.getItem(LANDING_CART_STORAGE_KEY);
+      const parsed = raw ? JSON.parse(raw) : null;
+      if (parsed && typeof parsed === "object") setCartQty(parsed);
+    } catch {}
+  }, []);
+
+  useEffect(() => {
+    try {
+      if (Object.keys(cartQty).length > 0) {
+        localStorage.setItem(LANDING_CART_STORAGE_KEY, JSON.stringify(cartQty));
+      } else {
+        localStorage.removeItem(LANDING_CART_STORAGE_KEY);
+      }
+    } catch {}
+  }, [cartQty]);
+
+  const adjustCartQty = (product, delta) => {
+    const id = String(product?.id || "");
+    if (!id) return;
+    setCartQty((prev) => {
+      const stock = getProductStock(product);
+      const current = prev[id] || 0;
+      let next = current + delta;
+      if (stock > 0) next = Math.min(next, stock);
+      next = Math.max(0, next);
+      if (next === current) return prev;
+      const copy = { ...prev };
+      if (next <= 0) delete copy[id];
+      else copy[id] = next;
+      return copy;
+    });
+  };
+
+  const groupedBestProducts = useMemo(() => {
+    const order = [];
+    const map = new Map();
+    bestProducts.forEach((product) => {
+      const category = String(product?.category || "").trim() || "METHO Products";
+      if (!map.has(category)) {
+        map.set(category, []);
+        order.push(category);
+      }
+      map.get(category).push(product);
+    });
+    return order.map((category) => ({ category, items: map.get(category) }));
+  }, [bestProducts]);
+
+  const cartItemCount = useMemo(
+    () => Object.values(cartQty).reduce((sum, qty) => sum + (Number(qty) || 0), 0),
+    [cartQty]
+  );
+
+  const cartSubtotal = useMemo(() => {
+    const byId = new Map(bestProducts.map((product) => [String(product?.id || ""), product]));
+    return Object.entries(cartQty).reduce((sum, [id, qty]) => {
+      const product = byId.get(id);
+      const price = Number(product?.price ?? product?.mrp ?? 0);
+      return sum + price * (Number(qty) || 0);
+    }, 0);
+  }, [cartQty, bestProducts]);
 
   const onSearchKeyDown = (e) => {
     if (e.key === "Enter") {
@@ -603,29 +673,86 @@ const Hero = () => {
           ))}
         </div>
 
-        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 xl:grid-cols-5 gap-2 md:gap-3">
-          {(hasBestProducts ? bestProducts : Array.from({ length: LANDING_TOP_PRODUCTS_LIMIT })).map((p, i) => (
-            <Link
-              key={p?.id || p?.name || i}
-              to="/shop"
-              className="group rounded-xl overflow-hidden border border-slate-200 bg-slate-50 hover:bg-white hover:shadow-md transition-all"
-              data-testid={`hero-best-product-${i + 1}`}
-            >
-              <div className="aspect-[5/4] bg-slate-100 overflow-hidden">
-                <img
-                  src={pickProductImageSrc(p) || FALLBACK_PRODUCT_IMG}
-                  alt={p?.name || "METHO Product"}
-                  className="w-full h-full object-cover group-hover:scale-[1.03] transition-transform duration-300"
-                  loading="lazy"
-                  onError={(e) => { applyLandingImageFallback(e, [pickProductImageSrc(p)]); }}
-                />
+        <div className="space-y-5">
+          {(hasBestProducts ? groupedBestProducts : [{ category: "METHO Products", items: Array.from({ length: LANDING_TOP_PRODUCTS_LIMIT }) }]).map((group) => (
+            <div key={group.category}>
+              <p className="text-[11px] font-bold uppercase tracking-wider text-emerald-800 mb-2">{group.category}</p>
+              <div
+                className="flex gap-3 overflow-x-auto pb-1 -mx-1 px-1 snap-x snap-mandatory"
+                data-testid={`hero-best-products-row-${String(group.category).toLowerCase().replace(/\s+/g, "-")}`}
+              >
+                {group.items.map((p, i) => {
+                  const id = String(p?.id || "");
+                  const qty = cartQty[id] || 0;
+                  return (
+                    <div
+                      key={id || i}
+                      className="group relative w-[132px] sm:w-[150px] shrink-0 snap-start rounded-xl overflow-hidden border border-slate-200 bg-slate-50 hover:bg-white hover:shadow-md transition-all"
+                      data-testid={`hero-best-product-${i + 1}`}
+                    >
+                      <button
+                        type="button"
+                        onClick={() => (id ? adjustCartQty(p, 1) : nav("/shop"))}
+                        className="block w-full text-left"
+                        data-testid={`hero-best-product-add-${id || i}`}
+                      >
+                        <div className="aspect-[5/4] bg-slate-100 overflow-hidden">
+                          <img
+                            src={pickProductImageSrc(p) || FALLBACK_PRODUCT_IMG}
+                            alt={p?.name || "METHO Product"}
+                            className="w-full h-full object-cover group-hover:scale-[1.03] transition-transform duration-300"
+                            loading="lazy"
+                            onError={(e) => { applyLandingImageFallback(e, [pickProductImageSrc(p)]); }}
+                          />
+                        </div>
+                        <div className="px-2.5 py-2">
+                          <p className="text-[11px] md:text-xs font-semibold text-emerald-950 line-clamp-1">{p?.name || `Best Product ${i + 1}`}</p>
+                          {Number(p?.price) > 0 ? (
+                            <p className="text-[11px] font-bold text-emerald-800 mt-0.5">₹{Number(p.price).toLocaleString("en-IN")}</p>
+                          ) : null}
+                        </div>
+                      </button>
+                      {qty > 0 ? (
+                        <div className="flex items-center justify-between gap-1 px-2 pb-2">
+                          <button
+                            type="button"
+                            onClick={() => adjustCartQty(p, -1)}
+                            className="w-7 h-7 rounded-full bg-emerald-900 text-white text-sm font-bold hover:bg-emerald-950"
+                            data-testid={`hero-best-product-dec-${id || i}`}
+                          >
+                            −
+                          </button>
+                          <span className="text-xs font-bold text-emerald-950" data-testid={`hero-best-product-qty-${id || i}`}>{qty}</span>
+                          <button
+                            type="button"
+                            onClick={() => adjustCartQty(p, 1)}
+                            className="w-7 h-7 rounded-full bg-emerald-900 text-white text-sm font-bold hover:bg-emerald-950"
+                            data-testid={`hero-best-product-inc-${id || i}`}
+                          >
+                            +
+                          </button>
+                        </div>
+                      ) : null}
+                    </div>
+                  );
+                })}
               </div>
-              <div className="px-2.5 py-2">
-                <p className="text-[11px] md:text-xs font-semibold text-emerald-950 line-clamp-1">{p?.name || `Best Product ${i + 1}`}</p>
-              </div>
-            </Link>
+            </div>
           ))}
         </div>
+
+        {cartItemCount > 0 ? (
+          <div className="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-emerald-900/15 bg-emerald-50/70 px-4 py-3" data-testid="hero-best-products-cart-summary">
+            <p className="text-sm font-semibold text-emerald-950">
+              {cartItemCount} item(s) selected{cartSubtotal > 0 ? ` · ₹${cartSubtotal.toLocaleString("en-IN")}` : ""}
+            </p>
+            <Link to="/shop" data-testid="hero-best-products-checkout">
+              <Button className="bg-emerald-900 hover:bg-emerald-950 text-white rounded-full px-5">
+                Continue to Checkout <ArrowRight className="ml-1 w-4 h-4" />
+              </Button>
+            </Link>
+          </div>
+        ) : null}
 
         <Link to="/shop" data-testid="hero-best-products-view-all-mobile" className="md:hidden inline-flex mt-4">
           <Button variant="outline" className="rounded-full border-emerald-900/20 hover:bg-emerald-50 hover:text-emerald-900 w-full">

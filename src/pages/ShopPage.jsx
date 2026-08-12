@@ -139,6 +139,8 @@ const loadShopStartupProducts = async (limit = 240) => {
   throw lastError || new Error("shop products fetch failed");
 };
 
+const LANDING_CART_STORAGE_KEY = "metho_shared_cart_v1";
+
 export default function ShopPage() {
   const { user } = useAuth();
   const { settings } = useSettings();
@@ -153,6 +155,7 @@ export default function ShopPage() {
   const [guestMemberRef, setGuestMemberRef] = useState("");
   const isGalleryView = searchParams.get("view") === "gallery";
   const autoPdfTriggered = useRef(false);
+  const sharedCartHydratedRef = useRef(false);
   const allowPdfDownload = ["partner", "admin", "super_admin", "company_admin"].includes(String(user?.role || "").toLowerCase());
 
   const getStock = (product) => Math.max(0, Number(product?.stock ?? 0));
@@ -194,6 +197,31 @@ export default function ShopPage() {
   };
 
   const dec = (id) => setCart((c) => ({ ...c, [id]: Math.max(0, (c[id] || 0) - 1) }));
+
+  // Pull in items added via the landing page's product cards, then clear the shared key.
+  useEffect(() => {
+    if (!products.length || sharedCartHydratedRef.current) return;
+    sharedCartHydratedRef.current = true;
+    try {
+      const raw = localStorage.getItem(LANDING_CART_STORAGE_KEY);
+      const parsed = raw ? JSON.parse(raw) : null;
+      if (parsed && typeof parsed === "object") {
+        setCart((prev) => {
+          const next = { ...prev };
+          Object.entries(parsed).forEach(([id, qty]) => {
+            const product = products.find((p) => p.id === id);
+            if (!product) return;
+            const stock = getStock(product);
+            const wanted = Math.max(0, Number(qty) || 0);
+            const merged = (next[id] || 0) + wanted;
+            next[id] = stock > 0 ? Math.min(merged, stock) : merged;
+          });
+          return next;
+        });
+      }
+      localStorage.removeItem(LANDING_CART_STORAGE_KEY);
+    } catch {}
+  }, [products]);
 
   useEffect(() => {
     if (!products.length) return;
