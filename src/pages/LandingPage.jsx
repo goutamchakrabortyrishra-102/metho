@@ -146,8 +146,8 @@ const useSectionActivation = (rootMargin = "240px 0px") => {
   return [sectionRef, isActive];
 };
 
-const fetchPublicStartupProducts = async (limit = 240) => {
-  const safeLimit = Math.max(1, Math.min(Number(limit) || 240, 240));
+const fetchPublicStartupProducts = async (limit = 48) => {
+  const safeLimit = Math.max(1, Math.min(Number(limit) || 48, 48));
   const candidates = [
     `/products/public?limit=${safeLimit}`,
     `/products?limit=${safeLimit}&compact=1`,
@@ -168,7 +168,7 @@ const fetchPublicStartupProducts = async (limit = 240) => {
 
 const loadLandingProducts = async () => {
   if (!landingProductsPromise) {
-    landingProductsPromise = fetchPublicStartupProducts(240).catch((err) => {
+    landingProductsPromise = fetchPublicStartupProducts(48).catch((err) => {
       landingProductsPromise = null;
       throw err;
     });
