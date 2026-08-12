@@ -521,6 +521,29 @@ export default function PartnerShopPage() {
   const canShowProperty = visibleSectors.includes(PARTNER_SECTOR_KEYS.PROPERTY_SECTOR);
   const canShowDoorstep = visibleSectors.includes(PARTNER_SECTOR_KEYS.DOORSTEP_SECTOR);
   const canShowOtherServices = visibleSectors.includes(PARTNER_SECTOR_KEYS.OTHER_SERVICE_SECTOR);
+  const filteredProductListings = useMemo(() => {
+    const q = productSearch.trim().toLowerCase();
+    if (!q) return productListings;
+    return productListings.filter((item) => {
+      const haystack = [item?.name, item?.category, item?.description]
+        .map((v) => String(v || "").toLowerCase())
+        .join(" ");
+      return haystack.includes(q);
+    });
+  }, [productListings, productSearch]);
+  const groupedProductListings = useMemo(() => {
+    const order = [];
+    const map = new Map();
+    filteredProductListings.forEach((item) => {
+      const category = String(item?.category || "").trim() || "Products";
+      if (!map.has(category)) {
+        map.set(category, []);
+        order.push(category);
+      }
+      map.get(category).push(item);
+    });
+    return order.map((category) => ({ category, items: map.get(category) }));
+  }, [filteredProductListings]);
   const normalizedRole = String(user?.role || "").toLowerCase();
   const isMemberOrCustomer = normalizedRole === "member" || normalizedRole === "customer";
   const defaultGalleryTab = canShowTransport
@@ -1103,7 +1126,8 @@ export default function PartnerShopPage() {
         )}
 
         {canShowProducts ? (
-        <div className="grid gap-6 lg:grid-cols-[1.25fr_1fr] mb-8">
+        <div className="mb-8">
+        <div className="grid gap-6 lg:grid-cols-[1.25fr_1fr] mb-6">
           <div className="bg-white rounded-xl border border-border p-6" data-testid="partner-shop-left-gallery-panel">
             <div className="flex items-start gap-2 mb-1">
               <p className="text-[10px] uppercase tracking-widest text-emerald-800 font-semibold">All Product View</p>
@@ -1141,7 +1165,86 @@ export default function PartnerShopPage() {
             </div>
           </div>
         </div>
+
+        {groupedProductListings.length > 0 ? (
+          <div className="space-y-5" data-testid="partner-shop-product-scroll-sections">
+            {groupedProductListings.map((group) => (
+              <div key={group.category}>
+                <p className="text-[11px] font-bold uppercase tracking-wider text-emerald-800 mb-2">{group.category}</p>
+                <div
+                  className="flex gap-3 overflow-x-auto pb-1 -mx-1 px-1 snap-x snap-mandatory"
+                  data-testid={`partner-shop-product-row-${String(group.category).toLowerCase().replace(/\s+/g, "-")}`}
+                >
+                  {group.items.map((item) => {
+                    const qty = cart[item.id] || 0;
+                    const outOfStock = getStock(item) <= 0;
+                    return (
+                      <div
+                        key={item.id}
+                        className="w-[132px] sm:w-[150px] shrink-0 snap-start rounded-xl overflow-hidden border border-slate-200 bg-slate-50 hover:bg-white hover:shadow-md transition-all"
+                        data-testid={`partner-shop-product-card-${item.id}`}
+                      >
+                        <button
+                          type="button"
+                          onClick={() => (outOfStock ? setPreviewItem(item) : inc(item))}
+                          className="block w-full text-left"
+                          data-testid={`partner-shop-product-add-${item.id}`}
+                        >
+                          <div className="aspect-square bg-slate-100 overflow-hidden relative">
+                            <img
+                              src={getDisplayImage(item, placeholder)}
+                              alt={item.name}
+                              className="w-full h-full object-cover"
+                              loading="lazy"
+                              onError={(e) => {
+                                applyImageFallback(e, getProductImageUrl(item) || item?.fallback_image_url || "", placeholder || "");
+                              }}
+                            />
+                            {outOfStock ? (
+                              <div className="absolute inset-0 bg-black/40 flex items-center justify-center">
+                                <span className="text-white text-[9px] font-black uppercase tracking-widest bg-black/60 px-2 py-1 rounded-full">Out of Stock</span>
+                              </div>
+                            ) : null}
+                          </div>
+                          <div className="px-2.5 py-2">
+                            <p className="text-[11px] md:text-xs font-semibold text-emerald-950 line-clamp-1">{item?.name || "Product"}</p>
+                            {Number(item?.price) > 0 ? (
+                              <p className="text-[11px] font-bold text-emerald-800 mt-0.5">₹{Number(item.price).toLocaleString("en-IN")}</p>
+                            ) : null}
+                          </div>
+                        </button>
+                        {!outOfStock && qty > 0 ? (
+                          <div className="flex items-center justify-between gap-1 px-2 pb-2">
+                            <button
+                              type="button"
+                              onClick={() => dec(item)}
+                              className="w-7 h-7 rounded-full bg-emerald-900 text-white text-sm font-bold hover:bg-emerald-950"
+                              data-testid={`partner-shop-product-dec-${item.id}`}
+                            >
+                              −
+                            </button>
+                            <span className="text-xs font-bold text-emerald-950" data-testid={`partner-shop-product-qty-${item.id}`}>{qty}</span>
+                            <button
+                              type="button"
+                              onClick={() => inc(item)}
+                              className="w-7 h-7 rounded-full bg-emerald-900 text-white text-sm font-bold hover:bg-emerald-950"
+                              data-testid={`partner-shop-product-inc-${item.id}`}
+                            >
+                              +
+                            </button>
+                          </div>
+                        ) : null}
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            ))}
+          </div>
         ) : null}
+        </div>
+        ) : null}
+
 
         {canShowTransport ? (
           <div className="mb-8" data-testid="partner-shop-transport-cta-main">
