@@ -205,8 +205,8 @@ const getQtyStep = (item, measureUnit = "") => {
   return Number(convertQtyBetweenUnits(getMeasureUnitStep(resolvedMeasureUnit), resolvedMeasureUnit, unit).toFixed(3));
 };
 
-const normalizeQtyByUnit = (value, item) => {
-  const step = getQtyStep(item);
+const normalizeQtyByUnit = (value, item, measureUnit = "") => {
+  const step = getQtyStep(item, measureUnit);
   const unit = getUnitType(item);
   const raw = Number(value || 0);
   if (!Number.isFinite(raw) || raw <= 0) return 0;
@@ -225,6 +225,42 @@ const formatQty = (qty) => {
 const formatPriceWithUnit = (price, unitType) => {
   const unit = getUnitType({ unit_type: unitType });
   return unit === "piece" ? `₹${price}` : `₹${price} / ${unit}`;
+};
+
+const getSelectableMeasureUnits = (item) => {
+  const unit = getUnitType(item);
+  if (unit === "kg") return ["kg", "gram"];
+  if (unit === "gram") return ["gram", "kg"];
+  if (unit === "litre") return ["litre", "ml"];
+  if (unit === "ml") return ["ml", "litre"];
+  return [unit];
+};
+
+const resolveMeasureUnit = (item, preferredUnit = "") => {
+  const options = getSelectableMeasureUnits(item);
+  return options.includes(preferredUnit) ? preferredUnit : options[0];
+};
+
+const formatQtyForMeasureUnit = (qty, item, measureUnit = "") => {
+  const baseUnit = getUnitType(item);
+  const unit = resolveMeasureUnit(item, measureUnit);
+  const converted = convertQtyBetweenUnits(qty, baseUnit, unit);
+  const value = formatQty(converted);
+  if (unit === "piece") return value;
+  return `${value} ${unit}`;
+};
+
+const formatPriceForMeasureUnit = (price, item, measureUnit = "") => {
+  const amount = Number(price || 0);
+  const baseUnit = getUnitType(item);
+  const unit = resolveMeasureUnit(item, measureUnit);
+  if (baseUnit === unit || unit === "piece") return `₹${amount} / ${unit}`;
+  let convertedPrice = amount;
+  if (baseUnit === "kg" && unit === "gram") convertedPrice = amount / 1000;
+  else if (baseUnit === "gram" && unit === "kg") convertedPrice = amount * 1000;
+  else if (baseUnit === "litre" && unit === "ml") convertedPrice = amount / 1000;
+  else if (baseUnit === "ml" && unit === "litre") convertedPrice = amount * 1000;
+  return `₹${Number(convertedPrice.toFixed(2))} / ${unit}`;
 };
 
 const getProductImageUrl = (product) => {
@@ -372,6 +408,7 @@ export default function PartnerShopPage() {
   const [showOfferPopup, setShowOfferPopup] = useState(false);
   const [err, setErr] = useState(null);
   const [cart, setCart] = useState({});
+  const [cartUnits, setCartUnits] = useState({});
   const [previewItem, setPreviewItem] = useState(null);
   const [open, setOpen] = useState(false);
   const [guestMemberRef, setGuestMemberRef] = useState("");
@@ -727,28 +764,43 @@ export default function PartnerShopPage() {
     if (nextService?.id) void loadTransportFarePresets(nextService.id);
   };
 
-  const inc = (product) => {
+  const getCartMeasureUnit = (product, preferredUnit = "") => {
+    const productId = String(product?.id || "");
+    return resolveMeasureUnit(product, preferredUnit || cartUnits[productId] || "");
+  };
+
+  const updateCartMeasureUnit = (productId, nextUnit) => {
+    const product = products.find((item) => String(item?.id) === String(productId));
+    if (!product) return;
+    const resolved = resolveMeasureUnit(product, nextUnit);
+    setCartUnits((prev) => ({ ...prev, [productId]: resolved }));
+  };
+
+  const inc = (product, preferredUnit = "") => {
     const id = product?.id;
     if (!id) return;
     const stock = getStock(product);
-    const step = getQtyStep(product);
+    const activeMeasureUnit = getCartMeasureUnit(product, preferredUnit);
+    const step = getQtyStep(product, activeMeasureUnit);
     if (stock <= 0) {
       toast.error(`${product?.name || "Product"}: out of stock`);
       return;
     }
     const current = Number(cart[id] || 0);
-    const nextQty = normalizeQtyByUnit(current + step, product);
+    const nextQty = normalizeQtyByUnit(current + step, product, activeMeasureUnit);
     if (nextQty > stock) {
       toast.error(`${product?.name || "Product"}: max available stock is ${stock}`);
       return;
     }
     setCart({ ...cart, [id]: nextQty });
+    setCartUnits((prev) => ({ ...prev, [id]: activeMeasureUnit }));
   };
-  const dec = (product) => {
+  const dec = (product, preferredUnit = "") => {
     const id = product?.id;
     if (!id) return;
+    const activeMeasureUnit = getCartMeasureUnit(product, preferredUnit);
     const current = Number(cart[id] || 0);
-    const nextQty = normalizeQtyByUnit(current - getQtyStep(product), product);
+    const nextQty = normalizeQtyByUnit(current - getQtyStep(product, activeMeasureUnit), product, activeMeasureUnit);
     setCart({ ...cart, [id]: Math.max(0, nextQty) });
   };
 
@@ -761,6 +813,7 @@ export default function PartnerShopPage() {
         return {
           ...pr,
           quantity: q,
+          quantity_label: isServiceListing(pr) ? String(q) : formatQtyForMeasureUnit(q, pr, resolveMeasureUnit(pr, cartUnits[id] || "")),
           subtotal,
           pdf_url: getPdfUrl(pr),
           listing_type: isServiceListing(pr) ? "service" : "product",
@@ -770,7 +823,7 @@ export default function PartnerShopPage() {
           service_template_key: String(pr?.service_template_key || ""),
         };
       }),
-    [cart, products]
+    [cart, cartUnits, products]
   );
   const total = items.reduce((s, i) => s + i.subtotal, 0);
 
@@ -1176,6 +1229,8 @@ export default function PartnerShopPage() {
                 >
                   {group.items.map((item) => {
                     const qty = cart[item.id] || 0;
+                    const activeMeasureUnit = getCartMeasureUnit(item);
+                    const selectableUnits = getSelectableMeasureUnits(item);
                     const outOfStock = getStock(item) <= 0;
                     return (
                       <div
@@ -1203,7 +1258,23 @@ export default function PartnerShopPage() {
                           <p className="text-[10px] uppercase tracking-wider text-emerald-800 font-semibold truncate">{item?.category || group.category}</p>
                           <p className="font-display font-bold text-emerald-950 text-sm line-clamp-1 mt-0.5">{item?.name || "Product"}</p>
                           {Number(item?.price) > 0 ? (
-                            <p className="font-display font-black text-lg text-emerald-950 mt-1">₹{Number(item.price).toLocaleString("en-IN")}</p>
+                            <p className="font-display font-black text-lg text-emerald-950 mt-1">
+                              {formatPriceForMeasureUnit(item.price, item, activeMeasureUnit)}
+                            </p>
+                          ) : null}
+                          {!isServiceListing(item) && selectableUnits.length > 1 ? (
+                            <select
+                              value={activeMeasureUnit}
+                              onChange={(e) => updateCartMeasureUnit(item.id, e.target.value)}
+                              onClick={(e) => e.stopPropagation()}
+                              className="mt-2 h-9 w-full rounded-full border border-input bg-white px-3 text-xs"
+                              aria-label={`Select measure unit for ${item.name}`}
+                              data-testid={`partner-shop-product-unit-${item.id}`}
+                            >
+                              {selectableUnits.map((unit) => (
+                                <option key={unit} value={unit}>{unit}</option>
+                              ))}
+                            </select>
                           ) : null}
                           <div className="mt-3">
                             {outOfStock ? (
@@ -1212,16 +1283,18 @@ export default function PartnerShopPage() {
                               <div className="flex items-center justify-between bg-emerald-50 rounded-full px-2 py-1" data-testid={`partner-shop-product-stepper-${item.id}`}>
                                 <button
                                   type="button"
-                                  onClick={() => dec(item)}
+                                  onClick={() => dec(item, activeMeasureUnit)}
                                   className="w-7 h-7 rounded-full bg-white hover:bg-emerald-100 flex items-center justify-center text-emerald-950 font-bold"
                                   data-testid={`partner-shop-product-dec-${item.id}`}
                                 >
                                   −
                                 </button>
-                                <span className="text-sm font-bold text-emerald-950" data-testid={`partner-shop-product-qty-${item.id}`}>{qty}</span>
+                                <span className="text-sm font-bold text-emerald-950" data-testid={`partner-shop-product-qty-${item.id}`}>
+                                  {formatQtyForMeasureUnit(qty, item, activeMeasureUnit)}
+                                </span>
                                 <button
                                   type="button"
-                                  onClick={() => inc(item)}
+                                  onClick={() => inc(item, activeMeasureUnit)}
                                   className="w-7 h-7 rounded-full bg-white hover:bg-emerald-100 flex items-center justify-center text-emerald-950 font-bold"
                                   data-testid={`partner-shop-product-inc-${item.id}`}
                                 >
@@ -1232,7 +1305,7 @@ export default function PartnerShopPage() {
                               <Button
                                 size="sm"
                                 className="w-full bg-emerald-900 hover:bg-emerald-950 rounded-full text-xs"
-                                onClick={() => inc(item)}
+                                onClick={() => inc(item, activeMeasureUnit)}
                                 data-testid={`partner-shop-product-add-${item.id}`}
                               >
                                 Add to Cart
@@ -2204,6 +2277,7 @@ export default function PartnerShopPage() {
         onOrderPlaced={() => {
           setGuestMemberRef("");
           setCart({});
+          setCartUnits({});
           setOpen(false);
           toast.success("Order placed successfully");
           if (user) setTimeout(() => nav("/app/orders"), 400);

@@ -574,7 +574,7 @@ export default function UpiPaymentDialog({
                   </div>
                   <div className="min-w-0 flex-1">
                     <p className="font-semibold text-emerald-950 truncate text-sm">{item.name}</p>
-                    <p className="text-[11px] text-slate-500 truncate">Qty {item.quantity} · ₹{Number(item.subtotal || 0).toLocaleString("en-IN")}</p>
+                    <p className="text-[11px] text-slate-500 truncate">Qty {item.quantity_label || item.quantity} · ₹{Number(item.subtotal || 0).toLocaleString("en-IN")}</p>
                   </div>
                 </div>
               ))}

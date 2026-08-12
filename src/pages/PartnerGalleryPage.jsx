@@ -852,6 +852,7 @@ export default function PartnerGalleryPage() {
       return {
         ...p,
         quantity: q,
+        quantity_label: isServiceListing(p) ? String(q) : formatQtyForMeasureUnit(q, p, resolveMeasureUnit(p, cartUnits[id] || "")),
         subtotal: (p?.price || 0) * q,
         image_url: p?.image_url || "",
         pdf_url: getPdfUrl(p),
@@ -860,7 +861,7 @@ export default function PartnerGalleryPage() {
         is_service: isServiceListing(p),
       };
     }),
-    [cart, products]
+    [cart, cartUnits, products]
   );
   const total = items.reduce((s, i) => s + i.subtotal, 0);
 

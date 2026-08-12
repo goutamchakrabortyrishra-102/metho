@@ -390,9 +390,16 @@ const Hero = () => {
               <span className="mt-4 block text-xl md:text-2xl lg:text-[2rem] font-bold text-amber-600 italic leading-tight">METHO AAY-UPAY — Smart Commerce for customer, Members &amp; Partners.</span>
             </h1>
           )}
-          <p className="mt-5 inline-flex items-center rounded-full border border-emerald-200 bg-white/95 px-4 py-2 text-sm font-semibold tracking-wide text-emerald-900 shadow-sm">
-            Powered By Metho Logistics Private Limited
-          </p>
+          <div className="mt-5 flex flex-wrap items-center gap-3">
+            <p className="inline-flex items-center rounded-full border border-emerald-200 bg-white/95 px-4 py-2 text-sm font-semibold tracking-wide text-emerald-900 shadow-sm">
+              Powered By Metho Logistics Private Limited
+            </p>
+            <Link to="/partner-shop/MTH-PARTNER-004" className="inline-flex" data-testid="landing-highlight-vegetables">
+              <Button className="rounded-full bg-red-600 hover:bg-red-700 text-white font-bold px-5 shadow-[0_16px_34px_rgba(185,28,28,0.22)]">
+                Open METHO Vegetable
+              </Button>
+            </Link>
+          </div>
           <div className="mt-8 flex flex-wrap items-center gap-3 rounded-[1.75rem] border border-emerald-900/10 bg-gradient-to-r from-white/95 via-emerald-50/75 to-white/95 p-2.5 shadow-sm">
             <Link to="/shop" className="w-full sm:w-auto" data-testid="hero-cta-shop">
               <Button size="lg" variant="outline" className="rounded-full px-7 h-12 text-base border-emerald-900/20 bg-white/95 shadow-sm hover:bg-emerald-50 hover:text-emerald-900 w-full sm:w-auto">
@@ -520,16 +527,6 @@ const Hero = () => {
         </motion.div>
 
         <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} transition={{ duration: 0.8, delay: 0.2 }} className="lg:col-span-5 relative">
-          <Link
-            to="/partner-shop/MTH-PARTNER-004"
-            className="mb-3 block"
-            data-testid="landing-highlight-vegetables"
-          >
-            <Button className="rounded-full bg-red-600 hover:bg-red-700 text-white font-bold px-5 shadow-[0_16px_34px_rgba(185,28,28,0.22)]">
-              Open METHO Vegetable
-            </Button>
-          </Link>
-
           <div className="relative">
             <div className="absolute -top-4 -left-4 w-28 h-28 bg-amber-300/30 rounded-full blur-3xl" />
             <div className="absolute -bottom-4 -right-4 w-40 h-40 bg-emerald-500/15 rounded-full blur-3xl" />
