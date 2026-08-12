@@ -1138,52 +1138,40 @@ export default function PartnerShopPage() {
 
         {canShowProducts ? (
         <div className="mb-8">
-        <div className="grid gap-6 lg:grid-cols-[1.25fr_1fr] mb-6">
-          <div className="bg-white rounded-xl border border-border p-6" data-testid="partner-shop-left-gallery-panel">
-            <div className="flex items-start gap-2 mb-1">
-              <p className="text-[10px] uppercase tracking-widest text-emerald-800 font-semibold">All Product View</p>
-            </div>
-            <h3 className="font-display font-bold text-emerald-950 text-lg mt-1">View All Products</h3>
-            <p className="text-sm text-slate-600 mt-3">See product details and add-to-cart flow in one place.</p>
-            <div className="mt-6">
-              <Button onClick={() => openGallery("", "products")} className="w-full bg-emerald-900 hover:bg-emerald-950 text-white rounded-full" data-testid="partner-gallery-btn">
-                <Images className="w-4 h-4 mr-2" /> View All Products
-              </Button>
-            </div>
+        <div className="bg-white rounded-xl border border-border p-6 mb-6" data-testid="partner-shop-right-search-panel">
+          <div className="flex items-start gap-2 mb-1">
+            <p className="text-[10px] uppercase tracking-widest text-emerald-800 font-semibold">Search & Filter</p>
           </div>
-          <div className="bg-white rounded-xl border border-border p-6" data-testid="partner-shop-right-search-panel">
-            <div className="flex items-start gap-2 mb-1">
-              <p className="text-[10px] uppercase tracking-widest text-emerald-800 font-semibold">Search & Filter</p>
-            </div>
-            <h3 className="font-display font-bold text-emerald-950 text-lg mt-1">Product Name / Category</h3>
-            <p className="text-sm text-slate-600 mt-3">Filter the gallery by product name or category.</p>
-            <div className="mt-6 flex flex-col sm:flex-row gap-2">
-              <Input
-                value={productSearch}
-                onChange={(e) => setProductSearch(e.target.value)}
-                onKeyDown={(e) => { if (e.key === "Enter") e.preventDefault(); }}
-                placeholder="e.g. malt, face care"
-                className="h-11 rounded-full text-sm"
-                data-testid="partner-shop-product-search"
-              />
-              <Button
-                onClick={() => openGallery(productSearch, "products")}
-                className="bg-emerald-900 hover:bg-emerald-950 text-white rounded-full shrink-0 w-full sm:w-auto"
-                data-testid="partner-shop-product-search-btn"
-              >
-                Search
-              </Button>
-            </div>
+          <h3 className="font-display font-bold text-emerald-950 text-lg mt-1">Product Name / Category</h3>
+          <p className="text-sm text-slate-600 mt-3">Filter products by name or category. Results update as you type.</p>
+          <div className="mt-6 flex flex-col sm:flex-row gap-2">
+            <Input
+              value={productSearch}
+              onChange={(e) => setProductSearch(e.target.value)}
+              onKeyDown={(e) => { if (e.key === "Enter") e.preventDefault(); }}
+              placeholder="e.g. malt, face care"
+              className="h-11 rounded-full text-sm"
+              data-testid="partner-shop-product-search"
+            />
+            <Button
+              onClick={() => {
+                document.getElementById("partner-shop-products-section")?.scrollIntoView({ behavior: "smooth", block: "start" });
+              }}
+              className="bg-emerald-900 hover:bg-emerald-950 text-white rounded-full shrink-0 w-full sm:w-auto"
+              data-testid="partner-shop-product-search-btn"
+            >
+              Search
+            </Button>
           </div>
         </div>
 
         {groupedProductListings.length > 0 ? (
-          <div className="space-y-5" data-testid="partner-shop-product-scroll-sections">
+          <div id="partner-shop-products-section" className="space-y-5" data-testid="partner-shop-product-scroll-sections">
             {groupedProductListings.map((group) => (
               <div key={group.category}>
                 <p className="text-[11px] font-bold uppercase tracking-wider text-emerald-800 mb-2">{group.category}</p>
                 <div
-                  className="flex gap-3 overflow-x-auto pb-1 -mx-1 px-1 snap-x snap-mandatory"
+                  className="flex gap-4 overflow-x-auto pb-2 -mx-1 px-1 snap-x snap-mandatory"
                   data-testid={`partner-shop-product-row-${String(group.category).toLowerCase().replace(/\s+/g, "-")}`}
                 >
                   {group.items.map((item) => {
@@ -1192,59 +1180,66 @@ export default function PartnerShopPage() {
                     return (
                       <div
                         key={item.id}
-                        className="w-[132px] sm:w-[150px] shrink-0 snap-start rounded-xl overflow-hidden border border-slate-200 bg-slate-50 hover:bg-white hover:shadow-md transition-all"
+                        className="w-[200px] sm:w-[220px] shrink-0 snap-start bg-white rounded-xl overflow-hidden border border-slate-200 hover:shadow-lg transition-all"
                         data-testid={`partner-shop-product-card-${item.id}`}
                       >
-                        <button
-                          type="button"
-                          onClick={() => (outOfStock ? setPreviewItem(item) : inc(item))}
-                          className="block w-full text-left"
-                          data-testid={`partner-shop-product-add-${item.id}`}
-                        >
-                          <div className="aspect-square bg-slate-100 overflow-hidden relative">
-                            <img
-                              src={getDisplayImage(item, placeholder)}
-                              alt={item.name}
-                              className="w-full h-full object-cover"
-                              loading="lazy"
-                              onError={(e) => {
-                                applyImageFallback(e, getProductImageUrl(item) || item?.fallback_image_url || "", placeholder || "");
-                              }}
-                            />
+                        <div className="aspect-square bg-slate-100 overflow-hidden relative">
+                          <img
+                            src={getDisplayImage(item, placeholder)}
+                            alt={item.name}
+                            className="w-full h-full object-cover"
+                            loading="lazy"
+                            onError={(e) => {
+                              applyImageFallback(e, getProductImageUrl(item) || item?.fallback_image_url || "", placeholder || "");
+                            }}
+                          />
+                          {outOfStock ? (
+                            <div className="absolute inset-0 bg-black/40 flex items-center justify-center">
+                              <span className="text-white text-[9px] font-black uppercase tracking-widest bg-black/60 px-2 py-1 rounded-full">Out of Stock</span>
+                            </div>
+                          ) : null}
+                        </div>
+                        <div className="p-3">
+                          <p className="text-[10px] uppercase tracking-wider text-emerald-800 font-semibold truncate">{item?.category || group.category}</p>
+                          <p className="font-display font-bold text-emerald-950 text-sm line-clamp-1 mt-0.5">{item?.name || "Product"}</p>
+                          {Number(item?.price) > 0 ? (
+                            <p className="font-display font-black text-lg text-emerald-950 mt-1">₹{Number(item.price).toLocaleString("en-IN")}</p>
+                          ) : null}
+                          <div className="mt-3">
                             {outOfStock ? (
-                              <div className="absolute inset-0 bg-black/40 flex items-center justify-center">
-                                <span className="text-white text-[9px] font-black uppercase tracking-widest bg-black/60 px-2 py-1 rounded-full">Out of Stock</span>
+                              <Button disabled size="sm" className="w-full rounded-full text-xs">Out of Stock</Button>
+                            ) : qty > 0 ? (
+                              <div className="flex items-center justify-between bg-emerald-50 rounded-full px-2 py-1" data-testid={`partner-shop-product-stepper-${item.id}`}>
+                                <button
+                                  type="button"
+                                  onClick={() => dec(item)}
+                                  className="w-7 h-7 rounded-full bg-white hover:bg-emerald-100 flex items-center justify-center text-emerald-950 font-bold"
+                                  data-testid={`partner-shop-product-dec-${item.id}`}
+                                >
+                                  −
+                                </button>
+                                <span className="text-sm font-bold text-emerald-950" data-testid={`partner-shop-product-qty-${item.id}`}>{qty}</span>
+                                <button
+                                  type="button"
+                                  onClick={() => inc(item)}
+                                  className="w-7 h-7 rounded-full bg-white hover:bg-emerald-100 flex items-center justify-center text-emerald-950 font-bold"
+                                  data-testid={`partner-shop-product-inc-${item.id}`}
+                                >
+                                  +
+                                </button>
                               </div>
-                            ) : null}
+                            ) : (
+                              <Button
+                                size="sm"
+                                className="w-full bg-emerald-900 hover:bg-emerald-950 rounded-full text-xs"
+                                onClick={() => inc(item)}
+                                data-testid={`partner-shop-product-add-${item.id}`}
+                              >
+                                Add to Cart
+                              </Button>
+                            )}
                           </div>
-                          <div className="px-2.5 py-2">
-                            <p className="text-[11px] md:text-xs font-semibold text-emerald-950 line-clamp-1">{item?.name || "Product"}</p>
-                            {Number(item?.price) > 0 ? (
-                              <p className="text-[11px] font-bold text-emerald-800 mt-0.5">₹{Number(item.price).toLocaleString("en-IN")}</p>
-                            ) : null}
-                          </div>
-                        </button>
-                        {!outOfStock && qty > 0 ? (
-                          <div className="flex items-center justify-between gap-1 px-2 pb-2">
-                            <button
-                              type="button"
-                              onClick={() => dec(item)}
-                              className="w-7 h-7 rounded-full bg-emerald-900 text-white text-sm font-bold hover:bg-emerald-950"
-                              data-testid={`partner-shop-product-dec-${item.id}`}
-                            >
-                              −
-                            </button>
-                            <span className="text-xs font-bold text-emerald-950" data-testid={`partner-shop-product-qty-${item.id}`}>{qty}</span>
-                            <button
-                              type="button"
-                              onClick={() => inc(item)}
-                              className="w-7 h-7 rounded-full bg-emerald-900 text-white text-sm font-bold hover:bg-emerald-950"
-                              data-testid={`partner-shop-product-inc-${item.id}`}
-                            >
-                              +
-                            </button>
-                          </div>
-                        ) : null}
+                        </div>
                       </div>
                     );
                   })}
