@@ -936,56 +936,16 @@ const AssociatePartnerFinder = () => {
               aria-hidden="true"
             />
           ) : null}
-          <div className="relative grid lg:grid-cols-12 gap-5">
-          <div className="lg:col-span-4 rounded-3xl border border-emerald-200/70 bg-gradient-to-b from-white via-emerald-50/30 to-white p-4 md:p-5 shadow-md">
+          <div className="relative rounded-3xl border border-emerald-200/70 bg-gradient-to-b from-white via-emerald-50/30 to-white p-4 md:p-5 shadow-md">
             <p className="text-[10px] uppercase tracking-[0.28em] text-emerald-800 font-bold">Landing Partner Shops</p>
-            <h3 className="mt-2 font-display font-black text-2xl leading-tight text-emerald-950">Featured Partner Shop List</h3>
-            <p className="mt-2 text-xs text-slate-600 font-body">Admin থেকে selected partner গুলো এখানে দেখাবে।</p>
-            <div className="mt-3">
-              <Link to="/directory?quick=vegetables&business_type=Shop&shop_sector=Vegetables" className="inline-flex w-full" data-testid="landing-open-metho-vegetable-cta">
-                <Button className="w-full rounded-full bg-red-600 hover:bg-red-700 text-white font-bold">
-                  Open METHO Vegetable
-                </Button>
-              </Link>
+            <div className="mt-2 flex flex-wrap items-center justify-between gap-3">
+              <div>
+                <h3 className="font-display font-black text-2xl leading-tight text-emerald-950">Featured Partner Shop List</h3>
+                <p className="mt-1 text-xs text-slate-600 font-body">Admin-selected partner shop list with more room for cards.</p>
+              </div>
             </div>
-            <div className="mt-4 grid gap-2 max-h-[500px] overflow-auto pr-1">
-              {loading ? (
-                <p className="text-sm text-slate-500">Loading partner shops...</p>
-              ) : results.length === 0 ? (
-                <p className="text-sm text-slate-500">No partner shop available right now.</p>
-              ) : (
-                results.slice(0, LANDING_PARTNER_CARD_LIMIT).map((p) => (
-                  <Link
-                    key={`finder-featured-${p.id || p.partner_code}`}
-                    to={`/partner-shop/${p.partner_code}`}
-                    className="rounded-xl border border-emerald-300/50 bg-white p-3 hover:bg-emerald-50/70 transition-colors shadow-sm"
-                    data-testid={`landing-partner-featured-${p.partner_code}`}
-                  >
-                    <div className="flex items-center justify-between gap-2">
-                      <p className="font-display font-bold text-emerald-950 line-clamp-1">{p.business_name || "Partner Shop"}</p>
-                      <span className="shrink-0 rounded-full bg-emerald-100 text-emerald-900 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider">{p.partner_code || "N/A"}</span>
-                    </div>
-                    <p className="mt-1 text-xs text-slate-600 flex items-center gap-1"><MapPin className="w-3.5 h-3.5 text-emerald-700" /> {p.city || "Unknown city"}</p>
-                    <p className="text-[11px] text-slate-500 mt-0.5 line-clamp-1">{p.business_type || "Business"}</p>
-                  </Link>
-                ))
-              )}
-            </div>
-            <div className="mt-4">
-              <Link to="/directory" className="inline-flex" data-testid="landing-find-partner-open-all-partners">
-                <Button variant="outline" className="rounded-full border-emerald-300 bg-white text-emerald-900 hover:bg-emerald-50 font-bold">
-                  View All Partner Services <ChevronRight className="ml-1 w-4 h-4" />
-                </Button>
-              </Link>
-            </div>
-          </div>
 
-          <div className="lg:col-span-8 rounded-3xl border border-emerald-300/70 bg-gradient-to-br from-emerald-100 via-emerald-50 to-amber-50/50 p-4 md:p-5 shadow-md">
-            <div className="mb-3 rounded-xl border border-emerald-200/80 bg-white/75 px-3 py-2">
-              <p className="text-[10px] uppercase tracking-[0.22em] text-emerald-800 font-semibold">Partner Shop Live Search</p>
-              <p className="mt-1 text-xs text-slate-600">Search once and open verified partner storefronts instantly.</p>
-            </div>
-            <div className="grid md:grid-cols-2 xl:grid-cols-6 gap-2.5 rounded-2xl border border-emerald-300/70 bg-gradient-to-r from-emerald-100/90 via-emerald-50/95 to-amber-50/85 p-3 shadow-inner">
+            <div className="mt-4 grid md:grid-cols-2 xl:grid-cols-6 gap-2.5 rounded-2xl border border-emerald-300/70 bg-gradient-to-r from-emerald-100/90 via-emerald-50/95 to-amber-50/85 p-3 shadow-inner">
               <div className="xl:col-span-2 relative">
                 <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
                 <input
@@ -1044,14 +1004,14 @@ const AssociatePartnerFinder = () => {
               </select>
             </div>
 
-            <div className="mt-3 rounded-2xl border border-emerald-200/70 bg-gradient-to-b from-emerald-50/65 to-white p-3 min-h-[214px] shadow-inner">
+            <div className="mt-3 rounded-2xl border border-emerald-200/70 bg-gradient-to-b from-emerald-50/65 to-white p-3 shadow-inner">
               {loading ? (
                 <p className="text-sm text-slate-500">Searching verified partner shops...</p>
               ) : results.length === 0 ? (
                 <p className="text-sm text-slate-500">No matching partner found. Try a nearby city or a broader category.</p>
               ) : (
-                <div className="grid sm:grid-cols-2 gap-2.5">
-                  {results.map((p) => (
+                <div className="grid sm:grid-cols-2 xl:grid-cols-3 gap-2.5">
+                  {results.slice(0, LANDING_PARTNER_CARD_LIMIT).map((p) => (
                     <Link
                       key={p.id || p.partner_code}
                       to={`/partner-shop/${p.partner_code}`}
@@ -1068,6 +1028,13 @@ const AssociatePartnerFinder = () => {
                   ))}
                 </div>
               )}
+            </div>
+            <div className="mt-4">
+              <Link to="/directory" className="inline-flex" data-testid="landing-find-partner-open-all-partners">
+                <Button variant="outline" className="rounded-full border-emerald-300 bg-white text-emerald-900 hover:bg-emerald-50 font-bold">
+                  View All Partner Services <ChevronRight className="ml-1 w-4 h-4" />
+                </Button>
+              </Link>
             </div>
           </div>
           </div>
