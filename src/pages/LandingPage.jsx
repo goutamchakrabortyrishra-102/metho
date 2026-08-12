@@ -264,14 +264,6 @@ const Hero = () => {
     { label: "Store + Directory", value: "Unified" },
     { label: "Operations", value: "Real-Time" },
   ];
-  const selectedTopProductIds = useMemo(() => {
-    const raw = settings?.landing_top_product_ids;
-    if (!Array.isArray(raw)) return [];
-    return raw
-      .map((id) => String(id || "").trim())
-      .filter(Boolean)
-      .slice(0, LANDING_TOP_PRODUCTS_LIMIT);
-  }, [settings?.landing_top_product_ids]);
   const HERO_IMG = settings?.landing_hero_image_url_full || DEFAULT_HERO_IMG;
   const tagline = settings?.landing_tagline;
   const companyVideoUrl = normalizeYoutubeUrl(settings?.company_youtube_url);
@@ -282,12 +274,7 @@ const Hero = () => {
       .then((rows) => {
         if (!active) return;
         const visibleProducts = rows.filter(isVisibleMethoProduct);
-        const productById = new Map(visibleProducts.map((product) => [String(product?.id || ""), product]));
-        const selectedProducts = selectedTopProductIds
-          .map((id) => productById.get(id))
-          .filter(Boolean);
-        const picks = selectedProducts.length > 0 ? selectedProducts : visibleProducts;
-        setBestProducts(picks);
+        setBestProducts(visibleProducts);
       })
       .catch(() => {
         if (active) setBestProducts([]);
@@ -296,7 +283,7 @@ const Hero = () => {
     return () => {
       active = false;
     };
-  }, [selectedTopProductIds]);
+  }, []);
 
   const openShopWithSearch = () => {
     const q = String(shopSearch || "").trim();

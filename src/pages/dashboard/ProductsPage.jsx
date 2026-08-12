@@ -192,6 +192,18 @@ export default function ProductsPage() {
     saveProductCategoryOrder(nextCategories);
   };
 
+  const setProductCategoryRow = (category, rowNumber) => {
+    const currentIndex = categoryOrder.indexOf(category);
+    if (currentIndex < 0) return;
+    const targetIndex = Math.min(Math.max(0, Math.round(Number(rowNumber || 1)) - 1), categoryOrder.length - 1);
+    if (!Number.isFinite(targetIndex) || targetIndex === currentIndex) return;
+    const nextCategories = [...categoryOrder];
+    nextCategories.splice(currentIndex, 1);
+    nextCategories.splice(targetIndex, 0, category);
+    setCategoryOrder(nextCategories);
+    saveProductCategoryOrder(nextCategories);
+  };
+
   const deleteProduct = async (product) => {
     if (!window.confirm(`Delete ${product?.name || "this product"}? This cannot be undone.`)) return;
     try {
@@ -637,13 +649,26 @@ export default function ProductsPage() {
 
       {isAdmin && categories.length > 1 ? (
         <div className="rounded-xl border border-border bg-slate-50 p-3" data-testid="admin-category-order-panel">
-          <p className="text-xs uppercase tracking-[0.18em] text-slate-600 font-semibold">Admin Category Order</p>
-          <p className="text-[11px] text-slate-500 mt-1">Move categories up/down to control product section order.</p>
+          <p className="text-xs uppercase tracking-[0.18em] text-slate-600 font-semibold">Landing Category Row Order</p>
+          <p className="text-[11px] text-slate-500 mt-1">Row number সেট করে দিন — Landing page-এ সেই category সেই row-এ scroll করে দেখাবে।</p>
           <div className="mt-2 space-y-2">
             {categories.map((cat, idx) => (
               <div key={cat} className="flex items-center justify-between gap-2 rounded-lg border border-border bg-white px-3 py-2">
-                <span className="text-sm text-emerald-950 font-medium">{cat}</span>
-                <div className="flex items-center gap-1">
+                <div className="flex items-center gap-2 min-w-0">
+                  <span className="text-[10px] uppercase tracking-widest text-emerald-800 font-bold shrink-0">Row</span>
+                  <input
+                    type="number"
+                    min={1}
+                    max={categories.length}
+                    value={idx + 1}
+                    disabled={savingCategoryOrder}
+                    onChange={(e) => setProductCategoryRow(cat, e.target.value)}
+                    className="w-14 h-8 rounded-md border border-border text-center text-sm"
+                    data-testid={`products-category-row-input-${cat.replace(/\s+/g, "-").toLowerCase()}`}
+                  />
+                  <span className="text-sm text-emerald-950 font-medium truncate">{cat}</span>
+                </div>
+                <div className="flex items-center gap-1 shrink-0">
                   <Button
                     type="button"
                     variant="outline"
