@@ -146,8 +146,8 @@ const useSectionActivation = (rootMargin = "240px 0px") => {
   return [sectionRef, isActive];
 };
 
-const fetchPublicStartupProducts = async (limit = 80) => {
-  const safeLimit = Math.max(1, Math.min(Number(limit) || 80, 120));
+const fetchPublicStartupProducts = async (limit = 240) => {
+  const safeLimit = Math.max(1, Math.min(Number(limit) || 240, 240));
   const candidates = [
     `/products/public?limit=${safeLimit}`,
     `/products?limit=${safeLimit}&compact=1`,
@@ -168,12 +168,30 @@ const fetchPublicStartupProducts = async (limit = 80) => {
 
 const loadLandingProducts = async () => {
   if (!landingProductsPromise) {
-    landingProductsPromise = fetchPublicStartupProducts(80).catch((err) => {
+    landingProductsPromise = fetchPublicStartupProducts(240).catch((err) => {
       landingProductsPromise = null;
       throw err;
     });
   }
   return landingProductsPromise;
+};
+
+const getProductVideoUrl = (product) => normalizeYoutubeUrl(
+  product?.youtube_url ||
+  product?.youtubeUrl ||
+  product?.video_url ||
+  product?.videoUrl ||
+  ""
+);
+
+const normalizeCategoryOrder = (value) => {
+  if (Array.isArray(value)) return value.map((item) => String(item || "").trim()).filter(Boolean);
+  if (typeof value === "string") {
+    return value.includes("|")
+      ? value.split("|").map((item) => item.trim()).filter(Boolean)
+      : value.split(",").map((item) => item.trim()).filter(Boolean);
+  }
+  return [];
 };
 
 const Nav = () => (
@@ -268,9 +286,7 @@ const Hero = () => {
         const selectedProducts = selectedTopProductIds
           .map((id) => productById.get(id))
           .filter(Boolean);
-        const picks = selectedProducts.length > 0
-          ? selectedProducts.slice(0, LANDING_TOP_PRODUCTS_LIMIT)
-          : visibleProducts.slice(0, LANDING_TOP_PRODUCTS_LIMIT);
+        const picks = selectedProducts.length > 0 ? selectedProducts : visibleProducts;
         setBestProducts(picks);
       })
       .catch(() => {
@@ -339,8 +355,13 @@ const Hero = () => {
       }
       map.get(category).push(product);
     });
-    return order.map((category) => ({ category, items: map.get(category) }));
-  }, [bestProducts]);
+    const adminOrder = normalizeCategoryOrder(settings?.product_categories);
+    const ranked = [
+      ...adminOrder.filter((category) => map.has(category)),
+      ...order.filter((category) => !adminOrder.includes(category)),
+    ];
+    return ranked.map((category) => ({ category, items: map.get(category) }));
+  }, [bestProducts, settings?.product_categories]);
 
   const cartItemCount = useMemo(
     () => Object.values(cartQty).reduce((sum, qty) => sum + (Number(qty) || 0), 0),
@@ -673,66 +694,92 @@ const Hero = () => {
           ))}
         </div>
 
-        <div className="space-y-5">
+        <div className="space-y-6">
           {(hasBestProducts ? groupedBestProducts : [{ category: "METHO Products", items: Array.from({ length: LANDING_TOP_PRODUCTS_LIMIT }) }]).map((group) => (
             <div key={group.category}>
               <p className="text-[11px] font-bold uppercase tracking-wider text-emerald-800 mb-2">{group.category}</p>
               <div
-                className="flex gap-3 overflow-x-auto pb-1 -mx-1 px-1 snap-x snap-mandatory"
+                className="flex gap-4 overflow-x-auto pb-2 -mx-1 px-1 snap-x snap-mandatory"
                 data-testid={`hero-best-products-row-${String(group.category).toLowerCase().replace(/\s+/g, "-")}`}
               >
                 {group.items.map((p, i) => {
                   const id = String(p?.id || "");
                   const qty = cartQty[id] || 0;
+                  const outOfStock = id ? getProductStock(p) <= 0 : false;
+                  const videoUrl = getProductVideoUrl(p);
                   return (
                     <div
                       key={id || i}
-                      className="group relative w-[132px] sm:w-[150px] shrink-0 snap-start rounded-xl overflow-hidden border border-slate-200 bg-slate-50 hover:bg-white hover:shadow-md transition-all"
+                      className="w-[210px] sm:w-[230px] shrink-0 snap-start bg-white rounded-xl overflow-hidden border border-slate-200 hover:shadow-lg transition-all"
                       data-testid={`hero-best-product-${i + 1}`}
                     >
-                      <button
-                        type="button"
-                        onClick={() => (id ? adjustCartQty(p, 1) : nav("/shop"))}
-                        className="block w-full text-left"
-                        data-testid={`hero-best-product-add-${id || i}`}
-                      >
-                        <div className="aspect-[5/4] bg-slate-100 overflow-hidden">
-                          <img
-                            src={pickProductImageSrc(p) || FALLBACK_PRODUCT_IMG}
-                            alt={p?.name || "METHO Product"}
-                            className="w-full h-full object-cover group-hover:scale-[1.03] transition-transform duration-300"
-                            loading="lazy"
-                            onError={(e) => { applyLandingImageFallback(e, [pickProductImageSrc(p)]); }}
-                          />
-                        </div>
-                        <div className="px-2.5 py-2">
-                          <p className="text-[11px] md:text-xs font-semibold text-emerald-950 line-clamp-1">{p?.name || `Best Product ${i + 1}`}</p>
+                      <div className="aspect-square overflow-hidden bg-slate-100 relative">
+                        <img
+                          src={pickProductImageSrc(p) || FALLBACK_PRODUCT_IMG}
+                          alt={p?.name || "METHO Product"}
+                          className="w-full h-full object-cover"
+                          loading="lazy"
+                          onError={(e) => { applyLandingImageFallback(e, [pickProductImageSrc(p)]); }}
+                        />
+                        <span className="absolute top-2 left-2 pointer-events-none text-[9px] font-bold uppercase tracking-widest px-2 py-1 rounded-full bg-amber-500 text-emerald-950">
+                          METHO
+                        </span>
+                      </div>
+                      <div className="p-3">
+                        <p className="text-[10px] uppercase tracking-wider text-emerald-800 font-semibold truncate">{p?.category || group.category}</p>
+                        <p className="font-display font-bold text-emerald-950 text-sm line-clamp-1 mt-0.5">{p?.name || `Best Product ${i + 1}`}</p>
+                        <div className="mt-1.5 flex items-center justify-between">
                           {Number(p?.price) > 0 ? (
-                            <p className="text-[11px] font-bold text-emerald-800 mt-0.5">₹{Number(p.price).toLocaleString("en-IN")}</p>
+                            <span className="font-display font-black text-lg text-emerald-950">₹{Number(p.price).toLocaleString("en-IN")}</span>
+                          ) : <span />}
+                          <span className="text-[10px] px-2 py-0.5 rounded-full font-semibold bg-amber-100 text-amber-900">METHO</span>
+                        </div>
+                        <div className="mt-3">
+                          {outOfStock ? (
+                            <Button disabled size="sm" className="w-full rounded-full text-xs">Out of Stock</Button>
+                          ) : qty > 0 ? (
+                            <div className="flex items-center justify-between bg-emerald-50 rounded-full px-2 py-1" data-testid={`hero-best-product-stepper-${id || i}`}>
+                              <button
+                                type="button"
+                                onClick={() => adjustCartQty(p, -1)}
+                                className="w-7 h-7 rounded-full bg-white hover:bg-emerald-100 flex items-center justify-center text-emerald-950 font-bold"
+                                data-testid={`hero-best-product-dec-${id || i}`}
+                              >
+                                −
+                              </button>
+                              <span className="text-sm font-bold text-emerald-950" data-testid={`hero-best-product-qty-${id || i}`}>{qty}</span>
+                              <button
+                                type="button"
+                                onClick={() => adjustCartQty(p, 1)}
+                                className="w-7 h-7 rounded-full bg-white hover:bg-emerald-100 flex items-center justify-center text-emerald-950 font-bold"
+                                data-testid={`hero-best-product-inc-${id || i}`}
+                              >
+                                +
+                              </button>
+                            </div>
+                          ) : (
+                            <Button
+                              size="sm"
+                              className="w-full bg-emerald-900 hover:bg-emerald-950 rounded-full text-xs"
+                              onClick={() => (id ? adjustCartQty(p, 1) : nav("/shop"))}
+                              data-testid={`hero-best-product-add-${id || i}`}
+                            >
+                              Add to Cart
+                            </Button>
+                          )}
+                          {videoUrl ? (
+                            <Button
+                              type="button"
+                              variant="outline"
+                              className="w-full mt-2 rounded-full text-xs"
+                              onClick={() => window.open(videoUrl, "_blank", "noopener,noreferrer")}
+                              data-testid={`hero-best-product-watch-video-${id || i}`}
+                            >
+                              Watch Video
+                            </Button>
                           ) : null}
                         </div>
-                      </button>
-                      {qty > 0 ? (
-                        <div className="flex items-center justify-between gap-1 px-2 pb-2">
-                          <button
-                            type="button"
-                            onClick={() => adjustCartQty(p, -1)}
-                            className="w-7 h-7 rounded-full bg-emerald-900 text-white text-sm font-bold hover:bg-emerald-950"
-                            data-testid={`hero-best-product-dec-${id || i}`}
-                          >
-                            −
-                          </button>
-                          <span className="text-xs font-bold text-emerald-950" data-testid={`hero-best-product-qty-${id || i}`}>{qty}</span>
-                          <button
-                            type="button"
-                            onClick={() => adjustCartQty(p, 1)}
-                            className="w-7 h-7 rounded-full bg-emerald-900 text-white text-sm font-bold hover:bg-emerald-950"
-                            data-testid={`hero-best-product-inc-${id || i}`}
-                          >
-                            +
-                          </button>
-                        </div>
-                      ) : null}
+                      </div>
                     </div>
                   );
                 })}
