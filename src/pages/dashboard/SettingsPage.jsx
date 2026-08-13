@@ -402,9 +402,7 @@ function UpiSection({ form, setF, readOnly, onPersist }) {
 }
 
 function InstallShareSection() {
-  const installUrl = typeof window !== "undefined"
-    ? `${window.location.origin}/install`
-    : "https://methoaayupay.com/install";
+  const installUrl = "https://play.google.com/store/apps/details?id=com.methoaayupay.app";
 
   const shareText = [
     "METHO AAY-UPAY app install করুন:",

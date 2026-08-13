@@ -1,6 +1,8 @@
 from datetime import datetime, timezone
 
-from fastapi import APIRouter, Depends, Header, HTTPException
+import base64
+
+from fastapi import APIRouter, Depends, Header, HTTPException, Response
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
@@ -192,8 +194,13 @@ def _set_product_youtube_url(db: Session, product_id: str, youtube_url: str) -> 
     return normalized
 
 
-def _compact_image_ref(value: str) -> str:
-    return str(value or "").strip()
+
+def _public_image_ref(product_id: str, value: str) -> str:
+    """Inline base64 images are served from a cacheable URL to keep list payloads small."""
+    raw = str(value or "").strip()
+    if raw.startswith("data:"):
+        return f"/api/products/{product_id}/image"
+    return raw
 
 
 def _compact_public_image_url(value: str) -> str:
@@ -245,7 +252,7 @@ def list_products(limit: int | None = None, authorization: str | None = Header(d
         compacted = []
         for item in out[:public_limit]:
             next_item = dict(item)
-            next_item["image_url"] = _compact_image_ref(next_item.get("image_url") or "")
+            next_item["image_url"] = _public_image_ref(next_item.get("id") or "", next_item.get("image_url") or "")
             description = str(next_item.get("description") or "")
             if len(description) > 320:
                 next_item["description"] = description[:320]
@@ -263,8 +270,29 @@ def list_public_products(limit: int = 120, db: Session = Depends(get_db)):
     safe_limit = max(1, min(int(limit), 500))
     rows = list_products(limit=safe_limit, db=db)
     for item in rows:
-        item["image_url"] = _compact_public_image_url(item.get("image_url") or "")
+        item["image_url"] = _public_image_ref(item.get("id") or "", item.get("image_url") or "")
     return rows
+
+
+@router.get("/products/{product_id}/image")
+def get_product_image(product_id: str, db: Session = Depends(get_db)):
+    meta = db.query(ProductMeta).filter(ProductMeta.product_id == product_id).first()
+    raw = str((meta.image_url if meta else "") or "").strip()
+    if not raw.startswith("data:"):
+        raise HTTPException(status_code=404, detail="Product image not found")
+
+    header, _, payload = raw.partition(",")
+    media_type = header[5:].split(";")[0].strip() or "image/png"
+    try:
+        content = base64.b64decode(payload)
+    except Exception:
+        raise HTTPException(status_code=404, detail="Product image not found")
+
+    return Response(
+        content=content,
+        media_type=media_type,
+        headers={"Cache-Control": "public, max-age=31536000, immutable"},
+    )
 
 
 @router.get("/categories")

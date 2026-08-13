@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from "react";
 import { toast } from "sonner";
-import { Upload, Loader2, QrCode, Copy, CheckCircle2 } from "lucide-react";
+import { Upload, Loader2, QrCode, Copy, CheckCircle2, ShoppingCart } from "lucide-react";
 import api from "@/services/api";
 import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
@@ -132,6 +132,7 @@ export default function UpiPaymentDialog({
   memberRef = "",
   onMemberRefChange,
   paymentConfig = null,
+  onItemQtyChange = null,
 }) {
   const { user } = useAuth();
   const [settings, setSettings] = useState(null);
@@ -576,6 +577,27 @@ export default function UpiPaymentDialog({
                     <p className="font-semibold text-emerald-950 truncate text-sm">{item.name}</p>
                     <p className="text-[11px] text-slate-500 truncate">Qty {item.quantity_label || item.quantity} · ₹{Number(item.subtotal || 0).toLocaleString("en-IN")}</p>
                   </div>
+                  {onItemQtyChange ? (
+                    <div className="flex items-center gap-1 shrink-0">
+                      <button
+                        type="button"
+                        onClick={() => onItemQtyChange(item, -1)}
+                        className="w-7 h-7 rounded-full border border-emerald-200 bg-white hover:bg-emerald-100 text-emerald-950 font-bold"
+                        data-testid={`checkout-qty-dec-${item.id}`}
+                      >
+                        −
+                      </button>
+                      <span className="w-6 text-center text-sm font-bold text-emerald-950" data-testid={`checkout-qty-value-${item.id}`}>{item.quantity}</span>
+                      <button
+                        type="button"
+                        onClick={() => onItemQtyChange(item, 1)}
+                        className="w-7 h-7 rounded-full border border-emerald-200 bg-white hover:bg-emerald-100 text-emerald-950 font-bold"
+                        data-testid={`checkout-qty-inc-${item.id}`}
+                      >
+                        +
+                      </button>
+                    </div>
+                  ) : null}
                 </div>
               ))}
             </div>
@@ -929,7 +951,7 @@ export default function UpiPaymentDialog({
                 className="w-full h-11 rounded-full border-emerald-300 text-emerald-900 hover:bg-emerald-50"
                 data-testid="upi-back-to-cart-button"
               >
-                Back to Cart
+                <ShoppingCart className="w-4 h-4 mr-2" /> Back to Cart & Add More
               </Button>
               {razorpayEnabled && !forceManualUpiFlow ? (
                 <Button

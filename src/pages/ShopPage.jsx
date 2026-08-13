@@ -632,6 +632,12 @@ export default function ShopPage() {
         isGuest={!user}
         memberRef={guestMemberRef}
         onMemberRefChange={setGuestMemberRef}
+        onItemQtyChange={(item, delta) => {
+          const product = methoProducts.find((p) => p.id === item.id);
+          if (!product) return;
+          if (delta > 0) inc(product);
+          else dec(item.id);
+        }}
         onOrderPlaced={() => {
           setCheckoutOpen(false);
           setCart({});

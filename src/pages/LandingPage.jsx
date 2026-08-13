@@ -5,6 +5,8 @@ import { ArrowRight, TrendingUp, Users, Wallet, Shield, Award, Sparkles, Check, 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Logo } from "@/components/Logo";
+import UpiPaymentDialog from "@/components/UpiPaymentDialog";
+import { useAuth } from "@/contexts/AuthContext";
 import api from "@/services/api";
 import { methoStoreApi, normalizeCollection } from "@/services/methoStore";
 import { useSettings } from "@/contexts/SettingsContext";
@@ -251,10 +253,13 @@ const Nav = () => (
 
 const Hero = () => {
   const { settings } = useSettings();
+  const { user } = useAuth();
   const nav = useNavigate();
   const [shopSearch, setShopSearch] = useState("");
   const [bestProducts, setBestProducts] = useState([]);
   const [cartQty, setCartQty] = useState({});
+  const [checkoutOpen, setCheckoutOpen] = useState(false);
+  const [guestMemberRef, setGuestMemberRef] = useState("");
   const cartHydratedRef = useRef(false);
   const hasBestProducts = bestProducts.length > 0;
   const LANDING_TOP_PRODUCTS_LIMIT = 10;
@@ -363,6 +368,39 @@ const Hero = () => {
       return sum + price * (Number(qty) || 0);
     }, 0);
   }, [cartQty, bestProducts]);
+
+  const checkoutItems = useMemo(() => {
+    const byId = new Map(bestProducts.map((product) => [String(product?.id || ""), product]));
+    return Object.entries(cartQty)
+      .filter(([, qty]) => Number(qty) > 0)
+      .map(([id, qty]) => {
+        const product = byId.get(id);
+        if (!product) return null;
+        const price = Number(product?.price ?? product?.mrp ?? 0);
+        if (price <= 0) return null;
+        return {
+          id,
+          name: product?.name,
+          price,
+          quantity: Number(qty) || 0,
+          subtotal: Number((price * (Number(qty) || 0)).toFixed(2)),
+          image_url: product?.image_url || "",
+          category: product?.category || "",
+        };
+      })
+      .filter(Boolean);
+  }, [cartQty, bestProducts]);
+
+  const checkoutTotal = useMemo(
+    () => checkoutItems.reduce((sum, item) => sum + Number(item.subtotal || 0), 0),
+    [checkoutItems]
+  );
+
+  const adjustCheckoutItemQty = (item, delta) => {
+    const product = bestProducts.find((p) => String(p?.id || "") === String(item?.id || ""));
+    if (!product) return;
+    adjustCartQty(product, delta);
+  };
 
   const onSearchKeyDown = (e) => {
     if (e.key === "Enter") {
@@ -668,6 +706,20 @@ const Hero = () => {
             </Button>
           </Link>
         </div>
+        {cartItemCount > 0 ? (
+          <div className="fixed top-36 md:top-[14.5rem] left-1/2 z-[60] w-[min(680px,calc(100vw-1.5rem))] -translate-x-1/2 flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-emerald-900/20 bg-emerald-950 px-4 py-3 text-white shadow-lg" data-testid="hero-best-products-cart-summary-top">
+            <p className="text-sm font-semibold">
+              Cart: {cartItemCount} item(s){cartSubtotal > 0 ? ` · ₹${cartSubtotal.toLocaleString("en-IN")}` : ""}
+            </p>
+            <Button
+              onClick={() => setCheckoutOpen(true)}
+              className="bg-amber-400 hover:bg-amber-300 text-emerald-950 rounded-full px-5 font-bold"
+              data-testid="hero-best-products-checkout-top"
+            >
+              Checkout <ArrowRight className="ml-1 w-4 h-4" />
+            </Button>
+          </div>
+        ) : null}
         <div className="mb-4 flex flex-wrap gap-2 text-[11px]">
           {[
             "High-visibility products",
@@ -777,11 +829,13 @@ const Hero = () => {
             <p className="text-sm font-semibold text-emerald-950">
               {cartItemCount} item(s) selected{cartSubtotal > 0 ? ` · ₹${cartSubtotal.toLocaleString("en-IN")}` : ""}
             </p>
-            <Link to="/shop" data-testid="hero-best-products-checkout">
-              <Button className="bg-emerald-900 hover:bg-emerald-950 text-white rounded-full px-5">
-                Continue to Checkout <ArrowRight className="ml-1 w-4 h-4" />
-              </Button>
-            </Link>
+            <Button
+              onClick={() => setCheckoutOpen(true)}
+              className="bg-emerald-900 hover:bg-emerald-950 text-white rounded-full px-5"
+              data-testid="hero-best-products-checkout"
+            >
+              Checkout <ArrowRight className="ml-1 w-4 h-4" />
+            </Button>
           </div>
         ) : null}
 
@@ -791,6 +845,22 @@ const Hero = () => {
           </Button>
         </Link>
       </div>
+
+      <UpiPaymentDialog
+        open={checkoutOpen}
+        onOpenChange={setCheckoutOpen}
+        items={checkoutItems}
+        total={checkoutTotal}
+        isGuest={!user}
+        memberRef={guestMemberRef}
+        onMemberRefChange={setGuestMemberRef}
+        onItemQtyChange={adjustCheckoutItemQty}
+        onOrderPlaced={() => {
+          setCheckoutOpen(false);
+          setCartQty({});
+          setGuestMemberRef("");
+        }}
+      />
     </div>
   </section>
   );
