@@ -1,6 +1,6 @@
 import json
 import uuid
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 import base64
 import hashlib
 import hmac
@@ -1277,16 +1277,55 @@ def partner_summary(db: Session = Depends(get_db), current_user=Depends(get_curr
         .count()
     )
 
+    partner_product_ids = _partner_product_ids(db, partner.id)
+    finalized_statuses = {"paid", "approved", "completed", "delivered", "processing"}
+    total_sales = 0.0
+    total_commission = 0.0
+    month_sales = 0.0
+    month_commission = 0.0
+    month_orders = set()
+    current_period = datetime.now(timezone.utc).strftime("%Y-%m")
+
+    for order in db.query(PublicOrder).order_by(PublicOrder.created_at.asc()).all():
+        if str(order.status or "").strip().lower() not in finalized_statuses:
+            continue
+        try:
+            items = json.loads(order.items_json or "[]")
+        except Exception:
+            items = []
+        order_sales = 0.0
+        for item in items:
+            if str(item.get("product_id") or "") not in partner_product_ids:
+                continue
+            order_sales += max(0.0, float(item.get("subtotal") or 0))
+        order_sales = round(order_sales, 2)
+        if order_sales <= 0:
+            continue
+        commission = round(order_sales * max(0.0, min(100.0, float(partner.commission_percent or 0))) / 100.0, 2)
+        total_sales += order_sales
+        total_commission += commission
+        created_at = order.created_at
+        if created_at and created_at.tzinfo is None:
+            created_at = created_at.replace(tzinfo=timezone.utc)
+        if created_at and created_at.astimezone(timezone.utc).strftime("%Y-%m") == current_period:
+            month_sales += order_sales
+            month_commission += commission
+            month_orders.add(order.id)
+
     return {
         "partner_code": partner.partner_code,
         "business_name": partner.business_name,
         "business_type": str(partner.business_type or ""),
         "commission_percent": float(partner.commission_percent or 0),
-        "total_sales": float(partner.total_sales or 0),
-        "total_commission_paid": 0,
+        "total_sales": round(total_sales, 2),
+        "total_commission_paid": round(total_commission, 2),
         "products_linked": products_linked,
-        "current_period": "N/A",
-        "this_month": {"sales": 0, "commission": 0, "orders": 0},
+        "current_period": current_period,
+        "this_month": {
+            "sales": round(month_sales, 2),
+            "commission": round(month_commission, 2),
+            "orders": len(month_orders),
+        },
     }
 
 
