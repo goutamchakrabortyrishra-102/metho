@@ -98,6 +98,7 @@ _bandwidth_lock = Lock()
 PUBLIC_RESOURCE_PATH_PREFIXES = (
     "/api/files/",
     "/api/public-files/",
+    "/api/products/",
 )
 
 
