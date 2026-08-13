@@ -1658,7 +1658,10 @@ const Footer = () => {
     </div>
     <div className="mt-12 max-w-7xl mx-auto px-6 border-t border-emerald-800 pt-6 flex flex-wrap items-center justify-between gap-4 text-xs">
       <p>© 2026 Metho Logistics Private Limited. All rights reserved.</p>
-      <p className="flex items-center gap-2"><Globe className="w-3 h-3" /> Powered by METHO Logistics ERP v3.0</p>
+      <div className="flex flex-wrap items-center gap-4">
+        <Link to="/privacy-policy" className="hover:text-amber-400">Privacy Policy</Link>
+        <p className="flex items-center gap-2"><Globe className="w-3 h-3" /> Powered by METHO Logistics ERP v3.0</p>
+      </div>
     </div>
   </footer>
   );

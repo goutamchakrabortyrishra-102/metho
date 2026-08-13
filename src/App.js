@@ -52,6 +52,7 @@ const loadAdminPropertyBuySellPage = () => import("@/pages/dashboard/AdminProper
 const loadMethoStoreOwnerPage = () => import("@/pages/dashboard/MethoStoreOwnerPage");
 const loadCustomerOrdersAccessPage = () => import("@/pages/CustomerOrdersAccessPage");
 const loadCustomerInvoicePage = () => import("@/pages/CustomerInvoicePage");
+const loadPrivacyPolicyPage = () => import("@/pages/PrivacyPolicyPage");
 
 const LandingPage = lazy(loadLandingPage);
 const LoginPage = lazy(loadLoginPage);
@@ -100,6 +101,7 @@ const AdminPropertyBuySellPage = lazy(loadAdminPropertyBuySellPage);
 const MethoStoreOwnerPage = lazy(loadMethoStoreOwnerPage);
 const CustomerOrdersAccessPage = lazy(loadCustomerOrdersAccessPage);
 const CustomerInvoicePage = lazy(loadCustomerInvoicePage);
+const PrivacyPolicyPage = lazy(loadPrivacyPolicyPage);
 
 const prefetchedChunks = new Set();
 const prefetchChunk = (loader) => {
@@ -276,6 +278,7 @@ function App() {
               <Route path="/install" element={<InstallPage />} />
               <Route path="/customer-orders" element={<CustomerOrdersAccessPage />} />
               <Route path="/customer-invoice/:orderId" element={<CustomerInvoicePage />} />
+              <Route path="/privacy-policy" element={<PrivacyPolicyPage />} />
               <Route path="/login" element={<LoginPage />} />
               <Route path="/admin-login" element={<LoginPage adminOnly />} />
               <Route path="/register" element={<RegisterPage />} />
