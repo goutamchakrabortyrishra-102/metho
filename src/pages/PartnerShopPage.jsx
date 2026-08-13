@@ -1208,7 +1208,7 @@ export default function PartnerShopPage() {
               <div key={group.category}>
                 <p className="text-[11px] font-bold uppercase tracking-wider text-emerald-800 mb-2">{group.category}</p>
                 <div
-                  className="grid grid-cols-2 gap-4 pb-2"
+                  className="grid grid-cols-2 md:grid-cols-4 gap-4 pb-2"
                   data-testid={`partner-shop-product-row-${String(group.category).toLowerCase().replace(/\s+/g, "-")}`}
                 >
                   {group.items.map((item) => {
