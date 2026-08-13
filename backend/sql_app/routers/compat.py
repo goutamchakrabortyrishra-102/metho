@@ -605,6 +605,21 @@ def _approved_member_purchases(db: Session, user_id: str, period: str | None = N
     return out
 
 
+def _sql_member_rank(db: Session, user_id: str, period: str | None = None) -> str:
+    period = period or datetime.now(timezone.utc).strftime("%Y-%m")
+    amount = round(sum(item["metho_sales"] for item in _approved_member_purchases(db, user_id, period)), 2)
+    settings = load_settings(db)
+    if amount >= float(settings.get("rank_diamond_bv") or 100000):
+        return "Diamond"
+    if amount >= float(settings.get("rank_gold_bv") or 50000):
+        return "Gold"
+    if amount >= float(settings.get("rank_silver_bv") or 20000):
+        return "Silver"
+    if amount >= float(settings.get("rank_bronze_bv") or 5000):
+        return "Bronze"
+    return "Starter"
+
+
 def _reward_pool_snapshot(db: Session, period: str) -> dict:
     return _load_json_setting(db, _reward_pool_key(period), {
         "commission_pool": 0.0, "member_pool": 0.0, "leader_pool": 0.0,
@@ -2722,14 +2737,17 @@ def _save_user_payout_details(db: Session, user_id: str, payload: dict | None, r
 
 
 @router.get("/dashboard/overview")
-def dashboard_overview(current_user=Depends(get_current_user)):
+def dashboard_overview(db: Session = Depends(get_db), current_user=Depends(get_current_user)):
+    wallet_state = _load_user_wallet(db, current_user.id)
+    direct_count = db.query(UserReferral).filter(UserReferral.sponsor_user_id == current_user.id).count()
+    orders_count = len(_approved_member_purchases(db, current_user.id))
     return {
         "kyc_status": "approved",
-        "rank": "Starter",
-        "wallet_balance": 0,
-        "total_income": 0,
-        "downline_count": 0,
-        "orders_count": 0,
+        "rank": _sql_member_rank(db, current_user.id),
+        "wallet_balance": wallet_state["balance"],
+        "total_income": wallet_state["total_income"],
+        "downline_count": direct_count,
+        "orders_count": orders_count,
         "income_chart": [
             {"day": "Mon", "income": 0},
             {"day": "Tue", "income": 0},
@@ -2739,8 +2757,8 @@ def dashboard_overview(current_user=Depends(get_current_user)):
             {"day": "Sat", "income": 0},
             {"day": "Sun", "income": 0},
         ],
-        "total_bonus": 0,
-        "total_withdrawn": 0,
+        "total_bonus": wallet_state["total_bonus"],
+        "total_withdrawn": wallet_state["total_withdrawn"],
         "recent_transactions": [],
     }
 
@@ -2768,19 +2786,31 @@ def wallet_withdrawals(current_user=Depends(get_current_user)):
 
 
 @router.get("/wallet/monthly-projection")
-def wallet_monthly_projection(current_user=Depends(get_current_user)):
+def wallet_monthly_projection(db: Session = Depends(get_db), current_user=Depends(get_current_user)):
+    settings = load_settings(db)
+    period = datetime.now(timezone.utc).strftime("%Y-%m")
+    own = round(sum(item["metho_sales"] for item in _approved_member_purchases(db, current_user.id, period)), 2)
+    direct_ids = {rel.user_id for rel in db.query(UserReferral).filter(UserReferral.sponsor_user_id == current_user.id).all()}
+    active_direct = sum(1 for uid in direct_ids if _approved_member_purchases(db, uid, period))
+    team = round(sum(sum(x["metho_sales"] for x in _approved_member_purchases(db, uid, period)) for uid in direct_ids), 2)
+    points = round(own / 100.0, 4)
+    required_direct = int(settings.get("leader_min_direct_members") or 0)
+    required_active = int(settings.get("leader_min_active_members") or 0)
+    required_personal = float(settings.get("leader_min_personal_monthly_purchase") or 0)
+    required_team = float(settings.get("leader_min_team_monthly_purchase") or 0)
     return {
-        "period": datetime.now().strftime("%Y-%m"),
-        "my_monthly_purchase": 0,
-        "my_points": 0,
+        "period": period,
+        "my_monthly_purchase": own,
+        "my_points": points,
         "projected_point_value": 10,
         "projected_member_reward": 0,
         "leader_qualification": {
-            "qualified": False,
+            "qualified": len(direct_ids) >= required_direct and active_direct >= required_active and own >= required_personal and team >= required_team,
             "checks": {
-                "direct_members": {"actual": 0, "required": 2, "pass": False},
-                "personal_monthly_purchase": {"actual": 0, "required": 1000, "pass": False},
-                "team_monthly_purchase": {"actual": 0, "required": 5000, "pass": False},
+                "direct_members": {"actual": len(direct_ids), "required": required_direct, "pass": len(direct_ids) >= required_direct},
+                "active_members": {"actual": active_direct, "required": required_active, "pass": active_direct >= required_active},
+                "personal_monthly_purchase": {"actual": own, "required": required_personal, "pass": own >= required_personal},
+                "team_monthly_purchase": {"actual": team, "required": required_team, "pass": team >= required_team},
             },
         },
     }
@@ -2823,7 +2853,7 @@ def members(db: Session = Depends(get_db), current_user=Depends(get_current_user
                 "sponsor_code": _sponsor_code_for_user(db, u.id),
                 "dob": extras.get("dob") or "",
                 "pan_no": extras.get("pan_no") or "",
-                "rank": "Starter",
+                "rank": _sql_member_rank(db, u.id),
                 "kyc_status": "approved",
                 "role": u.role,
                 "active": u.is_active,
@@ -3078,7 +3108,7 @@ def genealogy_tree(db: Session = Depends(get_db), current_user=Depends(get_curre
             "id": user.id,
             "name": user.name,
             "member_code": member_code_for_user(user.id),
-            "rank": "Starter",
+            "rank": _sql_member_rank(db, user.id),
             "children": [],
         }
         # Protect against accidental cyclic relationships.
@@ -3094,14 +3124,27 @@ def genealogy_tree(db: Session = Depends(get_db), current_user=Depends(get_curre
         "id": current_user.id,
         "name": current_user.name,
         "member_code": member_code_for_user(current_user.id),
-        "rank": "Starter",
+        "rank": _sql_member_rank(db, current_user.id),
         "children": [],
     }
 
 
 @router.get("/leaderboard/referrals")
-def leaderboard_referrals(period: str = "month", limit: int = 25):
-    return {"period": period, "leaders": []}
+def leaderboard_referrals(period: str = "month", limit: int = 25, db: Session = Depends(get_db)):
+    rows = {}
+    for rel in db.query(UserReferral).all():
+        sponsor = db.query(User).filter(User.id == rel.sponsor_user_id).first()
+        child = db.query(User).filter(User.id == rel.user_id).first()
+        if not sponsor or not child:
+            continue
+        if period == "month" and rel.created_at and _period_for_datetime(rel.created_at) != datetime.now(timezone.utc).strftime("%Y-%m"):
+            continue
+        rows[sponsor.id] = rows.get(sponsor.id, 0) + 1
+    leaders = []
+    for user_id, count in sorted(rows.items(), key=lambda item: item[1], reverse=True)[:max(1, min(int(limit or 25), 100))]:
+        user = db.query(User).filter(User.id == user_id).first()
+        leaders.append({"user_id": user_id, "name": user.name, "member_code": member_code_for_user(user_id), "rank": _sql_member_rank(db, user_id), "referral_count": count, "total_bonus_earned": _load_user_wallet(db, user_id)["total_bonus"]})
+    return {"period": period, "leaders": leaders}
 
 
 @router.get("/leaderboard/rank-ups")
