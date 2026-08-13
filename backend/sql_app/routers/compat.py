@@ -518,6 +518,137 @@ def _partner_wallet_key(partner_id: str) -> str:
     return f"partner_wallet:{partner_id}"
 
 
+def _user_wallet_key(user_id: str) -> str:
+    return f"user_wallet:{user_id}"
+
+
+def _reward_pool_key(period: str) -> str:
+    return f"reward_pool:{period}"
+
+
+USER_WALLET_DEFAULTS = {
+    "balance": 0.0,
+    "total_income": 0.0,
+    "total_bonus": 0.0,
+    "total_withdrawn": 0.0,
+    "member_reward_credited": 0.0,
+    "leader_reward_credited": 0.0,
+    "mps_fund_payout": 0.0,
+}
+
+
+def _load_json_setting(db: Session, key: str, default):
+    row = db.query(AppSetting).filter(AppSetting.key == key).first()
+    if not row:
+        return default.copy() if isinstance(default, dict) else default
+    try:
+        value = json.loads(row.value_json or "")
+    except Exception:
+        value = default
+    return value if isinstance(value, type(default)) else default
+
+
+def _save_json_setting(db: Session, key: str, value) -> None:
+    row = db.query(AppSetting).filter(AppSetting.key == key).first()
+    payload = json.dumps(value)
+    if not row:
+        db.add(AppSetting(key=key, value_json=payload, updated_at=datetime.now(timezone.utc)))
+    else:
+        row.value_json = payload
+        row.updated_at = datetime.now(timezone.utc)
+
+
+def _load_user_wallet(db: Session, user_id: str) -> dict:
+    wallet = _load_json_setting(db, _user_wallet_key(user_id), USER_WALLET_DEFAULTS)
+    return {key: round(float(wallet.get(key) or 0), 2) for key in USER_WALLET_DEFAULTS}
+
+
+def _save_user_wallet(db: Session, user_id: str, wallet: dict) -> dict:
+    normalized = {key: round(float(wallet.get(key) or 0), 2) for key in USER_WALLET_DEFAULTS}
+    _save_json_setting(db, _user_wallet_key(user_id), normalized)
+    return normalized
+
+
+def _period_for_datetime(value) -> str:
+    current = value or datetime.now(timezone.utc)
+    if current.tzinfo is None:
+        current = current.replace(tzinfo=timezone.utc)
+    return current.astimezone(timezone.utc).strftime("%Y-%m")
+
+
+def _order_member(db: Session, order: PublicOrder):
+    if order.customer_user_id:
+        return db.query(User).filter(User.id == order.customer_user_id).first()
+    ref = str(order.member_ref or "").strip().upper()
+    if not ref:
+        return None
+    for candidate in db.query(User).filter(User.is_active.is_(True)).all():
+        if member_code_for_user(candidate.id).upper() == ref:
+            return candidate
+    return None
+
+
+def _approved_member_purchases(db: Session, user_id: str, period: str | None = None) -> list[dict]:
+    rows = db.query(PublicOrder).filter(PublicOrder.status == "paid").order_by(PublicOrder.created_at.asc()).all()
+    out = []
+    for order in rows:
+        member = _order_member(db, order)
+        if not member or member.id != user_id or (period and _period_for_datetime(order.created_at) != period):
+            continue
+        try:
+            items = json.loads(order.items_json or "[]")
+        except Exception:
+            items = []
+        metho_sales = round(sum(float(item.get("subtotal") or 0) for item in items if str(item.get("product_type") or "metho").lower() == "metho"), 2)
+        if metho_sales > 0:
+            out.append({"order": order, "metho_sales": metho_sales})
+    return out
+
+
+def _reward_pool_snapshot(db: Session, period: str) -> dict:
+    return _load_json_setting(db, _reward_pool_key(period), {
+        "commission_pool": 0.0, "member_pool": 0.0, "leader_pool": 0.0,
+        "mps_fund": 0.0, "company_fund": 0.0, "technology_reserve": 0.0,
+        "gross_sales": 0.0,
+    })
+
+
+def _calculate_sql_pool(db: Session, period: str) -> dict:
+    settings = load_settings(db)
+    totals = {"gross_sales": 0.0, "commission_pool": 0.0, "member_pool": 0.0, "leader_pool": 0.0, "mps_fund": 0.0, "company_fund": 0.0, "technology_reserve": 0.0}
+    split = {
+        "member_pool": float(settings.get("commission_split_member_pool") or 0),
+        "leader_pool": float(settings.get("commission_split_leader_pool") or 0),
+        "mps_fund": float(settings.get("commission_split_mps_fund") or 0),
+        "company_fund": float(settings.get("commission_split_company_fund") or 0),
+        "technology_reserve": float(settings.get("commission_split_technology_reserve") or 0),
+    }
+    for order in db.query(PublicOrder).filter(PublicOrder.status == "paid").all():
+        if _period_for_datetime(order.created_at) != period:
+            continue
+        try:
+            items = json.loads(order.items_json or "[]")
+        except Exception:
+            items = []
+        commission = 0.0
+        for item in items:
+            subtotal = max(0.0, float(item.get("subtotal") or 0))
+            totals["gross_sales"] += subtotal
+            if str(item.get("product_type") or "metho").lower() == "metho":
+                rate = float(settings.get("metho_commission_percent") or 10)
+            else:
+                partner_product = db.query(PartnerProduct).filter(PartnerProduct.id == str(item.get("product_id") or "")).first()
+                partner = db.query(AssociatePartner).filter(AssociatePartner.id == partner_product.partner_id).first() if partner_product else None
+                rate = float(partner.commission_percent or 0) if partner else 0
+            commission += subtotal * max(0.0, min(100.0, rate)) / 100.0
+        totals["commission_pool"] += commission
+    totals["commission_pool"] = round(totals["commission_pool"], 2)
+    totals["gross_sales"] = round(totals["gross_sales"], 2)
+    for key, percent in split.items():
+        totals[key] = round(totals["commission_pool"] * percent / 100.0, 2)
+    return totals
+
+
 def _partner_wallet_tx_key(partner_id: str) -> str:
     return f"partner_wallet_tx:{partner_id}"
 
@@ -2615,21 +2746,20 @@ def dashboard_overview(current_user=Depends(get_current_user)):
 
 
 @router.get("/wallet")
-def wallet(current_user=Depends(get_current_user)):
-    return {
-        "balance": 0,
-        "total_income": 0,
-        "total_bonus": 0,
-        "total_withdrawn": 0,
-        "member_reward_credited": 0,
-        "leader_reward_credited": 0,
-        "mps_fund_payout": 0,
-    }
+def wallet(db: Session = Depends(get_db), current_user=Depends(get_current_user)):
+    return _load_user_wallet(db, current_user.id)
 
 
 @router.get("/wallet/transactions")
-def wallet_transactions(current_user=Depends(get_current_user)):
-    return []
+def wallet_transactions(db: Session = Depends(get_db), current_user=Depends(get_current_user)):
+    period = datetime.now(timezone.utc).strftime("%Y-%m")
+    state = _load_json_setting(db, f"smart_cycle_settled:{current_user.id}:{period}", {})
+    rows = []
+    if state.get("bonus"):
+        rows.append({"type": "smart_cycle_bonus", "amount": state["bonus"], "period": period})
+    if state.get("leader_match"):
+        rows.append({"type": "leader_match_reward", "amount": state["leader_match"], "period": period})
+    return rows
 
 
 @router.get("/wallet/withdrawals")
@@ -3080,13 +3210,27 @@ def analytics_top_partners(period: str = "month", limit: int = 10, db: Session =
 
 
 @router.get("/business/stats")
-def business_stats(current_user=Depends(get_current_user)):
+def business_stats(db: Session = Depends(get_db), current_user=Depends(get_current_user)):
+    period = datetime.now(timezone.utc).strftime("%Y-%m")
+    own_sales = round(sum(item["metho_sales"] for item in _approved_member_purchases(db, current_user.id, period)), 2)
+    direct_ids = {rel.user_id for rel in db.query(UserReferral).filter(UserReferral.sponsor_user_id == current_user.id).all()}
+    team_sales = own_sales
+    for user_id in direct_ids:
+        team_sales += round(sum(item["metho_sales"] for item in _approved_member_purchases(db, user_id, period)), 2)
+    settings = load_settings(db)
+    thresholds = {
+        "Bronze": float(settings.get("rank_bronze_bv") or 5000),
+        "Silver": float(settings.get("rank_silver_bv") or 20000),
+        "Gold": float(settings.get("rank_gold_bv") or 50000),
+        "Diamond": float(settings.get("rank_diamond_bv") or 100000),
+    }
+    rank = "Diamond" if team_sales >= thresholds["Diamond"] else "Gold" if team_sales >= thresholds["Gold"] else "Silver" if team_sales >= thresholds["Silver"] else "Bronze" if team_sales >= thresholds["Bronze"] else "Starter"
     return {
-        "total_business_volume": 0,
-        "mps": 0,
-        "rank": "Starter",
-        "direct_downline": 0,
-        "rank_thresholds": {"Bronze": 5000, "Silver": 20000, "Gold": 50000, "Diamond": 100000},
+        "total_business_volume": round(team_sales, 2),
+        "mps": round(team_sales / 100.0, 2),
+        "rank": rank,
+        "direct_downline": len(direct_ids),
+        "rank_thresholds": thresholds,
     }
 
 
@@ -3096,11 +3240,14 @@ def business_cycle(db: Session = Depends(get_db), current_user=Depends(get_curre
     bonus_percent = float(settings.get("smart_cycle_bonus_percent") or 10)
     target_bv = float(settings.get("cycle_target_bv") or 10000)
     reward_text = str(settings.get("cycle_reward_text") or f"{bonus_percent}% Smart Cycle Bonus")
+    period = datetime.now(timezone.utc).strftime("%Y-%m")
+    sales = round(sum(item["metho_sales"] for item in _approved_member_purchases(db, current_user.id, period)), 2)
+    progress = round(min(100.0, sales / target_bv * 100.0), 2) if target_bv > 0 else 0.0
     return {
         "cycle": "Cycle-1",
-        "cycle_bv": 0,
+        "cycle_bv": sales,
         "target_bv": target_bv,
-        "progress_percentage": 0,
+        "progress_percentage": progress,
         "reward_at_target": reward_text,
     }
 
@@ -3109,17 +3256,60 @@ def business_cycle(db: Session = Depends(get_db), current_user=Depends(get_curre
 def smart_cycle_me(db: Session = Depends(get_db), current_user=Depends(get_current_user)):
     settings = load_settings(db)
     bonus_percent = float(settings.get("smart_cycle_bonus_percent") or 10)
-    slot_days = max(1, int(round(float(settings.get("smart_cycle_days") or 28) / 4.0)))
+    match_percent = float(settings.get("leader_match_percent") or 50)
+    period = datetime.now(timezone.utc).strftime("%Y-%m")
+    purchases = _approved_member_purchases(db, current_user.id, period)
+    qualified = round(sum(item["metho_sales"] for item in purchases), 2)
+    bonus = round(qualified * bonus_percent / 100.0, 2)
+    cycle_days = max(1, int(settings.get("smart_cycle_days") or 28))
     return {
-        "current_cycle": {"name": "Cycle-1", "slot_days": slot_days, "total_slots": 5, "current_slot": 1, "progress_percent": 0},
-        "summary": {"qualified_sales": 0, "bonus_percent": bonus_percent, "estimated_bonus": 0, "status": "in_progress"},
-        "history": [],
+        "active": True,
+        "cycle": {"id": f"{current_user.id}:{period}", "cycle_number": 1, "started_at": f"{period}-01T00:00:00+00:00", "ends_at": f"{period}-28T23:59:59+00:00", "qualified_volume": qualified, "metho_order_count": len(purchases), "fifth_slot_volume": qualified},
+        "current_slot": 5 if qualified > 0 else 1,
+        "current_week": 5 if qualified > 0 else 1,
+        "total_slots": 5,
+        "settlement_trigger_slot": 6,
+        "fifth_slot_volume": qualified,
+        "own_cycle_sale_base": qualified,
+        "direct_match_base_bonus": bonus,
+        "days_remaining": 0,
+        "elapsed_days": cycle_days,
+        "total_days": cycle_days,
+        "progress_percent": 100 if qualified > 0 else 0,
+        "eligible_for_settlement": qualified > 0,
+        "estimated_bonus": bonus,
+        "estimated_leader_match": round(bonus * match_percent / 100.0, 2),
+        "settings": {"smart_cycle_bonus_percent": bonus_percent, "leader_match_percent": match_percent, "smart_cycle_days": cycle_days, "smart_cycle_slot_days": max(1, cycle_days // 4), "smart_cycle_total_slots": 5},
+        "past_cycles": [],
     }
 
 
 @router.post("/smart-cycle/settle")
-def smart_cycle_settle(current_user=Depends(get_current_user)):
-    return {"ok": True, "message": "Smart cycle settled", "credited_amount": 0}
+def smart_cycle_settle(db: Session = Depends(get_db), current_user=Depends(get_current_user)):
+    period = datetime.now(timezone.utc).strftime("%Y-%m")
+    key = f"smart_cycle_settled:{current_user.id}:{period}"
+    if _load_json_setting(db, key, {"settled": False}).get("settled"):
+        raise HTTPException(status_code=400, detail="Smart Cycle already settled for this period")
+    data = smart_cycle_me(db, current_user)
+    bonus = float(data.get("estimated_bonus") or 0)
+    match = float(data.get("estimated_leader_match") or 0)
+    wallet_state = _load_user_wallet(db, current_user.id)
+    wallet_state["balance"] += bonus
+    wallet_state["total_income"] += bonus
+    wallet_state["total_bonus"] += bonus
+    wallet_state["member_reward_credited"] += bonus
+    _save_user_wallet(db, current_user.id, wallet_state)
+    referral = db.query(UserReferral).filter(UserReferral.user_id == current_user.id).first()
+    if referral and match > 0:
+        sponsor_wallet = _load_user_wallet(db, referral.sponsor_user_id)
+        sponsor_wallet["balance"] += match
+        sponsor_wallet["total_income"] += match
+        sponsor_wallet["total_bonus"] += match
+        sponsor_wallet["leader_reward_credited"] += match
+        _save_user_wallet(db, referral.sponsor_user_id, sponsor_wallet)
+    _save_json_setting(db, key, {"settled": True, "bonus": bonus, "leader_match": match, "period": period})
+    db.commit()
+    return {"ok": True, "bonus": bonus, "leader_match": match, "credited_amount": bonus}
 
 
 @router.get("/orders")
@@ -6303,22 +6493,21 @@ def admin_partner_request_reject(request_id: str, payload: dict | None = None, d
 
 
 @router.get("/admin/mps-fund")
-def admin_mps_fund(current_user=Depends(get_current_user)):
-    # Keep canonical keys used by frontend admin pages and legacy aliases.
+def admin_mps_fund(db: Session = Depends(get_db), current_user=Depends(get_current_user)):
+    settings = load_settings(db)
+    period = datetime.now(timezone.utc).strftime("%Y-%m")
+    pool = _calculate_sql_pool(db, period)
+    approved_claims = sum(float(c.get("amount") or 0) for c in MPS_CLAIMS if c.get("status") == "approved")
+    contribution = pool["mps_fund"]
+    rules = {key: settings.get(key, 0) for key in ("mps_min_active_months", "mps_min_monthly_purchase", "mps_max_claim_amount", "mps_min_claim_gap_days", "mps_benefit_duration_months")}
     return {
-        "balance": 0,
-        "total_contributions": 0,
-        "total_approved_claims": 0,
-        "rules": {
-            "mps_min_active_months": 0,
-            "mps_min_monthly_purchase": 0,
-            "mps_max_claim_amount": 0,
-            "mps_min_claim_gap_days": 0,
-            "mps_benefit_duration_months": 0,
-        },
-        "available_balance": 0,
-        "total_contribution": 0,
-        "total_payout": 0,
+        "balance": round(max(0.0, contribution - approved_claims), 2),
+        "total_contributions": round(contribution, 2),
+        "total_approved_claims": round(approved_claims, 2),
+        "rules": rules,
+        "available_balance": round(max(0.0, contribution - approved_claims), 2),
+        "total_contribution": round(contribution, 2),
+        "total_payout": round(approved_claims, 2),
     }
 
 
@@ -6360,28 +6549,95 @@ def admin_mps_claims_reject(claim_id: str, payload: dict | None = None, current_
 
 
 @router.get("/admin/settlement/preview")
-def settlement_preview(year: int, month: int, current_user=Depends(get_current_user)):
+def settlement_preview(year: int, month: int, db: Session = Depends(get_db), current_user=Depends(get_current_user)):
     period = f"{year}-{str(month).zfill(2)}"
+    pool = _calculate_sql_pool(db, period)
+    member_totals = {}
+    for order in db.query(PublicOrder).filter(PublicOrder.status == "paid").all():
+        if _period_for_datetime(order.created_at) != period:
+            continue
+        member = _order_member(db, order)
+        if not member:
+            continue
+        try:
+            items = json.loads(order.items_json or "[]")
+        except Exception:
+            items = []
+        amount = sum(float(item.get("subtotal") or 0) for item in items if str(item.get("product_type") or "metho").lower() == "metho")
+        member_totals[member.id] = member_totals.get(member.id, 0.0) + amount
+    total_points = sum(max(0.0, amount) / 100.0 for amount in member_totals.values())
+    point_value = round(pool["member_pool"] / total_points, 4) if total_points else 0.0
+    member_lines = [{"user_id": uid, "monthly_purchase": round(amount, 2), "points": round(amount / 100.0, 4), "reward": round((amount / 100.0) * point_value, 2)} for uid, amount in member_totals.items() if amount > 0]
+    settings = load_settings(db)
+    leader_min_direct = int(settings.get("leader_min_direct_members") or 0)
+    leader_min_personal = float(settings.get("leader_min_personal_monthly_purchase") or settings.get("leader_min_personal_product_sales") or 0)
+    leader_min_team = float(settings.get("leader_min_team_monthly_purchase") or 0)
+    leader_tiers = {
+        "leader": ("Leader", 50.0, {x.strip().lower() for x in str(settings.get("leader_tier_leader_ranks") or "starter,bronze").replace("|", ",").split(",") if x.strip()}),
+        "elite_leader": ("Elite Leader", 30.0, {x.strip().lower() for x in str(settings.get("leader_tier_elite_ranks") or "silver,gold").replace("|", ",").split(",") if x.strip()}),
+        "crown_leader": ("Crown Leader", 20.0, {x.strip().lower() for x in str(settings.get("leader_tier_crown_ranks") or "diamond").replace("|", ",").split(",") if x.strip()}),
+    }
+    leader_lines = []
+    leader_pool_points = {key: 0.0 for key in leader_tiers}
+    for user_id, amount in member_totals.items():
+        direct_ids = {rel.user_id for rel in db.query(UserReferral).filter(UserReferral.sponsor_user_id == user_id).all()}
+        if len(direct_ids) < leader_min_direct or amount < leader_min_personal:
+            continue
+        team_amount = sum(member_totals.get(child_id, 0.0) for child_id in direct_ids)
+        if team_amount < leader_min_team:
+            continue
+        user = db.query(User).filter(User.id == user_id).first()
+        rank = str(getattr(user, "role", "member") or "member").lower()
+        # SQL has no separate rank column; use configured business thresholds for a stable tier.
+        rank = "diamond" if team_amount >= float(settings.get("rank_diamond_bv") or 100000) else "gold" if team_amount >= float(settings.get("rank_gold_bv") or 50000) else "silver" if team_amount >= float(settings.get("rank_silver_bv") or 20000) else "bronze" if team_amount >= float(settings.get("rank_bronze_bv") or 5000) else "starter"
+        tier_key = next((key for key, (_, _, ranks) in leader_tiers.items() if rank in ranks), "leader")
+        points = round(amount / 100.0, 4)
+        leader_pool_points[tier_key] += points
+        leader_lines.append({"user_id": user_id, "monthly_purchase": round(amount, 2), "points": points, "tier": tier_key, "tier_label": leader_tiers[tier_key][0], "reward": 0.0})
+    for line in leader_lines:
+        key = line["tier"]
+        tier_pool = round(pool["leader_pool"] * leader_tiers[key][1] / 100.0, 2)
+        value = round(tier_pool / leader_pool_points[key], 4) if leader_pool_points[key] else 0.0
+        line["point_value"] = value
+        line["reward"] = round(line["points"] * value, 2)
+    leader_rewards = round(sum(line["reward"] for line in leader_lines), 2)
     return {
         "period": period,
         "already_settled": False,
-        "pool_snapshot": {
-            "gross_sales": 0,
-            "commission_collected": 0,
-            "member_pool": 0,
-            "leader_pool": 0,
-            "mps_fund_contribution": 0,
-            "company_fund": 0,
-            "technology_reserve": 0,
-        },
-        "member_settlement": {"total_points": 0, "point_value": 0, "total_reward_distributed": 0, "lines": []},
-        "leader_settlement": {"qualified_count": 0, "total_points": 0, "point_value": 0, "total_reward_distributed": 0, "lines": []},
+        "pool_snapshot": {"gross_sales": pool["gross_sales"], "commission_collected": pool["commission_pool"], "member_pool": pool["member_pool"], "leader_pool": pool["leader_pool"], "mps_fund_contribution": pool["mps_fund"], "company_fund": pool["company_fund"], "technology_reserve": pool["technology_reserve"]},
+        "member_settlement": {"total_points": round(total_points, 4), "point_value": point_value, "total_reward_distributed": round(sum(x["reward"] for x in member_lines), 2), "lines": member_lines},
+        "leader_settlement": {"qualified_count": len(leader_lines), "total_points": round(sum(leader_pool_points.values()), 4), "point_value": round(leader_rewards / sum(leader_pool_points.values()), 4) if sum(leader_pool_points.values()) else 0, "total_reward_distributed": leader_rewards, "split_percent": {key: value[1] for key, value in leader_tiers.items()}, "lines": leader_lines},
     }
 
 
 @router.post("/admin/settlement/execute")
-def settlement_execute(year: int, month: int, current_user=Depends(get_current_user)):
-    return {"ok": True, "period": f"{year}-{str(month).zfill(2)}", "status": "completed"}
+def settlement_execute(year: int, month: int, db: Session = Depends(get_db), current_user=Depends(get_current_user)):
+    _require_admin_user(current_user)
+    period = f"{year}-{str(month).zfill(2)}"
+    key = f"sql_settlement:{period}"
+    if _load_json_setting(db, key, {"settled": False}).get("settled"):
+        raise HTTPException(status_code=400, detail=f"Period {period} is already settled")
+    preview = settlement_preview(year, month, db, current_user)
+    credited_member = 0.0
+    credited_leader = 0.0
+    for line in preview["member_settlement"]["lines"] + preview["leader_settlement"]["lines"]:
+        amount = round(float(line.get("reward") or 0), 2)
+        if amount <= 0:
+            continue
+        wallet_state = _load_user_wallet(db, line["user_id"])
+        wallet_state["balance"] += amount
+        wallet_state["total_income"] += amount
+        wallet_state["total_bonus"] += amount
+        if line in preview["member_settlement"]["lines"]:
+            wallet_state["member_reward_credited"] += amount
+            credited_member += amount
+        else:
+            wallet_state["leader_reward_credited"] += amount
+            credited_leader += amount
+        _save_user_wallet(db, line["user_id"], wallet_state)
+    _save_json_setting(db, key, {"settled": True, "period": period, "member_reward": credited_member, "leader_reward": credited_leader})
+    db.commit()
+    return {"ok": True, "period": period, "status": "completed", "member_reward": credited_member, "leader_reward": credited_leader}
 
 
 @router.get("/admin/settlements")
