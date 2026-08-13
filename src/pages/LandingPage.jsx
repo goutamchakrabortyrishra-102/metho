@@ -203,6 +203,14 @@ const Nav = () => (
         <div className="hidden sm:block"><Logo showTagline /></div>
         <div className="sm:hidden"><Logo /></div>
         <div className="flex items-center gap-2 shrink-0">
+          <a
+            href="tel:+917003805387"
+            className="inline-flex items-center gap-1.5 rounded-full border border-emerald-200 bg-white/90 px-2 sm:px-3 py-2 text-xs font-semibold text-emerald-900 hover:bg-emerald-50"
+            aria-label="Call METHO at +91 7003805387"
+            data-testid="nav-call-link"
+          >
+            <Phone className="w-3.5 h-3.5" /> <span className="hidden sm:inline">Call us</span><span className="sm:hidden">Call</span>
+          </a>
           <Link to="/login" data-testid="nav-login-link"><Button variant="ghost" size="sm" className="px-3 md:px-4 hover:bg-emerald-50 hover:text-emerald-900">Login</Button></Link>
           <Link to="/register" data-testid="nav-register-link">
             <Button size="sm" className="bg-emerald-900 hover:bg-emerald-950 text-white rounded-full px-4 md:px-5">Join Now <ArrowRight className="ml-1 w-4 h-4" /></Button>
@@ -418,22 +426,31 @@ const Hero = () => {
     <div className="max-w-7xl mx-auto px-6 relative">
       <div className="grid lg:grid-cols-12 gap-8 items-center">
         <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.6 }} className="lg:col-span-7">
-          {tagline ? (
-            <h1 className="mt-6 font-display font-black text-4xl md:text-5xl lg:text-6xl tracking-tight leading-[0.97] text-emerald-950">
-              {tagline}
-            </h1>
-          ) : (
-            <h1 className="mt-6 max-w-4xl font-display font-black text-4xl md:text-5xl lg:text-6xl tracking-tight leading-[0.97] text-emerald-950">
-              Real Business. Real Rewards. Real Growth.
-              <span className="mt-4 block text-xl md:text-2xl lg:text-[2rem] font-bold text-amber-600 italic leading-tight">METHO AAY-UPAY — Smart Commerce for customer, Members &amp; Partners.</span>
-            </h1>
-          )}
-          <div className="mt-5 flex flex-wrap items-center gap-3">
+          <div className="mt-6 flex items-start justify-between gap-5">
+            <div className="min-w-0">
+              {tagline ? (
+                <h1 className="font-display font-black text-4xl md:text-5xl lg:text-6xl tracking-tight leading-[0.97] text-emerald-950">
+                  {tagline}
+                </h1>
+              ) : (
+                <h1 className="font-display font-black text-4xl md:text-5xl lg:text-6xl tracking-tight leading-[0.97] text-emerald-950">
+                  Real Business. Real Rewards. Real Growth.
+                  <span className="mt-4 block text-xl md:text-2xl lg:text-[2rem] font-bold text-amber-600 italic leading-tight">METHO AAY-UPAY — Smart Commerce for customer, Members &amp; Partners.</span>
+                </h1>
+              )}
+            </div>
+            <Link to="/partner-shop/MTH-PARTNER-004" className="hidden lg:inline-flex shrink-0 mt-2" data-testid="landing-highlight-vegetables">
+              <Button size="lg" className="rounded-full bg-red-600 hover:bg-red-700 text-white font-bold px-7 h-14 text-base shadow-[0_16px_34px_rgba(185,28,28,0.22)]">
+                Open METHO Vegetable
+              </Button>
+            </Link>
+          </div>
+          <div className="mt-5 flex flex-wrap items-center justify-between gap-4">
             <p className="inline-flex items-center rounded-full border border-emerald-200 bg-white/95 px-4 py-2 text-sm font-semibold tracking-wide text-emerald-900 shadow-sm">
               Powered By Metho Logistics Private Limited
             </p>
-            <Link to="/partner-shop/MTH-PARTNER-004" className="inline-flex" data-testid="landing-highlight-vegetables">
-              <Button className="rounded-full bg-red-600 hover:bg-red-700 text-white font-bold px-5 shadow-[0_16px_34px_rgba(185,28,28,0.22)]">
+            <Link to="/partner-shop/MTH-PARTNER-004" className="inline-flex lg:hidden" data-testid="landing-highlight-vegetables-mobile">
+              <Button size="lg" className="rounded-full bg-red-600 hover:bg-red-700 text-white font-bold px-7 h-14 text-base shadow-[0_16px_34px_rgba(185,28,28,0.22)]">
                 Open METHO Vegetable
               </Button>
             </Link>
@@ -1294,13 +1311,6 @@ const AssociatePartnerFinder = () => {
               </div>
             </div>
 
-            <div className="mt-4">
-              <Link to="/partner-shop/MTH-PARTNER-004" className="inline-flex" data-testid="landing-open-metho-vegetable-cta">
-                <Button className="rounded-full bg-red-600 hover:bg-red-700 text-white font-bold px-5">
-                  Open METHO Vegetable
-                </Button>
-              </Link>
-            </div>
           </div>
         </div>
       </div>

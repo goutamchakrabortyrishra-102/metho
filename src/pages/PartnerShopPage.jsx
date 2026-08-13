@@ -412,7 +412,6 @@ export default function PartnerShopPage() {
   const [previewItem, setPreviewItem] = useState(null);
   const [open, setOpen] = useState(false);
   const [guestMemberRef, setGuestMemberRef] = useState("");
-  const [cashback, setCashback] = useState(null); // {percent, max, eligible}
   const [productSearch, setProductSearch] = useState("");
   const [transportSearch, setTransportSearch] = useState("");
   const [hospitalitySearch, setHospitalitySearch] = useState("");
@@ -473,21 +472,6 @@ export default function PartnerShopPage() {
   const closeOfferPopup = () => {
     setShowOfferPopup(false);
   };
-
-  // Load cashback offer (public setting) + user's eligibility (only if logged in as member)
-  useEffect(() => {
-    api.get("/settings").then(r => {
-      const pct = Number(r.data?.first_partner_order_cashback_percent) || 0;
-      const max = Number(r.data?.first_partner_order_cashback_max) || 0;
-      if (pct > 0) setCashback(c => ({ ...(c || {}), percent: pct, max }));
-    }).catch(() => {});
-  }, []);
-  useEffect(() => {
-    if (!user || user.role !== "member") return;
-    api.get("/auth/me").then(r => {
-      setCashback(c => ({ ...(c || {}), eligible: !r.data?.first_partner_cashback_credited }));
-    }).catch(() => {});
-  }, [user]);
 
   const p = data?.partner;
   const partnerBusinessYoutubeUrl =
@@ -1157,7 +1141,7 @@ export default function PartnerShopPage() {
           <div className="mb-8 bg-white rounded-xl border border-border p-6">
             <div className="flex items-center gap-2 mb-4">
               <Images className="w-5 h-5 text-emerald-700" />
-              <h2 className="font-display font-bold text-2xl text-emerald-950">Best 5 Partner Images</h2>
+              <h2 className="font-display font-bold text-2xl text-emerald-950">Product Image</h2>
             </div>
             <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
               {[0, 1, 2, 3, 4].map((slot) => {
@@ -1224,7 +1208,7 @@ export default function PartnerShopPage() {
               <div key={group.category}>
                 <p className="text-[11px] font-bold uppercase tracking-wider text-emerald-800 mb-2">{group.category}</p>
                 <div
-                  className="flex gap-4 overflow-x-auto pb-2 -mx-1 px-1 snap-x snap-mandatory"
+                  className="grid grid-cols-2 gap-4 pb-2"
                   data-testid={`partner-shop-product-row-${String(group.category).toLowerCase().replace(/\s+/g, "-")}`}
                 >
                   {group.items.map((item) => {
@@ -1235,7 +1219,7 @@ export default function PartnerShopPage() {
                     return (
                       <div
                         key={item.id}
-                        className="w-[200px] sm:w-[220px] shrink-0 snap-start bg-white rounded-xl overflow-hidden border border-slate-200 hover:shadow-lg transition-all"
+                        className="w-full bg-white rounded-xl overflow-hidden border border-slate-200 hover:shadow-lg transition-all"
                         data-testid={`partner-shop-product-card-${item.id}`}
                       >
                         <div className="aspect-square bg-slate-100 overflow-hidden relative">
@@ -1358,28 +1342,6 @@ export default function PartnerShopPage() {
           </div>
         ) : null}
 
-        {/* Cashback banner */}
-        {cashback?.percent > 0 && (user?.role !== "member" || cashback.eligible) && (
-          <div className="mb-8 rounded-xl border-2 border-amber-400 bg-gradient-to-r from-amber-50 to-yellow-50 p-5 flex flex-wrap items-center gap-3" data-testid="cashback-banner">
-            <div className="w-10 h-10 rounded-full bg-amber-400 text-emerald-950 flex items-center justify-center shrink-0">
-              <Gift className="w-5 h-5" />
-            </div>
-            <div className="flex-1 min-w-0">
-              <p className="font-display font-black text-emerald-950 text-sm md:text-base">
-                {user?.role === "member" ? "First Partner-shop order?" : "New member offer"} Get {cashback.percent}% cashback
-                {cashback.max > 0 ? <span className="text-amber-800"> (up to ₹{cashback.max})</span> : null}
-              </p>
-              <p className="text-xs text-slate-700 mt-0.5 font-body">
-                Auto-credited to your Wallet once your first Partner order is approved. One-time offer per member.
-              </p>
-            </div>
-            {!user && (
-              <Link to={`/register`}>
-                <Button size="sm" className="bg-emerald-900 hover:bg-emerald-950 text-white rounded-full">Join Free →</Button>
-              </Link>
-            )}
-          </div>
-        )}
       </main>
 
       {/* Sticky Cart Bar */}
@@ -1439,7 +1401,7 @@ export default function PartnerShopPage() {
           <div className="mb-8">
             <div className="bg-white rounded-xl border border-sky-200 p-6" data-testid="partner-shop-transport-panel">
               <div className="flex items-start gap-2 mb-1">
-                <p className="text-[10px] uppercase tracking-widest text-sky-700 font-semibold">Transport Services</p>
+                <p className="text-[10px] uppercase tracking-widest text-sky-700 font-semibold">Service Image</p>
               </div>
               <h3 className="font-display font-bold text-emerald-950 text-lg mt-1">Book cab, car rental, bike rental easily</h3>
               <p className="text-sm text-slate-600 mt-3">Pickup আর destination দিয়ে ride request দিন। Partner final fare lock করার পর trip approved হবে.</p>
