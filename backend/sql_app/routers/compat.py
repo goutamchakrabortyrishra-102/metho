@@ -6517,12 +6517,20 @@ def admin_mps_claims(current_user=Depends(get_current_user)):
 
 
 @router.post("/admin/mps-claims")
-def admin_mps_claims_create(payload: dict, current_user=Depends(get_current_user)):
+def admin_mps_claims_create(payload: dict, db: Session = Depends(get_db), current_user=Depends(get_current_user)):
+    _require_admin_user(current_user)
+    settings = load_settings(db)
+    amount = float(payload.get("amount") or 0)
+    max_claim = float(settings.get("mps_max_claim_amount") or 0)
+    if amount <= 0:
+        raise HTTPException(status_code=400, detail="Claim amount must be greater than zero")
+    if max_claim > 0 and amount > max_claim:
+        raise HTTPException(status_code=400, detail=f"Claim exceeds maximum allowed amount ₹{max_claim:.2f}")
     claim = {
         "id": str(uuid.uuid4()),
         "user_id": payload.get("user_id", ""),
         "user_name": "Member",
-        "amount": float(payload.get("amount") or 0),
+        "amount": amount,
         "reason": payload.get("reason", ""),
         "status": "pending",
         "created_at": now_iso(),
@@ -6532,9 +6540,15 @@ def admin_mps_claims_create(payload: dict, current_user=Depends(get_current_user
 
 
 @router.post("/admin/mps-claims/{claim_id}/approve")
-def admin_mps_claims_approve(claim_id: str, current_user=Depends(get_current_user)):
+def admin_mps_claims_approve(claim_id: str, db: Session = Depends(get_db), current_user=Depends(get_current_user)):
+    _require_admin_user(current_user)
+    fund = admin_mps_fund(db, current_user)
     for c in MPS_CLAIMS:
         if c["id"] == claim_id:
+            if c.get("status") != "pending":
+                raise HTTPException(status_code=400, detail="Claim is already decided")
+            if float(c.get("amount") or 0) > float(fund.get("available_balance") or 0):
+                raise HTTPException(status_code=400, detail="Insufficient MPS fund balance")
             c["status"] = "approved"
     return {"id": claim_id, "status": "approved"}
 
@@ -6570,8 +6584,10 @@ def settlement_preview(year: int, month: int, db: Session = Depends(get_db), cur
     member_lines = [{"user_id": uid, "monthly_purchase": round(amount, 2), "points": round(amount / 100.0, 4), "reward": round((amount / 100.0) * point_value, 2)} for uid, amount in member_totals.items() if amount > 0]
     settings = load_settings(db)
     leader_min_direct = int(settings.get("leader_min_direct_members") or 0)
+    leader_min_active = int(settings.get("leader_min_active_members") or 0)
     leader_min_personal = float(settings.get("leader_min_personal_monthly_purchase") or settings.get("leader_min_personal_product_sales") or 0)
     leader_min_team = float(settings.get("leader_min_team_monthly_purchase") or 0)
+    leader_min_days = int(settings.get("leader_min_active_days") or 0)
     leader_tiers = {
         "leader": ("Leader", 50.0, {x.strip().lower() for x in str(settings.get("leader_tier_leader_ranks") or "starter,bronze").replace("|", ",").split(",") if x.strip()}),
         "elite_leader": ("Elite Leader", 30.0, {x.strip().lower() for x in str(settings.get("leader_tier_elite_ranks") or "silver,gold").replace("|", ",").split(",") if x.strip()}),
@@ -6584,9 +6600,11 @@ def settlement_preview(year: int, month: int, db: Session = Depends(get_db), cur
         if len(direct_ids) < leader_min_direct or amount < leader_min_personal:
             continue
         team_amount = sum(member_totals.get(child_id, 0.0) for child_id in direct_ids)
-        if team_amount < leader_min_team:
-            continue
+        active_direct = sum(1 for child_id in direct_ids if member_totals.get(child_id, 0.0) > 0)
         user = db.query(User).filter(User.id == user_id).first()
+        account_days = max(0, (datetime.now(timezone.utc) - (user.created_at.replace(tzinfo=timezone.utc) if user and user.created_at and user.created_at.tzinfo is None else user.created_at if user and user.created_at else datetime.now(timezone.utc))).days)
+        if team_amount < leader_min_team or active_direct < leader_min_active or account_days < leader_min_days:
+            continue
         rank = str(getattr(user, "role", "member") or "member").lower()
         # SQL has no separate rank column; use configured business thresholds for a stable tier.
         rank = "diamond" if team_amount >= float(settings.get("rank_diamond_bv") or 100000) else "gold" if team_amount >= float(settings.get("rank_gold_bv") or 50000) else "silver" if team_amount >= float(settings.get("rank_silver_bv") or 20000) else "bronze" if team_amount >= float(settings.get("rank_bronze_bv") or 5000) else "starter"
