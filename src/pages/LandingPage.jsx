@@ -711,6 +711,22 @@ const Hero = () => {
         </motion.div>
       </div>
 
+      {/* Rendered outside the backdrop-blur product panel so `fixed` positions relative to the viewport, not the panel */}
+      {cartItemCount > 0 ? (
+        <div className="fixed bottom-4 md:bottom-auto md:top-[14.5rem] left-1/2 z-[60] w-[min(680px,calc(100vw-1.5rem))] -translate-x-1/2 flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-emerald-900/20 bg-emerald-950 px-4 py-3 text-white shadow-lg" data-testid="hero-best-products-cart-summary-top">
+          <p className="text-sm font-semibold">
+            Cart: {cartItemCount} item(s){cartSubtotal > 0 ? ` · ₹${cartSubtotal.toLocaleString("en-IN")}` : ""}
+          </p>
+          <Button
+            onClick={() => setCheckoutOpen(true)}
+            className="bg-amber-400 hover:bg-amber-300 text-emerald-950 rounded-full px-5 font-bold"
+            data-testid="hero-best-products-checkout-top"
+          >
+            Checkout <ArrowRight className="ml-1 w-4 h-4" />
+          </Button>
+        </div>
+      ) : null}
+
       <div id="products" className="mt-12 rounded-[2rem] border border-emerald-900/12 bg-[linear-gradient(180deg,rgba(255,255,255,0.98)_0%,rgba(240,251,246,0.95)_100%)] backdrop-blur p-4 md:p-6 shadow-[0_20px_44px_rgba(15,23,42,0.1)]" data-testid="hero-best-products-grid">
         <div className="flex items-center justify-between gap-3 mb-4">
           <div>
@@ -723,20 +739,6 @@ const Hero = () => {
             </Button>
           </Link>
         </div>
-        {cartItemCount > 0 ? (
-          <div className="fixed top-36 md:top-[14.5rem] left-1/2 z-[60] w-[min(680px,calc(100vw-1.5rem))] -translate-x-1/2 flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-emerald-900/20 bg-emerald-950 px-4 py-3 text-white shadow-lg" data-testid="hero-best-products-cart-summary-top">
-            <p className="text-sm font-semibold">
-              Cart: {cartItemCount} item(s){cartSubtotal > 0 ? ` · ₹${cartSubtotal.toLocaleString("en-IN")}` : ""}
-            </p>
-            <Button
-              onClick={() => setCheckoutOpen(true)}
-              className="bg-amber-400 hover:bg-amber-300 text-emerald-950 rounded-full px-5 font-bold"
-              data-testid="hero-best-products-checkout-top"
-            >
-              Checkout <ArrowRight className="ml-1 w-4 h-4" />
-            </Button>
-          </div>
-        ) : null}
         <div className="mb-4 flex flex-wrap gap-2 text-[11px]">
           {[
             "High-visibility products",
