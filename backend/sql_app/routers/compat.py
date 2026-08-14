@@ -6824,7 +6824,17 @@ def admin_withdrawals_reject(withdrawal_id: str, payload: dict | None = None, cu
 async def upload_upi_qr(file: UploadFile = File(...), current_user=Depends(get_current_user)):
     _require_admin_user(current_user)
     name = _save_image_upload(file, UPI_QR_UPLOAD_DIR, "upi-qr")
-    return {"ok": True, "url": f"/api/files/payment_screenshots/{name}"}
+    saved_path = UPI_QR_UPLOAD_DIR / name
+    content_type = {
+        ".jpg": "image/jpeg",
+        ".jpeg": "image/jpeg",
+        ".png": "image/png",
+        ".webp": "image/webp",
+        ".gif": "image/gif",
+        ".svg": "image/svg+xml",
+    }.get(saved_path.suffix.lower(), "application/octet-stream")
+    persisted_url = f"data:{content_type};base64,{base64.b64encode(saved_path.read_bytes()).decode('ascii')}"
+    return {"ok": True, "url": persisted_url, "storage_url": f"/api/files/payment_screenshots/{name}"}
 
 
 @router.post("/admin/upload/product-image")
