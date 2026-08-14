@@ -1,43 +1,39 @@
 import React, { useEffect, useState } from "react";
 import { toast } from "sonner";
-import { Sparkles, TrendingUp, Users, Award, Zap, Loader2, Clock } from "lucide-react";
+import { Sparkles, TrendingUp, Users, Award, Clock } from "lucide-react";
 import api from "@/services/api";
 import { Button } from "@/components/ui/button";
+import { useAuth } from "@/contexts/AuthContext";
 
 const WEEK_LABELS = ["Week 1", "Week 2", "Week 3", "Week 4", "Bonus Week"];
 
 export default function SmartCyclePage() {
+  const { user } = useAuth();
+  const isAdmin = ["super_admin", "company_admin", "admin"].includes(String(user?.role || ""));
   const [data, setData] = useState(null);
+  const [adminCycles, setAdminCycles] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [settling, setSettling] = useState(false);
   const [loadError, setLoadError] = useState("");
 
   const load = () => {
     setLoading(true);
     setLoadError("");
-    api.get("/smart-cycle/me")
-      .then((r) => setData(r.data))
+    const requests = [api.get("/smart-cycle/me")];
+    if (isAdmin) requests.push(api.get("/admin/smart-cycles"));
+    Promise.all(requests)
+      .then(([cycleResponse, adminResponse]) => {
+        setData(cycleResponse.data);
+        setAdminCycles(Array.isArray(adminResponse?.data) ? adminResponse.data : []);
+      })
       .catch((err) => {
         setData(null);
+        setAdminCycles([]);
         setLoadError(err?.response?.data?.detail || "Smart Cycle data load failed");
       })
       .finally(() => setLoading(false));
   };
 
-  useEffect(() => { load(); }, []);
-
-  const settle = async () => {
-    setSettling(true);
-    try {
-      const r = await api.post("/smart-cycle/settle");
-      toast.success(`Cycle settled! Bonus ₹${r.data.bonus} • Leader Match ₹${r.data.leader_match}`);
-      load();
-    } catch (err) {
-      toast.error(err?.response?.data?.detail || "Settle failed");
-    } finally {
-      setSettling(false);
-    }
-  };
+  useEffect(() => { load(); }, [isAdmin]);
 
   if (loading) return <div className="text-muted-foreground">Loading Smart Cycle...</div>;
 
@@ -69,9 +65,7 @@ export default function SmartCyclePage() {
             <Sparkles className="w-14 h-14 text-amber-400 mx-auto" />
             <h2 className="font-display font-black text-3xl mt-4">Start Your Smart Cycle™</h2>
             <p className="mt-3 text-emerald-100/80 max-w-lg mx-auto font-body">{data.message}</p>
-            <p className="mt-4 text-sm text-amber-400 font-semibold">
-              Earn {data.settings?.smart_cycle_bonus_percent}% of Qualified METHO Sales as bonus + {data.settings?.leader_match_percent}% Leader Match for your sponsor.
-            </p>
+            <p className="mt-4 text-sm text-amber-400 font-semibold">First approved METHO purchase activates your 5-slot recyclable cycle.</p>
           </div>
         </div>
       </div>
@@ -91,20 +85,9 @@ export default function SmartCyclePage() {
             Started {new Date(cycle.started_at).toLocaleDateString()} • Ends {new Date(cycle.ends_at).toLocaleDateString()}
           </p>
         </div>
-        {data.eligible_for_settlement ? (
-          <Button
-            onClick={settle}
-            disabled={settling}
-            className="bg-amber-500 hover:bg-amber-600 text-emerald-950 font-bold rounded-full h-12 px-6 shadow-lg"
-            data-testid="smart-cycle-settle-button"
-          >
-            {settling ? <Loader2 className="w-4 h-4 animate-spin" /> : <>Claim Bonus <Zap className="ml-2 w-4 h-4" /></>}
-          </Button>
-        ) : (
-          <span className="text-xs bg-emerald-100 text-emerald-800 font-semibold px-3 py-1.5 rounded-full flex items-center gap-1">
-            <Clock className="w-3 h-3" /> {data.days_remaining} days to Bonus Week
-          </span>
-        )}
+        <span className="text-xs bg-emerald-100 text-emerald-800 font-semibold px-3 py-1.5 rounded-full flex items-center gap-1">
+          <Clock className="w-3 h-3" /> {data.current_slot === 5 ? `${data.days_remaining} days left in Bonus Slot` : `Slot ${data.current_slot} · ${data.days_remaining} days left`}
+        </span>
       </div>
 
       {/* Progress ribbon */}
@@ -149,28 +132,43 @@ export default function SmartCyclePage() {
         </div>
       </div>
 
+      {data.slot_history?.length ? (
+        <div className="bg-white rounded-xl border border-border p-5">
+          <h3 className="font-display font-bold text-emerald-950">Current Cycle Slot History</h3>
+          <div className="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
+            {data.slot_history.map((slot) => (
+              <div key={slot.slot} className={"rounded-lg border p-3 " + (slot.slot === 5 ? "border-amber-300 bg-amber-50" : "border-border bg-slate-50/50")}>
+                <p className="text-xs font-semibold text-emerald-900">Slot {slot.slot} · {slot.status}</p>
+                <p className="font-display font-bold text-emerald-950 mt-1">₹{Number(slot.network_sale_excluding_gst || 0).toLocaleString("en-IN")}</p>
+                <p className="text-[11px] text-slate-500 mt-1">GST excluded · {slot.order_count} order(s)</p>
+              </div>
+            ))}
+          </div>
+        </div>
+      ) : null}
+
       {/* Financial summary */}
       <div className="grid md:grid-cols-3 gap-4">
         <div className="bg-white rounded-xl border border-border p-5" data-testid="stat-qualified-volume">
           <TrendingUp className="w-6 h-6 text-emerald-800" />
-          <p className="text-[10px] uppercase tracking-[0.15em] text-slate-500 font-semibold mt-3">Qualified METHO Sales</p>
+          <p className="text-[10px] uppercase tracking-[0.15em] text-slate-500 font-semibold mt-3">Current Slot Network Sale</p>
           <p className="font-display font-black text-2xl text-emerald-950 mt-1">₹{cycle.qualified_volume.toLocaleString("en-IN")}</p>
-          <p className="text-xs text-muted-foreground mt-1">{cycle.metho_order_count} METHO order{cycle.metho_order_count === 1 ? "" : "s"}</p>
+          <p className="text-xs text-muted-foreground mt-1">GST excluded · own sale + active referral chain · {cycle.metho_order_count} METHO order{cycle.metho_order_count === 1 ? "" : "s"}</p>
         </div>
         <div className="bg-gradient-to-br from-emerald-900 to-emerald-950 text-white rounded-xl p-5 relative overflow-hidden" data-testid="stat-estimated-bonus">
           <div className="absolute inset-0 grain opacity-20" />
           <div className="relative">
             <Sparkles className="w-6 h-6 text-amber-400" />
-            <p className="text-[10px] uppercase tracking-[0.15em] text-amber-400 font-semibold mt-3">Estimated Smart Cycle Bonus™</p>
+            <p className="text-[10px] uppercase tracking-[0.15em] text-amber-400 font-semibold mt-3">Slot 5 Estimated Bonus</p>
             <p className="font-display font-black text-2xl mt-1">₹{data.estimated_bonus.toLocaleString("en-IN")}</p>
-            <p className="text-xs text-emerald-100/70 mt-1">{data.settings.smart_cycle_bonus_percent}% of qualified volume</p>
+            <p className="text-xs text-emerald-100/70 mt-1">Only in Slot 5 · {data.settings.smart_cycle_bonus_percent}% of GST-excluded network sale</p>
           </div>
         </div>
         <div className="bg-white rounded-xl border border-border p-5" data-testid="stat-leader-match">
           <Users className="w-6 h-6 text-amber-600" />
-          <p className="text-[10px] uppercase tracking-[0.15em] text-slate-500 font-semibold mt-3">Sponsor's Leader Match™</p>
+          <p className="text-[10px] uppercase tracking-[0.15em] text-slate-500 font-semibold mt-3">Direct Matching Estimate</p>
           <p className="font-display font-black text-2xl text-emerald-950 mt-1">₹{data.estimated_leader_match.toLocaleString("en-IN")}</p>
-          <p className="text-xs text-muted-foreground mt-1">{data.settings.leader_match_percent}% of your bonus (paid separately)</p>
+          <p className="text-xs text-muted-foreground mt-1">50% of each direct member's Slot 5 commission</p>
         </div>
       </div>
 
@@ -194,12 +192,46 @@ export default function SmartCyclePage() {
                   <p className="font-display font-bold text-emerald-700">₹{(c.bonus_paid || 0).toLocaleString("en-IN")}</p>
                 </div>
                 <div>
-                  <p className="text-xs text-muted-foreground">Leader Match</p>
-                  <p className="font-display font-bold text-amber-700">₹{(c.leader_match_paid || 0).toLocaleString("en-IN")}</p>
+                  <p className="text-xs text-muted-foreground">Sponsor Match Paid</p>
+                  <p className="font-display font-bold text-amber-700">₹{(c.direct_sponsor_match_paid || 0).toLocaleString("en-IN")}</p>
                 </div>
               </div>
             ))}
           </div>
+        </div>
+      ) : null}
+
+      {data.matching_history?.length ? (
+        <div className="bg-white rounded-xl border border-border p-5">
+          <h3 className="font-display font-bold text-emerald-950">Direct Matching History</h3>
+          <div className="mt-3 space-y-2">
+            {data.matching_history.map((match) => (
+              <div key={`${match.from_member_id}-${match.from_cycle_number}-${match.paid_at}`} className="flex items-center justify-between gap-3 text-sm">
+                <span className="text-slate-600">Direct member cycle #{match.from_cycle_number} · source bonus ₹{Number(match.source_commission || 0).toLocaleString("en-IN")}</span>
+                <span className="font-display font-bold text-amber-700">+₹{Number(match.amount || 0).toLocaleString("en-IN")}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      ) : null}
+
+      {isAdmin ? (
+        <div className="bg-white rounded-xl border border-border p-5" data-testid="admin-smart-cycle-audit">
+          <h3 className="font-display font-bold text-emerald-950">Admin Cycle Audit</h3>
+          <p className="text-xs text-slate-500 mt-1">Activated member cycles, settled payouts and direct matching records.</p>
+          {adminCycles.length === 0 ? <p className="text-sm text-slate-500 mt-4">No activated member cycles yet.</p> : (
+            <div className="mt-4 space-y-3">
+              {adminCycles.map((entry) => (
+                <div key={entry.user_id} className="rounded-lg border border-border p-3 text-sm">
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <p className="font-semibold text-emerald-950">{entry.member_name} <span className="text-xs text-slate-500">{entry.member_code}</span></p>
+                    <span className="text-xs font-semibold rounded-full bg-emerald-100 text-emerald-800 px-2 py-1">Cycle #{entry.cycle_number} · Slot {entry.current_slot}</span>
+                  </div>
+                  <p className="text-xs text-slate-600 mt-1">Settled cycles: {entry.history?.length || 0} · Direct matches received: {entry.matching_history?.length || 0}</p>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
       ) : null}
 
@@ -208,9 +240,8 @@ export default function SmartCyclePage() {
         <div>
           <p className="font-display font-semibold text-amber-950">How it works</p>
           <p className="text-sm text-amber-800/80 font-body mt-1">
-            Buy METHO products through Weeks 1–4 to build Qualified Volume. On Bonus Week (Week 5) you can claim
-            {" "}{data.settings.smart_cycle_bonus_percent}% of your qualified sales as Smart Cycle Bonus™. Your sponsor
-            {" "}automatically receives a {data.settings.leader_match_percent}% Leader Match Reward™, paid separately by the company.
+            Each slot lasts 7 days. Slots 1–4 build your referral network and carry no cycle commission. In Slot 5,
+            {" "}{data.settings.smart_cycle_bonus_percent}% is automatically paid on GST-excluded METHO sale from you and your active referral chain. After Slot 5, the cycle resets to Slot 1 while your genealogy and history stay intact. You receive 50% matching on each direct member's Slot 5 commission.
           </p>
         </div>
       </div>

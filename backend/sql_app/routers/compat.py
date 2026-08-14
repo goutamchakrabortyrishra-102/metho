@@ -605,6 +605,158 @@ def _approved_member_purchases(db: Session, user_id: str, period: str | None = N
     return out
 
 
+SMART_CYCLE_SLOT_DAYS = 7
+SMART_CYCLE_TOTAL_SLOTS = 5
+
+
+def _smart_cycle_state_key(user_id: str) -> str:
+    return f"smart_cycle_v2:{user_id}"
+
+
+def _smart_cycle_history_key(user_id: str) -> str:
+    return f"smart_cycle_v2_history:{user_id}"
+
+
+def _smart_cycle_match_history_key(user_id: str) -> str:
+    return f"smart_cycle_v2_matches:{user_id}"
+
+
+def _parse_cycle_datetime(value) -> datetime:
+    try:
+        parsed = datetime.fromisoformat(str(value or "").replace("Z", "+00:00"))
+        return parsed if parsed.tzinfo else parsed.replace(tzinfo=timezone.utc)
+    except Exception:
+        return datetime.now(timezone.utc)
+
+
+def _metho_sale_excluding_gst(item: dict) -> float:
+    if str(item.get("product_type") or "metho").lower() != "metho":
+        return 0.0
+    subtotal = max(0.0, float(item.get("pre_tax") or item.get("subtotal") or 0))
+    if item.get("pre_tax") is not None:
+        return round(subtotal, 2)
+    gst_percent = max(0.0, float(item.get("gst_percent") or 0))
+    return round(subtotal / (1 + (gst_percent / 100.0)), 2) if gst_percent > 0 else round(subtotal, 2)
+
+
+def _member_has_approved_metho_sale(db: Session, user_id: str) -> bool:
+    return any(_approved_member_purchases(db, user_id))
+
+
+def _descendant_member_ids(db: Session, owner_id: str) -> set[str]:
+    children: dict[str, list[str]] = {}
+    for relation in db.query(UserReferral).all():
+        children.setdefault(str(relation.sponsor_user_id), []).append(str(relation.user_id))
+    seen: set[str] = set()
+    queue = list(children.get(str(owner_id), []))
+    while queue:
+        member_id = queue.pop(0)
+        if member_id in seen:
+            continue
+        seen.add(member_id)
+        queue.extend(children.get(member_id, []))
+    return seen
+
+
+def _smart_cycle_network_sale(db: Session, owner_id: str, slot_start: datetime, slot_end: datetime) -> tuple[float, int]:
+    eligible_ids = {str(owner_id)} | _descendant_member_ids(db, owner_id)
+    active_ids = {member_id for member_id in eligible_ids if _member_has_approved_metho_sale(db, member_id)}
+    sale_total = 0.0
+    order_count = 0
+    for order in db.query(PublicOrder).filter(PublicOrder.status == "paid").all():
+        created_at = order.created_at.replace(tzinfo=timezone.utc) if order.created_at and order.created_at.tzinfo is None else order.created_at
+        if not created_at or created_at < slot_start or created_at >= slot_end:
+            continue
+        member = _order_member(db, order)
+        if not member or str(member.id) not in active_ids:
+            continue
+        try:
+            items = json.loads(order.items_json or "[]")
+        except Exception:
+            items = []
+        amount = round(sum(_metho_sale_excluding_gst(item) for item in items), 2)
+        if amount > 0:
+            sale_total += amount
+            order_count += 1
+    return round(sale_total, 2), order_count
+
+
+def _load_smart_cycle_history(db: Session, user_id: str) -> list[dict]:
+    history = _load_json_setting(db, _smart_cycle_history_key(user_id), [])
+    return history if isinstance(history, list) else []
+
+
+def _settle_completed_smart_cycles(db: Session, user_id: str, now: datetime | None = None) -> dict | None:
+    now = now or datetime.now(timezone.utc)
+    if not _member_has_approved_metho_sale(db, user_id):
+        return None
+    state = _load_json_setting(db, _smart_cycle_state_key(user_id), {})
+    if not state:
+        first_sale = min((entry["order"].created_at for entry in _approved_member_purchases(db, user_id)), default=now)
+        first_sale = first_sale.replace(tzinfo=timezone.utc) if first_sale and first_sale.tzinfo is None else first_sale
+        state = {"cycle_number": 1, "started_at": first_sale.isoformat(), "activated_at": first_sale.isoformat()}
+
+    cycle_start = _parse_cycle_datetime(state.get("started_at"))
+    cycle_number = max(1, int(state.get("cycle_number") or 1))
+    cycle_seconds = SMART_CYCLE_SLOT_DAYS * SMART_CYCLE_TOTAL_SLOTS * 86400
+    history = _load_smart_cycle_history(db, user_id)
+    latest = None
+
+    while now >= cycle_start + timedelta(seconds=cycle_seconds):
+        slot_five_start = cycle_start + timedelta(days=SMART_CYCLE_SLOT_DAYS * 4)
+        cycle_end = cycle_start + timedelta(seconds=cycle_seconds)
+        eligible_sale, order_count = _smart_cycle_network_sale(db, user_id, slot_five_start, cycle_end)
+        bonus_percent = max(0.0, float(load_settings(db).get("smart_cycle_bonus_percent") or 0))
+        commission = round(eligible_sale * bonus_percent / 100.0, 2)
+        match_paid = 0.0
+        if commission > 0:
+            wallet = _load_user_wallet(db, user_id)
+            wallet["balance"] += commission
+            wallet["total_income"] += commission
+            wallet["total_bonus"] += commission
+            wallet["member_reward_credited"] += commission
+            _save_user_wallet(db, user_id, wallet)
+            relation = db.query(UserReferral).filter(UserReferral.user_id == user_id).first()
+            if relation:
+                match_paid = round(commission * 0.5, 2)
+                sponsor_wallet = _load_user_wallet(db, relation.sponsor_user_id)
+                sponsor_wallet["balance"] += match_paid
+                sponsor_wallet["total_income"] += match_paid
+                sponsor_wallet["total_bonus"] += match_paid
+                sponsor_wallet["leader_reward_credited"] += match_paid
+                _save_user_wallet(db, relation.sponsor_user_id, sponsor_wallet)
+                sponsor_matches = _load_json_setting(db, _smart_cycle_match_history_key(relation.sponsor_user_id), [])
+                sponsor_matches.insert(0, {
+                    "from_member_id": user_id,
+                    "from_cycle_number": cycle_number,
+                    "amount": match_paid,
+                    "source_commission": commission,
+                    "paid_at": cycle_end.isoformat(),
+                })
+                _save_json_setting(db, _smart_cycle_match_history_key(relation.sponsor_user_id), sponsor_matches[:100])
+
+        latest = {
+            "cycle_number": cycle_number,
+            "started_at": cycle_start.isoformat(),
+            "ended_at": cycle_end.isoformat(),
+            "slot_five_started_at": slot_five_start.isoformat(),
+            "eligible_network_sale_excluding_gst": eligible_sale,
+            "slot_five_order_count": order_count,
+            "bonus_percent": bonus_percent,
+            "bonus_paid": commission,
+            "direct_sponsor_match_paid": match_paid,
+            "status": "settled",
+        }
+        history.insert(0, latest)
+        cycle_number += 1
+        cycle_start = cycle_end
+
+    state = {"cycle_number": cycle_number, "started_at": cycle_start.isoformat(), "activated_at": state.get("activated_at") or cycle_start.isoformat()}
+    _save_json_setting(db, _smart_cycle_state_key(user_id), state)
+    _save_json_setting(db, _smart_cycle_history_key(user_id), history[:100])
+    return latest
+
+
 def _sql_member_rank(db: Session, user_id: str, period: str | None = None) -> str:
     period = period or datetime.now(timezone.utc).strftime("%Y-%m")
     amount = round(sum(item["metho_sales"] for item in _approved_member_purchases(db, user_id, period)), 2)
@@ -3297,62 +3449,112 @@ def business_cycle(db: Session = Depends(get_db), current_user=Depends(get_curre
 
 @router.get("/smart-cycle/me")
 def smart_cycle_me(db: Session = Depends(get_db), current_user=Depends(get_current_user)):
+    now = datetime.now(timezone.utc)
+    _settle_completed_smart_cycles(db, current_user.id, now)
+    db.commit()
     settings = load_settings(db)
     bonus_percent = float(settings.get("smart_cycle_bonus_percent") or 10)
-    match_percent = float(settings.get("leader_match_percent") or 50)
-    period = datetime.now(timezone.utc).strftime("%Y-%m")
-    purchases = _approved_member_purchases(db, current_user.id, period)
-    qualified = round(sum(item["metho_sales"] for item in purchases), 2)
-    bonus = round(qualified * bonus_percent / 100.0, 2)
-    cycle_days = max(1, int(settings.get("smart_cycle_days") or 28))
+    if not _member_has_approved_metho_sale(db, current_user.id):
+        return {
+            "active": False,
+            "message": "Your Smart Cycle activates automatically after your first approved METHO product purchase.",
+            "settings": {"smart_cycle_bonus_percent": bonus_percent, "leader_match_percent": 50, "smart_cycle_slot_days": SMART_CYCLE_SLOT_DAYS, "smart_cycle_total_slots": SMART_CYCLE_TOTAL_SLOTS},
+            "past_cycles": [],
+        }
+    state = _load_json_setting(db, _smart_cycle_state_key(current_user.id), {})
+    cycle_start = _parse_cycle_datetime(state.get("started_at"))
+    elapsed_seconds = max(0.0, (now - cycle_start).total_seconds())
+    elapsed_days = min(SMART_CYCLE_SLOT_DAYS * SMART_CYCLE_TOTAL_SLOTS, int(elapsed_seconds // 86400))
+    current_slot = min(SMART_CYCLE_TOTAL_SLOTS, int(elapsed_seconds // (SMART_CYCLE_SLOT_DAYS * 86400)) + 1)
+    slot_start = cycle_start + timedelta(days=SMART_CYCLE_SLOT_DAYS * (current_slot - 1))
+    slot_end = slot_start + timedelta(days=SMART_CYCLE_SLOT_DAYS)
+    network_sale, order_count = _smart_cycle_network_sale(db, current_user.id, slot_start, min(now, slot_end))
+    slot_history = []
+    for slot_number in range(1, current_slot + 1):
+        history_start = cycle_start + timedelta(days=SMART_CYCLE_SLOT_DAYS * (slot_number - 1))
+        history_end = min(now, history_start + timedelta(days=SMART_CYCLE_SLOT_DAYS))
+        history_sale, history_orders = _smart_cycle_network_sale(db, current_user.id, history_start, history_end)
+        slot_history.append({
+            "slot": slot_number,
+            "started_at": history_start.isoformat(),
+            "ended_at": history_end.isoformat(),
+            "network_sale_excluding_gst": history_sale,
+            "order_count": history_orders,
+            "status": "current" if slot_number == current_slot else "completed",
+        })
+    is_bonus_slot = current_slot == SMART_CYCLE_TOTAL_SLOTS
+    estimated_bonus = round(network_sale * bonus_percent / 100.0, 2) if is_bonus_slot else 0.0
+    direct_ids = {str(rel.user_id) for rel in db.query(UserReferral).filter(UserReferral.sponsor_user_id == current_user.id).all()}
+    direct_match_estimate = 0.0
+    for direct_id in direct_ids:
+        direct_state = _load_json_setting(db, _smart_cycle_state_key(direct_id), {})
+        if not direct_state:
+            continue
+        direct_start = _parse_cycle_datetime(direct_state.get("started_at"))
+        direct_slot = min(SMART_CYCLE_TOTAL_SLOTS, int(max(0.0, (now - direct_start).total_seconds()) // (SMART_CYCLE_SLOT_DAYS * 86400)) + 1)
+        if direct_slot != SMART_CYCLE_TOTAL_SLOTS:
+            continue
+        direct_slot_start = direct_start + timedelta(days=SMART_CYCLE_SLOT_DAYS * 4)
+        direct_sale, _ = _smart_cycle_network_sale(db, direct_id, direct_slot_start, now)
+        direct_match_estimate += round(direct_sale * bonus_percent / 100.0 * 0.5, 2)
     return {
         "active": True,
-        "cycle": {"id": f"{current_user.id}:{period}", "cycle_number": 1, "started_at": f"{period}-01T00:00:00+00:00", "ends_at": f"{period}-28T23:59:59+00:00", "qualified_volume": qualified, "metho_order_count": len(purchases), "fifth_slot_volume": qualified},
-        "current_slot": 5 if qualified > 0 else 1,
-        "current_week": 5 if qualified > 0 else 1,
-        "total_slots": 5,
-        "settlement_trigger_slot": 6,
-        "fifth_slot_volume": qualified,
-        "own_cycle_sale_base": qualified,
-        "direct_match_base_bonus": bonus,
-        "days_remaining": 0,
-        "elapsed_days": cycle_days,
-        "total_days": cycle_days,
-        "progress_percent": 100 if qualified > 0 else 0,
-        "eligible_for_settlement": qualified > 0,
-        "estimated_bonus": bonus,
-        "estimated_leader_match": round(bonus * match_percent / 100.0, 2),
-        "settings": {"smart_cycle_bonus_percent": bonus_percent, "leader_match_percent": match_percent, "smart_cycle_days": cycle_days, "smart_cycle_slot_days": max(1, cycle_days // 4), "smart_cycle_total_slots": 5},
-        "past_cycles": [],
+        "cycle": {"id": f"{current_user.id}:{state.get('cycle_number', 1)}", "cycle_number": int(state.get("cycle_number") or 1), "started_at": cycle_start.isoformat(), "ends_at": (cycle_start + timedelta(days=SMART_CYCLE_SLOT_DAYS * SMART_CYCLE_TOTAL_SLOTS)).isoformat(), "qualified_volume": network_sale, "metho_order_count": order_count, "fifth_slot_volume": network_sale},
+        "current_slot": current_slot,
+        "current_week": current_slot,
+        "total_slots": SMART_CYCLE_TOTAL_SLOTS,
+        "settlement_trigger_slot": SMART_CYCLE_TOTAL_SLOTS,
+        "fifth_slot_volume": network_sale if is_bonus_slot else 0.0,
+        "own_cycle_sale_base": network_sale,
+        "direct_match_base_bonus": direct_match_estimate,
+        "days_remaining": max(0, int((slot_end - now).total_seconds() // 86400)),
+        "elapsed_days": elapsed_days,
+        "total_days": SMART_CYCLE_SLOT_DAYS * SMART_CYCLE_TOTAL_SLOTS,
+        "progress_percent": round(min(100.0, elapsed_seconds / (SMART_CYCLE_SLOT_DAYS * SMART_CYCLE_TOTAL_SLOTS * 86400) * 100), 2),
+        "eligible_for_settlement": False,
+        "estimated_bonus": estimated_bonus,
+        "estimated_leader_match": round(direct_match_estimate, 2),
+        "settings": {"smart_cycle_bonus_percent": bonus_percent, "leader_match_percent": 50, "smart_cycle_days": SMART_CYCLE_SLOT_DAYS * SMART_CYCLE_TOTAL_SLOTS, "smart_cycle_slot_days": SMART_CYCLE_SLOT_DAYS, "smart_cycle_total_slots": SMART_CYCLE_TOTAL_SLOTS},
+        "slot_history": slot_history,
+        "past_cycles": _load_smart_cycle_history(db, current_user.id),
+        "matching_history": _load_json_setting(db, _smart_cycle_match_history_key(current_user.id), []),
     }
 
 
 @router.post("/smart-cycle/settle")
 def smart_cycle_settle(db: Session = Depends(get_db), current_user=Depends(get_current_user)):
-    period = datetime.now(timezone.utc).strftime("%Y-%m")
-    key = f"smart_cycle_settled:{current_user.id}:{period}"
-    if _load_json_setting(db, key, {"settled": False}).get("settled"):
-        raise HTTPException(status_code=400, detail="Smart Cycle already settled for this period")
-    data = smart_cycle_me(db, current_user)
-    bonus = float(data.get("estimated_bonus") or 0)
-    match = float(data.get("estimated_leader_match") or 0)
-    wallet_state = _load_user_wallet(db, current_user.id)
-    wallet_state["balance"] += bonus
-    wallet_state["total_income"] += bonus
-    wallet_state["total_bonus"] += bonus
-    wallet_state["member_reward_credited"] += bonus
-    _save_user_wallet(db, current_user.id, wallet_state)
-    referral = db.query(UserReferral).filter(UserReferral.user_id == current_user.id).first()
-    if referral and match > 0:
-        sponsor_wallet = _load_user_wallet(db, referral.sponsor_user_id)
-        sponsor_wallet["balance"] += match
-        sponsor_wallet["total_income"] += match
-        sponsor_wallet["total_bonus"] += match
-        sponsor_wallet["leader_reward_credited"] += match
-        _save_user_wallet(db, referral.sponsor_user_id, sponsor_wallet)
-    _save_json_setting(db, key, {"settled": True, "bonus": bonus, "leader_match": match, "period": period})
+    settled = _settle_completed_smart_cycles(db, current_user.id)
     db.commit()
-    return {"ok": True, "bonus": bonus, "leader_match": match, "credited_amount": bonus}
+    if not settled:
+        raise HTTPException(status_code=400, detail="Cycle payout is automatic after Slot 5 ends")
+    return {"ok": True, "bonus": settled["bonus_paid"], "leader_match": settled["direct_sponsor_match_paid"], "credited_amount": settled["bonus_paid"]}
+
+
+@router.get("/admin/smart-cycles")
+def admin_smart_cycles(db: Session = Depends(get_db), current_user=Depends(get_current_user)):
+    _require_admin_user(current_user)
+    now = datetime.now(timezone.utc)
+    rows = []
+    for member in db.query(User).filter(User.role.notin_(["super_admin", "company_admin", "admin", "partner"])).all():
+        if not _member_has_approved_metho_sale(db, member.id):
+            continue
+        _settle_completed_smart_cycles(db, member.id, now)
+        state = _load_json_setting(db, _smart_cycle_state_key(member.id), {})
+        started_at = _parse_cycle_datetime(state.get("started_at"))
+        slot = min(SMART_CYCLE_TOTAL_SLOTS, int(max(0.0, (now - started_at).total_seconds()) // (SMART_CYCLE_SLOT_DAYS * 86400)) + 1)
+        history = _load_smart_cycle_history(db, member.id)
+        rows.append({
+            "user_id": member.id,
+            "member_name": member.name,
+            "member_code": member_code_for_user(member.id),
+            "cycle_number": int(state.get("cycle_number") or 1),
+            "current_slot": slot,
+            "started_at": started_at.isoformat(),
+            "history": history,
+            "matching_history": _load_json_setting(db, _smart_cycle_match_history_key(member.id), []),
+        })
+    db.commit()
+    return rows
 
 
 @router.get("/orders")
@@ -4240,6 +4442,17 @@ def admin_approve_order(order_id: str, payload: dict | None = None, db: Session 
     split_tech = round(total_commission_pool * (float(settings.get("commission_split_technology_reserve") or 0) / 100.0), 2)
 
     row.status = "paid"
+    db.commit()
+
+    # A paid METHO order activates/advances the buyer's cycle and every sponsor whose network includes them.
+    cycle_member = _order_member(db, row)
+    cycle_owner_ids: set[str] = set()
+    while cycle_member and str(cycle_member.id) not in cycle_owner_ids:
+        cycle_owner_ids.add(str(cycle_member.id))
+        relation = db.query(UserReferral).filter(UserReferral.user_id == cycle_member.id).first()
+        cycle_member = db.query(User).filter(User.id == relation.sponsor_user_id).first() if relation else None
+    for cycle_owner_id in cycle_owner_ids:
+        _settle_completed_smart_cycles(db, cycle_owner_id)
     db.commit()
 
     return {
