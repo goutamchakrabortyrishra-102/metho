@@ -1694,12 +1694,12 @@ export default function PartnerGalleryPage() {
       />
 
       {deliveryBookingOpen ? (
-        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4" onClick={() => setDeliveryBookingOpen(false)}>
-          <div className="w-full max-w-2xl rounded-2xl bg-white shadow-2xl border border-cyan-200 p-5 md:p-6" onClick={(e) => e.stopPropagation()}>
-            <div className="flex flex-wrap items-start justify-between gap-3">
+        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-start md:items-center justify-center overflow-y-auto p-2 sm:p-4" onClick={() => setDeliveryBookingOpen(false)}>
+          <div className="w-full max-w-2xl max-h-[calc(100dvh-1rem)] overflow-y-auto rounded-2xl bg-white shadow-2xl border border-cyan-200 p-4 sm:p-5 md:p-6" onClick={(e) => e.stopPropagation()}>
+            <div className="flex flex-wrap items-start justify-between gap-2 sm:gap-3">
               <div>
                 <p className="text-[10px] uppercase tracking-widest text-cyan-700 font-semibold">Delivery Booking Preset</p>
-                <h3 className="font-display font-black text-emerald-950 text-xl mt-1">Pickup, Destination & Rate Confirm</h3>
+                <h3 className="font-display font-black text-emerald-950 text-lg sm:text-xl mt-1 leading-tight">Pickup, Destination & Rate Confirm</h3>
                 <p className="text-sm text-slate-600 mt-1">Rate estimate দেখুন। Agree করলে submit করুন, না হলে partner final rate confirm করবে.</p>
               </div>
               <Button type="button" variant="outline" className="rounded-full" onClick={() => setDeliveryBookingOpen(false)}>
