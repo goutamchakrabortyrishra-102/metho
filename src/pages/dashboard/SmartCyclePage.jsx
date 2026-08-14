@@ -20,10 +20,11 @@ export default function SmartCyclePage() {
     setLoadError("");
     const requests = [api.get("/smart-cycle/me")];
     if (isAdmin) requests.push(api.get("/admin/smart-cycles"));
-    Promise.all(requests)
-      .then(([cycleResponse, adminResponse]) => {
-        setData(cycleResponse.data);
-        setAdminCycles(Array.isArray(adminResponse?.data) ? adminResponse.data : []);
+    Promise.allSettled(requests)
+      .then(([cycleResult, adminResult]) => {
+        if (cycleResult.status !== "fulfilled") throw cycleResult.reason;
+        setData(cycleResult.value.data);
+        setAdminCycles(adminResult?.status === "fulfilled" && Array.isArray(adminResult.value?.data) ? adminResult.value.data : []);
       })
       .catch((err) => {
         setData(null);
