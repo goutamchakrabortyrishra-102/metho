@@ -215,10 +215,11 @@ def list_products(limit: int | None = None, authorization: str | None = Header(d
     pricing_tier_map = _get_pricing_tier_map(db)
     hidden_map = _get_product_hidden_map(db)
     youtube_map = _get_product_youtube_map(db)
+    is_authenticated = bool(str(authorization or "").strip())
 
     out = []
     for p in products:
-        if bool(hidden_map.get(p.id, False)):
+        if bool(hidden_map.get(p.id, False)) and not is_authenticated:
             continue
         m = meta_map.get(p.id)
         mrp = float(m.mrp if m and m.mrp else p.price)
@@ -246,7 +247,6 @@ def list_products(limit: int | None = None, authorization: str | None = Header(d
                 "hidden": bool(hidden_map.get(p.id, False)),
             }
         )
-    is_authenticated = bool(str(authorization or "").strip())
     if not is_authenticated:
         public_limit = max(1, min(int(limit) if limit is not None else 200, 500))
         compacted = []

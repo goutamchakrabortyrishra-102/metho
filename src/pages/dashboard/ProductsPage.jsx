@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from "react";
 import { toast } from "sonner";
-import { ShoppingCart, Plus, Minus, Trash2, Upload, Pencil, FileDown, ArrowUp, ArrowDown } from "lucide-react";
+import { ShoppingCart, Plus, Minus, Trash2, Upload, Pencil, FileDown, ArrowUp, ArrowDown, Eye, EyeOff, RefreshCw } from "lucide-react";
 import { useSearchParams } from "react-router-dom";
 import api from "@/services/api";
 import { useAuth } from "@/contexts/AuthContext";
@@ -86,9 +86,34 @@ export default function ProductsPage() {
   const [landingTopProductIds, setLandingTopProductIds] = useState([]);
   const [savingTopProducts, setSavingTopProducts] = useState(false);
   const [savingCategoryOrder, setSavingCategoryOrder] = useState(false);
+  const [loadingProducts, setLoadingProducts] = useState(true);
+  const [productLoadError, setProductLoadError] = useState("");
   const getStock = (product) => Math.max(0, Number(product?.stock ?? 0));
 
-  const loadProducts = () => api.get("/products").then(r => setProducts(r.data));
+  const loadProducts = async () => {
+    setLoadingProducts(true);
+    setProductLoadError("");
+    try {
+      const { data } = await api.get("/products", { params: { refresh: Date.now() } });
+      if (Array.isArray(data) && data.length > 0) {
+        setProducts(data);
+        return;
+      }
+      const fallback = await api.get("/products/public", { params: { refresh: Date.now() } });
+      setProducts(Array.isArray(fallback.data) ? fallback.data : []);
+    } catch (err) {
+      try {
+        const fallback = await api.get("/products/public", { params: { refresh: Date.now() } });
+        setProducts(Array.isArray(fallback.data) ? fallback.data : []);
+        toast.info("Loaded products from the public catalog backup");
+      } catch {
+        setProducts([]);
+        setProductLoadError(err?.response?.data?.detail || "Could not load products");
+      }
+    } finally {
+      setLoadingProducts(false);
+    }
+  };
 
   useEffect(() => {
     loadProducts();
@@ -217,6 +242,19 @@ export default function ProductsPage() {
       toast.success("Product deleted");
     } catch (err) {
       toast.error(err?.response?.data?.detail || "Failed to delete product");
+    }
+  };
+
+  const toggleProductHidden = async (product) => {
+    const nextHidden = !product?.hidden;
+    try {
+      await api.patch(`/products/${product.id}`, { hidden: nextHidden });
+      setProducts((prev) => prev.map((item) => (
+        item.id === product.id ? { ...item, hidden: nextHidden } : item
+      )));
+      toast.success(nextHidden ? "Product hidden from the public shop" : "Product visible in the public shop");
+    } catch (err) {
+      toast.error(err?.response?.data?.detail || "Failed to update product visibility");
     }
   };
 
@@ -379,6 +417,17 @@ export default function ProductsPage() {
               data-testid={`delete-product-row-${i}`}
             >
               <Trash2 className="w-3.5 h-3.5 mr-1" /> Delete
+            </Button>
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              onClick={() => toggleProductHidden(p)}
+              className="rounded-full h-8 text-xs"
+              data-testid={`hide-product-row-${i}`}
+            >
+              {p.hidden ? <Eye className="w-3.5 h-3.5 mr-1" /> : <EyeOff className="w-3.5 h-3.5 mr-1" />}
+              {p.hidden ? "Unhide" : "Hide"}
             </Button>
             {String(p.product_type || "metho").toLowerCase() === "metho" ? (
               (() => {
@@ -561,6 +610,15 @@ export default function ProductsPage() {
         })}
       </div>
 
+      {productLoadError ? (
+        <div className="flex flex-wrap items-center gap-3 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-800">
+          <span>{productLoadError}</span>
+          <Button type="button" size="sm" variant="outline" onClick={loadProducts} className="rounded-full" data-testid="retry-products-load">
+            <RefreshCw className="w-3.5 h-3.5 mr-1" /> Retry
+          </Button>
+        </div>
+      ) : null}
+
       {isAdmin ? (
         <div className="rounded-xl border border-emerald-200 bg-emerald-50/50 p-3" data-testid="landing-top-products-panel">
           <div className="flex flex-wrap items-center justify-between gap-2">
@@ -700,6 +758,8 @@ export default function ProductsPage() {
 
       {selectedCategory === "all" ? (
         <div className="space-y-7" data-testid="products-grouped-by-category">
+          {loadingProducts ? <p className="text-sm text-slate-500">Loading products...</p> : null}
+          {!loadingProducts && products.length === 0 && !productLoadError ? <p className="text-sm text-slate-500">No products found. Use Product Upload to add one.</p> : null}
           {groupedProducts.map((group) => (
             <section key={group.category} className="space-y-3">
               <div className="flex items-center justify-between gap-2">
