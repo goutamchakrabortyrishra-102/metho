@@ -575,6 +575,27 @@ export default function PartnerGalleryPage() {
   }, [searchParams, data]);
 
   const partner = data?.partner;
+  const negotiateWithPartner = () => {
+    const partnerPhone = cleanPhone(partner?.whatsapp_no || partner?.phone);
+    if (!partnerPhone) {
+      toast.error("Partner WhatsApp number is not available");
+      return;
+    }
+
+    const fareText = deliveryFareEstimate?.amount
+      ? `Estimated fare: ₹${Number(deliveryFareEstimate.amount).toLocaleString("en-IN")}`
+      : "Fare to be confirmed";
+    openWhatsAppShare({
+      phone: partnerPhone,
+      text: [
+        `Hi ${partner?.business_name || "Partner"}, I want to negotiate this delivery booking.`,
+        `Pickup: ${deliveryBookingForm.pickup || "Not provided"}`,
+        `Destination: ${deliveryBookingForm.destination || "Not provided"}`,
+        fareText,
+        deliveryBookingForm.notes ? `Note: ${deliveryBookingForm.notes}` : "",
+      ].filter(Boolean).join("\n"),
+    });
+  };
   const products = useMemo(() => data?.products || [], [data?.products]);
   const productListings = useMemo(() => products.filter((item) => !isServiceListing(item)), [products]);
   const serviceListings = useMemo(() => products.filter((item) => isServiceListing(item)), [products]);
@@ -1730,10 +1751,7 @@ export default function PartnerGalleryPage() {
               <Button type="button" className="rounded-full bg-cyan-700 hover:bg-cyan-800 text-white" onClick={submitDeliveryBooking} disabled={deliveryBookingBusy || !deliveryBookingService?.id}>
                 {deliveryBookingBusy ? "Submitting..." : "Confirm & Submit"}
               </Button>
-              <Button type="button" variant="outline" className="rounded-full" onClick={async () => {
-                const link = waUrl(partner);
-                if (link) window.open(link, "_blank", "noopener,noreferrer");
-              }}>
+              <Button type="button" variant="outline" className="rounded-full" onClick={negotiateWithPartner} data-testid="delivery-negotiate-partner-button">
                 Negotiate with Partner
               </Button>
               {deliveryBooking?.id ? (
