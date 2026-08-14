@@ -839,14 +839,15 @@ def _calculate_sql_pool(db: Session, period: str) -> dict:
             items = []
         commission = 0.0
         for item in items:
-            subtotal = max(0.0, float(item.get("subtotal") or 0))
-            totals["gross_sales"] += subtotal
             if str(item.get("product_type") or "metho").lower() == "metho":
+                subtotal = max(0.0, float(item.get("pre_tax") or item.get("subtotal") or 0))
                 rate = float(settings.get("metho_commission_percent") or 10)
             else:
+                subtotal = max(0.0, float(item.get("subtotal") or 0))
                 partner_product = db.query(PartnerProduct).filter(PartnerProduct.id == str(item.get("product_id") or "")).first()
                 partner = db.query(AssociatePartner).filter(AssociatePartner.id == partner_product.partner_id).first() if partner_product else None
                 rate = float(partner.commission_percent or 0) if partner else 0
+            totals["gross_sales"] += subtotal
             commission += subtotal * max(0.0, min(100.0, rate)) / 100.0
         totals["commission_pool"] += commission
     totals["commission_pool"] = round(totals["commission_pool"], 2)
