@@ -522,6 +522,14 @@ def _user_wallet_key(user_id: str) -> str:
     return f"user_wallet:{user_id}"
 
 
+def _member_purchase_activation_key(user_id: str) -> str:
+    return f"member_purchase_activation:{user_id}"
+
+
+def _withdrawals_key() -> str:
+    return "member_withdrawals"
+
+
 def _reward_pool_key(period: str) -> str:
     return f"reward_pool:{period}"
 
@@ -567,6 +575,38 @@ def _save_user_wallet(db: Session, user_id: str, wallet: dict) -> dict:
     normalized = {key: round(float(wallet.get(key) or 0), 2) for key in USER_WALLET_DEFAULTS}
     _save_json_setting(db, _user_wallet_key(user_id), normalized)
     return normalized
+
+
+def _member_purchase_active(db: Session, user_id: str) -> bool:
+    return bool(_load_json_setting(db, _member_purchase_activation_key(user_id), {}).get("active"))
+
+
+def _activate_member_purchase(db: Session, user: User | None, order_id: str, source: str) -> bool:
+    if not user or str(user.role or "") != "member" or _member_purchase_active(db, user.id):
+        return False
+    _save_json_setting(db, _member_purchase_activation_key(user.id), {
+        "active": True,
+        "activated_at": now_iso(),
+        "activation_order_id": str(order_id or ""),
+        "payment_source": str(source or "admin_approved"),
+    })
+    return True
+
+
+def _withdrawal_rates(db: Session) -> tuple[float, float]:
+    settings = load_settings(db)
+    tds_percent = max(0.0, min(100.0, float(settings.get("withdrawal_tds_percent") or 5)))
+    admin_percent = max(0.0, min(100.0, float(settings.get("withdrawal_admin_charge_percent") or 3)))
+    return tds_percent, admin_percent
+
+
+def _load_withdrawals(db: Session) -> list[dict]:
+    rows = _load_json_setting(db, _withdrawals_key(), [])
+    return rows if isinstance(rows, list) else []
+
+
+def _save_withdrawals(db: Session, rows: list[dict]) -> None:
+    _save_json_setting(db, _withdrawals_key(), rows[:500])
 
 
 def _period_for_datetime(value) -> str:
@@ -2933,8 +2973,8 @@ def wallet_transactions(db: Session = Depends(get_db), current_user=Depends(get_
 
 
 @router.get("/wallet/withdrawals")
-def wallet_withdrawals(current_user=Depends(get_current_user)):
-    return []
+def wallet_withdrawals(db: Session = Depends(get_db), current_user=Depends(get_current_user)):
+    return [row for row in _load_withdrawals(db) if str(row.get("user_id") or "") == str(current_user.id)]
 
 
 @router.get("/wallet/monthly-projection")
@@ -2969,8 +3009,57 @@ def wallet_monthly_projection(db: Session = Depends(get_db), current_user=Depend
 
 
 @router.post("/wallet/withdraw")
-def wallet_withdraw(payload: dict, current_user=Depends(get_current_user)):
-    return {"ok": True, "status": "pending", "message": "Withdrawal request submitted"}
+def wallet_withdraw(payload: dict, db: Session = Depends(get_db), current_user=Depends(get_current_user)):
+    gross_amount = round(float(payload.get("amount") or 0), 2)
+    if gross_amount <= 0:
+        raise HTTPException(status_code=400, detail="Withdrawal amount must be greater than zero")
+    settings = load_settings(db)
+    minimum = max(0.0, float(settings.get("min_withdrawal") or 100))
+    if gross_amount < minimum:
+        raise HTTPException(status_code=400, detail=f"Minimum withdrawal is ₹{minimum:.2f}")
+    wallet = _load_user_wallet(db, current_user.id)
+    if gross_amount > float(wallet.get("balance") or 0):
+        raise HTTPException(status_code=400, detail="Insufficient wallet balance")
+    method = str(payload.get("method") or "upi").strip().lower()
+    if method not in {"upi", "imps", "bank"}:
+        raise HTTPException(status_code=400, detail="Unsupported withdrawal method")
+    account_details = str(payload.get("account_details") or "").strip()
+    if not account_details:
+        raise HTTPException(status_code=400, detail="Payout account details are required")
+
+    tds_percent, admin_percent = _withdrawal_rates(db)
+    tds_amount = round(gross_amount * tds_percent / 100.0, 2)
+    admin_charge_amount = round(gross_amount * admin_percent / 100.0, 2)
+    net_amount = round(max(0.0, gross_amount - tds_amount - admin_charge_amount), 2)
+    wallet["balance"] = round(float(wallet["balance"]) - gross_amount, 2)
+    wallet["total_withdrawn"] = round(float(wallet["total_withdrawn"]) + gross_amount, 2)
+    _save_user_wallet(db, current_user.id, wallet)
+    rows = _load_withdrawals(db)
+    entry = {
+        "id": str(uuid.uuid4()),
+        "user_id": current_user.id,
+        "user_name": current_user.name,
+        "user_member_code": member_code_for_user(current_user.id),
+        "user_phone": current_user.phone,
+        "user_email": current_user.email,
+        "gross_amount": gross_amount,
+        "amount": gross_amount,
+        "tds_percent": tds_percent,
+        "tds_amount": tds_amount,
+        "admin_charge_percent": admin_percent,
+        "admin_charge_amount": admin_charge_amount,
+        "net_amount": net_amount,
+        "method": method,
+        "account_details": account_details,
+        "status": "pending",
+        "created_at": now_iso(),
+        "utr": "",
+        "rejection_reason": "",
+    }
+    rows.insert(0, entry)
+    _save_withdrawals(db, rows)
+    db.commit()
+    return {"ok": True, "status": "pending", "withdrawal": entry, "message": "Withdrawal request submitted"}
 
 
 @router.get("/auth/payout-details")
@@ -3009,6 +3098,7 @@ def members(db: Session = Depends(get_db), current_user=Depends(get_current_user
                 "kyc_status": "approved",
                 "role": u.role,
                 "active": u.is_active,
+                "purchase_active": _member_purchase_active(db, u.id),
             }
         )
     return out
@@ -3036,6 +3126,7 @@ def admin_users(role: str | None = None, db: Session = Depends(get_db), current_
                 "pan_no": extras.get("pan_no") or "",
                 "role": user.role,
                 "active": user.is_active,
+                "purchase_active": _member_purchase_active(db, user.id),
                 "created_at": user.created_at.isoformat() if user.created_at else now_iso(),
             }
         )
@@ -4240,6 +4331,7 @@ def admin_pending_orders(db: Session = Depends(get_db), current_user=Depends(get
                 "created_at": r.created_at.isoformat() if r.created_at else now_iso(),
                 "payment_submitted_at": r.created_at.isoformat() if r.created_at else now_iso(),
                 "shipping_address": r.shipping_address,
+                "payment_method": str(r.payment_method or "").strip().lower(),
                 "txn_id": r.txn_id,
                 "payment_screenshot_url": r.payment_screenshot_url,
                 "payer_name": r.payer_name,
@@ -4444,6 +4536,15 @@ def admin_approve_order(order_id: str, payload: dict | None = None, db: Session 
     row.status = "paid"
     db.commit()
 
+    approved_member = _order_member(db, row)
+    has_metho_product = any(str(item.get("product_type") or "metho").lower() == "metho" for item in items)
+    member_purchase_activated = _activate_member_purchase(
+        db,
+        approved_member if has_metho_product else None,
+        row.id,
+        str(row.payment_method or "admin_confirmed"),
+    )
+
     # A paid METHO order activates/advances the buyer's cycle and every sponsor whose network includes them.
     cycle_member = _order_member(db, row)
     cycle_owner_ids: set[str] = set()
@@ -4475,6 +4576,7 @@ def admin_approve_order(order_id: str, payload: dict | None = None, db: Session 
             "technology_reserve": split_tech,
         },
         "company_commission_wallet": company_wallet,
+        "member_purchase_activated": member_purchase_activated,
     }
 
 
@@ -7009,28 +7111,53 @@ def admin_accounts_add_entry(payload: dict, current_user=Depends(get_current_use
 
 
 @router.get("/admin/withdrawals")
-def admin_withdrawals(status_filter: str | None = None, current_user=Depends(get_current_user)):
+def admin_withdrawals(status_filter: str | None = None, db: Session = Depends(get_db), current_user=Depends(get_current_user)):
+    _require_admin_user(current_user)
+    rows = _load_withdrawals(db)
     if not status_filter:
-        return WITHDRAWALS
-    return [w for w in WITHDRAWALS if w.get("status") == status_filter]
+        return rows
+    return [row for row in rows if str(row.get("status") or "") == str(status_filter)]
 
 
 @router.post("/admin/withdrawals/{withdrawal_id}/approve")
-def admin_withdrawals_approve(withdrawal_id: str, payload: dict | None = None, current_user=Depends(get_current_user)):
-    for w in WITHDRAWALS:
-        if w.get("id") == withdrawal_id:
-            w["status"] = "approved"
-            w["utr"] = (payload or {}).get("utr", "")
-    return {"id": withdrawal_id, "status": "approved"}
+def admin_withdrawals_approve(withdrawal_id: str, payload: dict | None = None, db: Session = Depends(get_db), current_user=Depends(get_current_user)):
+    _require_admin_user(current_user)
+    rows = _load_withdrawals(db)
+    for row in rows:
+        if str(row.get("id") or "") != str(withdrawal_id):
+            continue
+        if row.get("status") != "pending":
+            raise HTTPException(status_code=400, detail="Withdrawal is already decided")
+        row["status"] = "approved"
+        row["utr"] = str((payload or {}).get("utr") or "").strip()
+        row["approved_at"] = now_iso()
+        _save_withdrawals(db, rows)
+        db.commit()
+        return {"id": withdrawal_id, "status": "approved", "gross_amount": row.get("gross_amount"), "net_amount": row.get("net_amount"), "tds_amount": row.get("tds_amount"), "admin_charge_amount": row.get("admin_charge_amount")}
+    raise HTTPException(status_code=404, detail="Withdrawal not found")
 
 
 @router.post("/admin/withdrawals/{withdrawal_id}/reject")
-def admin_withdrawals_reject(withdrawal_id: str, payload: dict | None = None, current_user=Depends(get_current_user)):
-    for w in WITHDRAWALS:
-        if w.get("id") == withdrawal_id:
-            w["status"] = "rejected"
-            w["rejection_reason"] = (payload or {}).get("reason", "")
-    return {"id": withdrawal_id, "status": "rejected"}
+def admin_withdrawals_reject(withdrawal_id: str, payload: dict | None = None, db: Session = Depends(get_db), current_user=Depends(get_current_user)):
+    _require_admin_user(current_user)
+    rows = _load_withdrawals(db)
+    for row in rows:
+        if str(row.get("id") or "") != str(withdrawal_id):
+            continue
+        if row.get("status") != "pending":
+            raise HTTPException(status_code=400, detail="Withdrawal is already decided")
+        wallet = _load_user_wallet(db, str(row.get("user_id") or ""))
+        refund = float(row.get("gross_amount") or row.get("amount") or 0)
+        wallet["balance"] = round(float(wallet["balance"]) + refund, 2)
+        wallet["total_withdrawn"] = round(max(0.0, float(wallet["total_withdrawn"]) - refund), 2)
+        _save_user_wallet(db, str(row.get("user_id") or ""), wallet)
+        row["status"] = "rejected"
+        row["rejection_reason"] = str((payload or {}).get("reason") or "Not approved")
+        row["rejected_at"] = now_iso()
+        _save_withdrawals(db, rows)
+        db.commit()
+        return {"id": withdrawal_id, "status": "rejected", "refund_amount": refund}
+    raise HTTPException(status_code=404, detail="Withdrawal not found")
 
 
 @router.post("/admin/upload/upi-qr")

@@ -53,6 +53,8 @@ DEFAULT_SETTINGS = {
     "cycle_reward_text": "10% Smart Cycle Bonus",
     "metho_commission_percent": 10,
     "min_withdrawal": 100,
+    "withdrawal_tds_percent": 5,
+    "withdrawal_admin_charge_percent": 3,
     "rank_bronze_bv": 5000,
     "rank_silver_bv": 20000,
     "rank_gold_bv": 50000,

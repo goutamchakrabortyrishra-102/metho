@@ -49,11 +49,15 @@ export default function PendingPaymentsPage() {
   if (!isAdmin) return <Navigate to="/app" replace />;
 
   const approve = async (order) => {
-    if (!window.confirm(`Order ${order.order_no} approve করবেন?\nCommission ও Smart Cycle credits এখন disburse হবে।`)) return;
+    const isMethoQrProof = ["upi", "manual_upi"].includes(String(order?.payment_method || "").toLowerCase()) && !!order?.payment_screenshot_url;
+    const confirmationText = isMethoQrProof
+      ? `METHO QR payment ${order.order_no} confirm করবেন?\nএই approval-এর পর METHO product buyer-এর Member ID active হবে।`
+      : `Order ${order.order_no} approve করবেন?\nCommission ও Smart Cycle credits এখন disburse হবে।`;
+    if (!window.confirm(confirmationText)) return;
     setBusy(true);
     try {
       const { data } = await api.post(`/admin/orders/${order.id}/approve`, {});
-      toast.success(`Approved! Commission ₹${data.rewards_earned?.commission_pool?.toLocaleString("en-IN") || 0}`);
+      toast.success(data.member_purchase_activated ? "Payment confirmed and Member ID activated." : `Approved! Commission ₹${data.rewards_earned?.commission_pool?.toLocaleString("en-IN") || 0}`);
       load();
     } catch (err) {
       toast.error(err?.response?.data?.detail || "Approve failed");
@@ -150,6 +154,7 @@ export default function PendingPaymentsPage() {
                 <div>
                   <p className="text-[10px] uppercase text-amber-900 font-bold tracking-wider">UPI Transaction ID</p>
                   <p className="font-mono text-sm text-emerald-950 mt-1 break-all">{o.txn_id || "—"}</p>
+                  <p className="text-[11px] text-amber-800 mt-1">Method: {String(o.payment_method || "upi").toUpperCase()}{o.payment_screenshot_url ? " · METHO QR proof" : ""}</p>
                 </div>
                 <div>
                   <p className="text-[10px] uppercase text-amber-900 font-bold tracking-wider">Payer</p>
