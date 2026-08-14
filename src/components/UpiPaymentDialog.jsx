@@ -560,8 +560,19 @@ export default function UpiPaymentDialog({
         {items?.length > 0 && (
           <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-4">
             <div className="flex items-center justify-between gap-2 mb-3">
-              <p className="text-[10px] uppercase tracking-[0.2em] text-emerald-800 font-bold">Cart Preview</p>
-              <p className="text-xs text-emerald-900 font-semibold">{items.length} item(s)</p>
+              <div>
+                <p className="text-[10px] uppercase tracking-[0.2em] text-emerald-800 font-bold">Cart Preview</p>
+                <p className="text-xs text-emerald-900 font-semibold mt-1">{items.length} item(s)</p>
+              </div>
+              <Button
+                type="button"
+                variant="outline"
+                onClick={goBackToCart}
+                className="shrink-0 border-emerald-300 text-emerald-900 hover:bg-emerald-100"
+                data-testid="upi-back-to-cart-button"
+              >
+                <ShoppingCart className="w-4 h-4 mr-2" /> Back to Cart
+              </Button>
             </div>
             <div className="grid gap-2 max-h-48 overflow-y-auto pr-1">
               {items.map((item) => (
@@ -944,15 +955,6 @@ export default function UpiPaymentDialog({
 
           <DialogFooter className={manualUpiEnabled ? "md:col-span-2" : ""}>
             <div className="w-full space-y-2">
-              <Button
-                type="button"
-                variant="outline"
-                onClick={goBackToCart}
-                className="w-full h-11 rounded-full border-emerald-300 text-emerald-900 hover:bg-emerald-50"
-                data-testid="upi-back-to-cart-button"
-              >
-                <ShoppingCart className="w-4 h-4 mr-2" /> Back to Cart & Add More
-              </Button>
               {razorpayEnabled && !forceManualUpiFlow ? (
                 <Button
                   type="button"
