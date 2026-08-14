@@ -209,7 +209,7 @@ const Nav = () => (
             aria-label="Call METHO at +91 7003805387"
             data-testid="nav-call-link"
           >
-            <Phone className="w-3.5 h-3.5" /> <span className="hidden sm:inline">Call us</span><span className="sm:hidden">Call</span>
+            <Phone className="w-3.5 h-3.5" /> <span className="whitespace-nowrap">Call Us Anytime</span>
           </a>
           <Link to="/login" data-testid="nav-login-link"><Button variant="ghost" size="sm" className="px-3 md:px-4 hover:bg-emerald-50 hover:text-emerald-900">Login</Button></Link>
           <Link to="/register" data-testid="nav-register-link">
