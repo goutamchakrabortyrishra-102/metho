@@ -1,6 +1,6 @@
 import React, { useState } from "react";
 import { Outlet, NavLink, useLocation, useNavigate } from "react-router-dom";
-import { LayoutDashboard, Wallet, Users, Network, Package, ShoppingCart, TrendingUp, User, LogOut, Menu, X, Bell, Search, Settings, Sparkles, BadgeIndianRupee, Calculator, Shield, Store, Compass, Trophy, Send, CheckCircle2, Upload, Bot, ClipboardList, Activity, Warehouse, BookOpenCheck, CarTaxiFront, UtensilsCrossed, Building2, Trash2 } from "lucide-react";
+import { LayoutDashboard, Wallet, Users, Network, Package, ShoppingCart, TrendingUp, User, LogOut, Menu, X, Search, Settings, Sparkles, BadgeIndianRupee, Calculator, Shield, Store, Compass, Trophy, Send, CheckCircle2, Upload, Bot, ClipboardList, Activity, Warehouse, BookOpenCheck, CarTaxiFront, UtensilsCrossed, Building2, Trash2 } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { Logo } from "@/components/Logo";
 import { Button } from "@/components/ui/button";
@@ -185,10 +185,6 @@ export default function DashboardLayout() {
                   <Trash2 className="w-4 h-4 mr-2" /> {clearingCurrentData ? "Clearing..." : "Clear Test Data"}
                 </Button>
               ) : null}
-              <button className="relative p-2 rounded-lg hover:bg-secondary" data-testid="notification-button">
-                <Bell className="w-5 h-5 text-slate-700" />
-                <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-amber-500 rounded-full" />
-              </button>
               <div className="flex items-center gap-2 pl-3 border-l border-border">
                 <div className="w-9 h-9 rounded-full bg-emerald-900 text-amber-400 flex items-center justify-center font-display font-bold">
                   {user?.name?.[0]?.toUpperCase()}
