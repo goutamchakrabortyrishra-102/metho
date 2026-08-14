@@ -1646,7 +1646,7 @@ export default function PartnerGalleryPage() {
 
       {/* Cart bar */}
       {items.length > 0 && (
-        <div className="fixed top-14 md:top-auto md:bottom-0 left-0 right-0 z-40 p-3 bg-white border-b md:border-b-0 md:border-t border-border shadow-2xl" data-testid="gallery-cart-bar">
+        <div className="fixed top-16 md:top-auto md:bottom-0 left-0 right-0 z-40 p-3 bg-white border-b md:border-b-0 md:border-t border-border shadow-2xl" data-testid="gallery-cart-bar">
           <div className="max-w-4xl mx-auto flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
             <div className="min-w-0">
               <p className="text-xs uppercase tracking-wider text-emerald-800 font-bold flex items-center gap-1.5">
