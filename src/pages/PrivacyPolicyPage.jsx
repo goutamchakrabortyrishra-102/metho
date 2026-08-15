@@ -52,7 +52,7 @@ export default function PrivacyPolicyPage() {
             </section>
             <section>
               <h2 className="font-display text-xl font-bold text-emerald-950">8. Contact</h2>
-              <p className="mt-2">For privacy questions, account deletion, or personal data requests, contact Metho Logistics Private Limited at <a className="font-semibold text-emerald-800 underline" href="mailto:admin@metho.com">admin@metho.com</a>. Please include your registered mobile number or Member ID so we can identify the correct account.</p>
+              <p className="mt-2">For privacy questions, account deletion, or personal data requests, contact Metho Logistics Private Limited at <a className="font-semibold text-emerald-800 underline" href="mailto:methopvtltd@gmail.com">methopvtltd@gmail.com</a>. Please include your registered mobile number or Member ID so we can identify the correct account.</p>
             </section>
           </div>
         </article>
