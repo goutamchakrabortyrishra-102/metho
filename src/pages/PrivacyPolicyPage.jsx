@@ -48,11 +48,11 @@ export default function PrivacyPolicyPage() {
             </section>
             <section>
               <h2 className="font-display text-xl font-bold text-emerald-950">7. Your Choices</h2>
-              <p className="mt-2">You may review or update account information through the available account settings and may contact us about access, correction, or deletion requests, subject to applicable law and records we must retain.</p>
+              <p className="mt-2">You may review or update account information through the available account settings. To request access, correction, account deletion, or deletion of personal data, email us from the email address linked to your account. Some transaction, tax, fraud-prevention, or legal records may need to be retained where required by law.</p>
             </section>
             <section>
               <h2 className="font-display text-xl font-bold text-emerald-950">8. Contact</h2>
-              <p className="mt-2">For privacy questions or requests, contact Metho Logistics Private Limited through the support contact shown on the METHO AAY-UPAY website or your account communication channel.</p>
+              <p className="mt-2">For privacy questions, account deletion, or personal data requests, contact Metho Logistics Private Limited at <a className="font-semibold text-emerald-800 underline" href="mailto:admin@metho.com">admin@metho.com</a>. Please include your registered mobile number or Member ID so we can identify the correct account.</p>
             </section>
           </div>
         </article>
