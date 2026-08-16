@@ -165,31 +165,35 @@ const RouteWarmup = () => {
 
 const PrivateRoute = ({ children }) => {
   const { user, loading } = useAuth();
+  const hasValidToken = Boolean(localStorage.getItem("metho_token"));
   if (loading) return <div className="min-h-screen flex items-center justify-center">Loading...</div>;
-  if (!user) return <Navigate to="/login" replace />;
+  if (!user || !hasValidToken) return <Navigate to="/login" replace />;
   return children;
 };
 
 const AdminRoute = ({ children }) => {
   const { user, loading } = useAuth();
+  const hasValidToken = Boolean(localStorage.getItem("metho_token"));
   if (loading) return <div className="min-h-screen flex items-center justify-center">Loading...</div>;
-  if (!user) return <Navigate to="/login" replace />;
+  if (!user || !hasValidToken) return <Navigate to="/login" replace />;
   if (!["super_admin", "company_admin", "admin"].includes(user?.role)) return <Navigate to="/app" replace />;
   return children;
 };
 
 const StoreOwnerRoute = ({ children }) => {
   const { user, loading } = useAuth();
+  const hasValidToken = Boolean(localStorage.getItem("metho_token"));
   if (loading) return <div className="min-h-screen flex items-center justify-center">Loading...</div>;
-  if (!user) return <Navigate to="/login?next=/app/metho-store-owner" replace />;
+  if (!user || !hasValidToken) return <Navigate to="/login?next=/app/metho-store-owner" replace />;
   if (!["store_owner", "metho_store_owner", "owner"].includes(user?.role)) return <Navigate to="/app" replace />;
   return children;
 };
 
 const MemberRoute = ({ children }) => {
   const { user, loading } = useAuth();
+  const hasValidToken = Boolean(localStorage.getItem("metho_token"));
   if (loading) return <div className="min-h-screen flex items-center justify-center">Loading...</div>;
-  if (!user) return <Navigate to="/login" replace />;
+  if (!user || !hasValidToken) return <Navigate to="/login" replace />;
   if (user?.role === "partner") return <Navigate to="/partner" replace />;
   return children;
 };

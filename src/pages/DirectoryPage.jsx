@@ -176,9 +176,7 @@ export default function DirectoryPage() {
                 <Store className="w-3.5 h-3.5 mr-1" /> Become a Partner
               </Button>
             </Link>
-            {user ? (
-              <Link to="/app"><Button size="sm" className="bg-amber-400 text-emerald-950 hover:bg-amber-500 rounded-full font-semibold" data-testid="dir-goto-dashboard">Dashboard</Button></Link>
-            ) : (
+            {!user && (
               <>
                 <Link to="/login"><Button variant="outline" size="sm" className="border-white/20 bg-white/10 text-white hover:bg-white/20 rounded-full px-2.5 sm:px-3 text-[11px] sm:text-sm">Sign In</Button></Link>
                 <Link to="/register"><Button size="sm" className="bg-amber-400 text-emerald-950 hover:bg-amber-500 rounded-full font-semibold px-2.5 sm:px-3 text-[11px] sm:text-sm">Join</Button></Link>
