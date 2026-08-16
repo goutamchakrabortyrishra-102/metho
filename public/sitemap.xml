@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+    <url>
+        <loc>https://methoaayupay.com/</loc>
+        <priority>1.0</priority>
+    </url>
+    <url>
+        <loc>https://methoaayupay.com/shop</loc>
+        <priority>0.8</priority>
+    </url>
+    <url>
+        <loc>https://methoaayupay.com/directory</loc>
+        <priority>0.8</priority>
+    </url>
+    <url>
+        <loc>https://methoaayupay.com/metho-store</loc>
+        <priority>0.8</priority>
+    </url>
+    <url>
+        <loc>https://methoaayupay.com/login</loc>
+        <priority>0.5</priority>
+    </url>
+    <url>
+        <loc>https://methoaayupay.com/register</loc>
+        <priority>0.5</priority>
+    </url>
+    <url>
+        <loc>https://methoaayupay.com/partner-register</loc>
+        <priority>0.6</priority>
+    </url>
+    <url>
+        <loc>https://methoaayupay.com/privacy-policy</loc>
+        <priority>0.3</priority>
+    </url>
+</urlset>

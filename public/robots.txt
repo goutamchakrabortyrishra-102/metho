@@ -1,0 +1,13 @@
+User-agent: *
+Allow: /
+Disallow: /app
+Disallow: /admin-login
+Disallow: /partner
+Disallow: /partner-payout
+Disallow: /wallet-statement
+Disallow: /invoice
+Disallow: /customer-invoice
+Disallow: /customer-orders
+Disallow: /reset-password
+
+Sitemap: https://methoaayupay.com/sitemap.xml
