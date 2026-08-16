@@ -62,11 +62,19 @@ export const AuthProvider = ({ children }) => {
       const stored = localStorage.getItem("metho_user");
       const token = localStorage.getItem("metho_token");
 
+      // Never trust a cached user without a token present; require real login instead.
+      if (!token) {
+        localStorage.removeItem("metho_user");
+        if (active) setUser(null);
+        if (active) setLoading(false);
+        return;
+      }
+
       if (stored) {
         try { if (active) setUser(JSON.parse(stored)); } catch (e) {}
       }
 
-      if (token) {
+      {
         try {
           const { data } = await api.get("/auth/me");
           if (active) setUser(data);
