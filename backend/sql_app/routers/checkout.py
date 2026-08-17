@@ -5,6 +5,7 @@ import base64
 import hashlib
 import hmac
 import mimetypes
+from decimal import Decimal, ROUND_HALF_UP
 from email.utils import formatdate
 from types import SimpleNamespace
 import urllib.error
@@ -80,6 +81,18 @@ SLOT_INACTIVE_ORDER_STATUSES = {"cancelled", "rejected", "failed", "expired"}
 SLOT_SUGGESTION_INTERVAL_MINUTES = 30
 SLOT_SUGGESTION_INTERVAL_MIN_MINUTES = 5
 SLOT_SUGGESTION_INTERVAL_MAX_MINUTES = 180
+
+
+def round_half_up_to_whole_rupee(value: float | int) -> int:
+    """Round GST-inclusive price to nearest whole rupee using standard mathematical rounding.
+    
+    Follows the rule:
+    - Decimal < 0.50 → round DOWN
+    - Decimal >= 0.50 → round UP
+    
+    Examples: 49.49 → 49, 49.50 → 50, 50.50 → 51
+    """
+    return int(Decimal(str(value)).quantize(Decimal("1"), rounding=ROUND_HALF_UP))
 
 
 def _parse_slot_datetime(value: str | None) -> datetime | None:
@@ -911,14 +924,16 @@ def create_public_order(payload: dict, db: Session = Depends(get_db), authorizat
         if product_type == "metho":
             gst_amount = round(base_subtotal * (max(0.0, gst_percent) / 100.0), 2)
             line_total = round(base_subtotal + gst_amount, 2)
+            # Round final GST-inclusive price to nearest whole rupee
+            line_total = float(round_half_up_to_whole_rupee(line_total))
 
-        total = round(total + line_total, 2)
+        total = round(total + float(round_half_up_to_whole_rupee(line_total)), 2)
 
         normalized_items.append(
             {
                 "product_id": product.id,
                 "name": product.name,
-                "price": round(line_total / max(1, qty), 2),
+                "price": round(float(line_total) / max(1, qty), 2),
                 "unit_base_price": round(base_subtotal / max(1, qty), 2),
                 "mrp": mrp if mrp > 0 else float(product.price),
                 "discount_percent": discount_percent,
@@ -926,7 +941,7 @@ def create_public_order(payload: dict, db: Session = Depends(get_db), authorizat
                 "gst_amount": gst_amount,
                 "pre_tax": pre_tax,
                 "quantity": qty,
-                "subtotal": line_total,
+                "subtotal": float(round_half_up_to_whole_rupee(line_total)),
                 "product_type": product_type,
                 "unit_type": unit_info["unit_type"],
                 "unit_label": unit_info["unit_label"],
