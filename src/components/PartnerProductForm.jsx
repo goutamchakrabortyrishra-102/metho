@@ -752,6 +752,7 @@ export default function PartnerProductForm({
     listing_type: hasFixedListingType ? forcedListingType : normalizeListingType(defaultListingType),
   });
   const [busy, setBusy] = useState(false);
+  const [saveError, setSaveError] = useState("");
   const [uploadingImage, setUploadingImage] = useState(false);
   const [localPreviewUrl, setLocalPreviewUrl] = useState("");
   const [serviceSectorFilter, setServiceSectorFilter] = useState(initialServiceSectorFilter);
@@ -934,6 +935,8 @@ export default function PartnerProductForm({
 
   const save = async (e) => {
     e.preventDefault();
+    if (busy) return;
+    setSaveError("");
     const listingType = hasFixedListingType ? forcedListingType : form.listing_type;
     const isService = listingType === "service";
     const isTransportOnly = isTransportOnlyTemplateMode;
@@ -951,7 +954,7 @@ export default function PartnerProductForm({
         ...form,
         name: isTransportOnly ? String(form.name || "").trim() || "book now" : String(form.name || "").trim(),
         category: isTransportOnly ? String(form.category || "").trim() || "General" : String(form.category || "").trim(),
-        price: Number(isTransportOnly ? (form.price || 100) : form.price),
+        price: Number(isTransportOnly ? (form.price || 100) : (form.price_before_gst || form.price)),
         price_before_gst: Number(form.price_before_gst || form.price || 0),
         purchase_cost: Number(form.purchase_cost || 0),
         stock: Number(form.stock || (isService ? 1 : 0)),
@@ -996,7 +999,10 @@ export default function PartnerProductForm({
       setOpen(false);
       onSaved?.();
     } catch (err) {
-      toast.error(err?.response?.data?.detail || "Save failed");
+      const detail = err?.response?.data?.detail;
+      const message = typeof detail === "string" ? detail : detail?.message || detail?.error || "Unable to save changes. Please check the fields and try again.";
+      setSaveError(message);
+      toast.error(message);
     } finally { setBusy(false); }
   };
 
@@ -1020,6 +1026,7 @@ export default function PartnerProductForm({
             {product?.id ? (dialogDescription || "Update partner listing details and optionally replace the image, which is saved as a PDF link.") : (dialogDescription || "Create a new partner shop/service listing. Service listings can be saved without image upload.")}
           </DialogDescription>
         </DialogHeader>
+        {saveError ? <div className="rounded-lg border border-rose-300 bg-rose-50 px-3 py-2 text-sm text-rose-800" role="alert">{saveError}</div> : null}
         {product?.id ? (
           <div className="rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs text-emerald-900" data-testid="partner-edit-flow-note">
             Update the listing details first, then save changes. You can reopen Edit later and replace the image whenever needed.
