@@ -14,6 +14,8 @@ import { Textarea } from "@/components/ui/textarea";
 import { resolveAssetUrl, openWhatsAppShare, buildWhatsAppShareUrl } from "@/lib/utils";
 import { INDIAN_STATES } from "@/lib/indiaLocation";
 import { inferPartnerPrimarySector, getPartnerVisibleSectors, isDeliveryServiceLike, isDoorstepServiceLike, isHospitalityServiceLike, isPropertyServiceLike, isTransportServiceLike, PARTNER_SECTOR_KEYS } from "@/lib/partnerSector";
+import PartnerInventoryPage from "@/pages/dashboard/PartnerInventoryPage";
+import RouteErrorBoundary from "@/components/RouteErrorBoundary";
 
 const inr = (v) => `₹${(Number(v) || 0).toLocaleString("en-IN", { maximumFractionDigits: 2 })}`;
 const withUnit = (price, unitType) => {
@@ -2672,16 +2674,7 @@ export default function PartnerDashboardPage() {
         )}
 
         {tab === "inventory" && (
-          <div className="rounded-xl border border-emerald-200 bg-white p-6" data-testid="partner-inventory-tab">
-            <div className="flex flex-wrap items-center justify-between gap-3">
-              <div>
-                <p className="text-[10px] uppercase tracking-widest text-emerald-700 font-semibold">Unified Sector Inventory</p>
-                <h3 className="font-display font-bold text-emerald-950 text-lg">Manage product, service, fleet, courier, and property inventory</h3>
-                <p className="text-sm text-slate-600 mt-1">Each sector is separated automatically. Service, transport, courier, and property listings never use product stock.</p>
-              </div>
-              <Link to="/partner-inventory" className="inline-flex"><Button className="rounded-full bg-emerald-900 hover:bg-emerald-950 text-white"><Package className="w-4 h-4 mr-2" /> Open Inventory</Button></Link>
-            </div>
-          </div>
+          <RouteErrorBoundary><PartnerInventoryPage /></RouteErrorBoundary>
         )}
 
         {tab === "orders" && (

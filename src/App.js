@@ -4,6 +4,7 @@ import { BrowserRouter, Routes, Route, Navigate, Link, useLocation } from "react
 import { AuthProvider, useAuth } from "@/contexts/AuthContext";
 import { SettingsProvider, useSettings } from "@/contexts/SettingsContext";
 import { Toaster } from "sonner";
+import RouteErrorBoundary from "@/components/RouteErrorBoundary";
 
 const loadLandingPage = () => import("@/pages/LandingPage");
 const loadLoginPage = () => import("@/pages/LoginPage");
@@ -305,7 +306,7 @@ function App() {
               <Route path="/gallery/:partnerCode" element={<PartnerGalleryPage />} />
               <Route path="/partner-payout" element={<PrivateRoute><PartnerPayoutStatementPage /></PrivateRoute>} />
               <Route path="/partner-reports" element={<PrivateRoute><PartnerReportsPage /></PrivateRoute>} />
-              <Route path="/partner-inventory" element={<PrivateRoute><PartnerInventoryPage /></PrivateRoute>} />
+              <Route path="/partner-inventory" element={<PrivateRoute><RouteErrorBoundary><PartnerInventoryPage /></RouteErrorBoundary></PrivateRoute>} />
               <Route
                 path="/app"
                 element={
