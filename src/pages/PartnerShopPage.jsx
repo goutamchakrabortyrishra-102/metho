@@ -1531,8 +1531,8 @@ export default function PartnerShopPage() {
               {!transportBooking ? (
                 <div className="mt-5 space-y-3">
                   <div>
-                    <p className="text-[11px] text-slate-600 mb-1">Select transport service</p>
-                    <div className="rounded-xl border border-emerald-200 bg-white p-2">
+                    <p className="text-[10px] uppercase tracking-widest text-slate-500 font-bold mb-2">1 · Choose your ride</p>
+                    <div className="rounded-2xl border border-slate-200 bg-white p-2 shadow-sm">
                       <Input
                         value={transportServiceSearch}
                         onChange={(e) => {
@@ -1566,7 +1566,7 @@ export default function PartnerShopPage() {
                   </div>
 
                   {transportService ? (
-                    <div className="rounded-xl border border-sky-200 bg-sky-50/70 px-4 py-3">
+                    <div className="rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 shadow-sm">
                       <div className="flex flex-wrap items-start justify-between gap-3">
                         <div>
                           <p className="text-[10px] uppercase tracking-widest text-sky-700 font-semibold">Selected Service Template</p>
@@ -1582,6 +1582,7 @@ export default function PartnerShopPage() {
                     </div>
                   )}
 
+                  <p className="text-[10px] uppercase tracking-widest text-slate-500 font-bold pt-2">2 · Passenger details</p>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                     <Input value={transportForm.customer_name} onChange={(e) => setTransportForm((prev) => ({ ...prev, customer_name: e.target.value }))} placeholder="Customer name" className="h-10" />
                     <Input value={transportForm.customer_phone} onChange={(e) => setTransportForm((prev) => ({ ...prev, customer_phone: e.target.value }))} placeholder="Mobile number" className="h-10" />
@@ -1589,6 +1590,7 @@ export default function PartnerShopPage() {
                   <Input value={guestMemberRef} onChange={(e) => setGuestMemberRef(e.target.value)} placeholder="Member ID/Code (optional for reward %)" className="h-10" />
                   {transportMemberLookupBusy ? <p className="text-[11px] text-slate-500">Member lookup চলছে...</p> : null}
                   {!transportMemberLookupBusy && transportMemberLookupInfo ? <p className="text-[11px] text-emerald-700">Member found: {transportMemberLookupInfo?.name || "Member"}{transportMemberLookupInfo?.member_code ? ` · ${transportMemberLookupInfo.member_code}` : ""}</p> : null}
+                  <p className="text-[10px] uppercase tracking-widest text-slate-500 font-bold pt-2">3 · Pickup and destination</p>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                     <Input value={transportForm.pickup} onChange={(e) => setTransportForm((prev) => ({ ...prev, pickup: e.target.value }))} placeholder="Pickup point" className="h-10" />
                     <Input
@@ -1600,7 +1602,7 @@ export default function PartnerShopPage() {
                       className="h-10"
                     />
                   </div>
-                  <div className="rounded-lg border border-sky-200 bg-sky-50 p-3">
+                  <div className="rounded-2xl border border-sky-200 bg-sky-50 p-4 shadow-sm">
                     <p className="text-[11px] font-semibold text-sky-900">Estimated fare (not final)</p>
                     <p className="text-xs text-slate-700 mt-1">{transportEstimateSummary.label}</p>
                     <p className="text-[11px] text-slate-600 mt-1">{transportEstimateSummary.detail} This is not the final fare. The final amount can be confirmed after discussing and agreeing with the business owner.</p>
@@ -1627,8 +1629,9 @@ export default function PartnerShopPage() {
                     <Input type="datetime-local" value={transportForm.travel_date} onChange={(e) => setTransportForm((prev) => ({ ...prev, travel_date: e.target.value }))} className="h-10" />
                   </div>
                   <Input value={transportForm.notes} onChange={(e) => setTransportForm((prev) => ({ ...prev, notes: e.target.value }))} placeholder="Notes (optional)" className="h-10" />
+                  <p className="text-[10px] uppercase tracking-widest text-slate-500 font-bold pt-2">4 · Review and request</p>
                   <div className="flex flex-wrap gap-2 pt-1">
-                    <Button className="rounded-full bg-emerald-900 hover:bg-emerald-950 text-white" onClick={submitTransportBooking} disabled={transportBusy || !(transportService?.id || filteredTransportServiceOptions[0]?.id || transportListings[0]?.id)}>
+                    <Button className="rounded-full bg-emerald-900 hover:bg-emerald-950 text-white font-bold px-6" onClick={submitTransportBooking} disabled={transportBusy || !(transportService?.id || filteredTransportServiceOptions[0]?.id || transportListings[0]?.id)}>
                       {transportBusy ? "Booking..." : "Submit Booking Request"}
                     </Button>
                     <Button variant="outline" className="rounded-full" onClick={() => setTransportActiveTab("services")}>View Services</Button>
