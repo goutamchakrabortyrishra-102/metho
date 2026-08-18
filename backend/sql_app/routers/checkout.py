@@ -1542,6 +1542,10 @@ def _partner_inventory_sector(product: PartnerProduct, meta: dict, meta_map: dic
 def _partner_inventory_item(product: PartnerProduct, meta_map: dict, unit_map: dict) -> dict:
     meta = _partner_product_meta(meta_map, product.id)
     sector = _partner_inventory_sector(product, meta, meta_map)
+    price_before_gst = round(float(meta.get("price_before_gst") or product.price or 0), 2)
+    gst_percent = round(float(meta.get("gst_percent") or 0), 2)
+    gst_amount = round(price_before_gst * gst_percent / 100.0, 2)
+    final_price = round(price_before_gst + gst_amount, 2)
     return {
         "sector": sector,
         "item_type": "product" if sector == "product" else "service",
@@ -1550,9 +1554,34 @@ def _partner_inventory_item(product: PartnerProduct, meta_map: dict, unit_map: d
         "status": ("IN STOCK" if float(product.stock or 0) > 0 else "OUT OF STOCK") if sector == "product" else str(meta.get("property_status") or meta.get("vehicle_status") or meta.get("availability") or "AVAILABLE").upper(),
         "category": product.category,
         "description": product.description,
-        "price": float(product.price or 0),
+        "image_url": product.image_url,
+        "price": price_before_gst,
+        "price_before_gst": price_before_gst,
+        "purchase_cost": round(float(meta.get("purchase_cost") or 0), 2),
+        "gst_percent": gst_percent,
+        "gst_amount": gst_amount,
+        "final_price": final_price,
+        "sku": meta.get("sku") or meta.get("product_code") or "",
+        "pdf_url": meta.get("pdf_url") or "",
+        "listing_type": meta.get("listing_type") or ("service" if sector != "product" else "product"),
+        "is_service": sector != "product",
+        "is_available": meta.get("is_available", True),
+        "availability": meta.get("availability") or "available",
+        "service_sector": meta.get("service_sector") or "",
+        "service_category": meta.get("service_category") or "",
+        "service_type": meta.get("service_type") or "",
+        "service_template_key": meta.get("service_template_key") or "",
+        "service_area": meta.get("service_area") or "",
+        "vehicle_category": meta.get("vehicle_category") or "",
+        "vehicle_status": meta.get("vehicle_status") or "",
+        "seating_capacity": meta.get("seating_capacity") or meta.get("capacity") or "",
+        "base_fare": meta.get("base_fare") or price_before_gst,
+        "per_km_rate": meta.get("per_km_rate") or "",
+        "property_area": meta.get("property_area") or "",
+        "property_area_unit": meta.get("property_area_unit") or "",
+        "property_location": meta.get("property_location") or "",
+        "enquiry_count": meta.get("enquiry_count") or 0,
         "current_stock": max(0, int(product.stock or 0)) if sector == "product" else None,
-        "service_area": meta.get("service_area"),
         "vehicle_type": meta.get("vehicle_type"),
         "vehicle_number": meta.get("vehicle_number"),
         "property_type": meta.get("property_type"),

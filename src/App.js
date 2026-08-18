@@ -307,6 +307,7 @@ function App() {
               <Route path="/partner-payout" element={<PrivateRoute><PartnerPayoutStatementPage /></PrivateRoute>} />
               <Route path="/partner-reports" element={<PrivateRoute><PartnerReportsPage /></PrivateRoute>} />
               <Route path="/partner-inventory" element={<PrivateRoute><RouteErrorBoundary><PartnerInventoryPage /></RouteErrorBoundary></PrivateRoute>} />
+              <Route path="/partner/inventory" element={<PrivateRoute><RouteErrorBoundary><PartnerInventoryPage /></RouteErrorBoundary></PrivateRoute>} />
               <Route
                 path="/app"
                 element={

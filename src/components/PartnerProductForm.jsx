@@ -802,7 +802,7 @@ export default function PartnerProductForm({
   const liveBasePrice = Number(form.price_before_gst || form.price || 0);
   const liveGstPercent = Math.max(0, Number(form.gst_percent || 0));
   const liveGstAmount = Number((liveBasePrice * liveGstPercent / 100).toFixed(2));
-  const liveFinalPrice = Math.round(liveBasePrice + liveGstAmount);
+  const liveFinalPrice = Number((liveBasePrice + liveGstAmount).toFixed(2));
 
   const applyServiceTemplate = (tpl) => {
     if (!tpl) return;
