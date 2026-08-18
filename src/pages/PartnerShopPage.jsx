@@ -229,6 +229,12 @@ const formatPriceWithUnit = (price, unitType) => {
 
 const serviceDisplayPrice = (service) => Number(service?.final_customer_rate || service?.price || 0);
 const servicePricingUnitLabel = (service) => String(service?.pricing_unit || "PER_VISIT").replaceAll("_", " ").toLowerCase().replace(/\b\w/g, (char) => char.toUpperCase());
+const serviceBookingLabel = (service) => {
+  const text = `${service?.service_template_key || ""} ${service?.category || ""} ${service?.name || ""}`.toLowerCase();
+  if (text.includes("restaurant") || text.includes("cafe") || text.includes("table") || text.includes("dining")) return "Reserve table";
+  if (text.includes("hotel") || text.includes("homestay") || text.includes("room") || text.includes("stay")) return "Reserve stay";
+  return "Book service";
+};
 
 const getSelectableMeasureUnits = (item) => {
   const unit = getUnitType(item);
@@ -1365,16 +1371,16 @@ export default function PartnerShopPage() {
 
         {canShowTransport ? (
           <div className="mb-8" data-testid="partner-shop-transport-cta-main">
-            <div className="bg-white rounded-xl border border-sky-200 p-6">
+            <div className="bg-gradient-to-br from-slate-950 via-slate-900 to-sky-950 rounded-2xl border border-slate-800 p-6 text-white shadow-xl">
               <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
                 <div>
-                  <p className="text-[10px] uppercase tracking-widest text-sky-700 font-semibold">Transport Service</p>
-                  <h3 className="font-display font-bold text-emerald-950 text-lg mt-1">Book cab, car rental, bike rental</h3>
-                  <p className="text-sm text-slate-600 mt-1">Pickup ও destination দিয়ে ride request দিন। Partner fare confirm করবে।</p>
+                  <p className="text-[10px] uppercase tracking-widest text-sky-300 font-semibold">Ride booking</p>
+                  <h3 className="font-display font-bold text-white text-xl mt-1">Book a ride in minutes</h3>
+                  <p className="text-sm text-slate-300 mt-1">Choose a vehicle, enter pickup and destination, then send the ride request.</p>
                 </div>
                 <Button
                   type="button"
-                  className="rounded-full bg-sky-700 hover:bg-sky-800 text-white shrink-0"
+                  className="rounded-full bg-emerald-500 hover:bg-emerald-400 text-slate-950 shrink-0 font-bold"
                   onClick={() => {
                     if (hasTransportListings) {
                       setTransportActiveTab("booking");
@@ -1430,7 +1436,7 @@ export default function PartnerShopPage() {
               </div>
               <Button
                 type="button"
-                className="rounded-full bg-sky-700 hover:bg-sky-800 text-white"
+                className="rounded-full bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold"
                 onClick={() => {
                   const link = waUrl(p);
                   if (link) {
@@ -1453,12 +1459,12 @@ export default function PartnerShopPage() {
       {canShowTransport && hasTransportListings ? (
         <>
           <div className="mb-8">
-            <div className="bg-white rounded-xl border border-sky-200 p-6" data-testid="partner-shop-transport-panel">
+            <div className="bg-slate-950 rounded-2xl border border-slate-800 p-6 text-white shadow-xl" data-testid="partner-shop-transport-panel">
               <div className="flex items-start gap-2 mb-1">
-                <p className="text-[10px] uppercase tracking-widest text-sky-700 font-semibold">Service Image</p>
+                <p className="text-[10px] uppercase tracking-widest text-sky-300 font-semibold">Ride booking desk</p>
               </div>
-              <h3 className="font-display font-bold text-emerald-950 text-lg mt-1">Book cab, car rental, bike rental easily</h3>
-              <p className="text-sm text-slate-600 mt-3">Pickup আর destination দিয়ে ride request দিন। Partner final fare lock করার পর trip approved হবে.</p>
+              <h3 className="font-display font-bold text-white text-lg mt-1">Where do you want to go?</h3>
+              <p className="text-sm text-slate-300 mt-3">Enter pickup and destination. The partner confirms the final fare before the trip starts.</p>
               <div className="mt-5 flex flex-wrap gap-2" data-testid="partner-shop-transport-tabs">
                 <button
                   type="button"
@@ -1660,11 +1666,11 @@ export default function PartnerShopPage() {
             </section>
           ) : null}
 
-          <section className="bg-white rounded-xl border border-sky-200 p-6 mb-8" data-testid="partner-shop-all-transport-box">
+          <section className="bg-slate-50 rounded-2xl border border-sky-200 p-6 mb-8" data-testid="partner-shop-all-transport-box">
             <div className="flex flex-wrap items-center justify-between gap-3">
               <div>
-                <p className="text-[10px] uppercase tracking-widest text-sky-700 font-semibold">Transport Services</p>
-                <h3 className="font-display font-bold text-emerald-950 text-lg mt-1">Available Vehicles & Services ({filteredTransport.length})</h3>
+                <p className="text-[10px] uppercase tracking-widest text-sky-700 font-semibold">Fleet & rides</p>
+                <h3 className="font-display font-bold text-emerald-950 text-lg mt-1">Available vehicles ({filteredTransport.length})</h3>
               </div>
               <div className="flex items-center gap-2 w-full md:w-auto">
                 <div className="flex items-center gap-2 border border-sky-200 rounded-full px-3 h-11 bg-sky-50 w-full md:w-72">
@@ -1689,7 +1695,7 @@ export default function PartnerShopPage() {
                 {filteredTransport.map((service) => {
                   const pdfUrl = getPdfUrl(service);
                   return (
-                    <div key={service.id} className="border border-sky-200 rounded-xl overflow-hidden bg-white" data-testid={`shop-transport-${service.id}`}>
+                    <div key={service.id} className="border border-sky-200 rounded-2xl overflow-hidden bg-white shadow-sm hover:shadow-lg transition-shadow" data-testid={`shop-transport-${service.id}`}>
                       <div className="aspect-square bg-slate-100 relative">
                         <button
                           type="button"
@@ -1740,7 +1746,7 @@ export default function PartnerShopPage() {
                         <Button
                           type="button"
                           onClick={() => submitPropertyEnquiry(service)}
-                          className="w-full mt-3 rounded-full bg-sky-700 hover:bg-sky-800 text-white"
+                          className="w-full mt-3 rounded-full bg-emerald-700 hover:bg-emerald-800 text-white font-bold"
                           data-testid={`shop-book-transport-${service.id}`}
                         >
                           <CalendarCheck2 className="w-4 h-4 mr-2" /> Book Now
@@ -1819,15 +1825,15 @@ export default function PartnerShopPage() {
       {canShowHospitality ? (
         <>
           <div className="mb-8">
-            <div className="bg-white rounded-xl border border-amber-200 p-6" data-testid="partner-shop-hospitality-panel">
+            <div className="bg-gradient-to-br from-amber-50 via-white to-orange-50 rounded-2xl border border-amber-200 p-6 shadow-sm" data-testid="partner-shop-hospitality-panel">
               <div className="flex items-start gap-2 mb-1">
                 <p className="text-[10px] uppercase tracking-widest text-amber-700 font-semibold">Stay & Dining</p>
               </div>
-              <h3 className="font-display font-bold text-emerald-950 text-lg mt-1">Hotel, homestay, restaurant services</h3>
-              <p className="text-sm text-slate-600 mt-3">Room stay, table booking, banquet, cafe and dining services এক জায়গায় দেখুন।</p>
+              <h3 className="font-display font-bold text-emerald-950 text-xl mt-1">Find your stay or table</h3>
+              <p className="text-sm text-slate-600 mt-3">OYO-style stays, homestays, restaurants, cafes and event spaces in one simple booking experience.</p>
               <div className="mt-6 flex flex-col lg:flex-row gap-3 lg:items-center">
                 <Button onClick={() => openGallery(hospitalitySearch, "stay-dining")} className="w-full lg:w-auto lg:min-w-[220px] bg-amber-600 hover:bg-amber-700 text-white rounded-full" data-testid="partner-stay-gallery-btn">
-                  <CalendarCheck2 className="w-4 h-4 mr-2" /> Menu / Book Slot
+                  <CalendarCheck2 className="w-4 h-4 mr-2" /> Browse & reserve
                 </Button>
                 <div className="flex flex-1 gap-2" data-testid="partner-shop-hospitality-search-panel">
                   <Input
@@ -1850,15 +1856,15 @@ export default function PartnerShopPage() {
             </div>
           </div>
 
-          <section className="bg-white rounded-xl border border-amber-200 p-6 mb-8" data-testid="partner-shop-hospitality-box">
+          <section className="bg-amber-50/60 rounded-2xl border border-amber-200 p-6 mb-8" data-testid="partner-shop-hospitality-box">
             <div className="flex flex-wrap items-center justify-between gap-3">
               <div>
                 <p className="text-[10px] uppercase tracking-widest text-amber-700 font-semibold">Stay & Dining</p>
-                <h3 className="font-display font-bold text-emerald-950 text-lg mt-1">Stay & Dining ({filteredHospitality.length})</h3>
+                <h3 className="font-display font-bold text-emerald-950 text-lg mt-1">Stays & dining ({filteredHospitality.length})</h3>
               </div>
               <div className="flex items-center gap-2 w-full md:w-auto">
                 <Button variant="outline" className="rounded-full shrink-0 border-amber-300 text-amber-900" onClick={() => openGallery(hospitalitySearch, "stay-dining")} data-testid="partner-shop-hospitality-view-all-link">
-                  Menu / Book Slot
+                  Browse stays & tables
                 </Button>
                 <div className="flex items-center gap-2 border border-amber-200 rounded-full px-3 h-11 bg-amber-50 w-full md:w-72">
                   <Search className="w-4 h-4 text-slate-500" />
@@ -1882,7 +1888,7 @@ export default function PartnerShopPage() {
                 {filteredHospitality.map((service) => {
                   const pdfUrl = getPdfUrl(service);
                   return (
-                    <div key={service.id} className="border border-amber-200 rounded-xl overflow-hidden bg-white" data-testid={`shop-hospitality-${service.id}`}>
+                    <div key={service.id} className="border border-amber-200 rounded-2xl overflow-hidden bg-white shadow-sm hover:shadow-lg transition-shadow" data-testid={`shop-hospitality-${service.id}`}>
                       <div className="aspect-square bg-slate-100 relative">
                         <button type="button" onClick={() => setPreviewItem(service)} className="block w-full h-full" data-testid={`shop-open-hospitality-image-${service.id}`}>
                           <img
@@ -1911,8 +1917,8 @@ export default function PartnerShopPage() {
                           <span className="font-display font-black text-emerald-950">₹{serviceDisplayPrice(service)}</span>
                           <span className="text-[11px] text-slate-500">{servicePricingUnitLabel(service)}</span>
                         </div>
-                        <Button type="button" onClick={() => bookServiceNow(service)} className="w-full mt-3 rounded-full bg-amber-600 hover:bg-amber-700 text-white" data-testid={`shop-book-hospitality-${service.id}`}>
-                          <CalendarCheck2 className="w-4 h-4 mr-2" /> Book Now
+                        <Button type="button" onClick={() => bookServiceNow(service)} className="w-full mt-3 rounded-full bg-amber-600 hover:bg-amber-700 text-white font-bold" data-testid={`shop-book-hospitality-${service.id}`}>
+                          <CalendarCheck2 className="w-4 h-4 mr-2" /> {serviceBookingLabel(service)}
                         </Button>
                       </div>
                     </div>
@@ -1927,12 +1933,12 @@ export default function PartnerShopPage() {
       {canShowDoorstep ? (
         <>
           <div className="mb-8">
-            <div className="bg-white rounded-xl border border-violet-200 p-6" data-testid="partner-shop-doorstep-panel">
+            <div className="bg-gradient-to-br from-slate-950 via-slate-900 to-violet-950 rounded-2xl border border-violet-900 p-6 text-white shadow-xl" data-testid="partner-shop-doorstep-panel">
               <div className="flex items-start gap-2 mb-1">
                 <p className="text-[10px] uppercase tracking-widest text-violet-700 font-semibold">Doorstep Services</p>
               </div>
-              <h3 className="font-display font-bold text-emerald-950 text-lg mt-1">Home visit and doorstep services</h3>
-              <p className="text-sm text-slate-600 mt-3">Cleaning, repair, laundry, courier, beauty-at-home এর মতো services এখানেই পাবেন।</p>
+              <h3 className="font-display font-bold text-white text-xl mt-1">Trusted professionals at your door</h3>
+              <p className="text-sm text-slate-300 mt-3">Urban Company-style service discovery for cleaning, repairs, laundry, beauty and more.</p>
               <div className="mt-6 flex flex-col lg:flex-row gap-3 lg:items-center">
                 <Button onClick={() => openGallery(doorstepSearch, "doorstep")} className="w-full lg:w-auto lg:min-w-[220px] bg-violet-700 hover:bg-violet-800 text-white rounded-full" data-testid="partner-doorstep-gallery-btn">
                   <CalendarCheck2 className="w-4 h-4 mr-2" /> View Doorstep Services
@@ -1958,11 +1964,11 @@ export default function PartnerShopPage() {
             </div>
           </div>
 
-          <section className="bg-white rounded-xl border border-violet-200 p-6 mb-8" data-testid="partner-shop-doorstep-box">
+          <section className="bg-violet-50/60 rounded-2xl border border-violet-200 p-6 mb-8" data-testid="partner-shop-doorstep-box">
             <div className="flex flex-wrap items-center justify-between gap-3">
               <div>
                 <p className="text-[10px] uppercase tracking-widest text-violet-700 font-semibold">Doorstep Services</p>
-                <h3 className="font-display font-bold text-emerald-950 text-lg mt-1">Doorstep ({filteredDoorstep.length})</h3>
+                <h3 className="font-display font-bold text-emerald-950 text-lg mt-1">Available home services ({filteredDoorstep.length})</h3>
               </div>
               <div className="flex items-center gap-2 w-full md:w-auto">
                 <Button variant="outline" className="rounded-full shrink-0 border-violet-300 text-violet-900" onClick={() => openGallery(doorstepSearch, "doorstep")} data-testid="partner-shop-doorstep-view-all-link">
@@ -1990,7 +1996,7 @@ export default function PartnerShopPage() {
                 {filteredDoorstep.map((service) => {
                   const pdfUrl = getPdfUrl(service);
                   return (
-                    <div key={service.id} className="border border-violet-200 rounded-xl overflow-hidden bg-white" data-testid={`shop-doorstep-${service.id}`}>
+                    <div key={service.id} className="border border-violet-200 rounded-2xl overflow-hidden bg-white shadow-sm hover:shadow-lg transition-shadow" data-testid={`shop-doorstep-${service.id}`}>
                       <div className="aspect-square bg-slate-100 relative">
                         <button type="button" onClick={() => setPreviewItem(service)} className="block w-full h-full" data-testid={`shop-open-doorstep-image-${service.id}`}>
                           <img
@@ -2019,8 +2025,8 @@ export default function PartnerShopPage() {
                           <span className="font-display font-black text-emerald-950">₹{serviceDisplayPrice(service)}</span>
                           <span className="text-[11px] text-slate-500">Doorstep</span>
                         </div>
-                        <Button type="button" onClick={() => bookServiceNow(service)} className="w-full mt-3 rounded-full bg-violet-700 hover:bg-violet-800 text-white" data-testid={`shop-book-doorstep-${service.id}`}>
-                          <CalendarCheck2 className="w-4 h-4 mr-2" /> Book Now
+                        <Button type="button" onClick={() => bookServiceNow(service)} className="w-full mt-3 rounded-full bg-violet-700 hover:bg-violet-800 text-white font-bold" data-testid={`shop-book-doorstep-${service.id}`}>
+                          <CalendarCheck2 className="w-4 h-4 mr-2" /> Book service
                         </Button>
                       </div>
                     </div>
