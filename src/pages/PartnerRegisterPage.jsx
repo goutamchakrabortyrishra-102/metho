@@ -30,6 +30,10 @@ const SERVICE_CATEGORY_OPTIONS = [
   "Tailoring",
   "Beauty at Home",
   "Photography",
+  "Singing & Music",
+  "Poetry & Recitation",
+  "Dance & Performing Arts",
+  "Recording Studio",
   "Transport",
   "Travel Agency",
   "Courier",
@@ -52,6 +56,7 @@ const SERVICE_SECTOR_OPTIONS = [
   "Property Buy & Sell",
   "Doorstep",
   "Other Services",
+  "Creative & Media",
 ];
 
 const SHOP_SECTOR_OPTIONS = [
@@ -68,6 +73,7 @@ const SERVICE_TEMPLATE_OPTIONS_BY_SECTOR = {
   "Property Buy & Sell": ["Property Sale", "Flat Sale", "House Sale", "Shop Sale", "Plot Sale", "Commercial Property", "Property Broker", "Site Visit"],
   Doorstep: ["Home Service", "Laundry", "Cleaning", "Tailoring", "Beauty at Home", "Repair Center"],
   "Other Services": ["Doctor Clinic", "Diagnostic Center", "Education", "Fitness", "Legal", "Accounting", "Photography", "Internet Service", "Other Service"],
+  "Creative & Media": ["Singing Classes", "Poetry & Recitation", "Dance Classes", "Music Recording", "Acting & Audition", "Instrument Training", "Studio Booking"],
 };
 
 const SHOP_TEMPLATE_OPTIONS_BY_SECTOR = {
@@ -92,6 +98,9 @@ const PROPERTY_REG_HINTS = [
 const DOORSTEP_REG_HINTS = [
   "doorstep", "mistri", "mechanic", "plumber", "plumbing", "electrician", "repair", "cleaning", "laundry", "tailoring", "beauty at home", "home service",
 ];
+const CREATIVE_REG_HINTS = [
+  "singing", "music", "song", "poetry", "recitation", "kobita", "abritti", "dance", "dancing", "performing arts", "recording", "studio", "acting", "audition", "instrument", "creative", "media",
+];
 const SHOP_REG_HINTS = [
   "shop", "store", "mart", "grocery", "vegetable", "cosmetics", "beauty", "product", "retail", "kirana", "pharmacy",
 ];
@@ -112,9 +121,10 @@ const inferRegistrationSelection = (form) => {
   const looksStayDining = includesAnyHint(combinedText, STAY_DINING_REG_HINTS);
   const looksProperty = includesAnyHint(combinedText, PROPERTY_REG_HINTS);
   const looksDoorstep = includesAnyHint(combinedText, DOORSTEP_REG_HINTS);
+  const looksCreative = includesAnyHint(combinedText, CREATIVE_REG_HINTS);
   const looksShop = includesAnyHint(combinedText, SHOP_REG_HINTS);
 
-  const inferredBusinessType = (looksDelivery || looksTransport || looksStayDining || looksProperty || looksDoorstep)
+  const inferredBusinessType = (looksDelivery || looksTransport || looksStayDining || looksProperty || looksDoorstep || looksCreative)
     ? "Service"
     : (looksShop ? "Shop" : String(form.business_type || "Shop"));
 
@@ -125,6 +135,7 @@ const inferRegistrationSelection = (form) => {
     else if (looksProperty) inferredServiceSector = "Property Buy & Sell";
     else if (looksStayDining) inferredServiceSector = "Stay & Dining";
     else if (looksDoorstep) inferredServiceSector = "Doorstep";
+    else if (looksCreative) inferredServiceSector = "Creative & Media";
     else inferredServiceSector = inferredServiceSector || "Other Services";
   }
 

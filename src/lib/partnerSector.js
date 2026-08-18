@@ -5,6 +5,7 @@ const HOSPITALITY_SECTOR = "stay-dining";
 const PROPERTY_SECTOR = "property-buy-sell";
 const DOORSTEP_SECTOR = "doorstep";
 const OTHER_SERVICE_SECTOR = "other-services";
+const CREATIVE_MEDIA_SECTOR = "creative-media";
 
 const SERVICE_SECTORS = [
   TRANSPORT_SECTOR,
@@ -13,6 +14,7 @@ const SERVICE_SECTORS = [
   PROPERTY_SECTOR,
   DOORSTEP_SECTOR,
   OTHER_SERVICE_SECTOR,
+  CREATIVE_MEDIA_SECTOR,
 ];
 
 const toCount = (value) => {
@@ -195,6 +197,7 @@ const PRODUCT_HINTS = [
   "distributor",
   "seller",
 ];
+const CREATIVE_HINTS = ["singing", "music", "song", "poetry", "recitation", "kobita", "abritti", "dance", "dancing", "performing arts", "recording", "studio", "acting", "audition", "instrument", "creative", "media"];
 
 export const isTransportServiceLike = (item) => {
   const key = normalizeBusinessType(item?.service_template_key);
@@ -232,6 +235,12 @@ export const isDoorstepServiceLike = (item) => {
   return includesAny(haystack, DOORSTEP_HINTS);
 };
 
+export const isCreativeMediaServiceLike = (item) => {
+  const key = normalizeBusinessType(item?.service_template_key);
+  if (["singing_classes", "poetry_recitation", "dance_classes", "music_recording", "acting_audition", "instrument_training", "studio_booking"].includes(key)) return true;
+  return includesAny(normalizeHintText([item?.service_sector, item?.service_category, item?.category, item?.name, item?.description]), CREATIVE_HINTS);
+};
+
 export const inferPartnerPrimarySector = ({ businessType, businessName, counts }) => {
   const normalizedType = normalizeBusinessType(businessType);
   const normalizedName = normalizeBusinessType(businessName);
@@ -243,12 +252,14 @@ export const inferPartnerPrimarySector = ({ businessType, businessName, counts }
   const propertyCount = toCount(counts?.property);
   const doorstepCount = toCount(counts?.doorstep);
   const otherServiceCount = toCount(counts?.otherServices);
+  const creativeMediaCount = toCount(counts?.creativeMedia);
 
   const looksLikeDelivery = includesAny(identity, DELIVERY_HINTS);
   const looksLikeTransport = includesAny(identity, TRANSPORT_HINTS);
   const looksLikeHospitality = includesAny(identity, HOSPITALITY_HINTS);
   const looksLikeProperty = includesAny(identity, PROPERTY_HINTS);
   const looksLikeDoorstep = includesAny(identity, DOORSTEP_HINTS);
+  const looksLikeCreative = includesAny(identity, CREATIVE_HINTS);
   const looksLikeProduct = includesAny(identity, PRODUCT_HINTS);
 
   // Deterministic mapping for registration/business naming.
@@ -257,6 +268,7 @@ export const inferPartnerPrimarySector = ({ businessType, businessName, counts }
   if (looksLikeHospitality) return HOSPITALITY_SECTOR;
   if (looksLikeProperty) return PROPERTY_SECTOR;
   if (looksLikeDoorstep) return DOORSTEP_SECTOR;
+  if (looksLikeCreative) return CREATIVE_MEDIA_SECTOR;
   if (looksLikeProduct) return PRODUCT_SECTOR;
 
   const looksLikeServicePartner =
@@ -265,7 +277,8 @@ export const inferPartnerPrimarySector = ({ businessType, businessName, counts }
     looksLikeTransport ||
     looksLikeHospitality ||
     looksLikeProperty ||
-    looksLikeDoorstep;
+    looksLikeDoorstep ||
+    looksLikeCreative;
 
   if (looksLikeServicePartner) {
     if (looksLikeDelivery && deliveryCount <= 0) return DELIVERY_PARTNER_SECTOR;
@@ -273,6 +286,7 @@ export const inferPartnerPrimarySector = ({ businessType, businessName, counts }
     if (looksLikeHospitality && hospitalityCount <= 0) return HOSPITALITY_SECTOR;
     if (looksLikeProperty && propertyCount <= 0) return PROPERTY_SECTOR;
     if (looksLikeDoorstep && doorstepCount <= 0) return DOORSTEP_SECTOR;
+    if (looksLikeCreative && creativeMediaCount <= 0) return CREATIVE_MEDIA_SECTOR;
 
     const rankedServiceSectors = [
       { key: DELIVERY_PARTNER_SECTOR, count: deliveryCount },
@@ -281,6 +295,7 @@ export const inferPartnerPrimarySector = ({ businessType, businessName, counts }
       { key: PROPERTY_SECTOR, count: propertyCount },
       { key: DOORSTEP_SECTOR, count: doorstepCount },
       { key: OTHER_SERVICE_SECTOR, count: otherServiceCount },
+    { key: CREATIVE_MEDIA_SECTOR, count: creativeMediaCount },
     ];
     const top = rankedServiceSectors.sort((a, b) => b.count - a.count)[0];
     if (top?.count > 0) return top.key;
@@ -289,11 +304,12 @@ export const inferPartnerPrimarySector = ({ businessType, businessName, counts }
     if (looksLikeHospitality) return HOSPITALITY_SECTOR;
     if (looksLikeProperty) return PROPERTY_SECTOR;
     if (looksLikeDoorstep) return DOORSTEP_SECTOR;
+    if (looksLikeCreative) return CREATIVE_MEDIA_SECTOR;
     return OTHER_SERVICE_SECTOR;
   }
 
   if (productCount > 0) return PRODUCT_SECTOR;
-  const serviceTotal = deliveryCount + transportCount + hospitalityCount + propertyCount + doorstepCount + otherServiceCount;
+  const serviceTotal = deliveryCount + transportCount + hospitalityCount + propertyCount + doorstepCount + otherServiceCount + creativeMediaCount;
   if (serviceTotal <= 0) return OTHER_SERVICE_SECTOR;
 
   const rankedFallback = [
@@ -303,6 +319,8 @@ export const inferPartnerPrimarySector = ({ businessType, businessName, counts }
     { key: PROPERTY_SECTOR, count: propertyCount },
     { key: DOORSTEP_SECTOR, count: doorstepCount },
     { key: OTHER_SERVICE_SECTOR, count: otherServiceCount },
+    { key: CREATIVE_MEDIA_SECTOR, count: creativeMediaCount },
+      { key: CREATIVE_MEDIA_SECTOR, count: toCount(counts?.creativeMedia) },
   ].sort((a, b) => b.count - a.count);
   return rankedFallback[0]?.key || OTHER_SERVICE_SECTOR;
 };
@@ -327,4 +345,5 @@ export const PARTNER_SECTOR_KEYS = {
   PROPERTY_SECTOR,
   DOORSTEP_SECTOR,
   OTHER_SERVICE_SECTOR,
+  CREATIVE_MEDIA_SECTOR,
 };

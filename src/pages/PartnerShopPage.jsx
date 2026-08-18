@@ -10,7 +10,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useSettings } from "@/contexts/SettingsContext";
 import UpiPaymentDialog from "@/components/UpiPaymentDialog";
 import { resolveAssetUrl, getAssetImageFallbackCandidates } from "@/lib/utils";
-import { inferPartnerPrimarySector, getPartnerVisibleSectors, isDeliveryServiceLike, isDoorstepServiceLike, isHospitalityServiceLike, isPropertyServiceLike, isTransportServiceLike, PARTNER_SECTOR_KEYS } from "@/lib/partnerSector";
+import { inferPartnerPrimarySector, getPartnerVisibleSectors, isCreativeMediaServiceLike, isDeliveryServiceLike, isDoorstepServiceLike, isHospitalityServiceLike, isPropertyServiceLike, isTransportServiceLike, PARTNER_SECTOR_KEYS } from "@/lib/partnerSector";
 
 const normalizeYoutubeUrl = (value) => {
   const raw = String(value || "").trim();
@@ -531,6 +531,7 @@ export default function PartnerShopPage() {
   const hospitalityListings = useMemo(() => serviceListings.filter((item) => !isTransportServiceListing(item) && !isDeliveryServiceLike(item) && isHospitalityServiceListing(item)), [serviceListings]);
   const propertyListings = useMemo(() => serviceListings.filter((item) => !isTransportServiceListing(item) && !isDeliveryServiceLike(item) && !isHospitalityServiceListing(item) && isPropertyServiceLike(item)), [serviceListings]);
   const doorstepListings = useMemo(() => serviceListings.filter((item) => !isTransportServiceListing(item) && !isDeliveryServiceLike(item) && !isHospitalityServiceListing(item) && !isPropertyServiceLike(item) && isDoorstepServiceListing(item)), [serviceListings]);
+  const creativeListings = useMemo(() => serviceListings.filter((item) => isCreativeMediaServiceLike(item)), [serviceListings]);
   const regularServiceListings = useMemo(() => serviceListings.filter((item) => !isTransportServiceListing(item) && !isDeliveryServiceLike(item) && !isHospitalityServiceListing(item) && !isPropertyServiceLike(item) && !isDoorstepServiceListing(item)), [serviceListings]);
   const primarySector = useMemo(() => inferPartnerPrimarySector({
     businessType: data?.partner?.business_type,
@@ -543,6 +544,7 @@ export default function PartnerShopPage() {
         property: propertyListings.length,
       doorstep: doorstepListings.length,
       otherServices: regularServiceListings.length,
+      creativeMedia: creativeListings.length,
     },
   }), [
     data?.partner?.business_type,
@@ -554,6 +556,7 @@ export default function PartnerShopPage() {
     propertyListings.length,
     doorstepListings.length,
     regularServiceListings.length,
+    creativeListings.length,
   ]);
   const visibleSectors = useMemo(() => getPartnerVisibleSectors(primarySector), [primarySector]);
   const canShowProducts = visibleSectors.includes(PARTNER_SECTOR_KEYS.PRODUCT_SECTOR);
@@ -562,7 +565,8 @@ export default function PartnerShopPage() {
   const canShowHospitality = visibleSectors.includes(PARTNER_SECTOR_KEYS.HOSPITALITY_SECTOR);
   const canShowProperty = visibleSectors.includes(PARTNER_SECTOR_KEYS.PROPERTY_SECTOR);
   const canShowDoorstep = visibleSectors.includes(PARTNER_SECTOR_KEYS.DOORSTEP_SECTOR);
-  const canShowOtherServices = visibleSectors.includes(PARTNER_SECTOR_KEYS.OTHER_SERVICE_SECTOR);
+  const canShowOtherServices = visibleSectors.includes(PARTNER_SECTOR_KEYS.OTHER_SERVICE_SECTOR) || visibleSectors.includes(PARTNER_SECTOR_KEYS.CREATIVE_MEDIA_SECTOR);
+  const canShowCreativeMedia = visibleSectors.includes(PARTNER_SECTOR_KEYS.CREATIVE_MEDIA_SECTOR);
   const isTransportPartner = canShowTransport;
   const isCourierPartner = canShowDeliveryPartner;
   const transportServiceType = [
@@ -1509,11 +1513,6 @@ export default function PartnerShopPage() {
                   </Button>
                 </div>
               </div>
-              <div className="mt-4 flex flex-wrap gap-2" data-testid="partner-hospitality-mode-filter">
-                {[['all', 'All'], ['stays', 'Stays & rooms'], ['dining', 'Restaurants & tables']].map(([mode, label]) => (
-                  <button key={mode} type="button" onClick={() => setHospitalityMode(mode)} className={`rounded-full border px-3 py-1.5 text-xs font-semibold ${hospitalityMode === mode ? "border-amber-700 bg-amber-700 text-white" : "border-amber-200 bg-white text-amber-900"}`}>{label}</button>
-                ))}
-              </div>
             </div>
           </div>
 
@@ -1889,6 +1888,12 @@ export default function PartnerShopPage() {
                   />
                 </div>
               </div>
+            </div>
+
+            <div className="mt-4 flex flex-wrap gap-2" data-testid="partner-hospitality-mode-filter">
+              {[['all', 'All'], ['stays', 'Stays & rooms'], ['dining', 'Restaurants & tables']].map(([mode, label]) => (
+                <button key={mode} type="button" onClick={() => setHospitalityMode(mode)} className={`rounded-full border px-3 py-1.5 text-xs font-semibold ${hospitalityMode === mode ? "border-amber-700 bg-amber-700 text-white" : "border-amber-200 bg-white text-amber-900"}`}>{label}</button>
+              ))}
             </div>
 
             {filteredHospitality.length === 0 ? (

@@ -404,6 +404,7 @@ export default function PartnerDashboardPage() {
       property: propertyItems.length,
       doorstep: doorstepItems.length,
       otherServices: serviceItems.length,
+      creativeMedia: serviceItems.filter((item) => String(item?.service_sector || "").toLowerCase().includes("creative") || String(item?.service_category || "").toLowerCase().includes("singing") || String(item?.service_category || "").toLowerCase().includes("dance") || String(item?.service_category || "").toLowerCase().includes("recording")).length,
     },
   });
   const visibleSectors = getPartnerVisibleSectors(primarySector);
@@ -413,7 +414,7 @@ export default function PartnerDashboardPage() {
   const canViewHospitalitySector = visibleSectors.includes(PARTNER_SECTOR_KEYS.HOSPITALITY_SECTOR);
   const canViewPropertySector = visibleSectors.includes(PARTNER_SECTOR_KEYS.PROPERTY_SECTOR);
   const canViewDoorstepSector = visibleSectors.includes(PARTNER_SECTOR_KEYS.DOORSTEP_SECTOR);
-  const canViewOtherServiceSector = visibleSectors.includes(PARTNER_SECTOR_KEYS.OTHER_SERVICE_SECTOR);
+  const canViewOtherServiceSector = visibleSectors.includes(PARTNER_SECTOR_KEYS.OTHER_SERVICE_SECTOR) || visibleSectors.includes(PARTNER_SECTOR_KEYS.CREATIVE_MEDIA_SECTOR);
   const sectorTabs = [
     canViewProductsSector ? "products" : null,
     canViewTransportSector ? "transport" : null,

@@ -15,6 +15,7 @@ DELIVERY_HINTS = {"delivery", "courier", "logistics", "cargo", "parcel", "shipme
 STAY_DINING_HINTS = {"hotel", "homestay", "home stay", "guest house", "resort", "restaurant", "resturent", "cafe", "dining", "seat booking", "sitbooking", "banquet", "rental house", "stay", "house rent", "flat rent", "shop rent", "apartment rent", "anusthan bari", "anusthanbari", "event venue rental", "resort rental", "hall rental", "resort vara", "resort bhara", "hall vara", "hall bhara", "wedding hall", "event hall"}
 PROPERTY_HINTS = {"property", "real estate", "realestate", "buy sell", "buy & sell", "plot sale", "flat sale", "house sale", "shop sale", "commercial property", "property broker", "broker", "brokerage", "site visit", "resale", "land", "jomi", "jami", "bari bikri", "flat bikri"}
 DOORSTEP_HINTS = {"doorstep", "mistri", "mechanic", "plumber", "plumbing", "electrician", "repair", "cleaning", "laundry", "tailoring", "beauty at home", "home service"}
+CREATIVE_HINTS = {"singing", "music", "song", "poetry", "recitation", "kobita", "abritti", "dance", "dancing", "performing arts", "recording", "studio", "acting", "audition", "instrument", "creative", "media"}
 SHOP_HINTS = {"shop", "store", "mart", "grocery", "vegetable", "cosmetics", "beauty", "product", "retail", "kirana", "pharmacy"}
 
 
@@ -48,10 +49,11 @@ def _infer_registration_sector_fields(payload: dict) -> tuple[str, str, str]:
     looks_stay_dining = _contains_any_hint(combined, STAY_DINING_HINTS)
     looks_property = _contains_any_hint(combined, PROPERTY_HINTS)
     looks_doorstep = _contains_any_hint(combined, DOORSTEP_HINTS)
+    looks_creative = _contains_any_hint(combined, CREATIVE_HINTS)
     looks_shop = _contains_any_hint(combined, SHOP_HINTS)
 
     raw_sector = _normalize_partner_sector(payload.get("business_type") or payload.get("sector"))
-    sector = "Service" if (looks_delivery or looks_transport or looks_stay_dining or looks_property or looks_doorstep) else ("Shop" if looks_shop else raw_sector)
+    sector = "Service" if (looks_delivery or looks_transport or looks_stay_dining or looks_property or looks_doorstep or looks_creative) else ("Shop" if looks_shop else raw_sector)
 
     service_sector = str(payload.get("service_sector") or "").strip()
     shop_sector = str(payload.get("shop_sector") or "").strip()
@@ -67,6 +69,8 @@ def _infer_registration_sector_fields(payload: dict) -> tuple[str, str, str]:
             service_sector = "Stay & Dining"
         elif looks_doorstep:
             service_sector = "Doorstep"
+        elif looks_creative:
+            service_sector = "Creative & Media"
         elif not service_sector:
             service_sector = "Other Services"
         shop_sector = ""
