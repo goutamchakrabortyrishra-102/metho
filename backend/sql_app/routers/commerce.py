@@ -10,6 +10,7 @@ from ..database import get_db
 from ..models import AppSetting, AssociatePartner, Order, PartnerProduct, Product, ProductMeta
 from ..schemas import OrderCreate, ProductCreate
 from .auth import get_current_user
+from .company_inventory import get_company_inventory_record, sync_company_inventory
 from .settings import load_settings, save_settings
 
 router = APIRouter(prefix="/api", tags=["commerce"])
@@ -222,6 +223,7 @@ def list_products(limit: int | None = None, authorization: str | None = Header(d
         if bool(hidden_map.get(p.id, False)) and not is_authenticated:
             continue
         m = meta_map.get(p.id)
+        inventory_record = get_company_inventory_record(db, p.id)
         mrp = float(m.mrp if m and m.mrp else p.price)
         discount_percent = float(m.discount_percent if m else 0)
         gst_percent = float(m.gst_percent if m else 0)
@@ -240,6 +242,7 @@ def list_products(limit: int | None = None, authorization: str | None = Header(d
                 "discount_percent": discount_percent,
                 "gst_percent": gst_percent,
                 "stock": p.stock,
+                "purchase_cost": float(inventory_record.get("purchase_cost") or 0),
                 "product_type": (m.product_type if m else "metho"),
                 "image_url": (m.image_url if m else ""),
                 "pricing_tiers": pricing_tier_map.get(p.id, []),
@@ -394,6 +397,8 @@ def create_product(payload: ProductCreate, db: Session = Depends(get_db), curren
     db.refresh(product)
     _set_product_youtube_url(db, product.id, payload.youtube_url)
     product_code = _ensure_product_code(db, product.id, product_type)
+    sync_company_inventory(db, product, payload.purchase_cost)
+    db.commit()
     saved_tiers = _set_product_pricing_tiers(db, product.id, payload.pricing_tiers)
     return {
         "id": product.id,
@@ -491,6 +496,8 @@ def update_product(product_id: str, payload: ProductCreate, db: Session = Depend
     db.commit()
     _set_product_youtube_url(db, product.id, payload.youtube_url)
     product_code = _ensure_product_code(db, product.id, product_type)
+    sync_company_inventory(db, product, payload.purchase_cost)
+    db.commit()
     saved_tiers = _set_product_pricing_tiers(db, product.id, payload.pricing_tiers)
     return {
         "id": product.id,

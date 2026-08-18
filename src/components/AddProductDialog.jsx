@@ -40,6 +40,18 @@ const firstFilledValue = (...values) => {
   return undefined;
 };
 
+const calculateGstPreview = (priceBeforeGst, gstPercent) => {
+  const price = Math.max(0, Number(priceBeforeGst) || 0);
+  const rate = Math.max(0, Number(gstPercent) || 0);
+  const gstAmount = Math.round((price * rate / 100) * 100) / 100;
+  return {
+    priceBeforeGst: price,
+    gstPercent: rate,
+    gstAmount,
+    finalPrice: Math.round(price + gstAmount),
+  };
+};
+
 export default function AddProductDialog({
   onCreated,
   open: controlledOpen,
@@ -59,6 +71,7 @@ export default function AddProductDialog({
     name: "",
     category: "Health & Wellness",
     price: "",
+    purchase_cost: "",
     mrp: "",
     discount_percent: "",
     gst_percent: "",
@@ -82,6 +95,8 @@ export default function AddProductDialog({
   const [renameValue, setRenameValue] = useState("");
   const fileRef = useRef(null);
   const isEdit = Boolean(product?.id);
+  const gstPreview = calculateGstPreview(form.price, form.gst_percent);
+  const formatPreviewAmount = (value) => Number(value || 0).toLocaleString("en-IN", { maximumFractionDigits: 2 });
 
   const categories = useMemo(() => {
     const source = normalizeCategories(settings?.product_categories);
@@ -107,6 +122,7 @@ export default function AddProductDialog({
         name: product.name || "",
         category: product.category || (categories[0] || "Health & Wellness"),
         price: String(product.price ?? ""),
+        purchase_cost: String(product.purchase_cost ?? ""),
         mrp: String(product.mrp ?? product.price ?? ""),
         discount_percent: String(product.discount_percent ?? ""),
         gst_percent: String(product.gst_percent ?? ""),
@@ -137,7 +153,7 @@ export default function AddProductDialog({
   const setF = (k) => (e) => setForm({ ...form, [k]: e.target?.value ?? e });
 
   const resetForm = () => setForm({
-    name: "", category: categories[0] || "Health & Wellness", price: "", mrp: "", discount_percent: "", gst_percent: "", stock: "",
+    name: "", category: categories[0] || "Health & Wellness", price: "", purchase_cost: "", mrp: "", discount_percent: "", gst_percent: "", stock: "",
     description: "", image_url: "", product_type: "metho", pricing_tiers_input: "", youtube_url: "",
   });
 
@@ -177,11 +193,13 @@ export default function AddProductDialog({
       const rawPrice = firstFilledValue(row.price, row.rate, row.selling_price, row.unit_price);
       const rawMrp = firstFilledValue(row.mrp, row.list_price, row.max_price);
       const rawDiscount = firstFilledValue(row.discount_percent, row.discount, row.discount_pct);
+      const rawPurchaseCost = firstFilledValue(row.purchase_cost, row.cost, row.purchase_price);
       const rawGst = firstFilledValue(row.gst_percent, row.gst, row.gst_rate);
 
       let price = toNumberOrNull(rawPrice);
       let mrp = toNumberOrNull(rawMrp);
       let discount = toNumberOrNull(rawDiscount);
+      const purchaseCost = Math.max(0, toNumberOrNull(rawPurchaseCost) ?? 0);
       const gst = Math.max(0, toNumberOrNull(rawGst) ?? 0);
       const stock = Math.max(0, Math.trunc(toNumberOrNull(row.stock) ?? 0));
 
@@ -230,6 +248,7 @@ export default function AddProductDialog({
         name,
         category,
         price: Number(price.toFixed(2)),
+        purchase_cost: Number(purchaseCost.toFixed(2)),
         mrp: Number(mrp.toFixed(2)),
         discount_percent: Number(Math.max(0, discount).toFixed(2)),
         gst_percent: Number(gst.toFixed(2)),
@@ -428,6 +447,7 @@ export default function AddProductDialog({
         name: form.name,
         category: form.category,
         price: Number(form.price || form.mrp || 0),
+        purchase_cost: form.product_type === "metho" ? Number(form.purchase_cost || 0) : null,
         mrp: Number(form.mrp || form.price || 0),
         discount_percent: Number(form.discount_percent || 0),
         gst_percent: form.product_type === "metho" ? Number(form.gst_percent || 0) : 0,
@@ -706,6 +726,10 @@ export default function AddProductDialog({
 
           <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
             <div>
+              <Label>Purchase Cost - Admin Only (₹)</Label>
+              <Input type="number" min="0" value={form.purchase_cost} onChange={setF("purchase_cost")} data-testid="new-product-purchase-cost-input" className="mt-1.5" placeholder="0" />
+            </div>
+            <div>
               <Label>MRP (₹) *</Label>
               <Input required type="number" value={form.mrp} onChange={setF("mrp")} data-testid="new-product-mrp-input" className="mt-1.5" />
             </div>
@@ -714,7 +738,7 @@ export default function AddProductDialog({
               <Input type="number" value={form.discount_percent} onChange={setF("discount_percent")} data-testid="new-product-discount-input" className="mt-1.5" placeholder="0" />
             </div>
             <div>
-              <Label>Final Price (₹) *</Label>
+              <Label>Price Before GST / Selling Price (₹) *</Label>
               <Input required type="number" value={form.price} onChange={setF("price")} data-testid="new-product-price-input" className="mt-1.5" />
             </div>
             <div>
@@ -727,6 +751,16 @@ export default function AddProductDialog({
             <div>
               <Label>GST % (only METHO product)</Label>
               <Input type="number" value={form.gst_percent} onChange={setF("gst_percent")} data-testid="new-product-gst-input" className="mt-1.5 max-w-xs" placeholder="e.g. 18" />
+              <div className="mt-3 rounded-xl border-2 border-emerald-300 bg-emerald-50 p-4" data-testid="gst-final-price-preview">
+                <p className="text-xs uppercase tracking-[0.18em] text-emerald-800 font-bold">GST &amp; FINAL PRICE PREVIEW</p>
+                <div className="mt-3 space-y-2 text-sm text-slate-700">
+                  <div className="flex justify-between gap-4"><span>Price Before GST:</span><span className="font-semibold">₹{formatPreviewAmount(gstPreview.priceBeforeGst)}</span></div>
+                  <div className="flex justify-between gap-4"><span>GST ({gstPreview.gstPercent}%):</span><span className="font-semibold">₹{formatPreviewAmount(gstPreview.gstAmount)}</span></div>
+                  <div className="flex justify-between gap-4 border-t border-emerald-200 pt-2 text-base"><span className="font-bold text-emerald-950">Final Selling Price:</span><span className="font-black text-2xl text-emerald-800">₹{formatPreviewAmount(gstPreview.finalPrice)}</span></div>
+                  <p className="text-right text-[11px] font-semibold text-emerald-700">GST-inclusive rounded final rate</p>
+                  <div className="flex justify-between gap-4 border-t border-emerald-200 pt-2 text-xs"><span>Purchase Cost - Admin Only:</span><span className="font-bold text-slate-800">₹{formatPreviewAmount(form.purchase_cost)}</span></div>
+                </div>
+              </div>
             </div>
           )}
 

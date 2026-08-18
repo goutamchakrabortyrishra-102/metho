@@ -1,6 +1,6 @@
 import React, { useState } from "react";
 import { Outlet, NavLink, useLocation, useNavigate } from "react-router-dom";
-import { LayoutDashboard, Wallet, Users, Network, Package, ShoppingCart, TrendingUp, User, LogOut, Menu, X, Search, Settings, Sparkles, BadgeIndianRupee, Calculator, Shield, Store, Compass, Trophy, Send, CheckCircle2, Upload, Bot, ClipboardList, Activity, Warehouse, BookOpenCheck, CarTaxiFront, UtensilsCrossed, Building2, Trash2 } from "lucide-react";
+import { LayoutDashboard, Wallet, Users, Network, Package, ShoppingCart, TrendingUp, User, LogOut, Menu, X, Search, Settings, Sparkles, BadgeIndianRupee, Calculator, Shield, Store, Compass, Trophy, Send, CheckCircle2, Upload, Bot, ClipboardList, Activity, Warehouse, BookOpenCheck, CarTaxiFront, UtensilsCrossed, Building2, Trash2, Boxes } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { Logo } from "@/components/Logo";
 import { Button } from "@/components/ui/button";
@@ -22,6 +22,7 @@ const links = [
   { to: "/app/products?upload=1", icon: Upload, label: "Image Upload", testId: "nav-product-upload", adminOnly: true },
   { to: "/directory", icon: Compass, label: "Explore Partners", testId: "nav-explore", external: true },
   { to: "/app/metho-store-admin", icon: Warehouse, label: "Store Owner Admin", testId: "nav-metho-store-admin", adminOnly: true },
+  { to: "/app/company-inventory", icon: Boxes, label: "Company Inventory", testId: "nav-company-inventory", adminOnly: true },
   { to: "/app/partners", icon: Store, label: "Partners", testId: "nav-partners", adminOnly: true },
   { to: "/app/partner-approvals", icon: CheckCircle2, label: "Partner Applications", testId: "nav-partner-approvals", adminOnly: true },
   { to: "/app/product-approvals", icon: Package, label: "Product Approvals", testId: "nav-product-approvals", adminOnly: true },

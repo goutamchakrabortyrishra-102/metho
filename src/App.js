@@ -50,6 +50,7 @@ const loadAdminTransportPage = () => import("@/pages/dashboard/AdminTransportPag
 const loadAdminStayDiningBookingsPage = () => import("@/pages/dashboard/AdminStayDiningBookingsPage");
 const loadAdminPropertyBuySellPage = () => import("@/pages/dashboard/AdminPropertyBuySellPage");
 const loadMethoStoreOwnerPage = () => import("@/pages/dashboard/MethoStoreOwnerPage");
+const loadCompanyInventoryPage = () => import("@/pages/dashboard/CompanyInventoryPage");
 const loadCustomerOrdersAccessPage = () => import("@/pages/CustomerOrdersAccessPage");
 const loadCustomerInvoicePage = () => import("@/pages/CustomerInvoicePage");
 const loadPrivacyPolicyPage = () => import("@/pages/PrivacyPolicyPage");
@@ -99,6 +100,7 @@ const AdminTransportPage = lazy(loadAdminTransportPage);
 const AdminStayDiningBookingsPage = lazy(loadAdminStayDiningBookingsPage);
 const AdminPropertyBuySellPage = lazy(loadAdminPropertyBuySellPage);
 const MethoStoreOwnerPage = lazy(loadMethoStoreOwnerPage);
+const CompanyInventoryPage = lazy(loadCompanyInventoryPage);
 const CustomerOrdersAccessPage = lazy(loadCustomerOrdersAccessPage);
 const CustomerInvoicePage = lazy(loadCustomerInvoicePage);
 const PrivacyPolicyPage = lazy(loadPrivacyPolicyPage);
@@ -323,6 +325,7 @@ function App() {
                 <Route path="mps-claims" element={<AdminRoute><MPSClaimsPage /></AdminRoute>} />
                 <Route path="partners" element={<AdminRoute><PartnersPage /></AdminRoute>} />
                 <Route path="metho-store-admin" element={<AdminRoute><MethoStoreAdminPage /></AdminRoute>} />
+                <Route path="company-inventory" element={<AdminRoute><CompanyInventoryPage /></AdminRoute>} />
                 <Route path="partner-approvals" element={<AdminRoute><PartnerApprovalsPage /></AdminRoute>} />
                 <Route path="product-approvals" element={<AdminRoute><ProductApprovalsPage /></AdminRoute>} />
                 <Route path="ai-upgrade" element={<AdminRoute><AIUpgradePage /></AdminRoute>} />

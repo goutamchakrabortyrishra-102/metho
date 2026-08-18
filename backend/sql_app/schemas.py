@@ -19,6 +19,7 @@ class ProductCreate(BaseModel):
     category: str
     price: float
     stock: int = 0
+    purchase_cost: float | None = None
     description: str = ""
     image_url: str = ""
     product_type: str = "metho"

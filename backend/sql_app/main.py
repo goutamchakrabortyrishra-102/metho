@@ -11,7 +11,7 @@ import time
 
 from .database import Base, SessionLocal, engine
 from .models import AssociatePartner, PartnerProduct, User
-from .routers import auth, checkout, commerce, compat, directory, health, partner_public, settings
+from .routers import auth, checkout, commerce, compat, company_inventory, directory, health, partner_public, settings
 from .security import hash_password
 
 logger = logging.getLogger(__name__)
@@ -465,6 +465,7 @@ def admin_system_bandwidth(
 app.include_router(health.router)
 app.include_router(auth.router)
 app.include_router(commerce.router)
+app.include_router(company_inventory.router)
 app.include_router(settings.router)
 app.include_router(directory.router)
 app.include_router(partner_public.router)
