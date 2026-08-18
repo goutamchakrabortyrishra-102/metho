@@ -230,7 +230,12 @@ const estimateDeliveryFareFromRoute = async (pickup, destination, service) => {
   try {
     const [originCoords, destCoords] = await Promise.all([geocodeAddress(origin), geocodeAddress(dest)]);
     if (!originCoords || !destCoords) return null;
-    const distanceKm = haversineKm(originCoords.lat, originCoords.lon, destCoords.lat, destCoords.lon);
+    const routeResponse = await fetch(`https://router.project-osrm.org/route/v1/driving/${originCoords.lon},${originCoords.lat};${destCoords.lon},${destCoords.lat}?overview=false&alternatives=true`);
+    const routeData = routeResponse.ok ? await routeResponse.json() : null;
+    const routeDistances = Array.isArray(routeData?.routes)
+      ? routeData.routes.map((route) => Number(route.distance || 0) / 1000).filter((distance) => Number.isFinite(distance) && distance > 0)
+      : [];
+    const distanceKm = routeDistances.length ? Math.max(...routeDistances) : haversineKm(originCoords.lat, originCoords.lon, destCoords.lat, destCoords.lon);
     if (!Number.isFinite(distanceKm) || distanceKm <= 0) return null;
     const ratePerKm = getDeliveryRatePerKm(service);
     const amount = Math.max(1, Math.round(distanceKm * ratePerKm));
@@ -1739,6 +1744,22 @@ export default function PartnerGalleryPage() {
                 {deliveryFareEstimateLoading ? "Calculating route rate..." : deliveryFareEstimate ? `₹${Number(deliveryFareEstimate.amount).toLocaleString("en-IN")} · ${Number(deliveryFareEstimate.distanceKm).toFixed(1)} km × ₹${Number(deliveryFareEstimate.ratePerKm).toLocaleString("en-IN")}/km` : "Pickup/destination দিলে dynamic rate show হবে"}
               </p>
               <p className="text-[11px] text-slate-600 mt-1">If you agree, submit now. If not, continue the conversation with the partner and finalize later.</p>
+              <Button
+                type="button"
+                variant="outline"
+                className="mt-3 rounded-full border-cyan-300 text-cyan-900 hover:bg-cyan-100"
+                onClick={() => {
+                  const url = routeMapsUrl(deliveryBookingForm.pickup, deliveryBookingForm.destination);
+                  if (!url) {
+                    toast.error("Pickup বা destination দিন");
+                    return;
+                  }
+                  window.open(url, "_blank", "noopener,noreferrer");
+                }}
+                data-testid="delivery-open-route-map"
+              >
+                Open Route in Google Maps
+              </Button>
             </div>
 
             <div className="mt-3 rounded-lg border border-dashed border-cyan-200 bg-white p-3">

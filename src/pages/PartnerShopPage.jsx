@@ -51,6 +51,20 @@ const routeMapsUrl = (pickup, destination) => {
   if (!dest) return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(origin)}`;
   return `https://www.google.com/maps/dir/?api=1&origin=${encodeURIComponent(origin)}&destination=${encodeURIComponent(dest)}&travelmode=driving`;
 };
+const locationDirectionsUrl = (location) => {
+  const destination = String(location || "").trim();
+  return destination ? `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(destination)}&travelmode=driving` : "";
+};
+const serviceDirectionsUrl = (service, partner) => locationDirectionsUrl([
+  service?.property_location,
+  service?.service_area,
+  service?.city,
+  service?.district,
+  service?.state,
+  partner?.address,
+  partner?.city,
+  partner?.state,
+].filter(Boolean).join(", "));
 const formatTransportSchedule = (value) => {
   const raw = String(value || "").trim();
   if (!raw) return "";
@@ -116,7 +130,12 @@ const estimateTransportFareFromRoute = async (pickup, destination, service) => {
   try {
     const [originCoords, destCoords] = await Promise.all([geocodeAddress(origin), geocodeAddress(dest)]);
     if (!originCoords || !destCoords) return null;
-    const distanceKm = haversineKm(originCoords.lat, originCoords.lon, destCoords.lat, destCoords.lon);
+    const routeResponse = await fetch(`https://router.project-osrm.org/route/v1/driving/${originCoords.lon},${originCoords.lat};${destCoords.lon},${destCoords.lat}?overview=false&alternatives=true`);
+    const routeData = routeResponse.ok ? await routeResponse.json() : null;
+    const routeDistances = Array.isArray(routeData?.routes)
+      ? routeData.routes.map((route) => Number(route.distance || 0) / 1000).filter((distance) => Number.isFinite(distance) && distance > 0)
+      : [];
+    const distanceKm = routeDistances.length ? Math.max(...routeDistances) : haversineKm(originCoords.lat, originCoords.lon, destCoords.lat, destCoords.lon);
     if (!Number.isFinite(distanceKm) || distanceKm <= 0) return null;
     const ratePerKm = getTransportRatePerKm(service);
     const amount = Math.max(1, Math.round(distanceKm * ratePerKm));
@@ -1762,6 +1781,7 @@ export default function PartnerShopPage() {
                         >
                           <CalendarCheck2 className="w-4 h-4 mr-2" /> Book Now
                         </Button>
+                        {serviceDirectionsUrl(service, p) ? <Button type="button" variant="outline" onClick={() => window.open(serviceDirectionsUrl(service, p), "_blank", "noopener,noreferrer")} className="w-full mt-2 rounded-full border-emerald-300 text-emerald-900" data-testid={`shop-directions-service-${service.id}`}><MapPin className="w-4 h-4 mr-2" /> Get directions</Button> : null}
                       </div>
                     </div>
                   );
@@ -1817,6 +1837,7 @@ export default function PartnerShopPage() {
                       <Button onClick={() => openGallery(service.name || "", "delivery-partner")} className="w-full mt-3 rounded-full bg-cyan-700 hover:bg-cyan-800 text-white" data-testid={`shop-book-delivery-${service.id}`}>
                         <CalendarCheck2 className="w-4 h-4 mr-2" /> Request Delivery
                       </Button>
+                      {serviceDirectionsUrl(service, p) ? <Button type="button" variant="outline" onClick={() => window.open(serviceDirectionsUrl(service, p), "_blank", "noopener,noreferrer")} className="w-full mt-2 rounded-full border-cyan-300 text-cyan-900" data-testid={`shop-directions-delivery-${service.id}`}><MapPin className="w-4 h-4 mr-2" /> Get directions</Button> : null}
                     </div>
                   </div>
                 ))}
@@ -1938,6 +1959,7 @@ export default function PartnerShopPage() {
                         <Button type="button" onClick={() => bookServiceNow(service)} className="w-full mt-3 rounded-full bg-amber-600 hover:bg-amber-700 text-white font-bold" data-testid={`shop-book-hospitality-${service.id}`}>
                           <CalendarCheck2 className="w-4 h-4 mr-2" /> {serviceBookingLabel(service)}
                         </Button>
+                        {serviceDirectionsUrl(service, p) ? <Button type="button" variant="outline" onClick={() => window.open(serviceDirectionsUrl(service, p), "_blank", "noopener,noreferrer")} className="w-full mt-2 rounded-full border-amber-300 text-amber-900" data-testid={`shop-directions-hospitality-${service.id}`}><MapPin className="w-4 h-4 mr-2" /> Get directions</Button> : null}
                       </div>
                     </div>
                   );
@@ -2046,6 +2068,7 @@ export default function PartnerShopPage() {
                         <Button type="button" onClick={() => bookServiceNow(service)} className="w-full mt-3 rounded-full bg-violet-700 hover:bg-violet-800 text-white font-bold" data-testid={`shop-book-doorstep-${service.id}`}>
                           <CalendarCheck2 className="w-4 h-4 mr-2" /> Book service
                         </Button>
+                        {serviceDirectionsUrl(service, p) ? <Button type="button" variant="outline" onClick={() => window.open(serviceDirectionsUrl(service, p), "_blank", "noopener,noreferrer")} className="w-full mt-2 rounded-full border-violet-300 text-violet-900" data-testid={`shop-directions-doorstep-${service.id}`}><MapPin className="w-4 h-4 mr-2" /> Get directions</Button> : null}
                       </div>
                     </div>
                   );
@@ -2176,6 +2199,7 @@ export default function PartnerShopPage() {
                         >
                           <CalendarCheck2 className="w-4 h-4 mr-2" /> Enquire Now
                         </Button>
+                        {serviceDirectionsUrl(service, p) ? <Button type="button" variant="outline" onClick={() => window.open(serviceDirectionsUrl(service, p), "_blank", "noopener,noreferrer")} className="w-full mt-2 rounded-full border-indigo-300 text-indigo-900" data-testid={`shop-directions-property-${service.id}`}><MapPin className="w-4 h-4 mr-2" /> Get directions</Button> : null}
                       </div>
                     </div>
                   );
