@@ -1862,7 +1862,7 @@ export default function PartnerShopPage() {
                 <p className="text-[10px] uppercase tracking-widest text-amber-700 font-semibold">Stay & Dining</p>
               </div>
               <h3 className="font-display font-bold text-emerald-950 text-xl mt-1">Find your stay or table</h3>
-              <p className="text-sm text-slate-600 mt-3">OYO-style stays, homestays, restaurants, cafes and event spaces in one simple booking experience.</p>
+              <p className="text-sm text-slate-600 mt-3">Stays, homestays, restaurants, cafes and event spaces in one simple booking experience.</p>
               <div className="mt-6 flex flex-col lg:flex-row gap-3 lg:items-center">
                 <Button onClick={() => openGallery(hospitalitySearch, "stay-dining")} className="w-full lg:w-auto lg:min-w-[220px] bg-amber-600 hover:bg-amber-700 text-white rounded-full" data-testid="partner-stay-gallery-btn">
                   <CalendarCheck2 className="w-4 h-4 mr-2" /> Browse & reserve
@@ -1978,7 +1978,7 @@ export default function PartnerShopPage() {
                 <p className="text-[10px] uppercase tracking-widest text-violet-700 font-semibold">Doorstep Services</p>
               </div>
               <h3 className="font-display font-bold text-white text-xl mt-1">Trusted professionals at your door</h3>
-              <p className="text-sm text-slate-300 mt-3">Urban Company-style service discovery for cleaning, repairs, laundry, beauty and more.</p>
+              <p className="text-sm text-slate-300 mt-3">Discover trusted cleaning, repair, laundry, beauty and other home services.</p>
               <div className="mt-6 flex flex-col lg:flex-row gap-3 lg:items-center">
                 <Button onClick={() => openGallery(doorstepSearch, "doorstep")} className="w-full lg:w-auto lg:min-w-[220px] bg-violet-700 hover:bg-violet-800 text-white rounded-full" data-testid="partner-doorstep-gallery-btn">
                   <CalendarCheck2 className="w-4 h-4 mr-2" /> View Doorstep Services
