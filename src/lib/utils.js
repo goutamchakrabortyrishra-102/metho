@@ -5,6 +5,13 @@ export function cn(...inputs) {
   return twMerge(clsx(inputs));
 }
 
+export function getGstInclusivePrice(price, gstPercent) {
+  const basePrice = Math.max(0, Number(price) || 0);
+  const gstRate = Math.max(0, Number(gstPercent) || 0);
+  if (gstRate <= 0) return basePrice;
+  return Math.round(basePrice + (basePrice * gstRate / 100));
+}
+
 const normalizeBase = (url) => String(url || "").trim().replace(/\/+$/, "");
 const LEGACY_MIRRORED_PRODUCT_FILES = new Set([
   "0d0bf112-efe5-4885-9453-33c0257a45b9.png",

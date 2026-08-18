@@ -8,7 +8,7 @@ import { useSettings } from "@/contexts/SettingsContext";
 import AddProductDialog from "@/components/AddProductDialog";
 import UpiPaymentDialog from "@/components/UpiPaymentDialog";
 import { Button } from "@/components/ui/button";
-import { resolveAssetUrl, getAssetImageFallbackCandidates } from "@/lib/utils";
+import { getGstInclusivePrice, resolveAssetUrl, getAssetImageFallbackCandidates } from "@/lib/utils";
 
 const applyOrderedImageFallback = (event, candidates, terminalFallback) => {
   const target = event.currentTarget;
@@ -66,6 +66,22 @@ const calcTieredSubtotal = (quantity, unitPrice, tiers) => {
   }
   if (!Number.isFinite(dp[qty])) return Number((qty * Number(unitPrice || 0)).toFixed(2));
   return Number(dp[qty].toFixed(2));
+};
+
+const getCustomerUnitPrice = (product) => {
+  const productType = String(product?.product_type || "metho").toLowerCase();
+  const gstPercent = productType === "metho" ? Number(product?.gst_percent || 0) : 0;
+  return getGstInclusivePrice(product?.price, gstPercent);
+};
+
+const getCustomerPricingTiers = (product) => {
+  const tiers = Array.isArray(product?.pricing_tiers) ? product.pricing_tiers : [];
+  if (String(product?.product_type || "metho").toLowerCase() !== "metho") return tiers;
+  const gstPercent = Number(product?.gst_percent || 0);
+  return tiers.map((tier) => ({
+    ...tier,
+    price: getGstInclusivePrice(tier?.price, gstPercent),
+  }));
 };
 
 export default function ProductsPage() {
@@ -300,8 +316,10 @@ export default function ProductsPage() {
 
   const items = Object.entries(cart).filter(([, q]) => q > 0).map(([id, q]) => {
     const p = products.find(x => x.id === id);
-    const subtotal = calcTieredSubtotal(q, p?.price || 0, p?.pricing_tiers || []);
-    return { ...p, quantity: q, subtotal };
+    const customerPrice = getCustomerUnitPrice(p);
+    const customerTiers = getCustomerPricingTiers(p);
+    const subtotal = calcTieredSubtotal(q, customerPrice, customerTiers);
+    return { ...p, price: customerPrice, quantity: q, subtotal };
   });
   const total = items.reduce((s, i) => s + i.subtotal, 0);
 
@@ -378,7 +396,7 @@ export default function ProductsPage() {
         {p.product_code ? <p className="text-[10px] text-slate-500 mt-1 font-mono">Code: {p.product_code}</p> : null}
         <div className="mt-2 flex items-center justify-between">
           <div className="flex flex-col">
-            <span className="font-display font-black text-lg text-emerald-950">₹{p.price}</span>
+            <span className="font-display font-black text-lg text-emerald-950">₹{getCustomerUnitPrice(p).toLocaleString("en-IN")}</span>
             {Number(p.mrp || 0) > Number(p.price || 0) ? (
               <span className="text-[11px] text-slate-500">
                 <span className="line-through mr-1">₹{p.mrp}</span>
@@ -386,7 +404,7 @@ export default function ProductsPage() {
               </span>
             ) : null}
             {p.product_type === "metho" && Number(p.gst_percent || 0) > 0 ? (
-              <span className="text-[10px] text-amber-700 font-semibold">+ GST {Number(p.gst_percent || 0)}%</span>
+              <span className="text-[10px] text-amber-700 font-semibold">GST {Number(p.gst_percent || 0)}% Included</span>
             ) : null}
             {Array.isArray(p.pricing_tiers) && p.pricing_tiers.length > 0 ? (
               <span className="text-[10px] text-emerald-700 font-semibold">

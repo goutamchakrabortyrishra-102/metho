@@ -255,6 +255,7 @@ def list_products(limit: int | None = None, authorization: str | None = Header(d
         compacted = []
         for item in out[:public_limit]:
             next_item = dict(item)
+            next_item.pop("purchase_cost", None)
             next_item["image_url"] = _public_image_ref(next_item.get("id") or "", next_item.get("image_url") or "")
             description = str(next_item.get("description") or "")
             if len(description) > 320:

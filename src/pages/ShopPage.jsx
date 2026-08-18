@@ -9,7 +9,7 @@ import { Input } from "@/components/ui/input";
 import UpiPaymentDialog from "@/components/UpiPaymentDialog";
 import { useAuth } from "@/contexts/AuthContext";
 import { useSettings } from "@/contexts/SettingsContext";
-import { resolveAssetUrl, getAssetImageFallbackCandidates } from "@/lib/utils";
+import { getGstInclusivePrice, resolveAssetUrl, getAssetImageFallbackCandidates } from "@/lib/utils";
 
 const normalizeYoutubeUrl = (value) => {
   const raw = String(value || "").trim();
@@ -117,6 +117,22 @@ const calcTieredSubtotal = (quantity, unitPrice, tiers) => {
   }
   if (!Number.isFinite(dp[qty])) return Number((qty * Number(unitPrice || 0)).toFixed(2));
   return Number(dp[qty].toFixed(2));
+};
+
+const getCustomerUnitPrice = (product) => {
+  const productType = String(product?.product_type || "metho").toLowerCase();
+  const gstPercent = productType === "metho" ? Number(product?.gst_percent || 0) : 0;
+  return getGstInclusivePrice(product?.price, gstPercent);
+};
+
+const getCustomerPricingTiers = (product) => {
+  const tiers = Array.isArray(product?.pricing_tiers) ? product.pricing_tiers : [];
+  if (String(product?.product_type || "metho").toLowerCase() !== "metho") return tiers;
+  const gstPercent = Number(product?.gst_percent || 0);
+  return tiers.map((tier) => ({
+    ...tier,
+    price: getGstInclusivePrice(tier?.price, gstPercent),
+  }));
 };
 
 const loadShopStartupProducts = async (limit = 240) => {
@@ -264,13 +280,12 @@ export default function ShopPage() {
         .map(([id, qty]) => {
           const p = methoProducts.find((x) => x.id === id);
           if (!p) return null;
-          const subtotal = p?.product_type === "metho"
-            ? calcTieredSubtotal(qty, p?.price || 0, p?.pricing_tiers || [])
-            : Number(((Number(p?.price) || 0) * qty).toFixed(2));
+          const customerPrice = getCustomerUnitPrice(p);
+          const subtotal = calcTieredSubtotal(qty, customerPrice, getCustomerPricingTiers(p));
           return {
             id,
             name: p?.name,
-            price: Number(p?.price) || 0,
+            price: customerPrice,
             quantity: qty,
             subtotal,
             image_url: p?.image_url || "",
@@ -326,7 +341,7 @@ export default function ShopPage() {
         doc.text(`${p.category || "General"} | Stock: ${p.stock ?? 0}`, 10, y + 13);
         doc.setFont("helvetica", "bold");
         doc.setTextColor(5, 46, 22);
-        doc.text(`INR ${Number(p.price || 0).toLocaleString("en-IN")}`, W - 10, y + 8, { align: "right" });
+        doc.text(`INR ${getCustomerUnitPrice(p).toLocaleString("en-IN")}`, W - 10, y + 8, { align: "right" });
         y += 16;
       });
 
@@ -494,7 +509,8 @@ export default function ShopPage() {
                 <h4 className="mt-1 font-display font-bold text-emerald-950 line-clamp-1">{p.name}</h4>
                 {!isGalleryView && <p className="text-xs text-muted-foreground mt-1 line-clamp-3 font-body whitespace-pre-line">{p.description}</p>}
                 <div className="mt-3 flex items-center justify-between">
-                  <span className="font-display font-black text-xl text-emerald-950">₹{p.price}</span>
+                  <span className="font-display font-black text-xl text-emerald-950">₹{getCustomerUnitPrice(p).toLocaleString("en-IN")}</span>
+                  {Number(p?.gst_percent || 0) > 0 ? <span className="text-[10px] text-amber-700 font-semibold">GST {Number(p.gst_percent)}% Included</span> : null}
                   <div className="flex items-center gap-1.5">
                     <span className="text-xs px-2 py-0.5 rounded-full font-semibold bg-amber-100 text-amber-900">METHO</span>
                     {isOutOfStock ? (
