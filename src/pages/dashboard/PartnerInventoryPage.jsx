@@ -9,7 +9,7 @@ import { Input } from "@/components/ui/input";
 import { useAuth } from "@/contexts/AuthContext";
 import { buildReportPdf, buildReportWorkbook } from "@/lib/partnerReports";
 import PartnerProductForm from "@/components/PartnerProductForm";
-import { isDeliveryServiceLike, isPropertyServiceLike, isTransportServiceLike } from "@/lib/partnerSector";
+import { inferPartnerPrimarySector, isDeliveryServiceLike, isPropertyServiceLike, isTransportServiceLike, PARTNER_SECTOR_KEYS } from "@/lib/partnerSector";
 
 const SECTORS = {
   product: { label: "PRODUCT INVENTORY", report: "products", fields: ["Name", "Category", "Price", "Current Stock", "Status"] },
@@ -48,10 +48,18 @@ const editConfigFor = (sector) => {
   if (sector === "service") return { fixedListingType: "service" };
   return { fixedListingType: "product" };
 };
+const inventorySectorForPrimary = (primarySector) => {
+  if (primarySector === PARTNER_SECTOR_KEYS.PRODUCT_SECTOR) return "product";
+  if (primarySector === PARTNER_SECTOR_KEYS.TRANSPORT_SECTOR) return "transport";
+  if (primarySector === PARTNER_SECTOR_KEYS.DELIVERY_PARTNER_SECTOR) return "courier";
+  if (primarySector === PARTNER_SECTOR_KEYS.PROPERTY_SECTOR) return "property";
+  return "service";
+};
 
 export default function PartnerInventoryPage() {
   const { user } = useAuth();
   const [items, setItems] = useState([]);
+  const [partnerSummary, setPartnerSummary] = useState(null);
   const [sector, setSector] = useState("product");
   const [search, setSearch] = useState("");
   const [status, setStatus] = useState("all");
@@ -69,7 +77,25 @@ export default function PartnerInventoryPage() {
       toast.error(requestError?.response?.data?.detail || "Inventory could not be loaded");
     }).finally(() => setLoading(false));
   };
-  useEffect(() => { if (user?.role === "partner") load(); }, [user]);
+  useEffect(() => {
+    if (user?.role !== "partner") return;
+    load();
+    api.get("/partner/summary").then((response) => setPartnerSummary(response.data || null)).catch(() => setPartnerSummary(null));
+  }, [user]);
+  const primarySector = useMemo(() => {
+    const counts = items.reduce((result, item) => {
+      const key = sectorFor(item);
+      result.products += key === "product" ? 1 : 0;
+      result.transport += key === "transport" ? 1 : 0;
+      result.delivery += key === "courier" ? 1 : 0;
+      result.property += key === "property" ? 1 : 0;
+      result.otherServices += key === "service" ? 1 : 0;
+      return result;
+    }, { products: 0, transport: 0, delivery: 0, property: 0, otherServices: 0 });
+    return inferPartnerPrimarySector({ businessType: partnerSummary?.business_type, businessName: partnerSummary?.business_name, counts });
+  }, [items, partnerSummary]);
+  const inventorySector = inventorySectorForPrimary(primarySector);
+  useEffect(() => { setSector(inventorySector); }, [inventorySector]);
   const rows = useMemo(() => items.filter((item) => sectorFor(item) === sector).filter((item) => status === "all" || statusFor(sector, item).toLowerCase() === status.toLowerCase()).filter((item) => !search.trim() || JSON.stringify(item).toLowerCase().includes(search.trim().toLowerCase())), [items, sector, search, status]);
   if (!user) return <div className="p-8 text-center">Loading...</div>;
   if (user.role !== "partner") return <Navigate to="/app" replace />;
@@ -81,7 +107,7 @@ export default function PartnerInventoryPage() {
     {loading ? <div className="rounded-xl border border-emerald-200 bg-white p-6 text-sm text-slate-600" data-testid="inventory-loading">Loading inventory...</div> : null}
     {error ? <div className="rounded-xl border border-rose-200 bg-rose-50 p-4 text-sm text-rose-900" data-testid="inventory-error"><p>{error}</p><Button type="button" className="mt-3" onClick={load}>Retry</Button></div> : null}
     <div className="flex flex-wrap items-end justify-between gap-3 print:hidden"><div><p className="text-xs uppercase tracking-widest text-emerald-800 font-semibold">Partner Inventory</p><h1 className="font-display font-black text-3xl text-emerald-950">{config.label}</h1><p className="text-sm text-slate-600">Sector-specific listings only · {rows.length} visible</p></div><div className="flex flex-wrap gap-2"><Button variant="outline" onClick={load} disabled={loading}><RefreshCw className="w-4 h-4 mr-2" /> Refresh</Button><Button variant="outline" onClick={exportPdf}><FileDown className="w-4 h-4 mr-2" /> PDF</Button><Button variant="outline" onClick={exportExcel}><FileSpreadsheet className="w-4 h-4 mr-2" /> Excel</Button><Button variant="outline" onClick={() => window.print()}><Printer className="w-4 h-4 mr-2" /> Print</Button><Link to="/partner?tab=overview"><Button><Plus className="w-4 h-4 mr-2" /> Add</Button></Link></div></div>
-    <div className="flex flex-wrap gap-2 print:hidden">{Object.entries(SECTORS).map(([key, value]) => <button key={key} type="button" onClick={() => { setSector(key); setStatus("all"); setSearch(""); }} className={`rounded-full border px-3 py-2 text-xs font-semibold ${sector === key ? "border-emerald-900 bg-emerald-900 text-white" : "border-emerald-200 bg-white text-emerald-900"}`}>{value.label}</button>)}</div>
+    <div className="flex flex-wrap gap-2 print:hidden"><span className="rounded-full border border-emerald-900 bg-emerald-900 px-3 py-2 text-xs font-semibold text-white">{config.label}</span></div>
     <div className="flex flex-wrap gap-2 print:hidden"><div className="relative min-w-[220px] flex-1"><Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" /><Input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search inventory" className="pl-9" /></div><select value={status} onChange={(event) => setStatus(event.target.value)} className="h-10 rounded-md border border-input bg-white px-3 text-sm"><option value="all">All statuses</option>{[...new Set(items.filter((item) => sectorFor(item) === sector).map((item) => statusFor(sector, item)))].filter(Boolean).map((value) => <option key={value} value={value}>{value}</option>)}</select></div>
     <div className="overflow-x-auto rounded-xl border border-border bg-white"><table className="min-w-full text-sm"><thead className="bg-emerald-900 text-white"><tr>{config.fields.map((field) => <th key={field} className="px-3 py-3 text-left whitespace-nowrap">{field}</th>)}<th className="px-3 py-3 text-left print:hidden">Actions</th></tr></thead><tbody className="divide-y divide-border">{rows.map((item) => { const editable = { ...item, id: item.item_id, stock: item.current_stock ?? item.stock ?? "", opening_stock: item.opening_stock ?? item.current_stock ?? item.stock ?? "", price: item.price_before_gst ?? item.price ?? "" }; const editConfig = editConfigFor(sector); return <tr key={item.item_id || item.id}><td className="px-3 py-3 font-semibold">{item.name || "Unnamed listing"}</td><td className="px-3 py-3">{item.category || item.service_sector || item.property_type || "-"}</td><td className="px-3 py-3">{sector === "product" ? `₹${Number(item.price_before_gst ?? item.price ?? 0).toFixed(2)}` : `₹${Number(item.price_before_gst ?? item.price ?? 0).toFixed(2)}`}</td><td className="px-3 py-3">{sector === "product" ? Math.max(0, Number(item.current_stock ?? item.stock ?? 0)) : item.availability || item.vehicle_status || item.delivery_status || item.property_status || "-"}</td><td className="px-3 py-3"><span className="rounded-full border border-emerald-200 bg-emerald-50 px-2 py-1 text-xs font-semibold text-emerald-800">{statusFor(sector, item)}</span></td><td className="px-3 py-3 print:hidden"><PartnerProductForm product={editable} onSaved={load} {...editConfig} triggerLabel="Edit" dialogTitle={`Edit ${config.label.toLowerCase()}`} dialogDescription="Update fields and save. The inventory list will refresh automatically." /></td></tr>; })}{!loading && !error && rows.length === 0 ? <tr><td colSpan={config.fields.length + 1} className="px-4 py-10 text-center text-slate-500">No inventory found.</td></tr> : null}</tbody></table></div>
     <style>{`@media print { aside, header, .partner-inventory-page button, .partner-inventory-page select, .partner-inventory-page input, .partner-inventory-page a { display: none !important; } .partner-inventory-page { margin: 0 !important; padding: 0 !important; } }`}</style>

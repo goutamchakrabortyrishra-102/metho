@@ -808,7 +808,8 @@ export default function PartnerDashboardPage() {
         if (!popup) window.location.href = whatsappUrl;
         toast.success("PDF downloaded and customer WhatsApp chat opened.");
       } else {
-        toast.success("PDF downloaded. Customer WhatsApp number not found, attach and send manually.");
+        openWhatsAppShare({ text: message });
+        toast.success("PDF downloaded and your WhatsApp share window opened.");
       }
     } catch (err) {
       const detail = err?.response?.data?.detail;
