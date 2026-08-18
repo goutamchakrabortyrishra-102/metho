@@ -424,6 +424,7 @@ export default function PartnerShopPage() {
   const [productSearch, setProductSearch] = useState("");
   const [transportSearch, setTransportSearch] = useState("");
   const [hospitalitySearch, setHospitalitySearch] = useState("");
+  const [hospitalityMode, setHospitalityMode] = useState("all");
   const [propertySearch, setPropertySearch] = useState("");
   const [doorstepSearch, setDoorstepSearch] = useState("");
   const [serviceSearch, setServiceSearch] = useState("");
@@ -618,14 +619,17 @@ export default function PartnerShopPage() {
   const canAccessProductPdf = ["partner", "admin", "super_admin", "company_admin"].includes(String(user?.role || "").toLowerCase());
   const filteredHospitality = useMemo(() => {
     const q = hospitalitySearch.trim().toLowerCase();
-    if (!q) return hospitalityListings;
     return hospitalityListings.filter((p) => {
+      const text = `${p?.service_template_key || ""} ${p?.category || ""} ${p?.name || ""}`.toLowerCase();
+      const isDining = text.includes("restaurant") || text.includes("cafe") || text.includes("table") || text.includes("dining");
+      if (hospitalityMode === "dining" && !isDining) return false;
+      if (hospitalityMode === "stays" && isDining) return false;
       const haystack = [data?.partner?.business_name, p?.name, p?.category, p?.description]
         .map((v) => String(v || "").toLowerCase())
         .join(" ");
-      return haystack.includes(q);
+      return !q || haystack.includes(q);
     });
-  }, [data?.partner?.business_name, hospitalityListings, hospitalitySearch]);
+  }, [data?.partner?.business_name, hospitalityListings, hospitalityMode, hospitalitySearch]);
   const filteredDoorstep = useMemo(() => {
     const q = doorstepSearch.trim().toLowerCase();
     if (!q) return doorstepListings;
@@ -1505,6 +1509,11 @@ export default function PartnerShopPage() {
                   </Button>
                 </div>
               </div>
+              <div className="mt-4 flex flex-wrap gap-2" data-testid="partner-hospitality-mode-filter">
+                {[['all', 'All'], ['stays', 'Stays & rooms'], ['dining', 'Restaurants & tables']].map(([mode, label]) => (
+                  <button key={mode} type="button" onClick={() => setHospitalityMode(mode)} className={`rounded-full border px-3 py-1.5 text-xs font-semibold ${hospitalityMode === mode ? "border-amber-700 bg-amber-700 text-white" : "border-amber-200 bg-white text-amber-900"}`}>{label}</button>
+                ))}
+              </div>
             </div>
           </div>
 
@@ -1920,6 +1929,7 @@ export default function PartnerShopPage() {
                           <span className="font-display font-black text-emerald-950">₹{serviceDisplayPrice(service)}</span>
                           <span className="text-[11px] text-slate-500">{servicePricingUnitLabel(service)}</span>
                         </div>
+                        <p className="mt-1 text-[11px] text-emerald-700">Available to reserve · pay securely at checkout</p>
                         <Button type="button" onClick={() => bookServiceNow(service)} className="w-full mt-3 rounded-full bg-amber-600 hover:bg-amber-700 text-white font-bold" data-testid={`shop-book-hospitality-${service.id}`}>
                           <CalendarCheck2 className="w-4 h-4 mr-2" /> {serviceBookingLabel(service)}
                         </Button>
