@@ -23,7 +23,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from ..database import get_db
-from ..models import AppSetting, AssociatePartner, Order, PartnerProduct, PartnerRequest, Product, ProductMeta, PublicOrder, User, UserReferral
+from ..models import AppSetting, AssociatePartner, FinancialLedgerEntry, InvoiceRecord, Order, PartnerProduct, PartnerRequest, PaymentRecord, Product, ProductMeta, PublicOrder, RewardRecord, User, UserReferral
 from ..security import hash_password, verify_password
 from ..storage import UPLOADED_OBJECTS_DIR
 from .auth import ADMIN_LOGIN_ID, get_current_user, get_current_user_optional
@@ -1187,6 +1187,102 @@ def _delivery_trip_key(trip_id: str) -> str:
     return f"delivery_trip:{trip_id}"
 
 
+def _property_enquiry_key(enquiry_id: str) -> str:
+    return f"property_enquiry:{enquiry_id}"
+
+
+def _load_property_enquiries(db: Session, partner_id: str | None = None) -> list[dict]:
+    rows = db.query(AppSetting).filter(AppSetting.key.like("property_enquiry:%")).order_by(AppSetting.updated_at.desc()).all()
+    result = []
+    for row in rows:
+        try:
+            enquiry = json.loads(row.value_json or "{}")
+        except Exception:
+            continue
+        if not isinstance(enquiry, dict):
+            continue
+        if partner_id and str(enquiry.get("partner_id") or "") != str(partner_id):
+            continue
+        result.append(enquiry)
+    return result
+
+
+def _save_property_enquiry(db: Session, enquiry: dict) -> dict:
+    enquiry_id = str(enquiry.get("id") or "").strip()
+    row = db.query(AppSetting).filter(AppSetting.key == _property_enquiry_key(enquiry_id)).first()
+    payload = json.dumps(enquiry)
+    if row:
+        row.value_json = payload
+        row.updated_at = datetime.now(timezone.utc)
+    else:
+        db.add(AppSetting(key=_property_enquiry_key(enquiry_id), value_json=payload, updated_at=datetime.now(timezone.utc)))
+    db.commit()
+    return enquiry
+
+
+@router.post("/property/enquiries")
+def create_property_enquiry(payload: dict, db: Session = Depends(get_db), current_user=Depends(get_current_user_optional)):
+    listing_id = str((payload or {}).get("listing_id") or "").strip()
+    customer_phone = "".join(ch for ch in str((payload or {}).get("customer_phone") or getattr(current_user, "phone", "") or "") if ch.isdigit())
+    customer_name = str((payload or {}).get("customer_name") or getattr(current_user, "name", "Customer") or "Customer").strip() or "Customer"
+    message = str((payload or {}).get("message") or "").strip()
+    if not listing_id or not message or not customer_phone:
+        raise HTTPException(status_code=400, detail="listing_id, customer_phone, and message are required")
+    listing = db.query(PartnerProduct).filter(PartnerProduct.id == listing_id, PartnerProduct.active.is_(True), PartnerProduct.approval_status == "approved").first()
+    if not listing:
+        raise HTTPException(status_code=404, detail="Property listing not found")
+    meta = _load_partner_product_meta(db).get(str(listing.id), {})
+    if str(meta.get("service_sector") or "").strip().lower() not in {"property buy & sell", "property", "real estate"}:
+        raise HTTPException(status_code=400, detail="Selected listing is not a property listing")
+    if str(meta.get("property_status") or "AVAILABLE").upper() in {"SOLD", "UNAVAILABLE", "INACTIVE"}:
+        raise HTTPException(status_code=409, detail="Property listing is no longer available")
+    partner_id = str(listing.partner_id)
+    active_duplicate = next((item for item in _load_property_enquiries(db, partner_id) if str(item.get("listing_id")) == listing_id and str(item.get("customer_phone")) == customer_phone and str(item.get("status")) not in {"CLOSED", "REJECTED"}), None)
+    if active_duplicate:
+        return {"ok": True, "duplicate": True, "enquiry": {"id": active_duplicate["id"], "status": active_duplicate["status"]}}
+    now = now_iso()
+    enquiry = {
+        "id": str(uuid.uuid4()),
+        "listing_id": listing_id,
+        "partner_id": partner_id,
+        "customer_user_id": str(getattr(current_user, "id", "") or ""),
+        "customer_name": customer_name,
+        "customer_phone": customer_phone,
+        "message": message,
+        "status": "ENQUIRY_CREATED",
+        "created_at": now,
+        "updated_at": now,
+    }
+    return {"ok": True, "duplicate": False, "enquiry": _save_property_enquiry(db, enquiry)}
+
+
+@router.get("/partner/property-enquiries")
+def partner_property_enquiries(db: Session = Depends(get_db), current_user=Depends(get_current_user)):
+    if getattr(current_user, "role", "") != "partner":
+        raise HTTPException(status_code=403, detail="Partner access only")
+    partner = _resolve_partner_for_user(db, current_user)
+    if not partner:
+        raise HTTPException(status_code=404, detail="Partner profile not found")
+    return _load_property_enquiries(db, str(partner.id))
+
+
+@router.patch("/partner/property-enquiries/{enquiry_id}")
+def update_property_enquiry(enquiry_id: str, payload: dict, db: Session = Depends(get_db), current_user=Depends(get_current_user)):
+    if getattr(current_user, "role", "") != "partner":
+        raise HTTPException(status_code=403, detail="Partner access only")
+    partner = _resolve_partner_for_user(db, current_user)
+    enquiry = next((item for item in _load_property_enquiries(db, str(partner.id) if partner else "") if str(item.get("id")) == str(enquiry_id)), None)
+    if not partner or not enquiry:
+        raise HTTPException(status_code=404, detail="Property enquiry not found")
+    next_status = str((payload or {}).get("status") or "").strip().upper()
+    allowed = {"ENQUIRY_CREATED", "PARTNER_REVIEW", "CONTACTED", "NEGOTIATION", "CLOSED", "REJECTED"}
+    if next_status not in allowed:
+        raise HTTPException(status_code=400, detail="Invalid property enquiry status")
+    enquiry["status"] = next_status
+    enquiry["updated_at"] = now_iso()
+    return {"ok": True, "enquiry": _save_property_enquiry(db, enquiry)}
+
+
 def _transport_fare_presets_key(partner_id: str) -> str:
     return f"transport_fare_presets:{partner_id}"
 
@@ -1230,6 +1326,8 @@ def _load_partner_product_meta(db: Session) -> dict[str, dict]:
 
 def _is_transport_service_listing(item: PartnerProduct | None, meta_map: dict[str, dict] | None = None) -> bool:
     if not item:
+        return False
+    if _is_delivery_service_listing(item, meta_map):
         return False
     meta = (meta_map or {}).get(str(item.id), {}) if isinstance(meta_map, dict) else {}
     template_key = str(meta.get("service_template_key") or "").strip().lower()
@@ -1588,6 +1686,27 @@ def _list_delivery_trips(db: Session, partner_id: str | None = None, limit: int 
         if len(out) >= max(1, int(limit)):
             break
     return out
+
+
+def _parse_schedule(value: str | None):
+    raw = str(value or "").strip()
+    if not raw:
+        return None
+    try:
+        parsed = datetime.fromisoformat(raw.replace("Z", "+00:00"))
+        return parsed if parsed.tzinfo else parsed.replace(tzinfo=timezone.utc)
+    except Exception:
+        return None
+
+
+def _schedule_overlaps(start_a: str | None, end_a: str | None, start_b: str | None, end_b: str | None) -> bool:
+    a_start = _parse_schedule(start_a)
+    b_start = _parse_schedule(start_b)
+    if not a_start or not b_start:
+        return False
+    a_end = _parse_schedule(end_a) or (a_start + timedelta(hours=1))
+    b_end = _parse_schedule(end_b) or (b_start + timedelta(hours=1))
+    return a_start < b_end and b_start < a_end
 
 
 def _load_transport_fare_presets(db: Session, partner_id: str) -> list[dict]:
@@ -2674,6 +2793,7 @@ def _get_offline_billing_product(db: Session, product_id: str) -> dict | None:
     if p:
         meta = db.query(ProductMeta).filter(ProductMeta.product_id == p.id).first()
         product_type = (meta.product_type if meta else "metho") or "metho"
+        gst_percent = max(0.0, float(meta.gst_percent or 0)) if meta else 0.0
         return {
             "id": p.id,
             "product_code": _ensure_product_code(db, p.id, product_type),
@@ -2681,6 +2801,8 @@ def _get_offline_billing_product(db: Session, product_id: str) -> dict | None:
             "price": round(float(p.price or 0), 2),
             "stock": float(p.stock or 0),
             "product_type": product_type,
+            "is_service": False,
+            "gst_percent": gst_percent,
             "partner_id": None,
             "unit_type": "piece",
             "unit_label": "piece",
@@ -2691,6 +2813,8 @@ def _get_offline_billing_product(db: Session, product_id: str) -> dict | None:
     if not pp:
         return None
     unit_info = _partner_unit_info(_load_partner_product_units(db), pp.id)
+    meta = _load_partner_product_meta(db).get(str(pp.id), {})
+    is_service = bool(meta.get("is_service") or str(meta.get("listing_type") or "").lower() == "service")
     return {
         "id": pp.id,
         "product_code": _ensure_product_code(db, pp.id, "associate_partner"),
@@ -2699,6 +2823,8 @@ def _get_offline_billing_product(db: Session, product_id: str) -> dict | None:
         "stock": float(pp.stock or 0),
         "product_type": "associate_partner",
         "partner_id": pp.partner_id,
+        "is_service": is_service,
+        "gst_percent": max(0.0, float(meta.get("gst_percent") or 0)),
         **unit_info,
     }
 
@@ -2815,6 +2941,16 @@ def _append_partner_wallet_tx(db: Session, partner_id: str, entry: dict):
             txs = json.loads(row.value_json or "[]")
         except Exception:
             txs = []
+    reference_id = str(entry.get("reference_id") or entry.get("ref_request_id") or entry.get("ref_order_id") or entry.get("ref_payment_id") or "").strip()
+    if reference_id and any(str(existing.get("reference_id") or existing.get("ref_request_id") or existing.get("ref_order_id") or existing.get("ref_payment_id") or "").strip() == reference_id for existing in txs if isinstance(existing, dict)):
+        return
+    entry.setdefault("ledger_id", f"partner-ledger:{partner_id}:{uuid.uuid4()}")
+    entry.setdefault("reference_id", reference_id or entry["ledger_id"])
+    entry.setdefault("transaction_type", entry.get("type") or "ADJUSTMENT")
+    entry.setdefault("credit", round(float(entry.get("amount") or 0), 2))
+    entry.setdefault("debit", 0.0)
+    entry.setdefault("status", "posted")
+    entry.setdefault("timestamp", entry.get("created_at") or now_iso())
     txs.insert(0, entry)
     txs = txs[:200]
     payload = json.dumps(txs)
@@ -2834,6 +2970,105 @@ def _list_partner_wallet_tx(db: Session, partner_id: str) -> list[dict]:
         return json.loads(row.value_json or "[]")
     except Exception:
         return []
+
+
+def _record_payment_once(db: Session, order: PublicOrder, payment_id: str, provider_order_id: str, amount: float, currency: str = "INR") -> PaymentRecord:
+    existing = db.query(PaymentRecord).filter(PaymentRecord.payment_id == payment_id).first()
+    if existing:
+        return existing
+    record = PaymentRecord(
+        order_id=order.id,
+        provider="razorpay",
+        payment_id=payment_id,
+        provider_order_id=provider_order_id,
+        amount=round(float(amount or 0), 2),
+        currency=str(currency or "INR").upper(),
+        status="verified",
+    )
+    db.add(record)
+    db.commit()
+    return record
+
+
+def _append_financial_ledger(
+    db: Session,
+    *,
+    reference_id: str,
+    transaction_type: str,
+    credit: float = 0,
+    debit: float = 0,
+    balance: float = 0,
+    partner_id: str = "",
+    order_id: str = "",
+    status: str = "posted",
+) -> FinancialLedgerEntry:
+    existing = db.query(FinancialLedgerEntry).filter(FinancialLedgerEntry.reference_id == reference_id).first()
+    if existing:
+        return existing
+    entry = FinancialLedgerEntry(
+        ledger_id=f"ledger:{reference_id}",
+        reference_id=reference_id,
+        transaction_type=transaction_type,
+        credit=round(float(credit or 0), 2),
+        debit=round(float(debit or 0), 2),
+        balance=round(float(balance or 0), 2),
+        partner_id=str(partner_id or ""),
+        order_id=str(order_id or ""),
+        status=status,
+    )
+    db.add(entry)
+    db.commit()
+    return entry
+
+
+def _record_invoice_once(db: Session, invoice: dict) -> InvoiceRecord:
+    existing = db.query(InvoiceRecord).filter(InvoiceRecord.order_id == invoice["order_id"]).first()
+    if existing:
+        return existing
+    record = InvoiceRecord(
+        order_id=invoice["order_id"],
+        invoice_no=invoice["invoice_no"],
+        payload_json=json.dumps(invoice),
+    )
+    db.add(record)
+    db.commit()
+    return record
+
+
+def _record_reward_once(db: Session, *, order_id: str, partner_id: str = "", reward_type: str, reference_id: str, amount: float) -> RewardRecord:
+    existing = db.query(RewardRecord).filter(RewardRecord.reference_id == reference_id).first()
+    if existing:
+        return existing
+    record = RewardRecord(
+        order_id=order_id,
+        partner_id=str(partner_id or ""),
+        reward_type=reward_type,
+        reference_id=reference_id,
+        amount=round(float(amount or 0), 2),
+        status="posted",
+    )
+    db.add(record)
+    db.commit()
+    return record
+
+
+def _credit_partner_customer_payment_once(db: Session, partner: AssociatePartner, order: PublicOrder, payment_id: str) -> dict:
+    reference_id = f"customer-payment:{payment_id or order.id}"
+    existing = next((item for item in _list_partner_wallet_tx(db, partner.id) if str(item.get("reference_id") or "") == reference_id), None)
+    if existing:
+        return existing
+    gross = round(float(order.total_amount or 0), 2)
+    commission_rate = max(0.0, min(100.0, float(partner.commission_percent or 0)))
+    commission = round(gross * commission_rate / 100.0, 2)
+    credit = round(gross - commission, 2)
+    wallet = _load_partner_wallet(db, partner.id)
+    wallet["balance"] = round(float(wallet.get("balance") or 0) + credit, 2)
+    wallet["total_credit"] = round(float(wallet.get("total_credit") or 0) + credit, 2)
+    _save_partner_wallet(db, partner.id, wallet)
+    entry = {"type": "customer_payment_credit", "transaction_type": "CUSTOMER_PAYMENT_CREDIT", "reference_id": reference_id, "ref_order_id": order.id, "ref_payment_id": payment_id, "amount": credit, "credit": credit, "debit": 0.0, "gross_amount": gross, "company_commission": commission, "description": "Verified customer payment less configured company commission", "created_at": now_iso(), "timestamp": now_iso(), "status": "posted"}
+    _append_partner_wallet_tx(db, partner.id, entry)
+    _append_financial_ledger(db, reference_id=reference_id, transaction_type="CUSTOMER_PAYMENT_CREDIT", credit=credit, balance=wallet["balance"], partner_id=partner.id, order_id=order.id)
+    return entry
 
 
 def _load_company_commission_wallet(db: Session) -> dict:
@@ -3949,14 +4184,18 @@ def offline_billing_create_order(payload: dict, db: Session = Depends(get_db), c
             qty = _round_quantity_to_step(qty_value or step, step)
 
         available_stock = max(0.0, float(item.get("stock") or 0))
-        if qty > available_stock:
+        if not item.get("is_service") and qty > available_stock:
             raise HTTPException(
                 status_code=400,
                 detail=f"{item.get('name') or 'Product'}: requested quantity {qty} exceeds available stock {available_stock}",
             )
 
         unit_price = round(float(item.get("price") or 0), 2)
-        subtotal = round(unit_price * float(qty), 2)
+        pre_tax = round(unit_price * float(qty), 2)
+        gst_percent = max(0.0, float(item.get("gst_percent") or 0))
+        gst_amount = round(pre_tax * gst_percent / 100.0, 2)
+        subtotal = round(pre_tax + gst_amount, 2)
+        subtotal = round(subtotal)
         total = round(total + subtotal, 2)
         normalized_items.append(
             {
@@ -3967,12 +4206,13 @@ def offline_billing_create_order(payload: dict, db: Session = Depends(get_db), c
                 "quantity": qty,
                 "subtotal": subtotal,
                 "product_type": item.get("product_type") or "metho",
+                "is_service": bool(item.get("is_service")),
                 "unit_type": unit_type,
                 "unit_label": unit_type,
                 "quantity_step": step,
-                "gst_percent": 0,
-                "gst_amount": 0,
-                "pre_tax": subtotal,
+                "gst_percent": gst_percent,
+                "gst_amount": gst_amount,
+                "pre_tax": pre_tax,
             }
         )
 
@@ -4003,7 +4243,21 @@ def offline_billing_create_order(payload: dict, db: Session = Depends(get_db), c
     db.add(row)
     db.commit()
 
-    # Use the same approval pipeline as online orders so wallet reserve + commission split rules stay identical.
+    if payment_mode == "cash":
+        return {
+            "ok": True,
+            "order_id": row.id,
+            "order_no": f"ORD-{row.id[:8].upper()}",
+            "payment_mode": payment_mode,
+            "member_code": canonical_member_code,
+            "total_amount": round(total, 2),
+            "status": "pending_payment",
+            "approval_reason": "Cash collection is pending authorized confirmation.",
+            "invoice_path": "",
+            "member_whatsapp_share_url": "",
+        }
+
+    # Online offline-billing orders use the same approval pipeline as online orders.
     try:
         admin_approve_order(
             order_id=row.id,
@@ -4075,6 +4329,16 @@ def _invoice_payload(db: Session, order_id: str, current_user: User):
     status_norm = str(row.status or "").strip().lower()
     if status_norm not in {"paid", "approved"}:
         raise HTTPException(status_code=400, detail="Invoice is available only after admin approval")
+    invoice_cache_key = f"invoice:{row.id}"
+    cached_invoice_row = db.query(AppSetting).filter(AppSetting.key == invoice_cache_key).first()
+    if cached_invoice_row:
+        try:
+            cached_invoice = json.loads(cached_invoice_row.value_json or "{}")
+            if isinstance(cached_invoice, dict) and cached_invoice.get("order_id") == row.id:
+                _record_invoice_once(db, cached_invoice)
+                return cached_invoice
+        except Exception:
+            pass
 
     settings = load_settings(db)
 
@@ -4087,8 +4351,6 @@ def _invoice_payload(db: Session, order_id: str, current_user: User):
         subtotal = float(item.get("subtotal") or 0)
         gst_rate = float(item.get("gst_percent") or 0)
         product_type = item.get("product_type") or "metho"
-        if product_type != "metho":
-            gst_rate = 0.0
         pre_tax = round(subtotal - float(item.get("gst_amount") or 0), 2)
         if pre_tax < 0:
             pre_tax = subtotal
@@ -4221,6 +4483,9 @@ def _invoice_payload(db: Session, order_id: str, current_user: User):
         "notes": settings.get("invoice_terms") or settings.get("rules_and_conditions", ""),
         "einvoice": {},
     }
+    db.add(AppSetting(key=invoice_cache_key, value_json=json.dumps(invoice), updated_at=datetime.now(timezone.utc)))
+    db.commit()
+    _record_invoice_once(db, invoice)
     return invoice
 
 
@@ -4389,8 +4654,8 @@ def admin_approve_order(order_id: str, payload: dict | None = None, db: Session 
     row = db.query(PublicOrder).filter(PublicOrder.id == order_id).first()
     if not row:
         raise HTTPException(status_code=404, detail="Order not found")
-    if row.status != "pending_approval":
-        raise HTTPException(status_code=400, detail=f"Only pending_approval orders can be approved (current: {row.status})")
+    if row.status not in {"pending_approval", "pending_payment"}:
+        raise HTTPException(status_code=400, detail=f"Only pending payment/approval orders can be approved (current: {row.status})")
     try:
         items = json.loads(row.items_json or "[]")
     except Exception:
@@ -4547,17 +4812,45 @@ def admin_approve_order(order_id: str, payload: dict | None = None, db: Session 
             {
                 "id": str(uuid.uuid4()),
                 "type": "commission_debit",
+                "transaction_type": "COMMISSION_RESERVE_DEBIT",
+                "reference_id": f"commission-reserve:{order_id}:{partner_id}",
                 "amount": round(required, 2),
+                "credit": 0.0,
+                "debit": round(required, 2),
                 "description": f"Commission reserve used for order {order_id}",
                 "ref_order_id": order_id,
                 "created_at": now_iso(),
             },
+        )
+        _append_financial_ledger(
+            db,
+            reference_id=f"commission-reserve:{order_id}:{partner_id}",
+            transaction_type="COMMISSION_RESERVE_DEBIT",
+            debit=required,
+            balance=wallet["balance"],
+            partner_id=partner_id,
+            order_id=order_id,
         )
 
     if total_commission_pool > 0:
         company_wallet["balance"] = round(float(company_wallet.get("balance") or 0) + total_commission_pool, 2)
         company_wallet["total_credit"] = round(float(company_wallet.get("total_credit") or 0) + total_commission_pool, 2)
         _save_company_commission_wallet(db, company_wallet)
+
+    _record_reward_once(
+        db,
+        order_id=order_id,
+        reward_type="COMMISSION_POOL_ALLOCATION",
+        reference_id=f"reward:commission-pool:{order_id}",
+        amount=total_commission_pool,
+    )
+    _append_financial_ledger(
+        db,
+        reference_id=f"reward:commission-pool:{order_id}",
+        transaction_type="REWARD",
+        debit=total_commission_pool,
+        order_id=order_id,
+    )
 
     split_member = round(total_commission_pool * (float(settings.get("commission_split_member_pool") or 0) / 100.0), 2)
     split_leader = round(total_commission_pool * (float(settings.get("commission_split_leader_pool") or 0) / 100.0), 2)
@@ -4917,6 +5210,7 @@ def create_transport_booking(payload: dict, request: Request, db: Session = Depe
     notes = str((payload or {}).get("notes") or "").strip()
     vehicle_type = str((payload or {}).get("vehicle_type") or "").strip().lower()
     travel_date = str((payload or {}).get("travel_date") or "").strip()
+    travel_end = str((payload or {}).get("travel_end") or "").strip()
     fare_preset_id = str((payload or {}).get("fare_preset_id") or "").strip()
     estimated_fare_raw = (payload or {}).get("estimated_fare")
 
@@ -4949,6 +5243,17 @@ def create_transport_booking(payload: dict, request: Request, db: Session = Depe
     meta_map = _load_partner_product_meta(db)
     if not _is_transport_service_listing(service, meta_map):
         raise HTTPException(status_code=400, detail="Selected service is not configured as transport")
+    vehicle_meta = (meta_map or {}).get(str(service.id), {})
+    vehicle_status = str(vehicle_meta.get("vehicle_status") or "AVAILABLE").strip().upper()
+    if vehicle_status != "AVAILABLE":
+        raise HTTPException(status_code=409, detail="This vehicle is not available for the selected time.")
+    active_transport_statuses = {"booked", "confirmed", "on_trip"}
+    duplicate_trip = next((trip for trip in _list_transport_trips(db, partner_id=str(partner.id), limit=1000) if str(trip.get("service_product_id") or "") == service_product_id and "".join(ch for ch in str(trip.get("customer_phone") or "") if ch.isdigit()) == "".join(ch for ch in customer_phone if ch.isdigit()) and str(trip.get("travel_date") or "") == travel_date and str(trip.get("status") or "") in active_transport_statuses), None)
+    if duplicate_trip:
+        raise HTTPException(status_code=409, detail="An active booking already exists for this vehicle and schedule.")
+    overlap_trip = next((trip for trip in _list_transport_trips(db, partner_id=str(partner.id), limit=1000) if str(trip.get("service_product_id") or "") == service_product_id and str(trip.get("status") or "") in active_transport_statuses and _schedule_overlaps(travel_date, travel_end, trip.get("travel_date"), trip.get("travel_end"))), None)
+    if overlap_trip:
+        raise HTTPException(status_code=409, detail="Vehicle is already booked for the selected time.")
 
     fare_quote = round(max(1.0, float(service.price or 0)), 2)
     try:
@@ -5054,6 +5359,7 @@ def create_transport_booking(payload: dict, request: Request, db: Session = Depe
         "fare_preset_destination": str(selected_preset.get("destination") or "") if selected_preset else "",
         "fare_preset_amount": float(selected_preset.get("fare") or 0) if selected_preset else 0,
         "travel_date": travel_date,
+        "travel_end": travel_end,
         "notes": notes,
         "customer_name": customer_name,
         "customer_phone": customer_phone,
@@ -5161,6 +5467,14 @@ def create_delivery_booking(payload: dict, request: Request, db: Session = Depen
     meta_map = _load_partner_product_meta(db)
     if not _is_delivery_service_listing(service, meta_map):
         raise HTTPException(status_code=400, detail="Selected service is not configured as delivery")
+    delivery_meta = (meta_map or {}).get(str(service.id), {})
+    availability = str(delivery_meta.get("availability") or "available").strip().lower()
+    if availability not in {"available", "busy"} or delivery_meta.get("is_available") is False:
+        raise HTTPException(status_code=409, detail="This delivery service is currently unavailable.")
+    active_delivery_statuses = {"booked", "confirmed", "pickup_assigned", "picked_up", "in_transit", "out_for_delivery"}
+    duplicate_delivery = next((trip for trip in _list_delivery_trips(db, partner_id=str(partner.id), limit=1000) if str(trip.get("service_product_id") or "") == service_product_id and "".join(ch for ch in str(trip.get("customer_phone") or "") if ch.isdigit()) == "".join(ch for ch in customer_phone if ch.isdigit()) and str(trip.get("pickup") or "") == pickup and str(trip.get("destination") or "") == destination and str(trip.get("status") or "") in active_delivery_statuses), None)
+    if duplicate_delivery:
+        raise HTTPException(status_code=409, detail="An active delivery already exists for this route and customer.")
 
     fare_quote = round(max(1.0, float(service.price or 0)), 2)
     try:
@@ -5398,7 +5712,7 @@ def partner_delivery_confirm_booking(trip_id: str, db: Session = Depends(get_db)
     if available + 1e-9 < required:
         raise HTTPException(
             status_code=400,
-            detail=f"Commission reserve wallet insufficient. Required ₹{required}, available ₹{available}. Top up first.",
+            detail={"code": "WALLET_INSUFFICIENT", "required_amount": required, "available_balance": available, "shortfall": round(required - available, 2)},
         )
 
     fare_final = round(float(trip.get("fare_final") or row.total_amount or 0), 2)
@@ -5479,6 +5793,32 @@ def partner_delivery_complete_booking(trip_id: str, db: Session = Depends(get_db
         "customer_whatsapp_delivered_url": customer_whatsapp_delivered_url,
         "message": "Delivery marked completed. Share delivered update with customer from partner WhatsApp.",
     }
+
+
+@router.post("/partner/delivery/bookings/{trip_id}/status")
+def partner_delivery_update_status(trip_id: str, payload: dict, db: Session = Depends(get_db), current_user=Depends(get_current_user)):
+    if getattr(current_user, "role", "") != "partner":
+        raise HTTPException(status_code=403, detail="Partner access only")
+    partner = _resolve_partner_for_user(db, current_user)
+    trip = _load_delivery_trip(db, trip_id)
+    if not partner or not trip or str(trip.get("partner_id") or "") != str(partner.id):
+        raise HTTPException(status_code=404, detail="Delivery booking not found")
+    current = str(trip.get("status") or "booked").lower()
+    requested = str((payload or {}).get("status") or "").strip().lower()
+    transitions = {
+        "booked": {"confirmed", "cancelled"},
+        "confirmed": {"pickup_assigned", "cancelled"},
+        "pickup_assigned": {"picked_up", "cancelled"},
+        "picked_up": {"in_transit", "failed_delivery"},
+        "in_transit": {"out_for_delivery", "failed_delivery", "returned"},
+        "out_for_delivery": {"delivered", "failed_delivery", "returned"},
+        "delivered": set(), "cancelled": set(), "failed_delivery": {"returned"}, "returned": set(), "paid": set(),
+    }
+    if requested not in transitions.get(current, set()):
+        raise HTTPException(status_code=400, detail=f"Invalid delivery status transition: {current} -> {requested}")
+    trip["status"] = requested
+    trip["updated_at"] = now_iso()
+    return {"ok": True, "booking": _save_delivery_trip(db, trip)}
 
 
 @router.get("/admin/transport/bookings")
@@ -5675,7 +6015,7 @@ def partner_transport_confirm_booking(trip_id: str, db: Session = Depends(get_db
     if available + 1e-9 < required:
         raise HTTPException(
             status_code=400,
-            detail=f"Commission reserve wallet insufficient. Required ₹{required}, available ₹{available}. Top up first.",
+            detail={"code": "WALLET_INSUFFICIENT", "required_amount": required, "available_balance": available, "shortfall": round(required - available, 2)},
         )
 
     fare_final = round(float(trip.get("fare_final") or row.total_amount or 0), 2)
@@ -6211,6 +6551,8 @@ def partner_wallet_topup_razorpay_verify_and_credit(payload: dict, db: Session =
 
     if str(doc.get("partner_id") or "") != str(partner.id):
         raise HTTPException(status_code=403, detail="This request does not belong to you")
+    if str(doc.get("status") or "").lower() == "approved" and str(doc.get("razorpay_payment_id") or "") == razorpay_payment_id:
+        return {"ok": True, "already_processed": True, "request": doc, "wallet": _load_partner_wallet(db, partner.id), "auto_approval": {"attempted": 0, "approved": 0}}
     if str(doc.get("status") or "").lower() != "pending":
         raise HTTPException(status_code=400, detail="Only pending request can be verified")
     if str(doc.get("payment_method") or "manual_upi").lower() != "razorpay":
@@ -6226,6 +6568,16 @@ def partner_wallet_topup_razorpay_verify_and_credit(payload: dict, db: Session =
     if not hmac.compare_digest(expected_signature, razorpay_signature):
         raise HTTPException(status_code=400, detail="Invalid Razorpay signature")
 
+    for candidate in db.query(AppSetting).filter(AppSetting.key.like("partner_topup:%")).all():
+        if candidate.key == row.key:
+            continue
+        try:
+            candidate_doc = json.loads(candidate.value_json or "{}")
+        except Exception:
+            candidate_doc = {}
+        if str(candidate_doc.get("razorpay_payment_id") or "") == razorpay_payment_id:
+            raise HTTPException(status_code=409, detail="Razorpay payment reference already credited")
+
     amount = round(float(doc.get("amount") or 0), 2)
     if amount <= 0:
         raise HTTPException(status_code=400, detail="Invalid top-up amount")
@@ -6238,13 +6590,25 @@ def partner_wallet_topup_razorpay_verify_and_credit(payload: dict, db: Session =
     tx = {
         "id": str(uuid.uuid4()),
         "type": "topup_credit_razorpay",
+        "transaction_type": "RAZORPAY_RECHARGE_CREDIT",
+        "reference_id": f"razorpay-recharge:{razorpay_payment_id}",
         "amount": amount,
+        "credit": amount,
+        "debit": 0.0,
         "description": "Razorpay top-up credited instantly",
         "ref_request_id": request_id,
         "ref_payment_id": razorpay_payment_id,
         "created_at": now_iso(),
     }
     _append_partner_wallet_tx(db, partner.id, tx)
+    _append_financial_ledger(
+        db,
+        reference_id=f"razorpay-recharge:{razorpay_payment_id}",
+        transaction_type="RAZORPAY_RECHARGE_CREDIT",
+        credit=amount,
+        balance=wallet["balance"],
+        partner_id=partner.id,
+    )
 
     doc["status"] = "approved"
     doc["reviewed_at"] = now_iso()

@@ -475,6 +475,27 @@ def _partner_product_meta(meta_map: dict[str, dict], product_id: str) -> dict:
         "working_hours": str((meta or {}).get("working_hours") or "").strip(),
         "advance_booking_required": bool((meta or {}).get("advance_booking_required") or False),
         "advance_amount": max(0.0, float((meta or {}).get("advance_amount") or 0)),
+        "vehicle_id": str((meta or {}).get("vehicle_id") or product_id).strip(),
+        "vehicle_type": str((meta or {}).get("vehicle_type") or "").strip(),
+        "vehicle_number": str((meta or {}).get("vehicle_number") or "").strip().upper(),
+        "vehicle_category": str((meta or {}).get("vehicle_category") or "").strip(),
+        "seating_capacity": max(0, int((meta or {}).get("seating_capacity") or 0)),
+        "driver_name": str((meta or {}).get("driver_name") or "").strip(),
+        "driver_phone": str((meta or {}).get("driver_phone") or "").strip(),
+        "vehicle_status": str((meta or {}).get("vehicle_status") or ("AVAILABLE" if is_service else "")).strip().upper(),
+        "driver_status": str((meta or {}).get("driver_status") or ("AVAILABLE" if is_service else "")).strip().upper(),
+        "base_fare": max(0.0, float((meta or {}).get("base_fare") or 0)),
+        "per_km_rate": max(0.0, float((meta or {}).get("per_km_rate") or 0)),
+        "per_hour_rate": max(0.0, float((meta or {}).get("per_hour_rate") or 0)),
+        "outstation_rate": max(0.0, float((meta or {}).get("outstation_rate") or 0)),
+        "night_charge": max(0.0, float((meta or {}).get("night_charge") or 0)),
+        "additional_charge": max(0.0, float((meta or {}).get("additional_charge") or 0)),
+        "property_type": str((meta or {}).get("property_type") or "").strip(),
+        "property_listing_type": str((meta or {}).get("property_listing_type") or "").strip(),
+        "property_area": str((meta or {}).get("property_area") or "").strip(),
+        "property_area_unit": str((meta or {}).get("property_area_unit") or "").strip(),
+        "property_location": str((meta or {}).get("property_location") or "").strip(),
+        "property_status": str((meta or {}).get("property_status") or "AVAILABLE").strip().upper(),
     }
 
 
@@ -530,6 +551,27 @@ def _set_partner_product_meta(db: Session, product_id: str, payload: dict | None
         "working_hours": str(src.get("working_hours") or prev.get("working_hours") or "").strip(),
         "advance_booking_required": bool(src.get("advance_booking_required") if src.get("advance_booking_required") is not None else prev.get("advance_booking_required") or False),
         "advance_amount": max(0.0, float(src.get("advance_amount") or prev.get("advance_amount") or 0)),
+        "vehicle_id": str(src.get("vehicle_id") or prev.get("vehicle_id") or product_id).strip(),
+        "vehicle_type": str(src.get("vehicle_type") or prev.get("vehicle_type") or "").strip(),
+        "vehicle_number": str(src.get("vehicle_number") or prev.get("vehicle_number") or "").strip().upper(),
+        "vehicle_category": str(src.get("vehicle_category") or prev.get("vehicle_category") or "").strip(),
+        "seating_capacity": max(0, int(src.get("seating_capacity") if src.get("seating_capacity") is not None else prev.get("seating_capacity") or 0)),
+        "driver_name": str(src.get("driver_name") or prev.get("driver_name") or "").strip(),
+        "driver_phone": str(src.get("driver_phone") or prev.get("driver_phone") or "").strip(),
+        "vehicle_status": str(src.get("vehicle_status") or prev.get("vehicle_status") or ("AVAILABLE" if is_service else "")).strip().upper(),
+        "driver_status": str(src.get("driver_status") or prev.get("driver_status") or ("AVAILABLE" if is_service else "")).strip().upper(),
+        "base_fare": max(0.0, float(src.get("base_fare") or prev.get("base_fare") or 0)),
+        "per_km_rate": max(0.0, float(src.get("per_km_rate") or prev.get("per_km_rate") or 0)),
+        "per_hour_rate": max(0.0, float(src.get("per_hour_rate") or prev.get("per_hour_rate") or 0)),
+        "outstation_rate": max(0.0, float(src.get("outstation_rate") or prev.get("outstation_rate") or 0)),
+        "night_charge": max(0.0, float(src.get("night_charge") or prev.get("night_charge") or 0)),
+        "additional_charge": max(0.0, float(src.get("additional_charge") or prev.get("additional_charge") or 0)),
+        "property_type": str(src.get("property_type") or prev.get("property_type") or "").strip(),
+        "property_listing_type": str(src.get("property_listing_type") or prev.get("property_listing_type") or "").strip(),
+        "property_area": str(src.get("property_area") or prev.get("property_area") or "").strip(),
+        "property_area_unit": str(src.get("property_area_unit") or prev.get("property_area_unit") or "").strip(),
+        "property_location": str(src.get("property_location") or prev.get("property_location") or "").strip(),
+        "property_status": str(src.get("property_status") or prev.get("property_status") or "AVAILABLE").strip().upper(),
     }
     _save_partner_product_meta(db, mapping)
     return mapping
@@ -1204,7 +1246,7 @@ def submit_payment(order_id: str, payload: dict, db: Session = Depends(get_db)):
     row.txn_id = str(payload.get("txn_id") or row.txn_id)
     row.payment_screenshot_url = str(payload.get("payment_screenshot_url") or row.payment_screenshot_url)
     row.payer_name = str(payload.get("payer_name") or row.payer_name)
-    row.status = "pending_approval"
+    row.status = "pending_payment" if str(row.payment_method or "").lower() in {"cash", "cod"} else "pending_approval"
     db.commit()
 
     return {"id": row.id, "status": row.status, "total_amount": row.total_amount}
@@ -1251,9 +1293,12 @@ def verify_razorpay_and_submit(payload: dict, db: Session = Depends(get_db)):
     razorpay_payment_id = str((payload or {}).get("razorpay_payment_id") or "").strip()
     razorpay_signature = str((payload or {}).get("razorpay_signature") or "").strip()
     payer_name = str((payload or {}).get("payer_name") or "").strip()
+    currency = str((payload or {}).get("currency") or "INR").strip().upper()
 
     if not order_id or not razorpay_order_id or not razorpay_payment_id or not razorpay_signature:
         raise HTTPException(status_code=400, detail="Missing Razorpay verification fields")
+    if currency != "INR":
+        raise HTTPException(status_code=400, detail="Currency mismatch")
 
     _, _, key_secret = _load_checkout_razorpay_settings(db)
 
@@ -1270,6 +1315,12 @@ def verify_razorpay_and_submit(payload: dict, db: Session = Depends(get_db)):
     if not row:
         raise HTTPException(status_code=404, detail="Order not found")
 
+    received_amount = (payload or {}).get("amount")
+    if received_amount is not None and round(float(received_amount), 2) != round(float(row.total_amount or 0), 2):
+        raise HTTPException(status_code=400, detail="Payment amount mismatch")
+    duplicate_payment = db.query(PublicOrder).filter(PublicOrder.txn_id == razorpay_payment_id, PublicOrder.id != order_id).first()
+    if duplicate_payment:
+        raise HTTPException(status_code=409, detail="Payment reference already used")
     if str(row.status or "").lower() == "paid" and str(row.txn_id or "").strip() == razorpay_payment_id:
         return {
             "id": row.id,
@@ -1286,6 +1337,25 @@ def verify_razorpay_and_submit(payload: dict, db: Session = Depends(get_db)):
     row.status = "pending_approval"
     db.commit()
 
+    from .compat import _record_payment_once
+    _record_payment_once(db, row, razorpay_payment_id, razorpay_order_id, float(row.total_amount or 0), currency)
+
+    try:
+        items = json.loads(row.items_json or "[]")
+    except Exception:
+        items = []
+    partner_ids = set()
+    if isinstance(items, list) and items and all(str(item.get("product_type") or "").lower() == "associate_partner" for item in items):
+        for item in items:
+            product = db.query(PartnerProduct).filter(PartnerProduct.id == str(item.get("product_id") or "")).first()
+            if product:
+                partner_ids.add(str(product.partner_id))
+    if len(partner_ids) == 1:
+        from .compat import _credit_partner_customer_payment_once
+        partner = db.query(AssociatePartner).filter(AssociatePartner.id == next(iter(partner_ids))).first()
+        if partner:
+            _credit_partner_customer_payment_once(db, partner, row, razorpay_payment_id)
+
     # Auto-approve verified Razorpay orders so invoice and commission logic run immediately.
     try:
         from .compat import admin_approve_order
@@ -1296,6 +1366,8 @@ def verify_razorpay_and_submit(payload: dict, db: Session = Depends(get_db)):
             db=db,
             current_user=SimpleNamespace(role="super_admin"),
         )
+        from .compat import _invoice_payload
+        _invoice_payload(db, order_id, SimpleNamespace(role="super_admin", id="RAZORPAY"))
         return {
             "id": order_id,
             "status": "paid",
@@ -1580,6 +1652,27 @@ def partner_products_update(product_id: str, payload: dict, db: Session = Depend
         "working_hours",
         "advance_booking_required",
         "advance_amount",
+        "vehicle_id",
+        "vehicle_type",
+        "vehicle_number",
+        "vehicle_category",
+        "seating_capacity",
+        "driver_name",
+        "driver_phone",
+        "vehicle_status",
+        "driver_status",
+        "base_fare",
+        "per_km_rate",
+        "per_hour_rate",
+        "outstation_rate",
+        "night_charge",
+        "additional_charge",
+        "property_type",
+        "property_listing_type",
+        "property_area",
+        "property_area_unit",
+        "property_location",
+        "property_status",
     ]):
         _set_partner_product_meta(db, product.id, payload)
 
@@ -1624,8 +1717,102 @@ def partner_products_delete(product_id: str, db: Session = Depends(get_db), curr
 
 
 @router.get("/partner/ledger")
-def partner_ledger(current_user=Depends(get_current_user)):
-    return []
+def partner_ledger(db: Session = Depends(get_db), current_user=Depends(get_current_user)):
+    if getattr(current_user, "role", "") != "partner":
+        return []
+    partner = _resolve_partner_for_user(db, current_user)
+    if not partner:
+        return []
+    partner_product_ids = _partner_product_ids(db, partner.id)
+    entries = []
+    seen_references = set()
+    balance = 0.0
+    for order in db.query(PublicOrder).filter(PublicOrder.status == "paid").order_by(PublicOrder.created_at.desc()).limit(500).all():
+        try:
+            items = json.loads(order.items_json or "[]")
+        except Exception:
+            items = []
+        sales = round(sum(
+            max(0.0, float(item.get("subtotal") or 0))
+            for item in items
+            if str(item.get("product_id") or "") in partner_product_ids
+        ), 2)
+        if sales <= 0:
+            continue
+        reference_id = f"order:{order.id}"
+        if reference_id in seen_references:
+            continue
+        seen_references.add(reference_id)
+        commission = round(sales * max(0.0, min(100.0, float(partner.commission_percent or 0))) / 100.0, 2)
+        balance = round(balance + commission, 2)
+        created_at = order.created_at
+        if created_at and created_at.tzinfo is None:
+            created_at = created_at.replace(tzinfo=timezone.utc)
+        entries.append({
+            "created_at": created_at.isoformat() if created_at else now_iso(),
+            "period": created_at.astimezone(timezone.utc).strftime("%Y-%m") if created_at else datetime.now(timezone.utc).strftime("%Y-%m"),
+            "ledger_id": f"ledger:{partner.id}:{order.id}",
+            "reference_id": reference_id,
+            "transaction_type": "SALE",
+            "description": f"Partner sale {order.id}",
+            "ref_order_id": order.id,
+            "sales_amount": sales,
+            "commission_percent": float(partner.commission_percent or 0),
+            "commission_amount": commission,
+            "credit": commission,
+            "debit": 0.0,
+            "balance": balance,
+            "status": "paid",
+            "timestamp": created_at.isoformat() if created_at else datetime.now(timezone.utc).isoformat(),
+        })
+    return entries
+
+
+@router.get("/partner/reports")
+def partner_reports(db: Session = Depends(get_db), current_user=Depends(get_current_user)):
+    if getattr(current_user, "role", "") != "partner":
+        raise HTTPException(status_code=403, detail="Partner access only")
+    partner = _resolve_partner_for_user(db, current_user)
+    if not partner:
+        raise HTTPException(status_code=404, detail="Partner profile not found")
+    from .compat import _is_delivery_service_listing, _list_delivery_trips, _list_transport_trips, _load_property_enquiries
+    meta_map = _load_partner_product_meta(db)
+    product_ids = _partner_product_ids(db, partner.id)
+    products = db.query(PartnerProduct).filter(PartnerProduct.partner_id == partner.id, PartnerProduct.active.is_(True)).all()
+    paid_orders = db.query(PublicOrder).filter(PublicOrder.status == "paid").all()
+    revenue = {pid: 0.0 for pid in product_ids}
+    for order in paid_orders:
+        try:
+            items = json.loads(order.items_json or "[]")
+        except Exception:
+            items = []
+        for item in items if isinstance(items, list) else []:
+            pid = str(item.get("product_id") or "")
+            if pid in revenue:
+                revenue[pid] += float(item.get("subtotal") or 0)
+    products_out, services_out, properties_out = [], [], []
+    for product in products:
+        meta = _partner_product_meta(meta_map, product.id)
+        if not meta.get("is_service"):
+            opening = int(meta.get("opening_stock") or product.stock or 0)
+            current = max(0, int(product.stock or 0))
+            products_out.append({"product": product.name, "sku": meta.get("sku"), "category": product.category, "purchase_cost": float(meta.get("purchase_cost") or 0), "price_before_gst": float(meta.get("price_before_gst") or product.price or 0), "gst_percent": float(meta.get("gst_percent") or 0), "gst_amount": round(float(meta.get("price_before_gst") or product.price or 0) * float(meta.get("gst_percent") or 0) / 100, 2), "final_price": round(float(meta.get("price_before_gst") or product.price or 0) * (1 + float(meta.get("gst_percent") or 0) / 100)), "opening_stock": opening, "current_stock": current, "sold": max(0, opening - current), "available": current, "stock_status": "OUT OF STOCK" if current == 0 else "LOW STOCK" if current <= 5 else "IN STOCK", "revenue": round(revenue.get(str(product.id), 0), 2)})
+        elif str(meta.get("property_type") or "").strip():
+            enquiries = _load_property_enquiries(db, str(partner.id))
+            properties_out.append({"property": product.name, "property_type": meta.get("property_type"), "listing_type": meta.get("property_listing_type"), "area": meta.get("property_area"), "area_unit": meta.get("property_area_unit"), "location": meta.get("property_location") or meta.get("service_area"), "district": meta.get("district"), "city": meta.get("city"), "price": float(product.price or 0), "status": meta.get("property_status") or "AVAILABLE", "enquiries": sum(1 for item in enquiries if str(item.get("listing_id")) == str(product.id))})
+        else:
+            base = float(meta.get("price_before_gst") or product.price or 0)
+            gst = float(meta.get("gst_percent") or 0)
+            services_out.append({"service": product.name, "sector": meta.get("service_sector"), "category": product.category, "rate": base, "gst_percent": gst, "gst_amount": round(base * gst / 100, 2), "final_rate": round(base * (1 + gst / 100)), "service_area": meta.get("service_area"), "availability": meta.get("availability") or "available", "revenue": round(revenue.get(str(product.id), 0), 2)})
+    transport_out = []
+    for product in products:
+        meta = _partner_product_meta(meta_map, product.id)
+        if not meta.get("vehicle_type") or _is_delivery_service_listing(product, meta_map):
+            continue
+        trips = [item for item in _list_transport_trips(db, partner_id=str(partner.id), limit=1000) if str(item.get("service_product_id")) == str(product.id)]
+        transport_out.append({"vehicle": product.name, "vehicle_number": meta.get("vehicle_number"), "vehicle_type": meta.get("vehicle_type"), "capacity": meta.get("seating_capacity"), "base_fare": meta.get("base_fare") or product.price, "per_km_rate": meta.get("per_km_rate"), "gst_percent": meta.get("gst_percent"), "gst_amount": round(float(meta.get("base_fare") or product.price or 0) * float(meta.get("gst_percent") or 0) / 100, 2), "final_fare": round(float(meta.get("base_fare") or product.price or 0) * (1 + float(meta.get("gst_percent") or 0) / 100)), "bookings": len(trips), "active_trips": sum(1 for item in trips if item.get("status") in {"booked", "confirmed", "on_trip"}), "completed_trips": sum(1 for item in trips if item.get("status") in {"completed", "paid"}), "cancelled_trips": sum(1 for item in trips if item.get("status") in {"rejected", "cancelled"}), "availability": meta.get("vehicle_status") or "AVAILABLE", "revenue": round(sum(float(item.get("fare_final") or item.get("fare_quote") or 0) for item in trips), 2)})
+    courier_out = [{"booking_id": item.get("trip_code") or item.get("id"), "courier_service": item.get("service_name"), "pickup": item.get("pickup"), "delivery": item.get("destination"), "delivery_charge": float(item.get("fare_final") or item.get("fare_quote") or 0), "gst_percent": 0, "gst_amount": 0, "final_amount": float(item.get("fare_final") or item.get("fare_quote") or 0), "payment_status": item.get("payment_status"), "delivery_status": item.get("status"), "revenue": float(item.get("fare_final") or item.get("fare_quote") or 0)} for item in _list_delivery_trips(db, partner_id=str(partner.id), limit=1000)]
+    return {"products": products_out, "services": services_out, "transport": transport_out, "courier": courier_out, "property": properties_out, "generated_at": datetime.now(timezone.utc).isoformat()}
 
 
 def _is_service_order_item(item: dict | None) -> bool:

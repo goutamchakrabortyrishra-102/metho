@@ -164,7 +164,6 @@ def _service_meta_for_product(meta_map: dict[str, dict], product_id: str) -> dic
         "product_pdf_url": pdf_url,
         "youtube_url": youtube_url,
         "inventory_type": "SERVICE" if is_service else "PRODUCT",
-        "purchase_cost": max(0.0, float((meta or {}).get("purchase_cost") or 0)),
         "price_before_gst": price_before_gst,
         "gst_percent": gst_percent,
         "gst_amount": gst_amount,
@@ -181,6 +180,24 @@ def _service_meta_for_product(meta_map: dict[str, dict], product_id: str) -> dic
         "working_hours": str((meta or {}).get("working_hours") or "").strip(),
         "advance_booking_required": bool((meta or {}).get("advance_booking_required") or False),
         "advance_amount": max(0.0, float((meta or {}).get("advance_amount") or 0)),
+        "vehicle_id": str((meta or {}).get("vehicle_id") or product_id).strip(),
+        "vehicle_type": str((meta or {}).get("vehicle_type") or "").strip(),
+        "vehicle_number": str((meta or {}).get("vehicle_number") or "").strip().upper(),
+        "vehicle_category": str((meta or {}).get("vehicle_category") or "").strip(),
+        "seating_capacity": max(0, int((meta or {}).get("seating_capacity") or 0)),
+        "vehicle_status": str((meta or {}).get("vehicle_status") or ("AVAILABLE" if is_service else "")).strip().upper(),
+        "base_fare": max(0.0, float((meta or {}).get("base_fare") or 0)),
+        "per_km_rate": max(0.0, float((meta or {}).get("per_km_rate") or 0)),
+        "per_hour_rate": max(0.0, float((meta or {}).get("per_hour_rate") or 0)),
+        "outstation_rate": max(0.0, float((meta or {}).get("outstation_rate") or 0)),
+        "night_charge": max(0.0, float((meta or {}).get("night_charge") or 0)),
+        "additional_charge": max(0.0, float((meta or {}).get("additional_charge") or 0)),
+        "property_type": str((meta or {}).get("property_type") or "").strip(),
+        "property_listing_type": str((meta or {}).get("property_listing_type") or "").strip(),
+        "property_area": str((meta or {}).get("property_area") or "").strip(),
+        "property_area_unit": str((meta or {}).get("property_area_unit") or "").strip(),
+        "property_location": str((meta or {}).get("property_location") or "").strip(),
+        "property_status": str((meta or {}).get("property_status") or "AVAILABLE").strip().upper(),
     }
 
 
@@ -250,8 +267,6 @@ def _partner_to_dict(p: AssociatePartner, classification: dict | None = None):
         "whatsapp_no": p.whatsapp_no,
         "contact_person": p.contact_person,
         "logo_url": p.logo_url,
-        "commission_percent": p.commission_percent,
-        "total_sales": p.total_sales,
         "is_featured": p.is_featured,
         "active": p.active,
         "service_sector": str(classification.get("service_sector") or ""),
@@ -539,6 +554,11 @@ def partner_public_page(partner_code: str, db: Session = Depends(get_db)):
     )
     unit_map = _load_partner_product_units(db)
     meta_map = _load_partner_product_meta(db)
+    products = [
+        product for product in products
+        if str(_service_meta_for_product(meta_map, product.id).get("property_status") or "AVAILABLE").upper()
+        not in {"SOLD", "UNAVAILABLE", "INACTIVE"}
+    ]
 
     partner_doc = _partner_to_dict(partner, _load_partner_classification_meta(db).get(str(partner.id), {}))
     partner_doc["banner_url"] = banner_url

@@ -136,6 +136,59 @@ class PublicOrder(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now_utc)
 
 
+class PaymentRecord(Base):
+    __tablename__ = "payment_records"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
+    order_id: Mapped[str] = mapped_column(String(36), ForeignKey("public_orders.id"), nullable=False, unique=True, index=True)
+    provider: Mapped[str] = mapped_column(String(30), nullable=False, default="razorpay")
+    payment_id: Mapped[str] = mapped_column(String(120), nullable=False, unique=True, index=True)
+    provider_order_id: Mapped[str] = mapped_column(String(120), nullable=False, default="")
+    amount: Mapped[float] = mapped_column(Float, nullable=False, default=0)
+    currency: Mapped[str] = mapped_column(String(8), nullable=False, default="INR")
+    status: Mapped[str] = mapped_column(String(30), nullable=False, default="verified")
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now_utc)
+
+
+class InvoiceRecord(Base):
+    __tablename__ = "invoice_records"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
+    order_id: Mapped[str] = mapped_column(String(36), ForeignKey("public_orders.id"), nullable=False, unique=True, index=True)
+    invoice_no: Mapped[str] = mapped_column(String(80), nullable=False, unique=True, index=True)
+    payload_json: Mapped[str] = mapped_column(Text, nullable=False, default="{}")
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now_utc)
+
+
+class FinancialLedgerEntry(Base):
+    __tablename__ = "financial_ledger_entries"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
+    ledger_id: Mapped[str] = mapped_column(String(120), nullable=False, unique=True, index=True)
+    reference_id: Mapped[str] = mapped_column(String(160), nullable=False, unique=True, index=True)
+    partner_id: Mapped[str] = mapped_column(String(36), nullable=False, default="", index=True)
+    order_id: Mapped[str] = mapped_column(String(36), nullable=False, default="", index=True)
+    transaction_type: Mapped[str] = mapped_column(String(60), nullable=False, default="ADJUSTMENT")
+    credit: Mapped[float] = mapped_column(Float, nullable=False, default=0)
+    debit: Mapped[float] = mapped_column(Float, nullable=False, default=0)
+    balance: Mapped[float] = mapped_column(Float, nullable=False, default=0)
+    status: Mapped[str] = mapped_column(String(30), nullable=False, default="posted")
+    timestamp: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now_utc, index=True)
+
+
+class RewardRecord(Base):
+    __tablename__ = "reward_records"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
+    order_id: Mapped[str] = mapped_column(String(36), ForeignKey("public_orders.id"), nullable=False, index=True)
+    partner_id: Mapped[str] = mapped_column(String(36), nullable=False, default="", index=True)
+    reward_type: Mapped[str] = mapped_column(String(60), nullable=False)
+    reference_id: Mapped[str] = mapped_column(String(160), nullable=False, unique=True, index=True)
+    amount: Mapped[float] = mapped_column(Float, nullable=False, default=0)
+    status: Mapped[str] = mapped_column(String(30), nullable=False, default="posted")
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now_utc)
+
+
 class AppSetting(Base):
     __tablename__ = "app_settings"
 

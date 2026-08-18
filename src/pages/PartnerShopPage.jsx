@@ -556,6 +556,19 @@ export default function PartnerShopPage() {
   const canShowProperty = visibleSectors.includes(PARTNER_SECTOR_KEYS.PROPERTY_SECTOR);
   const canShowDoorstep = visibleSectors.includes(PARTNER_SECTOR_KEYS.DOORSTEP_SECTOR);
   const canShowOtherServices = visibleSectors.includes(PARTNER_SECTOR_KEYS.OTHER_SERVICE_SECTOR);
+  const isTransportPartner = canShowTransport;
+  const isCourierPartner = canShowDeliveryPartner;
+  const transportServiceType = [
+    data?.partner?.service_category,
+    data?.partner?.service_sector,
+    data?.partner?.business_type,
+  ].map((value) => String(value || "").trim()).find(Boolean) || "Transport Service";
+  const transportArea = [
+    data?.partner?.city,
+    data?.partner?.district,
+    data?.partner?.state,
+    data?.partner?.pincode,
+  ].filter(Boolean).join(", ");
   const filteredProductListings = useMemo(() => {
     const q = productSearch.trim().toLowerCase();
     if (!q) return productListings;
@@ -864,8 +877,24 @@ export default function PartnerShopPage() {
       toast.error("This service is currently unavailable");
       return;
     }
+    if (String(service?.vehicle_status || "AVAILABLE").toUpperCase() !== "AVAILABLE") {
+      toast.error("This vehicle is not available for the selected time.");
+      return;
+    }
     if (isTransportServiceListing(service)) {
       openTransportBookingDesk(service);
+      return;
+    }
+    if (isPropertyServiceLike(service)) {
+      const link = waUrl(p);
+      if (link) {
+        window.open(link, "_blank", "noopener,noreferrer");
+        toast.success("Property enquiry opened with the partner");
+      } else if (p?.phone) {
+        window.location.href = `tel:${p.phone}`;
+      } else {
+        toast.error("Partner contact is not available");
+      }
       return;
     }
     setCart((prev) => ({ ...prev, [service.id]: 1 }));
@@ -874,6 +903,24 @@ export default function PartnerShopPage() {
       toast.info("Guest mode active: reward attribution-এর জন্য checkout-এ Member ID/Code দিন");
     }
     toast.success(`${service.name || "Service"} booking started`);
+  };
+
+  const submitPropertyEnquiry = async (listing) => {
+    const message = window.prompt("What would you like to know about this property?", "I am interested in this property listing.");
+    if (!message) return;
+    const customerPhone = window.prompt("Your phone number", String(user?.phone || "").trim());
+    if (!customerPhone) return;
+    try {
+      const { data } = await api.post("/property/enquiries", {
+        listing_id: listing.id,
+        customer_name: user?.name || "Customer",
+        customer_phone: customerPhone,
+        message,
+      });
+      toast.success(data?.duplicate ? "Your existing enquiry is already with the partner" : "Property enquiry submitted");
+    } catch (err) {
+      toast.error(err?.response?.data?.detail || "Property enquiry failed");
+    }
   };
 
   const submitTransportBooking = async () => {
@@ -1045,7 +1092,7 @@ export default function PartnerShopPage() {
                 )}
               </p>
               <h1 className="font-display font-black text-2xl md:text-4xl mt-1" data-testid="shop-title">{p.business_name}</h1>
-              <p className="text-emerald-100/80 mt-1 text-sm capitalize">{p.business_type}{p.contact_person ? ` · ${p.contact_person}` : ""}</p>
+              <p className="text-emerald-100/80 mt-1 text-sm capitalize">{isTransportPartner ? `Verified Transport Partner · ${transportServiceType}` : p.business_type}{p.contact_person ? ` · ${p.contact_person}` : ""}</p>
               {addr && (
                 <p className="mt-3 flex items-start gap-1.5 text-xs text-emerald-100/90 max-w-2xl">
                   <MapPin className="w-4 h-4 text-amber-400 mt-0.5 shrink-0" />
@@ -1146,9 +1193,9 @@ export default function PartnerShopPage() {
       <main className={`max-w-6xl mx-auto px-4 py-8 ${items.length > 0 ? "pt-28 md:pt-8" : ""}`}>
         {hasAnyFeaturedImage && (
           <div className="mb-8 bg-white rounded-xl border border-border p-6">
-            <div className="flex items-center gap-2 mb-4">
-              <Images className="w-5 h-5 text-emerald-700" />
-              <h2 className="font-display font-bold text-2xl text-emerald-950">Product Image</h2>
+              <div className="flex items-center gap-2 mb-4">
+                <Images className="w-5 h-5 text-emerald-700" />
+                <h2 className="font-display font-bold text-2xl text-emerald-950">{isTransportPartner ? "Vehicle & Service Gallery" : isCourierPartner ? "Courier Service Gallery" : "Product Image"}</h2>
             </div>
             <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
               {[0, 1, 2, 3, 4].map((slot) => {
@@ -1617,7 +1664,7 @@ export default function PartnerShopPage() {
             <div className="flex flex-wrap items-center justify-between gap-3">
               <div>
                 <p className="text-[10px] uppercase tracking-widest text-sky-700 font-semibold">Transport Services</p>
-                <h3 className="font-display font-bold text-emerald-950 text-lg mt-1">Transport ({filteredTransport.length})</h3>
+                <h3 className="font-display font-bold text-emerald-950 text-lg mt-1">Available Vehicles & Services ({filteredTransport.length})</h3>
               </div>
               <div className="flex items-center gap-2 w-full md:w-auto">
                 <div className="flex items-center gap-2 border border-sky-200 rounded-full px-3 h-11 bg-sky-50 w-full md:w-72">
@@ -1679,16 +1726,20 @@ export default function PartnerShopPage() {
                         ) : null}
                       </div>
                       <div className="p-3">
-                        <p className="text-[10px] uppercase tracking-widest text-sky-700 font-semibold truncate">{service.category}</p>
-                        <p className="font-display font-bold text-emerald-950 mt-0.5 line-clamp-1">{service.name}</p>
+                        <p className="text-[10px] uppercase tracking-widest text-sky-700 font-semibold truncate">{service.vehicle_type || service.category || "Transport Service"}</p>
+                        <p className="font-display font-bold text-emerald-950 mt-0.5 line-clamp-1">{service.name || "Transport Service"}</p>
+                        {service.vehicle_number ? <p className="text-xs text-slate-600 mt-1">Vehicle: {service.vehicle_number.length > 4 ? `${service.vehicle_number.slice(0, 2)}***${service.vehicle_number.slice(-2)}` : service.vehicle_number}</p> : null}
+                        {Number(service.seating_capacity || 0) > 0 ? <p className="text-xs text-slate-600">Seats / capacity: {service.seating_capacity}</p> : null}
+                        {service.service_area ? <p className="text-xs text-slate-600">Service area: {service.service_area}</p> : null}
                         <div className="mt-2 flex items-center justify-between">
-                          <span className="text-[11px] font-semibold text-sky-800">Fare on confirm</span>
-                          <span className="text-[11px] text-slate-500">Ride / Rental</span>
+                          <span className="text-[11px] font-semibold text-sky-800">Starting from: ₹{Number(service.base_fare || service.price || 0).toLocaleString("en-IN")}</span>
+                          <span className={`text-[11px] font-semibold ${String(service.vehicle_status || "AVAILABLE") === "AVAILABLE" ? "text-emerald-700" : "text-amber-700"}`}>{service.vehicle_status || "AVAILABLE"}</span>
                         </div>
+                        {Number(service.per_km_rate || 0) > 0 ? <p className="text-[11px] text-slate-500 mt-1">₹{Number(service.per_km_rate).toLocaleString("en-IN")}/km</p> : null}
 
                         <Button
                           type="button"
-                          onClick={() => bookServiceNow(service)}
+                          onClick={() => submitPropertyEnquiry(service)}
                           className="w-full mt-3 rounded-full bg-sky-700 hover:bg-sky-800 text-white"
                           data-testid={`shop-book-transport-${service.id}`}
                         >
@@ -1701,6 +1752,22 @@ export default function PartnerShopPage() {
               </div>
             )}
           </section>
+          <section className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-8">
+            <div className="bg-white rounded-xl border border-sky-200 p-6" data-testid="partner-shop-transport-area">
+              <p className="text-[10px] uppercase tracking-widest text-sky-700 font-semibold">Service Area</p>
+              <h3 className="font-display font-bold text-emerald-950 text-lg mt-1">Where this partner operates</h3>
+              <p className="text-sm text-slate-700 mt-3">{transportArea || transportListings.map((item) => item.service_area).filter(Boolean).join(", ") || "Area available on booking request"}</p>
+            </div>
+            <div className="bg-white rounded-xl border border-sky-200 p-6" data-testid="partner-shop-transport-information">
+              <p className="text-[10px] uppercase tracking-widest text-sky-700 font-semibold">Transport Service Information</p>
+              <div className="mt-3 space-y-1 text-sm text-slate-700">
+                <p><span className="font-semibold text-slate-900">Service type:</span> {transportServiceType}</p>
+                {data?.partner?.business_type ? <p><span className="font-semibold text-slate-900">Business type:</span> {data.partner.business_type}</p> : null}
+                <p><span className="font-semibold text-slate-900">Vehicles / services:</span> {transportListings.length}</p>
+                <p><span className="font-semibold text-slate-900">Availability:</span> {transportListings.some((item) => String(item.vehicle_status || "AVAILABLE") === "AVAILABLE") ? "Available for booking" : "Check with partner"}</p>
+              </div>
+            </div>
+          </section>
         </>
       ) : null}
 
@@ -1708,13 +1775,39 @@ export default function PartnerShopPage() {
         <div className="mb-8">
           <div className="bg-white rounded-xl border border-cyan-200 p-6" data-testid="partner-shop-delivery-panel">
             <div className="flex items-start gap-2 mb-1">
-              <p className="text-[10px] uppercase tracking-widest text-cyan-700 font-semibold">Delivery Partner Services</p>
+              <p className="text-[10px] uppercase tracking-widest text-cyan-700 font-semibold">Courier & Logistics Services</p>
             </div>
-            <h3 className="font-display font-bold text-emerald-950 text-lg mt-1">Courier, logistics and parcel services</h3>
-            <p className="text-sm text-slate-600 mt-3">Delivery listings are kept separate from transport rides.</p>
-            <div className="mt-6 flex flex-col lg:flex-row gap-3 lg:items-center">
-              <Button onClick={() => openGallery("", "delivery-partner")} className="w-full lg:w-auto lg:min-w-[220px] bg-cyan-700 hover:bg-cyan-800 text-white rounded-full" data-testid="partner-delivery-gallery-btn">
-                <CalendarCheck2 className="w-4 h-4 mr-2" /> Book / Add to Cart
+            <h3 className="font-display font-bold text-emerald-950 text-lg mt-1">Courier, logistics and parcel delivery</h3>
+            <p className="text-sm text-slate-600 mt-3">Courier services remain separate from Transport/Fleet. Choose a service to continue in the existing delivery booking flow.</p>
+            {deliveryListings.length === 0 ? (
+              <div className="mt-6 rounded-xl border border-dashed border-cyan-200 p-8 text-center text-slate-500">No courier service found.</div>
+            ) : (
+              <div className="mt-6 grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
+                {deliveryListings.map((service) => (
+                  <div key={service.id} className="border border-cyan-200 rounded-xl overflow-hidden bg-white" data-testid={`shop-delivery-${service.id}`}>
+                    <div className="aspect-square bg-slate-100 overflow-hidden">
+                      <img src={getDisplayImage(service, placeholder)} alt={service.name} className="w-full h-full object-cover" />
+                    </div>
+                    <div className="p-3">
+                      <p className="text-[10px] uppercase tracking-widest text-cyan-700 font-semibold truncate">{service.service_type || service.category || "Delivery Service"}</p>
+                      <p className="font-display font-bold text-emerald-950 mt-0.5 line-clamp-1">{service.name || "Courier Service"}</p>
+                      {service.service_area ? <p className="text-xs text-slate-600 mt-1">Service area: {service.service_area}</p> : null}
+                      {service.working_hours ? <p className="text-xs text-slate-600">Hours: {service.working_hours}</p> : null}
+                      <div className="mt-2 flex items-center justify-between gap-2">
+                        <span className="text-[11px] font-semibold text-cyan-800">From ₹{Number(service.final_customer_rate || service.price || 0).toLocaleString("en-IN")}</span>
+                        <span className={`text-[10px] font-semibold ${service.is_available === false ? "text-amber-700" : "text-emerald-700"}`}>{service.is_available === false ? "UNAVAILABLE" : "AVAILABLE"}</span>
+                      </div>
+                      <Button onClick={() => openGallery(service.name || "", "delivery-partner")} className="w-full mt-3 rounded-full bg-cyan-700 hover:bg-cyan-800 text-white" data-testid={`shop-book-delivery-${service.id}`}>
+                        <CalendarCheck2 className="w-4 h-4 mr-2" /> Request Delivery
+                      </Button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+            <div className="mt-5 flex flex-col lg:flex-row gap-3 lg:items-center">
+              <Button onClick={() => openGallery("", "delivery-partner")} variant="outline" className="w-full lg:w-auto lg:min-w-[220px] rounded-full border-cyan-300 text-cyan-900" data-testid="partner-delivery-gallery-btn">
+                View Delivery Services
               </Button>
             </div>
           </div>
@@ -1977,7 +2070,7 @@ export default function PartnerShopPage() {
             <div className="flex flex-wrap items-center justify-between gap-3">
               <div>
                 <p className="text-[10px] uppercase tracking-widest text-indigo-700 font-semibold">Property Buy & Sell</p>
-                <h3 className="font-display font-bold text-emerald-950 text-lg mt-1">Property Services ({filteredProperty.length})</h3>
+                <h3 className="font-display font-bold text-emerald-950 text-lg mt-1">Property Listings ({filteredProperty.length})</h3>
               </div>
               <div className="flex items-center gap-2 w-full md:w-auto">
                 <Button variant="outline" className="rounded-full shrink-0 border-indigo-300 text-indigo-900" onClick={() => openGallery(propertySearch, "property-buy-sell")} data-testid="partner-shop-property-view-all-link">
@@ -2041,11 +2134,14 @@ export default function PartnerShopPage() {
                         ) : null}
                       </div>
                       <div className="p-3">
-                        <p className="text-[10px] uppercase tracking-widest text-indigo-700 font-semibold truncate">{service.category}</p>
-                        <p className="font-display font-bold text-emerald-950 mt-0.5 line-clamp-1">{service.name}</p>
+                        <p className="text-[10px] uppercase tracking-widest text-indigo-700 font-semibold truncate">{service.property_type || service.service_type || service.category || "Property"}</p>
+                        <p className="font-display font-bold text-emerald-950 mt-0.5 line-clamp-1">{service.name || "Property Listing"}</p>
+                        {service.property_listing_type ? <p className="text-xs text-slate-600 mt-1">{service.property_listing_type}</p> : null}
+                        {service.property_area ? <p className="text-xs text-slate-600">Area: {service.property_area} {service.property_area_unit || ""}</p> : null}
+                        {service.service_area ? <p className="text-xs text-slate-600">Location: {service.service_area}</p> : null}
                         <div className="mt-2 flex items-center justify-between">
                           <span className="font-display font-black text-emerald-950">₹{serviceDisplayPrice(service)}</span>
-                          <span className="text-[11px] text-slate-500">Property</span>
+                          <span className="text-[11px] text-emerald-700 font-semibold">{service.property_status || service.availability || "Available"}</span>
                         </div>
 
                         <Button
@@ -2054,7 +2150,7 @@ export default function PartnerShopPage() {
                           className="w-full mt-3 rounded-full bg-indigo-700 hover:bg-indigo-800 text-white"
                           data-testid={`shop-book-property-${service.id}`}
                         >
-                          <CalendarCheck2 className="w-4 h-4 mr-2" /> Book Now
+                          <CalendarCheck2 className="w-4 h-4 mr-2" /> Enquire Now
                         </Button>
                       </div>
                     </div>
@@ -2199,7 +2295,7 @@ export default function PartnerShopPage() {
             <div className="aspect-square overflow-hidden bg-slate-100 relative">
               <img
                 src={getDisplayImage(previewItem, placeholder)}
-                alt={previewItem?.name || "Product image"}
+                        alt={previewItem?.name || (isTransportPartner ? "Transport image" : "Product image")}
                 className="w-full h-full object-cover"
                 onError={(e) => {
                   applyImageFallback(

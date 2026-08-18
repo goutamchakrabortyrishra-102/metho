@@ -42,6 +42,7 @@ const loadDirectoryPage = () => import("@/pages/DirectoryPage");
 const loadMethoStorePage = () => import("@/pages/MethoStorePage");
 const loadPartnerShopPage = () => import("@/pages/PartnerShopPage");
 const loadPartnerPayoutStatementPage = () => import("@/pages/PartnerPayoutStatementPage");
+const loadPartnerReportsPage = () => import("@/pages/dashboard/PartnerReportsPage");
 const loadShopPage = () => import("@/pages/ShopPage");
 const loadPartnerGalleryPage = () => import("@/pages/PartnerGalleryPage");
 const loadInstallPage = () => import("@/pages/InstallPage");
@@ -92,6 +93,7 @@ const DirectoryPage = lazy(loadDirectoryPage);
 const MethoStorePage = lazy(loadMethoStorePage);
 const PartnerShopPage = lazy(loadPartnerShopPage);
 const PartnerPayoutStatementPage = lazy(loadPartnerPayoutStatementPage);
+const PartnerReportsPage = lazy(loadPartnerReportsPage);
 const ShopPage = lazy(loadShopPage);
 const PartnerGalleryPage = lazy(loadPartnerGalleryPage);
 const InstallPage = lazy(loadInstallPage);
@@ -300,6 +302,7 @@ function App() {
               <Route path="/partner-shop/:partnerCode" element={<PartnerShopPage />} />
               <Route path="/gallery/:partnerCode" element={<PartnerGalleryPage />} />
               <Route path="/partner-payout" element={<PrivateRoute><PartnerPayoutStatementPage /></PrivateRoute>} />
+              <Route path="/partner-reports" element={<PrivateRoute><PartnerReportsPage /></PrivateRoute>} />
               <Route
                 path="/app"
                 element={

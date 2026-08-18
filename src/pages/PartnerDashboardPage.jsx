@@ -362,11 +362,12 @@ export default function PartnerDashboardPage() {
   const [serviceSlotRateDrafts, setServiceSlotRateDrafts] = useState({});
   const [serviceSlotConfigBusy, setServiceSlotConfigBusy] = useState({});
   const [ordersShortcutPinned, setOrdersShortcutPinned] = useState(false);
+  const [walletShortfall, setWalletShortfall] = useState(null);
   const normalizedProducts = Array.isArray(products) ? products : [];
   const normalizedLedger = Array.isArray(ledger) ? ledger : [];
   const normalizedOrders = Array.isArray(orders) ? orders : [];
   const productItems = normalizedProducts.filter((p) => !(String(p?.listing_type || p?.item_kind || "").toLowerCase().includes("service") || p?.is_service));
-  const transportItems = normalizedProducts.filter((p) => (String(p?.listing_type || p?.item_kind || "").toLowerCase().includes("service") || p?.is_service) && isTransportServiceListing(p));
+  const transportItems = normalizedProducts.filter((p) => (String(p?.listing_type || p?.item_kind || "").toLowerCase().includes("service") || p?.is_service) && !isDeliveryServiceLike(p) && isTransportServiceListing(p));
   const deliveryItems = normalizedProducts.filter((p) => (String(p?.listing_type || p?.item_kind || "").toLowerCase().includes("service") || p?.is_service) && !isTransportServiceListing(p) && isDeliveryServiceLike(p));
   const hospitalityItems = normalizedProducts.filter((p) => (String(p?.listing_type || p?.item_kind || "").toLowerCase().includes("service") || p?.is_service) && !isTransportServiceListing(p) && !isDeliveryServiceLike(p) && isHospitalityServiceListing(p));
   const propertyItems = normalizedProducts.filter((p) => (String(p?.listing_type || p?.item_kind || "").toLowerCase().includes("service") || p?.is_service) && !isTransportServiceListing(p) && !isDeliveryServiceLike(p) && !isHospitalityServiceLike(p) && isPropertyServiceListing(p));
@@ -543,6 +544,11 @@ export default function PartnerDashboardPage() {
       toast.success("Final fare locked, reserve debited, and trip auto-approved");
       loadAll();
     } catch (err) {
+      const detail = err?.response?.data?.detail;
+      if (detail?.code === "WALLET_INSUFFICIENT") {
+        setWalletShortfall(detail);
+        return;
+      }
       toast.error(err?.response?.data?.detail || "Booking confirmation failed");
     }
   };
@@ -653,14 +659,14 @@ export default function PartnerDashboardPage() {
   useEffect(() => {
     const requestedTab = String(new URLSearchParams(location.search).get("tab") || "").trim().toLowerCase();
     if (!requestedTab) return;
-    const allowedTabs = new Set(["overview", "offline", "orders", "ledger", ...sectorTabs]);
+    const allowedTabs = new Set(["overview", "offline", "orders", "ledger", "reports", ...sectorTabs]);
     if (allowedTabs.has(requestedTab) && requestedTab !== tab) {
       setTab(requestedTab);
     }
   }, [location.search, sectorTabs, tab]);
 
   useEffect(() => {
-    const allowedTabs = new Set(["overview", "offline", "orders", "ledger", ...sectorTabs]);
+    const allowedTabs = new Set(["overview", "offline", "orders", "ledger", "reports", ...sectorTabs]);
     if (!allowedTabs.has(tab)) {
       setTab(tab === "overview" ? listingDefaultTab : "overview");
     }
@@ -1199,6 +1205,7 @@ export default function PartnerDashboardPage() {
           <Tab id="offline" active={tab} onClick={setTab} activeClassName={dashboardTheme.tabActiveClass} idleClassName={dashboardTheme.tabIdleClass}>Offline Billing</Tab>
           <Tab id="orders" active={tab} onClick={setTab} activeClassName={dashboardTheme.tabActiveClass} idleClassName={dashboardTheme.tabIdleClass}>Orders ({normalizedOrders.length})</Tab>
           <Tab id="ledger" active={tab} onClick={setTab} activeClassName={dashboardTheme.tabActiveClass} idleClassName={dashboardTheme.tabIdleClass}>Ledger ({normalizedLedger.length})</Tab>
+          <Tab id="reports" active={tab} onClick={setTab} activeClassName={dashboardTheme.tabActiveClass} idleClassName={dashboardTheme.tabIdleClass}>Reports</Tab>
         </div>
 
         {tab === "overview" && summary && (
@@ -2313,6 +2320,13 @@ export default function PartnerDashboardPage() {
 
         {tab === "transport" && canViewTransportSector && (
           <div className="rounded-2xl border border-sky-200 bg-gradient-to-br from-sky-50 via-white to-cyan-50 p-6" data-testid="partner-transport-tab">
+            {walletShortfall ? (
+              <div className="mb-4 rounded-xl border border-amber-300 bg-amber-50 p-4" data-testid="wallet-insufficient-popup">
+                <p className="font-semibold text-amber-950">Insufficient Wallet Balance</p>
+                <p className="text-sm text-amber-900 mt-1">Required: {inr(walletShortfall.required_amount)} · Available: {inr(walletShortfall.available_balance)} · Shortfall: {inr(walletShortfall.shortfall)}</p>
+                <div className="mt-3 flex gap-2"><Button type="button" className="rounded-full bg-amber-500 hover:bg-amber-600 text-emerald-950" onClick={() => { window.location.hash = "wallet-topup"; setTab("overview"); }}>Recharge Wallet</Button><Button type="button" variant="outline" className="rounded-full" onClick={() => setWalletShortfall(null)}>Close</Button></div>
+              </div>
+            ) : null}
             <div className="rounded-2xl border border-sky-200/80 bg-white/90 p-4 md:p-5 flex flex-wrap items-center justify-between gap-3">
               <div>
                 <p className="text-[10px] uppercase tracking-[0.18em] text-sky-700 font-semibold">Transport Operations</p>
@@ -2646,6 +2660,13 @@ export default function PartnerDashboardPage() {
                 </tbody>
               </table>
             )}
+          </div>
+        )}
+        {tab === "reports" && (
+          <div className="bg-white rounded-xl border border-border p-6">
+            <h3 className="font-display font-bold text-emerald-950 text-lg">Partner Reports</h3>
+            <p className="text-sm text-slate-600 mt-1">Open filtered Product, Service, Transport, Courier, and Property reports.</p>
+            <Link to="/partner-reports" className="inline-flex mt-4"><Button className="rounded-full bg-emerald-900 hover:bg-emerald-950 text-white"><FileText className="w-4 h-4 mr-2" /> Open Reports</Button></Link>
           </div>
         )}
 
