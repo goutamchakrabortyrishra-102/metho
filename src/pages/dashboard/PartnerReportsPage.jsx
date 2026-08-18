@@ -9,6 +9,8 @@ import { Input } from "@/components/ui/input";
 import { useAuth } from "@/contexts/AuthContext";
 import { buildReportPdf, buildReportWorkbook, moneyIndexes, REPORTS, rowValues } from "@/lib/partnerReports";
 
+const inr = (value) => `₹${Number(value || 0).toLocaleString("en-IN", { maximumFractionDigits: 2 })}`;
+
 export default function PartnerReportsPage() {
   const { user } = useAuth();
   const [data, setData] = useState(null);

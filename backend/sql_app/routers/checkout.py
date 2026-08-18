@@ -1526,6 +1526,68 @@ def partner_products(db: Session = Depends(get_db), current_user=Depends(get_cur
     return result
 
 
+def _partner_inventory_sector(product: PartnerProduct, meta: dict, meta_map: dict) -> str:
+    if not bool(meta.get("is_service") or str(meta.get("listing_type") or "").lower() == "service"):
+        return "product"
+    if str(meta.get("property_type") or "").strip():
+        return "property"
+    from .compat import _is_delivery_service_listing, _is_transport_service_listing
+    if _is_delivery_service_listing(product, meta_map):
+        return "courier"
+    if _is_transport_service_listing(product, meta_map):
+        return "transport"
+    return "service"
+
+
+def _partner_inventory_item(product: PartnerProduct, meta_map: dict, unit_map: dict) -> dict:
+    meta = _partner_product_meta(meta_map, product.id)
+    sector = _partner_inventory_sector(product, meta, meta_map)
+    return {
+        "sector": sector,
+        "item_type": "product" if sector == "product" else "service",
+        "item_id": product.id,
+        "name": product.name,
+        "status": ("IN STOCK" if float(product.stock or 0) > 0 else "OUT OF STOCK") if sector == "product" else str(meta.get("property_status") or meta.get("vehicle_status") or meta.get("availability") or "AVAILABLE").upper(),
+        "category": product.category,
+        "description": product.description,
+        "price": float(product.price or 0),
+        "current_stock": max(0, int(product.stock or 0)) if sector == "product" else None,
+        "service_area": meta.get("service_area"),
+        "vehicle_type": meta.get("vehicle_type"),
+        "vehicle_number": meta.get("vehicle_number"),
+        "property_type": meta.get("property_type"),
+        "property_listing_type": meta.get("property_listing_type"),
+        "property_status": meta.get("property_status"),
+        **_partner_unit_info(unit_map, product.id),
+    }
+
+
+@router.get("/partner/inventory")
+def partner_inventory(db: Session = Depends(get_db), current_user=Depends(get_current_user)):
+    if getattr(current_user, "role", "") != "partner":
+        raise HTTPException(status_code=403, detail="Partner access only")
+    partner = _resolve_partner_for_user(db, current_user)
+    if not partner:
+        raise HTTPException(status_code=404, detail="Partner profile not found")
+    meta_map = _load_partner_product_meta(db)
+    unit_map = _load_partner_product_units(db)
+    products = db.query(PartnerProduct).filter(PartnerProduct.partner_id == partner.id, PartnerProduct.active.is_(True)).order_by(PartnerProduct.created_at.desc()).all()
+    return {"items": [_partner_inventory_item(product, meta_map, unit_map) for product in products]}
+
+
+@router.get("/partner/inventory/{item_id}")
+def partner_inventory_detail(item_id: str, db: Session = Depends(get_db), current_user=Depends(get_current_user)):
+    if getattr(current_user, "role", "") != "partner":
+        raise HTTPException(status_code=403, detail="Partner access only")
+    partner = _resolve_partner_for_user(db, current_user)
+    if not partner:
+        raise HTTPException(status_code=404, detail="Partner profile not found")
+    product = db.query(PartnerProduct).filter(PartnerProduct.id == item_id, PartnerProduct.partner_id == partner.id, PartnerProduct.active.is_(True)).first()
+    if not product:
+        raise HTTPException(status_code=404, detail="Inventory item not found")
+    return _partner_inventory_item(product, _load_partner_product_meta(db), _load_partner_product_units(db))
+
+
 @router.post("/partner/products")
 def partner_products_create(payload: dict, db: Session = Depends(get_db), current_user=Depends(get_current_user)):
     if current_user.role != "partner":

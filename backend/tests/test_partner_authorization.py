@@ -10,7 +10,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from sql_app.database import Base
 from sql_app.models import AssociatePartner, PartnerProduct
-from sql_app.routers.checkout import partner_ledger, partner_products, partner_reports
+from sql_app.routers.checkout import partner_inventory, partner_inventory_detail, partner_ledger, partner_products, partner_reports
 from sql_app.routers.compat import partner_property_enquiries
 
 
@@ -35,10 +35,14 @@ def test_partner_reports_inventory_ledger_and_enquiries_are_partner_scoped():
         identity_a = SimpleNamespace(role="partner", email="a@example.com", phone="")
         reports = partner_reports(db, identity_a)
         products = partner_products(db, identity_a)
+        inventory = partner_inventory(db, identity_a)
         ledger = partner_ledger(db, identity_a)
         enquiries = partner_property_enquiries(db, identity_a)
         assert all(row.get("product") != "B Product" for row in reports["products"])
         assert all(row.get("name") != "B Product" for row in products)
+        assert all(row.get("name") != "B Product" for row in inventory["items"])
+        with pytest.raises(Exception):
+            partner_inventory_detail(db.query(PartnerProduct).filter(PartnerProduct.partner_id == partner_b.id).first().id, db, identity_a)
         assert all(row.get("business_name") != "Partner B" for row in enquiries)
         assert ledger == []
         with pytest.raises(Exception):

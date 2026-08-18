@@ -659,14 +659,14 @@ export default function PartnerDashboardPage() {
   useEffect(() => {
     const requestedTab = String(new URLSearchParams(location.search).get("tab") || "").trim().toLowerCase();
     if (!requestedTab) return;
-    const allowedTabs = new Set(["overview", "offline", "orders", "ledger", "reports", ...sectorTabs]);
+    const allowedTabs = new Set(["overview", "inventory", "offline", "orders", "ledger", "reports", ...sectorTabs]);
     if (allowedTabs.has(requestedTab) && requestedTab !== tab) {
       setTab(requestedTab);
     }
   }, [location.search, sectorTabs, tab]);
 
   useEffect(() => {
-    const allowedTabs = new Set(["overview", "offline", "orders", "ledger", "reports", ...sectorTabs]);
+    const allowedTabs = new Set(["overview", "inventory", "offline", "orders", "ledger", "reports", ...sectorTabs]);
     if (!allowedTabs.has(tab)) {
       setTab(tab === "overview" ? listingDefaultTab : "overview");
     }
@@ -1202,6 +1202,7 @@ export default function PartnerDashboardPage() {
           {canViewHospitalitySector ? <Tab id="stay-dining" active={tab} onClick={setTab} activeClassName={dashboardTheme.tabActiveClass} idleClassName={dashboardTheme.tabIdleClass}>Stay & Dining ({hospitalityItems.length})</Tab> : null}
           {canViewDoorstepSector ? <Tab id="doorstep" active={tab} onClick={setTab} activeClassName={dashboardTheme.tabActiveClass} idleClassName={dashboardTheme.tabIdleClass}>Doorstep ({doorstepItems.length})</Tab> : null}
           {canViewOtherServiceSector ? <Tab id="services" active={tab} onClick={setTab} activeClassName={dashboardTheme.tabActiveClass} idleClassName={dashboardTheme.tabIdleClass}>Other Services ({serviceItems.length})</Tab> : null}
+          <Tab id="inventory" active={tab} onClick={setTab} activeClassName={dashboardTheme.tabActiveClass} idleClassName={dashboardTheme.tabIdleClass}>Inventory</Tab>
           <Tab id="offline" active={tab} onClick={setTab} activeClassName={dashboardTheme.tabActiveClass} idleClassName={dashboardTheme.tabIdleClass}>Offline Billing</Tab>
           <Tab id="orders" active={tab} onClick={setTab} activeClassName={dashboardTheme.tabActiveClass} idleClassName={dashboardTheme.tabIdleClass}>Orders ({normalizedOrders.length})</Tab>
           <Tab id="ledger" active={tab} onClick={setTab} activeClassName={dashboardTheme.tabActiveClass} idleClassName={dashboardTheme.tabIdleClass}>Ledger ({normalizedLedger.length})</Tab>
@@ -2667,6 +2668,19 @@ export default function PartnerDashboardPage() {
             <h3 className="font-display font-bold text-emerald-950 text-lg">Partner Reports</h3>
             <p className="text-sm text-slate-600 mt-1">Open filtered Product, Service, Transport, Courier, and Property reports.</p>
             <Link to="/partner-reports" className="inline-flex mt-4"><Button className="rounded-full bg-emerald-900 hover:bg-emerald-950 text-white"><FileText className="w-4 h-4 mr-2" /> Open Reports</Button></Link>
+          </div>
+        )}
+
+        {tab === "inventory" && (
+          <div className="rounded-xl border border-emerald-200 bg-white p-6" data-testid="partner-inventory-tab">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div>
+                <p className="text-[10px] uppercase tracking-widest text-emerald-700 font-semibold">Unified Sector Inventory</p>
+                <h3 className="font-display font-bold text-emerald-950 text-lg">Manage product, service, fleet, courier, and property inventory</h3>
+                <p className="text-sm text-slate-600 mt-1">Each sector is separated automatically. Service, transport, courier, and property listings never use product stock.</p>
+              </div>
+              <Link to="/partner-inventory" className="inline-flex"><Button className="rounded-full bg-emerald-900 hover:bg-emerald-950 text-white"><Package className="w-4 h-4 mr-2" /> Open Inventory</Button></Link>
+            </div>
           </div>
         )}
 

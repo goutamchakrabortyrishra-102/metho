@@ -200,6 +200,7 @@ export const isTransportServiceLike = (item) => {
   const key = normalizeBusinessType(item?.service_template_key);
   if (TRANSPORT_TEMPLATE_KEYS.includes(key)) return true;
   const haystack = normalizeHintText([item?.category, item?.name, item?.description]);
+  if (includesAny(haystack, DELIVERY_HINTS)) return false;
   return includesAny(haystack, TRANSPORT_HINTS);
 };
 
