@@ -1235,12 +1235,12 @@ export default function PartnerShopPage() {
 
         {canShowProducts ? (
         <div className="mb-8">
-        <div className="bg-white rounded-xl border border-border p-6 mb-6" data-testid="partner-shop-right-search-panel">
+        <div className="bg-white rounded-2xl border border-slate-200 p-6 mb-6 shadow-sm" data-testid="partner-shop-right-search-panel">
           <div className="flex items-start gap-2 mb-1">
-            <p className="text-[10px] uppercase tracking-widest text-emerald-800 font-semibold">Search & Filter</p>
+            <p className="text-[10px] uppercase tracking-widest text-emerald-800 font-semibold">Marketplace search</p>
           </div>
-          <h3 className="font-display font-bold text-emerald-950 text-lg mt-1">Product Name / Category</h3>
-          <p className="text-sm text-slate-600 mt-3">Filter products by name or category. Results update as you type.</p>
+          <h3 className="font-display font-bold text-emerald-950 text-xl mt-1">Shop products</h3>
+          <p className="text-sm text-slate-600 mt-3">Search by product name or category and add items directly to your cart.</p>
           <div className="mt-6 flex flex-col sm:flex-row gap-2">
             <Input
               value={productSearch}
@@ -1279,14 +1279,14 @@ export default function PartnerShopPage() {
                     return (
                       <div
                         key={item.id}
-                        className="w-full bg-white rounded-xl overflow-hidden border border-slate-200 hover:shadow-lg transition-all"
+                        className="w-full bg-white rounded-2xl overflow-hidden border border-slate-200 hover:border-emerald-300 hover:shadow-xl transition-all"
                         data-testid={`partner-shop-product-card-${item.id}`}
                       >
-                        <div className="aspect-square bg-slate-100 overflow-hidden relative">
+                        <div className="aspect-square bg-slate-100 overflow-hidden relative group">
                           <img
                             src={getDisplayImage(item, placeholder)}
                             alt={item.name}
-                            className="w-full h-full object-cover"
+                            className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
                             loading="lazy"
                             onError={(e) => {
                               applyImageFallback(e, getProductImageUrl(item) || item?.fallback_image_url || "", placeholder || "");
@@ -1299,8 +1299,8 @@ export default function PartnerShopPage() {
                           ) : null}
                         </div>
                         <div className="p-3">
-                          <p className="text-[10px] uppercase tracking-wider text-emerald-800 font-semibold truncate">{item?.category || group.category}</p>
-                          <p className="font-display font-bold text-emerald-950 text-sm line-clamp-1 mt-0.5">{item?.name || "Product"}</p>
+                          <p className="text-[10px] uppercase tracking-wider text-slate-500 font-semibold truncate">{item?.category || group.category}</p>
+                          <p className="font-display font-bold text-slate-950 text-sm line-clamp-2 mt-1 min-h-[2.5rem]">{item?.name || "Product"}</p>
                           {Number(item?.price) > 0 ? (
                             <p className="font-display font-black text-lg text-emerald-950 mt-1">
                               {formatPriceForMeasureUnit(item.price, item, activeMeasureUnit)}
@@ -1348,11 +1348,11 @@ export default function PartnerShopPage() {
                             ) : (
                               <Button
                                 size="sm"
-                                className="w-full bg-emerald-900 hover:bg-emerald-950 rounded-full text-xs"
+                                className="w-full bg-amber-500 hover:bg-amber-600 text-emerald-950 rounded-full text-xs font-bold"
                                 onClick={() => inc(item, activeMeasureUnit)}
                                 data-testid={`partner-shop-product-add-${item.id}`}
                               >
-                                Add to Cart
+                                Add to cart
                               </Button>
                             )}
                           </div>
