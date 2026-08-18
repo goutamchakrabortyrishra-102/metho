@@ -85,7 +85,7 @@ def test_inventory_edit_save_refreshes_authoritative_product_values_and_service_
         db.commit()
         identity = SimpleNamespace(role="partner", email=partner.email, phone="")
 
-        partner_products_update(product.id, {"price": 125, "price_before_gst": 125, "gst_percent": 12, "purchase_cost": 70, "sku": "VEG-UPDATED"}, db, identity)
+        partner_products_update(product.id, {"price": 125, "price_before_gst": 125, "gst_percent": 12, "purchase_cost": 70, "sku": "VEG-UPDATED", "opening_stock": "", "seating_capacity": ""}, db, identity)
         updated = partner_inventory_detail(product.id, db, identity)
         assert updated["price_before_gst"] == 125
         assert updated["gst_percent"] == 12

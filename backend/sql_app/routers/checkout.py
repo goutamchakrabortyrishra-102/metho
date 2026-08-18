@@ -516,6 +516,12 @@ def _set_partner_product_meta(db: Session, product_id: str, payload: dict | None
     if not youtube_url:
         youtube_url = str(prev.get("youtube_url") or "").strip()
 
+    def safe_int(value, fallback=0):
+        try:
+            return int(float(value)) if value not in (None, "") else int(fallback or 0)
+        except (TypeError, ValueError):
+            return int(fallback or 0)
+
     price_before_gst = max(0.0, float(src.get("price_before_gst") or src.get("price") or prev.get("price_before_gst") or 0))
     gst_percent = max(0.0, float(src.get("gst_percent") or prev.get("gst_percent") or 0))
     availability = str(src.get("availability") or prev.get("availability") or ("available" if is_service else "")).strip().lower()
@@ -532,7 +538,7 @@ def _set_partner_product_meta(db: Session, product_id: str, payload: dict | None
         "product_pdf_url": pdf_url,
         "youtube_url": youtube_url,
         "inventory_type": "SERVICE" if is_service else "PRODUCT",
-        "opening_stock": 0 if is_service else max(0, int(src.get("opening_stock") if src.get("opening_stock") is not None else prev.get("opening_stock") or src.get("stock") or 0)),
+        "opening_stock": 0 if is_service else max(0, safe_int(src.get("opening_stock"), prev.get("opening_stock") or src.get("stock") or 0)),
         "purchase_cost": max(0.0, float(src.get("purchase_cost") or prev.get("purchase_cost") or 0)),
         "sku": str(src.get("sku") or prev.get("sku") or "").strip(),
         "sub_category": str(src.get("sub_category") or prev.get("sub_category") or "").strip(),
@@ -555,7 +561,7 @@ def _set_partner_product_meta(db: Session, product_id: str, payload: dict | None
         "vehicle_type": str(src.get("vehicle_type") or prev.get("vehicle_type") or "").strip(),
         "vehicle_number": str(src.get("vehicle_number") or prev.get("vehicle_number") or "").strip().upper(),
         "vehicle_category": str(src.get("vehicle_category") or prev.get("vehicle_category") or "").strip(),
-        "seating_capacity": max(0, int(src.get("seating_capacity") if src.get("seating_capacity") is not None else prev.get("seating_capacity") or 0)),
+        "seating_capacity": max(0, safe_int(src.get("seating_capacity"), prev.get("seating_capacity") or 0)),
         "driver_name": str(src.get("driver_name") or prev.get("driver_name") or "").strip(),
         "driver_phone": str(src.get("driver_phone") or prev.get("driver_phone") or "").strip(),
         "vehicle_status": str(src.get("vehicle_status") or prev.get("vehicle_status") or ("AVAILABLE" if is_service else "")).strip().upper(),
