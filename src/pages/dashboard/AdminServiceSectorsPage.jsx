@@ -1,0 +1,61 @@
+import React, { useCallback, useEffect, useMemo, useState } from "react";
+import { BriefcaseBusiness, RefreshCw, Truck } from "lucide-react";
+import { Navigate } from "react-router-dom";
+import { toast } from "sonner";
+import api from "@/services/api";
+import { Button } from "@/components/ui/button";
+import { useAuth } from "@/contexts/AuthContext";
+
+const ADMIN_ROLES = ["super_admin", "company_admin", "admin"];
+const normalize = (value) => String(value || "").toLowerCase();
+const isCourier = (item) => /courier|logistics|parcel|delivery|cargo/i.test([item.business_type, item.business_name, item.notes, item.business_description].join(" "));
+const isCreative = (item) => /singing|music|poetry|recitation|kobita|dance|recording|studio|acting|creative|media/i.test([item.business_type, item.business_name, item.notes, item.business_description].join(" "));
+
+export default function AdminServiceSectorsPage() {
+  const { user } = useAuth();
+  const isAdmin = user && ADMIN_ROLES.includes(user.role);
+  const [mode, setMode] = useState("courier");
+  const [partners, setPartners] = useState([]);
+  const [orders, setOrders] = useState([]);
+  const [loading, setLoading] = useState(false);
+
+  const load = useCallback(async () => {
+    setLoading(true);
+    try {
+      const [partnerResponse, orderResponse] = await Promise.all([
+        api.get("/admin/partners"),
+        api.get("/admin/orders/pending"),
+      ]);
+      setPartners(Array.isArray(partnerResponse.data) ? partnerResponse.data : []);
+      setOrders(Array.isArray(orderResponse.data) ? orderResponse.data : []);
+    } catch (error) {
+      toast.error(error?.response?.data?.detail || "Unable to load service sector controls");
+      setPartners([]);
+      setOrders([]);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => { if (isAdmin) load(); }, [isAdmin, load]);
+  const filteredPartners = useMemo(() => partners.filter(mode === "courier" ? isCourier : isCreative), [mode, partners]);
+  const filteredOrders = useMemo(() => orders.filter((order) => {
+    const text = normalize(JSON.stringify(order));
+    return mode === "courier" ? /courier|logistics|parcel|delivery|cargo/.test(text) : /singing|music|poetry|recitation|dance|recording|studio|creative|media/.test(text);
+  }), [mode, orders]);
+
+  if (!isAdmin) return <Navigate to="/app" replace />;
+  const title = mode === "courier" ? "Courier / Logistics Control" : "Creative & Media Control";
+  const subtitle = mode === "courier" ? "Monitor courier, logistics, parcel and delivery partners." : "Monitor singing, poetry, dance, recording and creative service partners.";
+
+  return <div className="space-y-6" data-testid="admin-service-sectors-page">
+    <div className="flex flex-wrap items-end justify-between gap-4">
+      <div><p className="text-xs uppercase tracking-[0.2em] text-emerald-800 font-semibold">Admin</p><h1 className="font-display font-black text-3xl text-emerald-950 mt-1 flex items-center gap-2"><BriefcaseBusiness className="w-8 h-8" /> {title}</h1><p className="text-sm text-slate-600 mt-1">{subtitle}</p></div>
+      <Button variant="outline" className="rounded-full" onClick={load} disabled={loading}><RefreshCw className={`w-4 h-4 mr-2 ${loading ? "animate-spin" : ""}`} /> Refresh</Button>
+    </div>
+    <div className="flex gap-2"><button type="button" onClick={() => setMode("courier")} className={`rounded-full border px-4 py-2 text-sm font-semibold ${mode === "courier" ? "bg-cyan-700 text-white border-cyan-700" : "border-cyan-200 text-cyan-900"}`}><Truck className="inline w-4 h-4 mr-1" /> Courier / Logistics</button><button type="button" onClick={() => setMode("creative")} className={`rounded-full border px-4 py-2 text-sm font-semibold ${mode === "creative" ? "bg-violet-700 text-white border-violet-700" : "border-violet-200 text-violet-900"}`}>Creative & Media</button></div>
+    <div className="grid grid-cols-1 md:grid-cols-3 gap-3"><div className="rounded-xl border bg-white p-4"><p className="text-xs uppercase text-slate-500">Partners</p><p className="text-3xl font-black text-emerald-950">{filteredPartners.length}</p></div><div className="rounded-xl border bg-white p-4"><p className="text-xs uppercase text-slate-500">Pending Orders</p><p className="text-3xl font-black text-amber-700">{filteredOrders.length}</p></div><div className="rounded-xl border bg-white p-4"><p className="text-xs uppercase text-slate-500">Commission</p><p className="text-sm text-slate-600 mt-2">Existing partner commission settings and payment flow remain authoritative.</p></div></div>
+    <section className="rounded-xl border bg-white p-5"><h2 className="font-display font-bold text-lg text-emerald-950">{mode === "courier" ? "Courier / Logistics Partners" : "Creative & Media Partners"}</h2>{filteredPartners.length === 0 ? <p className="mt-4 text-sm text-slate-500">No partners found.</p> : <div className="mt-4 grid gap-3">{filteredPartners.map((partner) => <div key={partner.id} className="rounded-lg border p-4 flex flex-wrap justify-between gap-3"><div><p className="font-semibold text-emerald-950">{partner.business_name}</p><p className="text-xs text-slate-600">{partner.partner_code} · {partner.business_type}</p></div><span className={`rounded-full px-2 py-1 text-xs font-semibold ${partner.active === false ? "bg-rose-100 text-rose-700" : "bg-emerald-100 text-emerald-700"}`}>{partner.active === false ? "Inactive" : "Active"}</span></div>)}</div>}</section>
+    <section className="rounded-xl border bg-white p-5"><h2 className="font-display font-bold text-lg text-emerald-950">Related Pending Orders</h2>{filteredOrders.length === 0 ? <p className="mt-4 text-sm text-slate-500">No related pending orders.</p> : <div className="mt-4 grid gap-3">{filteredOrders.map((order) => <div key={order.id} className="rounded-lg border p-4 flex justify-between gap-3"><div><p className="font-mono text-xs text-emerald-800">{order.order_no || order.id}</p><p className="text-sm text-slate-700">{order.user_name || order.payer_name || "Customer"}</p></div><span className="text-sm font-semibold text-emerald-900">INR {Number(order.total_amount || 0).toLocaleString("en-IN")}</span></div>)}</div>}</section>
+  </div>;
+}
