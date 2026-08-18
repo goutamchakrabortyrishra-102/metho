@@ -77,18 +77,81 @@ export default function CompanyInventoryPage() {
       const pageWidth = doc.internal.pageSize.getWidth();
       const pageHeight = doc.internal.pageSize.getHeight();
       const margin = 28;
-      const columnWidths = [92, 65, 55, 65, 38, 55, 52, 52, 62, 62, 62, 70];
       const rows = buildReportRows(filteredItems);
-      const drawHeader = (y) => {
-        doc.setFillColor(5, 78, 59);
-        doc.rect(margin, y - 12, pageWidth - margin * 2, 22, "F");
+      const sections = [
+        {
+          title: "SECTION 1 - PRICING & GST",
+          indexes: [0, 1, 2, 3, 4, 5, 6],
+          widths: [154, 82, 82, 102, 52, 86, 94],
+        },
+        {
+          title: "SECTION 2 - STOCK & VALUE",
+          indexes: [0, 1, 7, 8, 9, 10, 11],
+          widths: [154, 82, 82, 102, 102, 102, 94],
+        },
+      ];
+      const formatCell = (value, sourceIndex) => sourceIndex >= 2 && sourceIndex <= 10 ? inr(value) : String(value);
+      const drawSection = (section, y) => {
+        const headers = section.indexes.map((index) => tableHeaders[index]);
+        const sectionRows = rows.map((row) => section.indexes.map((index) => row[index]));
         doc.setFont("helvetica", "bold");
-        doc.setFontSize(6.2);
+        doc.setFontSize(10);
+        doc.setTextColor(5, 78, 59);
+        doc.text(section.title, margin, y);
+        y += 18;
+        const headerLines = headers.map((header, index) => doc.splitTextToSize(header, section.widths[index] - 8));
+        const headerHeight = Math.max(...headerLines.map((lines) => lines.length * 9)) + 12;
+        doc.setFillColor(5, 78, 59);
+        doc.rect(margin, y - 10, section.widths.reduce((sum, width) => sum + width, 0), headerHeight, "F");
+        doc.setFont("helvetica", "bold");
+        doc.setFontSize(8);
         doc.setTextColor(255, 255, 255);
         let x = margin + 3;
-        tableHeaders.forEach((header, index) => {
-          doc.text(header, x, y + 2);
-          x += columnWidths[index];
+        headerLines.forEach((lines, index) => {
+          doc.text(lines, x, y + 2);
+          x += section.widths[index];
+        });
+        y += headerHeight;
+        doc.setFont("helvetica", "normal");
+        doc.setFontSize(8);
+        sectionRows.forEach((row, rowIndex) => {
+          const cellLines = row.map((value, index) => doc.splitTextToSize(formatCell(value, section.indexes[index]), section.widths[index] - 8));
+          const rowHeight = Math.max(18, ...cellLines.map((lines) => lines.length * 9 + 8));
+          if (y + rowHeight > pageHeight - 34) {
+            doc.addPage();
+            y = 38;
+            doc.setFont("helvetica", "bold");
+            doc.setFontSize(10);
+            doc.setTextColor(5, 78, 59);
+            doc.text(section.title, margin, y);
+            y += 18;
+            const repeatedHeaderLines = headers.map((header, index) => doc.splitTextToSize(header, section.widths[index] - 8));
+            const repeatedHeaderHeight = Math.max(...repeatedHeaderLines.map((lines) => lines.length * 9)) + 12;
+            doc.setFillColor(5, 78, 59);
+            doc.rect(margin, y - 10, section.widths.reduce((sum, width) => sum + width, 0), repeatedHeaderHeight, "F");
+            doc.setFont("helvetica", "bold");
+            doc.setFontSize(8);
+            doc.setTextColor(255, 255, 255);
+            let repeatedX = margin + 4;
+            repeatedHeaderLines.forEach((lines, index) => {
+              doc.text(lines, repeatedX, y + 2);
+              repeatedX += section.widths[index];
+            });
+            y += repeatedHeaderHeight;
+            doc.setFont("helvetica", "normal");
+            doc.setFontSize(8);
+          }
+          if (rowIndex % 2 === 0) {
+            doc.setFillColor(241, 245, 249);
+            doc.rect(margin, y - 10, section.widths.reduce((sum, width) => sum + width, 0), rowHeight, "F");
+          }
+          doc.setTextColor(30, 41, 59);
+          let cellX = margin + 4;
+          cellLines.forEach((lines, index) => {
+            doc.text(lines, cellX, y + 2);
+            cellX += section.widths[index];
+          });
+          y += rowHeight;
         });
         return y + 24;
       };
@@ -115,34 +178,16 @@ export default function CompanyInventoryPage() {
       doc.text(`Purchase Value: ${inr(filteredSummary.purchaseValue)}`, margin + 230, y);
       doc.text(`Selling Value: ${inr(filteredSummary.sellingValue)}`, margin + 360, y);
       doc.text(`Potential Margin: ${inr(filteredSummary.potentialMargin)}`, margin + 490, y);
-      y = drawHeader(y + 22);
-
-      doc.setFont("helvetica", "normal");
-      doc.setFontSize(6.1);
-      rows.forEach((row) => {
-        const lineHeight = 9;
-        const cellLines = row.map((value, index) => doc.splitTextToSize(
-          index >= 2 && index <= 10 ? inr(value) : String(value),
-          columnWidths[index] - 6,
-        ));
-        const rowHeight = Math.max(16, ...cellLines.map((lines) => lines.length * lineHeight + 5));
-        if (y + rowHeight > pageHeight - margin) {
-          doc.addPage();
-          y = 42;
-          y = drawHeader(y);
-        }
-        if (rows.indexOf(row) % 2 === 0) {
-          doc.setFillColor(241, 245, 249);
-          doc.rect(margin, y - 10, pageWidth - margin * 2, rowHeight, "F");
-        }
-        doc.setTextColor(30, 41, 59);
-        let x = margin + 3;
-        cellLines.forEach((lines, index) => {
-          doc.text(lines, x, y + 1);
-          x += columnWidths[index];
-        });
-        y += rowHeight;
-      });
+      y = drawSection(sections[0], y + 24);
+      drawSection(sections[1], y);
+      const totalPages = doc.getNumberOfPages();
+      for (let page = 1; page <= totalPages; page += 1) {
+        doc.setPage(page);
+        doc.setFont("helvetica", "normal");
+        doc.setFontSize(8);
+        doc.setTextColor(100, 116, 139);
+        doc.text(`Page ${page} of ${totalPages}`, pageWidth - margin, pageHeight - 16, { align: "right" });
+      }
       doc.save("METHO_Company_Inventory_Report.pdf");
     } catch {
       toast.error("Unable to generate PDF. Please try again.");

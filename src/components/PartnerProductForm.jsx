@@ -13,6 +13,11 @@ import { resolveAssetUrl } from "@/lib/utils";
 const EMPTY = {
   name: "",
   category: "General",
+  sub_category: "",
+  brand: "",
+  sku: "",
+  purchase_cost: "",
+  price_before_gst: "",
   price: "",
   stock: "",
   discount_percent: "",
@@ -25,6 +30,21 @@ const EMPTY = {
   unit_type: "piece",
   service_invoice_mode: "detailed",
   service_template_key: "",
+  service_sector: "",
+  service_category: "",
+  service_type: "",
+  pricing_unit: "PER_ITEM",
+  availability: "available",
+  is_available: true,
+  service_area: "",
+  district: "",
+  city: "",
+  state: "",
+  pincode: "",
+  working_days: "",
+  working_hours: "",
+  advance_booking_required: false,
+  advance_amount: "",
 };
 const TRANSPORT_CARD_PREVIEW = "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 800 520'><defs><linearGradient id='bg' x1='0' y1='0' x2='1' y2='1'><stop offset='0%25' stop-color='%230b1220'/><stop offset='100%25' stop-color='%231e293b'/></linearGradient><linearGradient id='road' x1='0' y1='0' x2='0' y2='1'><stop offset='0%25' stop-color='%23334155'/><stop offset='100%25' stop-color='%230f172a'/></linearGradient></defs><rect width='800' height='520' fill='url(%23bg)'/><rect y='330' width='800' height='190' fill='url(%23road)'/><path d='M90 335 C185 255 303 205 446 205 H560 C624 205 684 246 711 302 L740 362 H640 L608 312 C593 289 568 274 540 274 H438 C353 274 270 301 201 352 L178 369 H62 Z' fill='%23dc2626'/><path d='M254 223 H537 C589 223 634 251 659 293 L675 320 H611 L584 282 C569 260 545 246 519 246 H338 C304 246 270 253 238 267 Z' fill='%23fca5a5' opacity='0.18'/><circle cx='243' cy='368' r='44' fill='%230f172a'/><circle cx='243' cy='368' r='19' fill='%23e2e8f0'/><circle cx='592' cy='368' r='44' fill='%230f172a'/><circle cx='592' cy='368' r='19' fill='%23e2e8f0'/><rect x='368' y='236' width='118' height='48' rx='12' fill='%23dbeafe' opacity='0.92'/><rect x='498' y='236' width='73' height='48' rx='12' fill='%23dbeafe' opacity='0.92'/><rect x='95' y='402' width='610' height='8' rx='4' fill='%23f8fafc' opacity='0.2'/><text x='62' y='82' fill='%23fecaca' font-size='28' font-family='Arial' font-weight='700'>Transport Card Preview</text><text x='62' y='120' fill='%23ffffff' font-size='44' font-family='Arial' font-weight='700'>Vehicle image + Book Now</text></svg>";
 
@@ -651,6 +671,12 @@ const SERVICE_INVOICE_OPTIONS = [
   { value: "summary_total", label: "Summary Invoice (Grand Total Only)" },
 ];
 
+const SERVICE_PRICING_UNITS = [
+  ["PER_VISIT", "Per Visit"], ["PER_HOUR", "Per Hour"], ["PER_DAY", "Per Day"], ["PER_KM", "Per KM"],
+  ["PER_KG", "Per KG"], ["PER_ROOM_NIGHT", "Per Room/Night"], ["PER_PERSON", "Per Person"], ["PER_ITEM", "Per Item"],
+  ["MONTHLY", "Monthly"], ["PACKAGE", "Package"],
+];
+
 const PARTNER_IMAGE_MAX_BYTES = 5 * 1024 * 1024;
 
 const resolveListingType = (item) => {
@@ -773,6 +799,10 @@ export default function PartnerProductForm({
 
   const visibleServiceTemplates = serviceTemplatePool.filter((tpl) => serviceSectorFilter === "All" || tpl.sector === serviceSectorFilter);
   const activeListingType = hasFixedListingType ? forcedListingType : form.listing_type;
+  const liveBasePrice = Number(form.price_before_gst || form.price || 0);
+  const liveGstPercent = Math.max(0, Number(form.gst_percent || 0));
+  const liveGstAmount = Number((liveBasePrice * liveGstPercent / 100).toFixed(2));
+  const liveFinalPrice = Math.round(liveBasePrice + liveGstAmount);
 
   const applyServiceTemplate = (tpl) => {
     if (!tpl) return;
@@ -783,7 +813,12 @@ export default function PartnerProductForm({
       category: tpl.category,
       description: tpl.description,
       price: String(tpl.price),
+      price_before_gst: String(tpl.price),
       stock: String(tpl.stock),
+      service_sector: tpl.sector,
+      service_category: tpl.sector,
+      service_type: tpl.name,
+      pricing_unit: tpl.key.includes("daily") ? "PER_DAY" : "PER_VISIT",
       service_template_key: tpl.key,
       service_invoice_mode: String(tpl.service_invoice_mode || prev.service_invoice_mode || "detailed").toLowerCase(),
     }));
@@ -917,6 +952,8 @@ export default function PartnerProductForm({
         name: isTransportOnly ? String(form.name || "").trim() || "book now" : String(form.name || "").trim(),
         category: isTransportOnly ? String(form.category || "").trim() || "General" : String(form.category || "").trim(),
         price: Number(isTransportOnly ? (form.price || 100) : form.price),
+        price_before_gst: Number(form.price_before_gst || form.price || 0),
+        purchase_cost: Number(form.purchase_cost || 0),
         stock: Number(form.stock || (isService ? 1 : 0)),
         discount_percent: Number(form.discount_percent || 0),
         gst_percent: Number(form.gst_percent || 0),
@@ -930,6 +967,25 @@ export default function PartnerProductForm({
         service_invoice_mode: isService ? String(form.service_invoice_mode || "detailed").toLowerCase() : "detailed",
         service_template_key: isService ? String(form.service_template_key || "").trim() : "",
         unit_type: isService ? "piece" : String(form.unit_type || "piece").toLowerCase(),
+        inventory_type: isService ? "SERVICE" : "PRODUCT",
+        sub_category: String(form.sub_category || "").trim(),
+        brand: String(form.brand || "").trim(),
+        sku: String(form.sku || "").trim(),
+        service_sector: String(form.service_sector || serviceSectorFilter || "").trim(),
+        service_category: String(form.service_category || form.category || "").trim(),
+        service_type: String(form.service_type || form.name || "").trim(),
+        pricing_unit: isService ? String(form.pricing_unit || "PER_VISIT") : "PER_ITEM",
+        availability: isService ? String(form.availability || "available") : "",
+        is_available: isService ? String(form.availability || "available") === "available" : true,
+        service_area: String(form.service_area || "").trim(),
+        district: String(form.district || "").trim(),
+        city: String(form.city || "").trim(),
+        state: String(form.state || "").trim(),
+        pincode: String(form.pincode || "").trim(),
+        working_days: String(form.working_days || "").trim(),
+        working_hours: String(form.working_hours || "").trim(),
+        advance_booking_required: Boolean(form.advance_booking_required),
+        advance_amount: Number(form.advance_amount || 0),
       };
 
       let saved = null;
@@ -1007,6 +1063,13 @@ export default function PartnerProductForm({
               <div><Label>PDF Link</Label><Input value={form.pdf_url || ""} onChange={(e) => setForm({ ...form, pdf_url: e.target.value })} className="mt-1" placeholder="https://...pdf" data-testid="my-prod-pdf" /></div>
             )}
           </div>
+          {activeListingType !== "service" ? (
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+              <div><Label>SKU / Product Code</Label><Input value={form.sku || ""} onChange={(e) => setForm({ ...form, sku: e.target.value })} className="mt-1" /></div>
+              <div><Label>Sub Category</Label><Input value={form.sub_category || ""} onChange={(e) => setForm({ ...form, sub_category: e.target.value })} className="mt-1" /></div>
+              <div><Label>Brand</Label><Input value={form.brand || ""} onChange={(e) => setForm({ ...form, brand: e.target.value })} className="mt-1" /></div>
+            </div>
+          ) : null}
           {activeListingType === "service" && !isTransportOnlyTemplateMode ? (
             <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-3 space-y-3" data-testid="service-template-block">
               <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
@@ -1142,9 +1205,9 @@ export default function PartnerProductForm({
           </div>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             {isTransportOnlyTemplateMode ? null : (
-              <div><Label>{activeListingType === "service" ? "Booking Price (₹) *" : "Price (₹) *"}</Label><Input type="number" required={activeListingType === "service" ? true : true} value={form.price} onChange={(e) => setForm({ ...form, price: e.target.value })} className="mt-1" data-testid="my-prod-price" /></div>
+              <div><Label>{activeListingType === "service" ? "Service Rate Before GST (₹) *" : "Price Before GST (₹) *"}</Label><Input type="number" required value={form.price} onChange={(e) => setForm({ ...form, price: e.target.value, price_before_gst: e.target.value })} className="mt-1" data-testid="my-prod-price" /></div>
             )}
-            <div><Label>{activeListingType === "service" ? "Daily Slot / Capacity" : "Stock"}</Label><Input type="number" value={form.stock} onChange={(e) => setForm({ ...form, stock: e.target.value })} className="mt-1" data-testid="my-prod-stock" /></div>
+            {activeListingType !== "service" ? <div><Label>Opening / Current Stock</Label><Input type="number" value={form.stock} onChange={(e) => setForm({ ...form, stock: e.target.value })} className="mt-1" data-testid="my-prod-stock" /></div> : null}
           </div>
           {isTransportOnlyTemplateMode ? (
             <p className="text-[11px] text-sky-700 -mt-2">Transport fare booking request এ partner confirm করার সময় set হবে।</p>
@@ -1181,6 +1244,26 @@ export default function PartnerProductForm({
               <p className="text-[11px] text-muted-foreground mt-1">Unorganized service হলে Summary mode নিলে invoice-এ Grand Total ফোকাস থাকে।</p>
             </div>
           ) : null}
+          {activeListingType === "service" ? (
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 rounded-xl border border-sky-200 bg-sky-50/60 p-3">
+              <div><Label>Service Sector</Label><Input value={form.service_sector || serviceSectorFilter || ""} onChange={(e) => setForm({ ...form, service_sector: e.target.value })} className="mt-1" /></div>
+              <div><Label>Service Category</Label><Input value={form.service_category || ""} onChange={(e) => setForm({ ...form, service_category: e.target.value })} className="mt-1" /></div>
+              <div><Label>Service Type</Label><Input value={form.service_type || ""} onChange={(e) => setForm({ ...form, service_type: e.target.value })} className="mt-1" /></div>
+              <div><Label>Pricing Unit</Label><select value={form.pricing_unit || "PER_VISIT"} onChange={(e) => setForm({ ...form, pricing_unit: e.target.value })} className="mt-1 h-10 w-full rounded-md border border-input bg-white px-3 text-sm">{SERVICE_PRICING_UNITS.map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></div>
+              <div><Label>Availability</Label><select value={form.availability || "available"} onChange={(e) => setForm({ ...form, availability: e.target.value })} className="mt-1 h-10 w-full rounded-md border border-input bg-white px-3 text-sm"><option value="available">Available</option><option value="unavailable">Unavailable</option><option value="temporarily_closed">Temporarily Closed</option></select></div>
+              <div><Label>Service Area</Label><Input value={form.service_area || ""} onChange={(e) => setForm({ ...form, service_area: e.target.value })} className="mt-1" placeholder="Coverage area" /></div>
+              <div><Label>City</Label><Input value={form.city || ""} onChange={(e) => setForm({ ...form, city: e.target.value })} className="mt-1" /></div>
+              <div><Label>District</Label><Input value={form.district || ""} onChange={(e) => setForm({ ...form, district: e.target.value })} className="mt-1" /></div>
+              <div><Label>State</Label><Input value={form.state || ""} onChange={(e) => setForm({ ...form, state: e.target.value })} className="mt-1" /></div>
+              <div><Label>Pincode</Label><Input value={form.pincode || ""} onChange={(e) => setForm({ ...form, pincode: e.target.value })} className="mt-1" /></div>
+              <div><Label>Working Days</Label><Input value={form.working_days || ""} onChange={(e) => setForm({ ...form, working_days: e.target.value })} className="mt-1" placeholder="Mon-Sat" /></div>
+              <div><Label>Working Hours</Label><Input value={form.working_hours || ""} onChange={(e) => setForm({ ...form, working_hours: e.target.value })} className="mt-1" placeholder="9 AM - 6 PM" /></div>
+              <div><Label>Advance Amount</Label><Input type="number" value={form.advance_amount || ""} onChange={(e) => setForm({ ...form, advance_amount: e.target.value })} className="mt-1" /></div>
+              <label className="flex items-center gap-2 text-sm font-semibold text-emerald-950"><input type="checkbox" checked={Boolean(form.advance_booking_required)} onChange={(e) => setForm({ ...form, advance_booking_required: e.target.checked })} /> Advance booking required</label>
+            </div>
+          ) : (
+            <div><Label>Purchase / Cost Price (₹)</Label><Input type="number" min="0" value={form.purchase_cost || ""} onChange={(e) => setForm({ ...form, purchase_cost: e.target.value })} className="mt-1" /></div>
+          )}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
               <Label>Discount (%)</Label>
@@ -1206,6 +1289,12 @@ export default function PartnerProductForm({
                 data-testid="my-prod-gst"
               />
             </div>
+          </div>
+          <div className="rounded-lg border border-emerald-200 bg-emerald-50 p-3 text-xs text-emerald-950">
+            <p className="font-semibold">GST & Final Price Preview</p>
+            <p className="mt-1">Price Before GST: ₹{liveBasePrice.toLocaleString("en-IN", { maximumFractionDigits: 2 })}</p>
+            <p>GST ({liveGstPercent}%): ₹{liveGstAmount.toLocaleString("en-IN", { maximumFractionDigits: 2 })}</p>
+            <p className="font-bold text-emerald-800">Final Customer Rate: ₹{liveFinalPrice.toLocaleString("en-IN")}</p>
           </div>
           <div><Label>{activeListingType === "service" ? "Service Description" : "Description"}</Label><Textarea value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} className="mt-1" data-testid="my-prod-desc" /></div>
           <DialogFooter className="sticky bottom-0 z-10 -mx-4 border-t border-slate-200 bg-white/95 px-4 py-3 backdrop-blur sm:-mx-6 sm:px-6">

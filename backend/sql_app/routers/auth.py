@@ -1,5 +1,7 @@
 from pathlib import Path
 import os
+import json
+from datetime import datetime, timezone
 import smtplib
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
@@ -10,7 +12,7 @@ from reportlab.lib.pagesizes import A4
 from reportlab.pdfgen import canvas
 
 from ..database import get_db
-from ..models import User, UserReferral
+from ..models import AppSetting, User, UserReferral
 from ..schemas import LoginRequest, RegisterRequest
 from ..security import create_token, decode_token, hash_password, verify_password
 from ..storage import UPLOADED_OBJECTS_DIR
@@ -168,6 +170,10 @@ def _login_user(payload: LoginRequest, db: Session, admin_mode: bool = False) ->
         raise HTTPException(status_code=403, detail="Admin credentials required")
     if not admin_mode and is_admin:
         raise HTTPException(status_code=403, detail="Admin users must sign in from hidden admin login")
+    if not admin_mode and not bool(user.is_active):
+        if str(user.role or "").lower() == "partner":
+            raise HTTPException(status_code=403, detail="Your partner registration is awaiting admin approval.")
+        raise HTTPException(status_code=403, detail="Your membership is pending payment verification.")
 
     return _build_login_response(user)
 
@@ -270,9 +276,21 @@ def register(payload: RegisterRequest, db: Session = Depends(get_db)):
         phone=payload.phone,
         password=hash_password(payload.password),
         role="member",
-        is_active=True,
+        is_active=False,
     )
     db.add(user)
+    db.commit()
+    db.add(AppSetting(
+        key=f"member_payment_state:{user.id}",
+        value_json=json.dumps({
+            "approval_status": "pending",
+            "payment_status": "pending",
+            "payment_method": "",
+            "order_id": "",
+            "registered_at": datetime.now(timezone.utc).isoformat(),
+        }),
+        updated_at=datetime.now(timezone.utc),
+    ))
     db.commit()
 
     requested_sponsor = (payload.sponsor_code or "").strip().upper()
@@ -302,6 +320,9 @@ def register(payload: RegisterRequest, db: Session = Depends(get_db)):
             "role": user.role,
             "member_code": member_code,
             "sponsor_code": sponsor_code,
+            "is_active": False,
+            "approval_status": "pending",
+            "payment_status": "pending",
         },
         "welcome_letter_url": welcome_letter_url,
     }

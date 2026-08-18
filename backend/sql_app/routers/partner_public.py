@@ -18,6 +18,10 @@ DOORSTEP_HINTS = {"doorstep", "mistri", "mechanic", "plumber", "plumbing", "elec
 SHOP_HINTS = {"shop", "store", "mart", "grocery", "vegetable", "cosmetics", "beauty", "product", "retail", "kirana", "pharmacy"}
 
 
+def _partner_classification_key(prefix: str, partner_id: str) -> str:
+    return f"partner_classification:{prefix}:{partner_id}"
+
+
 def _normalize_hint_text(value) -> str:
     return str(value or "").strip().lower()
 
@@ -252,6 +256,20 @@ def partner_register(payload: dict, db: Session = Depends(get_db)):
         status="pending",
     )
     db.add(row)
+    db.add(
+        AppSetting(
+            key=_partner_classification_key("request", request_id),
+            value_json=json.dumps({
+                "business_type": sector,
+                "service_sector": inferred_service_sector,
+                "service_category": str(payload.get("service_category") or "").strip(),
+                "shop_sector": inferred_shop_sector,
+                "shop_category": str(payload.get("shop_category") or "").strip(),
+                "district": str(payload.get("district") or "").strip(),
+            }),
+            updated_at=datetime.now(timezone.utc),
+        )
+    )
     db.add(
         AppSetting(
             key=f"partner_req_creds:{request_id}",

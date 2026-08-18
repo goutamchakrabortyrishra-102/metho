@@ -440,6 +440,11 @@ def _partner_product_meta(meta_map: dict[str, dict], product_id: str) -> dict:
         service_invoice_mode = "detailed"
     pdf_url = str((meta or {}).get("pdf_url") or (meta or {}).get("product_pdf_url") or "").strip()
     youtube_url = str((meta or {}).get("youtube_url") or "").strip()
+    inventory_type = "SERVICE" if is_service else "PRODUCT"
+    availability = str((meta or {}).get("availability") or ("available" if is_service else "")).strip().lower()
+    if availability not in {"available", "unavailable", "temporarily_closed"}:
+        availability = "available" if is_service else ""
+    pricing_unit = str((meta or {}).get("pricing_unit") or ("PER_ITEM" if not is_service else "PER_VISIT")).strip().upper()
     return {
         "listing_type": "service" if is_service else "product",
         "item_kind": "service" if is_service else "product",
@@ -450,6 +455,26 @@ def _partner_product_meta(meta_map: dict[str, dict], product_id: str) -> dict:
         "pdf_url": pdf_url,
         "product_pdf_url": pdf_url,
         "youtube_url": youtube_url,
+        "inventory_type": inventory_type,
+        "opening_stock": max(0, int((meta or {}).get("opening_stock") or 0)),
+        "purchase_cost": max(0.0, float((meta or {}).get("purchase_cost") or 0)),
+        "sku": str((meta or {}).get("sku") or "").strip(),
+        "sub_category": str((meta or {}).get("sub_category") or "").strip(),
+        "brand": str((meta or {}).get("brand") or "").strip(),
+        "price_before_gst": max(0.0, float((meta or {}).get("price_before_gst") or 0)),
+        "gst_percent": max(0.0, float((meta or {}).get("gst_percent") or 0)),
+        "pricing_unit": pricing_unit,
+        "is_available": bool((meta or {}).get("is_available") if (meta or {}).get("is_available") is not None else availability == "available"),
+        "availability": availability,
+        "service_sector": str((meta or {}).get("service_sector") or "").strip(),
+        "service_category": str((meta or {}).get("service_category") or "").strip(),
+        "service_type": str((meta or {}).get("service_type") or "").strip(),
+        "service_area": str((meta or {}).get("service_area") or "").strip(),
+        "district": str((meta or {}).get("district") or "").strip(),
+        "working_days": str((meta or {}).get("working_days") or "").strip(),
+        "working_hours": str((meta or {}).get("working_hours") or "").strip(),
+        "advance_booking_required": bool((meta or {}).get("advance_booking_required") or False),
+        "advance_amount": max(0.0, float((meta or {}).get("advance_amount") or 0)),
     }
 
 
@@ -470,6 +495,11 @@ def _set_partner_product_meta(db: Session, product_id: str, payload: dict | None
     if not youtube_url:
         youtube_url = str(prev.get("youtube_url") or "").strip()
 
+    price_before_gst = max(0.0, float(src.get("price_before_gst") or src.get("price") or prev.get("price_before_gst") or 0))
+    gst_percent = max(0.0, float(src.get("gst_percent") or prev.get("gst_percent") or 0))
+    availability = str(src.get("availability") or prev.get("availability") or ("available" if is_service else "")).strip().lower()
+    if availability not in {"available", "unavailable", "temporarily_closed"}:
+        availability = "available" if is_service else ""
     mapping[str(product_id)] = {
         "listing_type": "service" if is_service else "product",
         "item_kind": "service" if is_service else "product",
@@ -480,6 +510,26 @@ def _set_partner_product_meta(db: Session, product_id: str, payload: dict | None
         "pdf_url": pdf_url,
         "product_pdf_url": pdf_url,
         "youtube_url": youtube_url,
+        "inventory_type": "SERVICE" if is_service else "PRODUCT",
+        "opening_stock": 0 if is_service else max(0, int(src.get("opening_stock") if src.get("opening_stock") is not None else prev.get("opening_stock") or src.get("stock") or 0)),
+        "purchase_cost": max(0.0, float(src.get("purchase_cost") or prev.get("purchase_cost") or 0)),
+        "sku": str(src.get("sku") or prev.get("sku") or "").strip(),
+        "sub_category": str(src.get("sub_category") or prev.get("sub_category") or "").strip(),
+        "brand": str(src.get("brand") or prev.get("brand") or "").strip(),
+        "price_before_gst": price_before_gst,
+        "gst_percent": gst_percent,
+        "pricing_unit": str(src.get("pricing_unit") or prev.get("pricing_unit") or ("PER_VISIT" if is_service else "PER_ITEM")).strip().upper(),
+        "is_available": bool(src.get("is_available") if src.get("is_available") is not None else availability == "available"),
+        "availability": availability,
+        "service_sector": str(src.get("service_sector") or prev.get("service_sector") or "").strip(),
+        "service_category": str(src.get("service_category") or prev.get("service_category") or "").strip(),
+        "service_type": str(src.get("service_type") or prev.get("service_type") or "").strip(),
+        "service_area": str(src.get("service_area") or prev.get("service_area") or "").strip(),
+        "district": str(src.get("district") or prev.get("district") or "").strip(),
+        "working_days": str(src.get("working_days") or prev.get("working_days") or "").strip(),
+        "working_hours": str(src.get("working_hours") or prev.get("working_hours") or "").strip(),
+        "advance_booking_required": bool(src.get("advance_booking_required") if src.get("advance_booking_required") is not None else prev.get("advance_booking_required") or False),
+        "advance_amount": max(0.0, float(src.get("advance_amount") or prev.get("advance_amount") or 0)),
     }
     _save_partner_product_meta(db, mapping)
     return mapping
@@ -894,17 +944,21 @@ def create_public_order(payload: dict, db: Session = Depends(get_db), authorizat
         if product_type == "associate_partner":
             unit_info = _partner_unit_info(partner_unit_map, product.id)
             listing_meta = _partner_product_meta(partner_meta_map, product.id)
+            gst_percent = float(listing_meta.get("gst_percent") or 0)
 
         if unit_info["unit_type"] == "piece":
             qty = max(1, int(round(qty_value or 1)))
         else:
             qty = _round_to_step(qty_value or unit_info["quantity_step"], unit_info["quantity_step"])
 
+        is_partner_service = product_type == "associate_partner" and bool(listing_meta.get("is_service"))
+        if is_partner_service and not bool(listing_meta.get("is_available")):
+            raise HTTPException(status_code=400, detail=f"{product.name}: service is currently unavailable")
         available_stock = max(0.0, float(getattr(product, "stock", 0) or 0))
-        if qty > available_stock:
+        if not is_partner_service and qty > available_stock:
             raise HTTPException(
                 status_code=400,
-                detail=f"{product.name}: requested quantity {qty} exceeds available stock {available_stock}",
+                detail="Insufficient stock available.",
             )
         unit_price = float(product.price)
         pricing_tiers = []
@@ -921,7 +975,7 @@ def create_public_order(payload: dict, db: Session = Depends(get_db), authorizat
         gst_amount = 0.0
         pre_tax = base_subtotal
         line_total = base_subtotal
-        if product_type == "metho":
+        if product_type == "metho" or (product_type == "associate_partner" and gst_percent > 0):
             gst_amount = round(base_subtotal * (max(0.0, gst_percent) / 100.0), 2)
             line_total = round(base_subtotal + gst_amount, 2)
             # Round final GST-inclusive price to nearest whole rupee
@@ -937,7 +991,7 @@ def create_public_order(payload: dict, db: Session = Depends(get_db), authorizat
                 "unit_base_price": round(base_subtotal / max(1, qty), 2),
                 "mrp": mrp if mrp > 0 else float(product.price),
                 "discount_percent": discount_percent,
-                "gst_percent": (gst_percent if product_type == "metho" else 0),
+                "gst_percent": gst_percent,
                 "gst_amount": gst_amount,
                 "pre_tax": pre_tax,
                 "quantity": qty,
@@ -955,6 +1009,8 @@ def create_public_order(payload: dict, db: Session = Depends(get_db), authorizat
                 "service_booking_enabled": bool(listing_meta["service_booking_enabled"]),
                 "service_invoice_mode": str(item.get("service_invoice_mode") or listing_meta["service_invoice_mode"]).strip().lower(),
                 "service_template_key": str(item.get("service_template_key") or listing_meta["service_template_key"]).strip(),
+                "pricing_unit": str(listing_meta.get("pricing_unit") or "PER_ITEM"),
+                "availability": str(listing_meta.get("availability") or ""),
             }
         )
 
@@ -1214,6 +1270,16 @@ def verify_razorpay_and_submit(payload: dict, db: Session = Depends(get_db)):
     if not row:
         raise HTTPException(status_code=404, detail="Order not found")
 
+    if str(row.status or "").lower() == "paid" and str(row.txn_id or "").strip() == razorpay_payment_id:
+        return {
+            "id": row.id,
+            "status": "paid",
+            "total_amount": float(row.total_amount or 0),
+            "auto_approved": True,
+            "already_processed": True,
+            "approval_reason": "Payment was already verified.",
+        }
+
     row.txn_id = razorpay_payment_id
     if payer_name:
         row.payer_name = payer_name
@@ -1360,24 +1426,32 @@ def partner_products(db: Session = Depends(get_db), current_user=Depends(get_cur
     )
     unit_map = _load_partner_product_units(db)
     meta_map = _load_partner_product_meta(db)
-    return [
-        {
+    result = []
+    for p in rows:
+        listing_meta = _partner_product_meta(meta_map, p.id)
+        opening_stock = max(0, int(listing_meta.get("opening_stock") or 0))
+        current_stock = max(0, int(p.stock or 0))
+        is_service = bool(listing_meta.get("is_service"))
+        result.append({
             "id": p.id,
             "name": p.name,
             "category": p.category,
             "description": p.description,
             "image_url": p.image_url,
             "price": float(p.price or 0),
-            "stock": int(p.stock or 0),
+            "stock": current_stock,
+            "opening_stock": opening_stock if not is_service else None,
+            "current_stock": current_stock if not is_service else None,
+            "sold_quantity": max(0, opening_stock - current_stock) if not is_service else None,
+            "stock_status": ("inactive" if not p.active else "out_of_stock" if current_stock <= 0 else "low_stock" if current_stock <= 5 else "in_stock") if not is_service else "",
             "approval_status": p.approval_status,
             "active": bool(p.active),
             "partner_id": p.partner_id,
             "created_at": p.created_at.isoformat() if p.created_at else None,
             **_partner_unit_info(unit_map, p.id),
-            **_partner_product_meta(meta_map, p.id),
-        }
-        for p in rows
-    ]
+            **listing_meta,
+        })
+    return result
 
 
 @router.post("/partner/products")
@@ -1400,11 +1474,13 @@ def partner_products_create(payload: dict, db: Session = Depends(get_db), curren
     if price <= 0:
         raise HTTPException(status_code=400, detail="Valid price is required")
 
+    listing_type = str((payload or {}).get("listing_type") or (payload or {}).get("item_kind") or "product").strip().lower()
+    is_service = bool((payload or {}).get("is_service") or (payload or {}).get("service_booking_enabled") or listing_type == "service")
     try:
         stock = int((payload or {}).get("stock") or 0)
     except Exception:
         stock = 0
-    stock = max(0, stock)
+    stock = 0 if is_service else max(0, stock)
 
     row = PartnerProduct(
         partner_id=partner.id,
@@ -1421,7 +1497,9 @@ def partner_products_create(payload: dict, db: Session = Depends(get_db), curren
     db.commit()
     db.refresh(row)
     _set_partner_product_unit(db, row.id, (payload or {}).get("unit_type"))
-    _set_partner_product_meta(db, row.id, payload)
+    create_payload = dict(payload or {})
+    create_payload["opening_stock"] = stock
+    _set_partner_product_meta(db, row.id, create_payload)
 
     return {"ok": True, "message": "Product created and live"}
 
@@ -1466,7 +1544,11 @@ def partner_products_update(product_id: str, payload: dict, db: Session = Depend
         if price <= 0:
             raise HTTPException(status_code=400, detail="Valid price is required")
         product.price = price
-    if (payload or {}).get("stock") is not None:
+    next_listing_type = str((payload or {}).get("listing_type") or (payload or {}).get("item_kind") or "").strip().lower()
+    next_is_service = bool((payload or {}).get("is_service") or (payload or {}).get("service_booking_enabled") or next_listing_type == "service")
+    existing_meta = _partner_product_meta(_load_partner_product_meta(db), product.id)
+    is_service = next_is_service if next_listing_type or (payload or {}).get("is_service") is not None or (payload or {}).get("service_booking_enabled") is not None else bool(existing_meta.get("is_service"))
+    if (payload or {}).get("stock") is not None and not is_service:
         try:
             stock = int((payload or {}).get("stock") or 0)
         except Exception:
@@ -1483,8 +1565,26 @@ def partner_products_update(product_id: str, payload: dict, db: Session = Depend
         "service_invoice_mode",
         "service_template_key",
         "youtube_url",
+        "purchase_cost",
+        "price_before_gst",
+        "gst_percent",
+        "pricing_unit",
+        "is_available",
+        "availability",
+        "service_sector",
+        "service_category",
+        "service_type",
+        "service_area",
+        "district",
+        "working_days",
+        "working_hours",
+        "advance_booking_required",
+        "advance_amount",
     ]):
         _set_partner_product_meta(db, product.id, payload)
+
+    if is_service:
+        product.stock = 0
 
     # Partner edits stay live unless explicitly deactivated by admin.
     product.approval_status = "approved"

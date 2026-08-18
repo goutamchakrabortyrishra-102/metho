@@ -122,6 +122,19 @@ def _load_partner_product_meta(db: Session) -> dict[str, dict]:
     return payload if isinstance(payload, dict) else {}
 
 
+def _load_partner_classification_meta(db: Session, prefix: str = "partner") -> dict[str, dict]:
+    rows = db.query(AppSetting).filter(AppSetting.key.like(f"partner_classification:{prefix}:%")).all()
+    result = {}
+    for row in rows:
+        partner_id = str(row.key or "").rsplit(":", 1)[-1]
+        try:
+            value = json.loads(row.value_json or "{}")
+        except Exception:
+            value = {}
+        result[partner_id] = value if isinstance(value, dict) else {}
+    return result
+
+
 def _service_meta_for_product(meta_map: dict[str, dict], product_id: str) -> dict:
     meta = meta_map.get(str(product_id)) if isinstance(meta_map, dict) else None
     listing_type = str((meta or {}).get("listing_type") or "product").strip().lower()
@@ -133,6 +146,13 @@ def _service_meta_for_product(meta_map: dict[str, dict], product_id: str) -> dic
         mode = "detailed"
     pdf_url = str((meta or {}).get("pdf_url") or (meta or {}).get("product_pdf_url") or "").strip()
     youtube_url = str((meta or {}).get("youtube_url") or "").strip()
+    price_before_gst = max(0.0, float((meta or {}).get("price_before_gst") or 0))
+    gst_percent = max(0.0, float((meta or {}).get("gst_percent") or 0))
+    gst_amount = round(price_before_gst * gst_percent / 100.0, 2)
+    final_customer_rate = round(price_before_gst + gst_amount)
+    availability = str((meta or {}).get("availability") or ("available" if is_service else "")).strip().lower()
+    if availability not in {"available", "unavailable", "temporarily_closed"}:
+        availability = "available" if is_service else ""
     return {
         "listing_type": "service" if is_service else "product",
         "item_kind": "service" if is_service else "product",
@@ -143,6 +163,24 @@ def _service_meta_for_product(meta_map: dict[str, dict], product_id: str) -> dic
         "pdf_url": pdf_url,
         "product_pdf_url": pdf_url,
         "youtube_url": youtube_url,
+        "inventory_type": "SERVICE" if is_service else "PRODUCT",
+        "purchase_cost": max(0.0, float((meta or {}).get("purchase_cost") or 0)),
+        "price_before_gst": price_before_gst,
+        "gst_percent": gst_percent,
+        "gst_amount": gst_amount,
+        "final_customer_rate": final_customer_rate,
+        "pricing_unit": str((meta or {}).get("pricing_unit") or ("PER_VISIT" if is_service else "PER_ITEM")).strip().upper(),
+        "is_available": bool((meta or {}).get("is_available") if (meta or {}).get("is_available") is not None else availability == "available"),
+        "availability": availability,
+        "service_sector": str((meta or {}).get("service_sector") or "").strip(),
+        "service_category": str((meta or {}).get("service_category") or "").strip(),
+        "service_type": str((meta or {}).get("service_type") or "").strip(),
+        "service_area": str((meta or {}).get("service_area") or "").strip(),
+        "district": str((meta or {}).get("district") or "").strip(),
+        "working_days": str((meta or {}).get("working_days") or "").strip(),
+        "working_hours": str((meta or {}).get("working_hours") or "").strip(),
+        "advance_booking_required": bool((meta or {}).get("advance_booking_required") or False),
+        "advance_amount": max(0.0, float((meta or {}).get("advance_amount") or 0)),
     }
 
 
@@ -197,7 +235,8 @@ def _partner_business_facebook_url(db: Session, partner_id: str) -> str:
     return str(payload.get("facebook_url") or "").strip()
 
 
-def _partner_to_dict(p: AssociatePartner):
+def _partner_to_dict(p: AssociatePartner, classification: dict | None = None):
+    classification = classification if isinstance(classification, dict) else {}
     return {
         "id": p.id,
         "partner_code": p.partner_code,
@@ -215,6 +254,11 @@ def _partner_to_dict(p: AssociatePartner):
         "total_sales": p.total_sales,
         "is_featured": p.is_featured,
         "active": p.active,
+        "service_sector": str(classification.get("service_sector") or ""),
+        "service_category": str(classification.get("service_category") or ""),
+        "shop_sector": str(classification.get("shop_sector") or ""),
+        "shop_category": str(classification.get("shop_category") or ""),
+        "district": str(classification.get("district") or ""),
     }
 
 
@@ -249,7 +293,9 @@ def partner_directory(
     pincode: str | None = None,
     business_type: str | None = None,
     category: str | None = None,
+    service_sector: str | None = None,
     shop_sector: str | None = None,
+    district: str | None = None,
     q: str | None = None,
     db: Session = Depends(get_db),
 ):
@@ -264,65 +310,72 @@ def partner_directory(
         for token in type_tokens:
             like_type = f"%{token}%"
             query = query.filter(AssociatePartner.business_type.ilike(like_type))
-    if q:
-        tokens = _search_tokens(q)
-        search_fields = [
-            AssociatePartner.business_name,
-            AssociatePartner.contact_person,
-            AssociatePartner.business_type,
-            AssociatePartner.city,
-            AssociatePartner.state,
-            AssociatePartner.address,
-            AssociatePartner.pincode,
-            AssociatePartner.partner_code,
-        ]
-        for token in tokens:
-            like_q = f"%{token}%"
-            query = query.filter(or_(*[field.ilike(like_q) for field in search_fields]))
-    if category:
-        category_tokens = _search_tokens(category)
-        category_filters = [PartnerProduct.active.is_(True)]
-        for token in category_tokens:
-            like_category = f"%{token}%"
-            category_filters.append(PartnerProduct.category.ilike(like_category))
-        partner_ids = [
-            row[0]
-            for row in db.query(PartnerProduct.partner_id)
-            .filter(*category_filters)
-            .distinct()
-            .all()
-        ]
-        if partner_ids:
-            query = query.filter(AssociatePartner.id.in_(partner_ids))
-        else:
-            return []
-
-    normalized_shop_sector = str(shop_sector or "").strip().lower()
-    if normalized_shop_sector:
-        keywords = SHOP_SECTOR_KEYWORDS.get(normalized_shop_sector, [])
-        if keywords:
-            keyword_filters = []
-            for kw in keywords:
-                like_kw = f"%{kw}%"
-                keyword_filters.extend([
-                    PartnerProduct.name.ilike(like_kw),
-                    PartnerProduct.category.ilike(like_kw),
-                    PartnerProduct.description.ilike(like_kw),
-                ])
-            partner_ids = [
-                row[0]
-                for row in db.query(PartnerProduct.partner_id)
-                .filter(PartnerProduct.active.is_(True), or_(*keyword_filters))
-                .distinct()
-                .all()
-            ]
-            if partner_ids:
-                query = query.filter(AssociatePartner.id.in_(partner_ids))
-            else:
-                return []
-
     rows = query.order_by(AssociatePartner.is_featured.desc(), AssociatePartner.business_name.asc()).all()
-    payload = [_partner_to_dict(p) for p in rows]
+    classification_map = _load_partner_classification_meta(db)
+    product_meta = _load_partner_product_meta(db)
+    products_by_partner = {}
+    for product in db.query(PartnerProduct).filter(PartnerProduct.active.is_(True)).all():
+        products_by_partner.setdefault(str(product.partner_id), []).append(product)
+
+    requested_category = str(category or "").strip().lower()
+    requested_service_sector = str(service_sector or "").strip().lower()
+    requested_shop_sector = str(shop_sector or "").strip().lower()
+    requested_district = str(district or "").strip().lower()
+    tokens = _search_tokens(q)
+    ranked = []
+    for partner in rows:
+        classification = classification_map.get(str(partner.id), {})
+        product_rows = products_by_partner.get(str(partner.id), [])
+        product_text = " ".join(
+            " ".join([
+                str(item.name or ""), str(item.category or ""), str(item.description or ""),
+                str(_service_meta_for_product(product_meta, item.id).get("service_template_key") or ""),
+                str(_service_meta_for_product(product_meta, item.id).get("service_sector") or ""),
+                str(_service_meta_for_product(product_meta, item.id).get("service_category") or ""),
+                str(_service_meta_for_product(product_meta, item.id).get("service_type") or ""),
+                str(_service_meta_for_product(product_meta, item.id).get("service_area") or ""),
+                str(_service_meta_for_product(product_meta, item.id).get("district") or ""),
+            ]) for item in product_rows
+        ).lower()
+        partner_text = " ".join([
+            str(partner.business_name or ""), str(partner.contact_person or ""), str(partner.business_type or ""),
+            str(partner.city or ""), str(partner.state or ""), str(partner.address or ""), str(partner.pincode or ""),
+            str(partner.partner_code or ""), json.dumps(classification), product_text,
+        ]).lower()
+        service_sector_value = str(classification.get("service_sector") or "").strip().lower()
+        shop_sector_value = str(classification.get("shop_sector") or "").strip().lower()
+        category_text = " ".join([
+            str(classification.get("service_category") or ""), str(classification.get("shop_category") or ""), product_text,
+        ]).lower()
+        if requested_district and requested_district not in str(classification.get("district") or "").lower():
+            continue
+        if requested_service_sector and requested_service_sector not in service_sector_value and requested_service_sector not in partner_text:
+            continue
+        if requested_shop_sector:
+            shop_keywords = SHOP_SECTOR_KEYWORDS.get(requested_shop_sector, [requested_shop_sector])
+            if not any(keyword in (shop_sector_value + " " + category_text + " " + partner_text) for keyword in shop_keywords):
+                continue
+        if requested_category and requested_category not in category_text:
+            continue
+        if tokens and not all(token in partner_text for token in tokens):
+            continue
+        score = 0
+        exact_sector = requested_service_sector or requested_shop_sector
+        if exact_sector and exact_sector in (service_sector_value + " " + shop_sector_value): score += 100
+        if requested_category and requested_category in category_text: score += 75
+        for token in tokens:
+            if token in service_sector_value or token in shop_sector_value: score += 50
+            elif token in category_text: score += 35
+            elif token in str(partner.business_name or "").lower(): score += 25
+            else: score += 10
+        if city and str(partner.city or "").lower() == city.lower(): score += 20
+        if district and district.lower() == str(classification.get("district") or "").lower(): score += 20
+        if pincode and str(partner.pincode or "").strip() == str(pincode).strip(): score += 20
+        ranked.append((score, bool(partner.is_featured), str(partner.business_name or "").lower(), partner, classification))
+
+    ranked.sort(key=lambda item: (-item[0], not item[1], item[2]))
+    payload = [_partner_to_dict(item[3], item[4]) for item in ranked]
+    rows = [item[3] for item in ranked]
 
     if not rows or not _is_delivery_focus_query(business_type, q):
         return payload
@@ -487,7 +540,7 @@ def partner_public_page(partner_code: str, db: Session = Depends(get_db)):
     unit_map = _load_partner_product_units(db)
     meta_map = _load_partner_product_meta(db)
 
-    partner_doc = _partner_to_dict(partner)
+    partner_doc = _partner_to_dict(partner, _load_partner_classification_meta(db).get(str(partner.id), {}))
     partner_doc["banner_url"] = banner_url
     partner_doc["business_youtube_url"] = _partner_business_youtube_url(db, partner.id)
     partner_doc["business_facebook_url"] = _partner_business_facebook_url(db, partner.id)

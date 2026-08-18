@@ -34,7 +34,9 @@ export default function DirectoryPage() {
   const [pincode, setPincode] = useState("");
   const [type, setType] = useState("All");
   const [category, setCategory] = useState("");
+  const [serviceSector, setServiceSector] = useState("");
   const [shopSector, setShopSector] = useState("");
+  const [district, setDistrict] = useState("");
   const [q, setQ] = useState("");
   const [deliveryCitySearch, setDeliveryCitySearch] = useState("");
   const [deliveryPincodeSearch, setDeliveryPincodeSearch] = useState("");
@@ -44,7 +46,9 @@ export default function DirectoryPage() {
   const debouncedPincode = useDebouncedValue(pincode, 280);
   const debouncedType = useDebouncedValue(type, 280);
   const debouncedCategory = useDebouncedValue(category, 280);
+  const debouncedServiceSector = useDebouncedValue(serviceSector, 280);
   const debouncedShopSector = useDebouncedValue(shopSector, 280);
+  const debouncedDistrict = useDebouncedValue(district, 280);
   const debouncedQuery = useDebouncedValue(q, 280);
 
   useEffect(() => {
@@ -52,15 +56,19 @@ export default function DirectoryPage() {
     const queryQ = String(searchParams.get("q") || "").trim();
     const queryType = String(searchParams.get("business_type") || "").trim();
     const queryCategory = String(searchParams.get("category") || "").trim();
+    const queryServiceSector = String(searchParams.get("service_sector") || "").trim();
     const queryShopSector = String(searchParams.get("shop_sector") || "").trim();
+    const queryDistrict = String(searchParams.get("district") || "").trim();
     const queryCity = String(searchParams.get("city") || "").trim();
     const queryPincode = normalizePincode(searchParams.get("pincode") || "");
 
-    if (queryQ || queryType || queryCategory || queryShopSector || queryCity || queryPincode) {
+    if (queryQ || queryType || queryCategory || queryServiceSector || queryShopSector || queryDistrict || queryCity || queryPincode) {
       setQ(queryQ);
       setType(queryType || "All");
       setCategory(queryCategory);
+      setServiceSector(queryServiceSector);
       setShopSector(queryShopSector);
+      setDistrict(queryDistrict);
       setCity(queryCity);
       setPincode(queryPincode);
       return;
@@ -86,7 +94,9 @@ export default function DirectoryPage() {
     setQ(preset.q);
     setType(preset.type);
     setCategory("");
+    setServiceSector("");
     setShopSector(String(preset.shop_sector || ""));
+    setDistrict("");
     setCity("");
     setPincode("");
   }, [searchParams]);
@@ -104,13 +114,15 @@ export default function DirectoryPage() {
     if (debouncedPincode) params.set("pincode", debouncedPincode);
     if (debouncedType && debouncedType !== "All") params.set("business_type", debouncedType);
     if (debouncedCategory) params.set("category", debouncedCategory);
+    if (debouncedServiceSector) params.set("service_sector", debouncedServiceSector);
     if (debouncedShopSector) params.set("shop_sector", debouncedShopSector);
+    if (debouncedDistrict) params.set("district", debouncedDistrict);
     if (debouncedQuery) params.set("q", debouncedQuery);
     api.get(`/directory/partners?${params.toString()}`)
       .then(r => setPartners(r.data))
       .catch(() => setPartners([]))
       .finally(() => setLoading(false));
-  }, [debouncedCity, debouncedPincode, debouncedType, debouncedCategory, debouncedShopSector, debouncedQuery]);
+  }, [debouncedCity, debouncedPincode, debouncedType, debouncedCategory, debouncedServiceSector, debouncedShopSector, debouncedDistrict, debouncedQuery]);
 
   useEffect(() => {
     const pin = normalizePincode(debouncedPincode);
@@ -141,7 +153,9 @@ export default function DirectoryPage() {
     setType("Service");
     setQ("service delivery partner");
     setCategory("");
+    setServiceSector("");
     setShopSector("");
+    setDistrict("");
     setCity(nextCity);
     setPincode(nextPincode);
   };
@@ -157,7 +171,7 @@ export default function DirectoryPage() {
     setQ("");
   };
 
-  const showGrouped = !city && !pincode && !type.replace("All", "") && !category && !shopSector && !q;
+  const showGrouped = !city && !pincode && !type.replace("All", "") && !category && !serviceSector && !shopSector && !district && !q;
   const deliveryComparisonRows = useMemo(() => {
     if (!isDeliveryFocus) return [];
     return [...partners]
@@ -228,6 +242,8 @@ export default function DirectoryPage() {
               <option value="">All categories</option>
               {categories.map(c => <option key={c} value={c}>{c}</option>)}
             </select>
+            <Input value={serviceSector} onChange={(e) => setServiceSector(e.target.value)} placeholder="Service sector" className="h-11 bg-white text-slate-900 min-w-[140px] w-full md:w-auto" data-testid="dir-service-sector" />
+            <Input value={district} onChange={(e) => setDistrict(e.target.value)} placeholder="District" className="h-11 bg-white text-slate-900 min-w-[120px] w-full md:w-auto" data-testid="dir-district" />
           </div>
 
           <div className="mt-4 rounded-xl border border-cyan-300/40 bg-cyan-500/10 p-3 md:p-4" data-testid="delivery-global-search-box">
@@ -287,9 +303,9 @@ export default function DirectoryPage() {
                   {c}
                 </button>
               ))}
-              {(city || pincode || type !== "All" || category || shopSector || q) && (
+              {(city || pincode || type !== "All" || category || serviceSector || shopSector || district || q) && (
                 <button
-                  onClick={() => { setCity(""); setPincode(""); setType("All"); setCategory(""); setShopSector(""); setQ(""); }}
+                  onClick={() => { setCity(""); setPincode(""); setType("All"); setCategory(""); setServiceSector(""); setShopSector(""); setDistrict(""); setQ(""); }}
                   className="text-xs px-3 py-1.5 rounded-full font-semibold bg-red-500/20 text-red-100 border border-red-300/30 hover:bg-red-500/30"
                   data-testid="chip-clear"
                 >Clear filters</button>

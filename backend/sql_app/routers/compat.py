@@ -581,15 +581,38 @@ def _member_purchase_active(db: Session, user_id: str) -> bool:
     return bool(_load_json_setting(db, _member_purchase_activation_key(user_id), {}).get("active"))
 
 
+def _member_payment_state_key(user_id: str) -> str:
+    return f"member_payment_state:{user_id}"
+
+
+def _set_member_payment_state(db: Session, user_id: str, state: str, payment_method: str = "", order_id: str = "", verified_by: str = "") -> dict:
+    current = _load_json_setting(db, _member_payment_state_key(user_id), {})
+    current.update({
+        "approval_status": "approved" if state == "paid" else "pending",
+        "payment_status": state,
+        "payment_method": str(payment_method or current.get("payment_method") or "").lower(),
+        "order_id": str(order_id or current.get("order_id") or ""),
+    })
+    if state == "paid":
+        current["verified_at"] = now_iso()
+        if verified_by:
+            current["verified_by"] = verified_by
+    _save_json_setting(db, _member_payment_state_key(user_id), current)
+    return current
+
+
 def _activate_member_purchase(db: Session, user: User | None, order_id: str, source: str) -> bool:
     if not user or str(user.role or "") != "member" or _member_purchase_active(db, user.id):
         return False
+    user.is_active = True
     _save_json_setting(db, _member_purchase_activation_key(user.id), {
         "active": True,
         "activated_at": now_iso(),
         "activation_order_id": str(order_id or ""),
         "payment_source": str(source or "admin_approved"),
     })
+    _set_member_payment_state(db, user.id, "paid", source, order_id)
+    db.commit()
     return True
 
 
@@ -622,7 +645,7 @@ def _order_member(db: Session, order: PublicOrder):
     ref = str(order.member_ref or "").strip().upper()
     if not ref:
         return None
-    for candidate in db.query(User).filter(User.is_active.is_(True)).all():
+    for candidate in db.query(User).all():
         if member_code_for_user(candidate.id).upper() == ref:
             return candidate
     return None
@@ -639,7 +662,7 @@ def _approved_member_purchases(db: Session, user_id: str, period: str | None = N
             items = json.loads(order.items_json or "[]")
         except Exception:
             items = []
-        metho_sales = round(sum(float(item.get("subtotal") or 0) for item in items if str(item.get("product_type") or "metho").lower() == "metho"), 2)
+        metho_sales = round(sum(float(item.get("subtotal") or 0) for item in items if str(item.get("product_type") or "").lower() == "metho"), 2)
         if metho_sales > 0:
             out.append({"order": order, "metho_sales": metho_sales})
     return out
@@ -670,7 +693,7 @@ def _parse_cycle_datetime(value) -> datetime:
 
 
 def _metho_sale_excluding_gst(item: dict) -> float:
-    if str(item.get("product_type") or "metho").lower() != "metho":
+    if str(item.get("product_type") or "").lower() != "metho":
         return 0.0
     subtotal = max(0.0, float(item.get("pre_tax") or item.get("subtotal") or 0))
     if item.get("pre_tax") is not None:
@@ -746,7 +769,9 @@ def _settle_completed_smart_cycles(db: Session, user_id: str, now: datetime | No
         slot_five_start = cycle_start + timedelta(days=SMART_CYCLE_SLOT_DAYS * 4)
         cycle_end = cycle_start + timedelta(seconds=cycle_seconds)
         eligible_sale, order_count = _smart_cycle_network_sale(db, user_id, slot_five_start, cycle_end)
-        bonus_percent = max(0.0, float(load_settings(db).get("smart_cycle_bonus_percent") or 0))
+        settings = load_settings(db)
+        bonus_percent = max(0.0, float(settings.get("smart_cycle_bonus_percent") or 0))
+        leader_match_percent = max(0.0, min(100.0, float(settings.get("leader_match_percent") or 0)))
         commission = round(eligible_sale * bonus_percent / 100.0, 2)
         match_paid = 0.0
         if commission > 0:
@@ -758,7 +783,7 @@ def _settle_completed_smart_cycles(db: Session, user_id: str, now: datetime | No
             _save_user_wallet(db, user_id, wallet)
             relation = db.query(UserReferral).filter(UserReferral.user_id == user_id).first()
             if relation:
-                match_paid = round(commission * 0.5, 2)
+                match_paid = round(commission * leader_match_percent / 100.0, 2)
                 sponsor_wallet = _load_user_wallet(db, relation.sponsor_user_id)
                 sponsor_wallet["balance"] += match_paid
                 sponsor_wallet["total_income"] += match_paid
@@ -839,7 +864,7 @@ def _calculate_sql_pool(db: Session, period: str) -> dict:
             items = []
         commission = 0.0
         for item in items:
-            if str(item.get("product_type") or "metho").lower() == "metho":
+            if str(item.get("product_type") or "").lower() == "metho":
                 subtotal = max(0.0, float(item.get("pre_tax") or item.get("subtotal") or 0))
                 rate = float(settings.get("metho_commission_percent") or 10)
             else:
@@ -3525,6 +3550,7 @@ def business_stats(db: Session = Depends(get_db), current_user=Depends(get_curre
 def business_cycle(db: Session = Depends(get_db), current_user=Depends(get_current_user)):
     settings = load_settings(db)
     bonus_percent = float(settings.get("smart_cycle_bonus_percent") or 10)
+    leader_match_percent = max(0.0, min(100.0, float(settings.get("leader_match_percent") or 0)))
     target_bv = float(settings.get("cycle_target_bv") or 10000)
     reward_text = str(settings.get("cycle_reward_text") or f"{bonus_percent}% Smart Cycle Bonus")
     period = datetime.now(timezone.utc).strftime("%Y-%m")
@@ -3546,11 +3572,12 @@ def smart_cycle_me(db: Session = Depends(get_db), current_user=Depends(get_curre
     db.commit()
     settings = load_settings(db)
     bonus_percent = float(settings.get("smart_cycle_bonus_percent") or 10)
+    leader_match_percent = max(0.0, min(100.0, float(settings.get("leader_match_percent") or 0)))
     if not _member_has_approved_metho_sale(db, current_user.id):
         return {
             "active": False,
             "message": "Your Smart Cycle activates automatically after your first approved METHO product purchase.",
-            "settings": {"smart_cycle_bonus_percent": bonus_percent, "leader_match_percent": 50, "smart_cycle_slot_days": SMART_CYCLE_SLOT_DAYS, "smart_cycle_total_slots": SMART_CYCLE_TOTAL_SLOTS},
+            "settings": {"smart_cycle_bonus_percent": bonus_percent, "leader_match_percent": leader_match_percent, "smart_cycle_slot_days": SMART_CYCLE_SLOT_DAYS, "smart_cycle_total_slots": SMART_CYCLE_TOTAL_SLOTS},
             "past_cycles": [],
         }
     state = _load_json_setting(db, _smart_cycle_state_key(current_user.id), {})
@@ -3588,7 +3615,7 @@ def smart_cycle_me(db: Session = Depends(get_db), current_user=Depends(get_curre
             continue
         direct_slot_start = direct_start + timedelta(days=SMART_CYCLE_SLOT_DAYS * 4)
         direct_sale, _ = _smart_cycle_network_sale(db, direct_id, direct_slot_start, now)
-        direct_match_estimate += round(direct_sale * bonus_percent / 100.0 * 0.5, 2)
+        direct_match_estimate += round(direct_sale * bonus_percent / 100.0 * leader_match_percent / 100.0, 2)
     return {
         "active": True,
         "cycle": {"id": f"{current_user.id}:{state.get('cycle_number', 1)}", "cycle_number": int(state.get("cycle_number") or 1), "started_at": cycle_start.isoformat(), "ends_at": (cycle_start + timedelta(days=SMART_CYCLE_SLOT_DAYS * SMART_CYCLE_TOTAL_SLOTS)).isoformat(), "qualified_volume": network_sale, "metho_order_count": order_count, "fifth_slot_volume": network_sale},
@@ -3606,7 +3633,7 @@ def smart_cycle_me(db: Session = Depends(get_db), current_user=Depends(get_curre
         "eligible_for_settlement": False,
         "estimated_bonus": estimated_bonus,
         "estimated_leader_match": round(direct_match_estimate, 2),
-        "settings": {"smart_cycle_bonus_percent": bonus_percent, "leader_match_percent": 50, "smart_cycle_days": SMART_CYCLE_SLOT_DAYS * SMART_CYCLE_TOTAL_SLOTS, "smart_cycle_slot_days": SMART_CYCLE_SLOT_DAYS, "smart_cycle_total_slots": SMART_CYCLE_TOTAL_SLOTS},
+        "settings": {"smart_cycle_bonus_percent": bonus_percent, "leader_match_percent": leader_match_percent, "smart_cycle_days": SMART_CYCLE_SLOT_DAYS * SMART_CYCLE_TOTAL_SLOTS, "smart_cycle_slot_days": SMART_CYCLE_SLOT_DAYS, "smart_cycle_total_slots": SMART_CYCLE_TOTAL_SLOTS},
         "slot_history": slot_history,
         "past_cycles": _load_smart_cycle_history(db, current_user.id),
         "matching_history": _load_json_setting(db, _smart_cycle_match_history_key(current_user.id), []),
@@ -4464,6 +4491,8 @@ def admin_approve_order(order_id: str, payload: dict | None = None, db: Session 
 
         pp = db.query(PartnerProduct).filter(PartnerProduct.id == pid).first()
         if pp:
+            if _is_service_order_item(item):
+                continue
             unit_info = _partner_unit_info(partner_unit_map, pp.id)
             if unit_info["unit_type"] == "piece":
                 qty = max(1, int(round(qty_value or 1)))
@@ -4494,6 +4523,8 @@ def admin_approve_order(order_id: str, payload: dict | None = None, db: Session 
             continue
         pp = db.query(PartnerProduct).filter(PartnerProduct.id == pid).first()
         if pp:
+            if _is_service_order_item(item):
+                continue
             unit_info = _partner_unit_info(partner_unit_map, pp.id)
             if unit_info["unit_type"] == "piece":
                 qty = max(1, int(round(qty_value or 1)))
@@ -4538,13 +4569,23 @@ def admin_approve_order(order_id: str, payload: dict | None = None, db: Session 
     db.commit()
 
     approved_member = _order_member(db, row)
-    has_metho_product = any(str(item.get("product_type") or "metho").lower() == "metho" for item in items)
+    has_metho_product = any(str(item.get("product_type") or "").lower() == "metho" for item in items)
+    activation_source = str(row.payment_method or "admin_confirmed").strip().lower()
     member_purchase_activated = _activate_member_purchase(
         db,
         approved_member if has_metho_product else None,
         row.id,
-        str(row.payment_method or "admin_confirmed"),
+        activation_source,
     )
+    if approved_member and has_metho_product:
+        _set_member_payment_state(
+            db,
+            approved_member.id,
+            "paid",
+            activation_source,
+            row.id,
+            str(getattr(current_user, "id", "") or "") if activation_source != "razorpay" else "razorpay",
+        )
 
     # A paid METHO order activates/advances the buyer's cycle and every sponsor whose network includes them.
     cycle_member = _order_member(db, row)
@@ -6695,8 +6736,14 @@ def admin_partner_requests(status_filter: str | None = None, db: Session = Depen
     if status_filter:
         q = q.filter(PartnerRequest.status == status_filter)
     rows = q.order_by(PartnerRequest.created_at.desc()).all()
-    return [
-        {
+    result = []
+    for r in rows:
+        classification_row = db.query(AppSetting).filter(AppSetting.key == f"partner_classification:request:{r.id}").first()
+        try:
+            classification = json.loads(classification_row.value_json or "{}") if classification_row else {}
+        except Exception:
+            classification = {}
+        result.append({
             "id": r.id,
             "status": r.status,
             "business_type": r.business_type,
@@ -6714,9 +6761,13 @@ def admin_partner_requests(status_filter: str | None = None, db: Session = Depen
             "linked_partner_code": "",
             "rejection_reason": "",
             "created_at": r.created_at.isoformat() if r.created_at else now_iso(),
-        }
-        for r in rows
-    ]
+            "service_sector": classification.get("service_sector", ""),
+            "service_category": classification.get("service_category", ""),
+            "shop_sector": classification.get("shop_sector", ""),
+            "shop_category": classification.get("shop_category", ""),
+            "district": classification.get("district", ""),
+        })
+    return result
 
 
 @router.post("/admin/partner-requests/{request_id}/approve")
@@ -6725,6 +6776,8 @@ def admin_partner_request_approve(request_id: str, payload: dict | None = None, 
     req = db.query(PartnerRequest).filter(PartnerRequest.id == request_id).first()
     if not req:
         raise HTTPException(status_code=404, detail="Partner request not found")
+    if str(req.status or "").lower() != "pending":
+        raise HTTPException(status_code=400, detail=f"Only pending partner requests can be approved (current: {req.status})")
 
     requested_commission = float(getattr(req, "commission_percent_ask", 0) or 10)
 
@@ -6815,6 +6868,23 @@ def admin_partner_request_approve(request_id: str, payload: dict | None = None, 
         partner.upi_id = str(req.upi_id or partner.upi_id).strip()
         partner.commission_percent = requested_commission
         partner.active = True
+
+    db.flush()
+    classification_row = db.query(AppSetting).filter(
+        AppSetting.key == f"partner_classification:request:{request_id}"
+    ).first()
+    if classification_row:
+        partner_classification_key = f"partner_classification:partner:{partner.id}"
+        partner_classification_row = db.query(AppSetting).filter(AppSetting.key == partner_classification_key).first()
+        if partner_classification_row:
+            partner_classification_row.value_json = classification_row.value_json
+            partner_classification_row.updated_at = datetime.now(timezone.utc)
+        else:
+            db.add(AppSetting(
+                key=partner_classification_key,
+                value_json=classification_row.value_json,
+                updated_at=datetime.now(timezone.utc),
+            ))
 
     req.status = "approved"
     db.commit()
@@ -6936,7 +7006,7 @@ def settlement_preview(year: int, month: int, db: Session = Depends(get_db), cur
             items = json.loads(order.items_json or "[]")
         except Exception:
             items = []
-        amount = sum(float(item.get("subtotal") or 0) for item in items if str(item.get("product_type") or "metho").lower() == "metho")
+        amount = sum(float(item.get("subtotal") or 0) for item in items if str(item.get("product_type") or "").lower() == "metho")
         member_totals[member.id] = member_totals.get(member.id, 0.0) + amount
     total_points = sum(max(0.0, amount) / 100.0 for amount in member_totals.values())
     point_value = round(pool["member_pool"] / total_points, 4) if total_points else 0.0

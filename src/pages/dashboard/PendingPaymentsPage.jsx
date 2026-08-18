@@ -184,7 +184,7 @@ export default function PendingPaymentsPage() {
                     className="bg-emerald-700 hover:bg-emerald-800 text-white rounded-full"
                     data-testid={`approve-order-${o.id}`}
                   >
-                    <CheckCircle2 className="w-4 h-4 mr-1" /> Approve
+                    <CheckCircle2 className="w-4 h-4 mr-1" /> {String(o.payment_method || "").toLowerCase() === "cod" ? "Verify Cash Payment" : "Approve"}
                   </Button>
                   <Button
                     size="sm"

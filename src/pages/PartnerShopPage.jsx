@@ -227,6 +227,9 @@ const formatPriceWithUnit = (price, unitType) => {
   return unit === "piece" ? `₹${price}` : `₹${price} / ${unit}`;
 };
 
+const serviceDisplayPrice = (service) => Number(service?.final_customer_rate || service?.price || 0);
+const servicePricingUnitLabel = (service) => String(service?.pricing_unit || "PER_VISIT").replaceAll("_", " ").toLowerCase().replace(/\b\w/g, (char) => char.toUpperCase());
+
 const getSelectableMeasureUnits = (item) => {
   const unit = getUnitType(item);
   if (unit === "kg") return ["kg", "gram"];
@@ -857,6 +860,10 @@ export default function PartnerShopPage() {
 
   const bookServiceNow = (service) => {
     if (!service?.id) return;
+    if (service?.is_available === false || ["unavailable", "temporarily_closed"].includes(String(service?.availability || "").toLowerCase())) {
+      toast.error("This service is currently unavailable");
+      return;
+    }
     if (isTransportServiceListing(service)) {
       openTransportBookingDesk(service);
       return;
@@ -1808,8 +1815,8 @@ export default function PartnerShopPage() {
                         <p className="text-[10px] uppercase tracking-widest text-amber-700 font-semibold truncate">{service.category}</p>
                         <p className="font-display font-bold text-emerald-950 mt-0.5 line-clamp-1">{service.name}</p>
                         <div className="mt-2 flex items-center justify-between">
-                          <span className="font-display font-black text-emerald-950">₹{service.price}</span>
-                          <span className="text-[11px] text-slate-500">Stay / Dining</span>
+                          <span className="font-display font-black text-emerald-950">₹{serviceDisplayPrice(service)}</span>
+                          <span className="text-[11px] text-slate-500">{servicePricingUnitLabel(service)}</span>
                         </div>
                         <Button type="button" onClick={() => bookServiceNow(service)} className="w-full mt-3 rounded-full bg-amber-600 hover:bg-amber-700 text-white" data-testid={`shop-book-hospitality-${service.id}`}>
                           <CalendarCheck2 className="w-4 h-4 mr-2" /> Book Now
@@ -1916,7 +1923,7 @@ export default function PartnerShopPage() {
                         <p className="text-[10px] uppercase tracking-widest text-violet-700 font-semibold truncate">{service.category}</p>
                         <p className="font-display font-bold text-emerald-950 mt-0.5 line-clamp-1">{service.name}</p>
                         <div className="mt-2 flex items-center justify-between">
-                          <span className="font-display font-black text-emerald-950">₹{service.price}</span>
+                          <span className="font-display font-black text-emerald-950">₹{serviceDisplayPrice(service)}</span>
                           <span className="text-[11px] text-slate-500">Doorstep</span>
                         </div>
                         <Button type="button" onClick={() => bookServiceNow(service)} className="w-full mt-3 rounded-full bg-violet-700 hover:bg-violet-800 text-white" data-testid={`shop-book-doorstep-${service.id}`}>
@@ -2037,7 +2044,7 @@ export default function PartnerShopPage() {
                         <p className="text-[10px] uppercase tracking-widest text-indigo-700 font-semibold truncate">{service.category}</p>
                         <p className="font-display font-bold text-emerald-950 mt-0.5 line-clamp-1">{service.name}</p>
                         <div className="mt-2 flex items-center justify-between">
-                          <span className="font-display font-black text-emerald-950">₹{service.price}</span>
+                          <span className="font-display font-black text-emerald-950">₹{serviceDisplayPrice(service)}</span>
                           <span className="text-[11px] text-slate-500">Property</span>
                         </div>
 
@@ -2164,7 +2171,7 @@ export default function PartnerShopPage() {
                         <p className="text-[10px] uppercase tracking-widest text-emerald-800 font-semibold truncate">{service.category}</p>
                         <p className="font-display font-bold text-emerald-950 mt-0.5 line-clamp-1">{service.name}</p>
                         <div className="mt-2 flex items-center justify-between">
-                          <span className="font-display font-black text-emerald-950">₹{service.price}</span>
+                          <span className="font-display font-black text-emerald-950">₹{serviceDisplayPrice(service)}</span>
                           <span className="text-[11px] text-slate-500">Service</span>
                         </div>
 
