@@ -2693,6 +2693,7 @@ export default function PartnerDashboardPage() {
               <div className="space-y-3">
                 {normalizedOrders.map(o => {
                   const invoiceReady = ["paid", "approved"].includes(String(o?.status || "").trim().toLowerCase());
+                  const customerWhatsAppAvailable = Boolean(String(o?.delivery_phone || "").replace(/\D/g, "") || String(o?.customer_whatsapp_invoice_url || "").trim());
                   return <div key={o.id} className="border border-border rounded-lg p-4 flex flex-wrap justify-between gap-3" data-testid={`partner-order-${o.id}`}>
                     <div>
                       <p className="font-mono text-xs text-emerald-800">{o.order_no}</p>
@@ -2713,7 +2714,7 @@ export default function PartnerDashboardPage() {
                       ) : null}
                     </div>
                     <div className="text-right">
-                      {invoiceReady && o.customer_whatsapp_invoice_url ? (
+                      {invoiceReady && customerWhatsAppAvailable ? (
                         <button
                           type="button"
                           onClick={() => sendInvoicePdfOnWhatsApp(o)}
@@ -2721,7 +2722,7 @@ export default function PartnerDashboardPage() {
                           className="inline-flex items-center rounded-full bg-green-600 px-3 py-1.5 text-[11px] font-semibold text-white hover:bg-green-700 disabled:cursor-not-allowed disabled:opacity-70"
                           data-testid={`send-invoice-pdf-whatsapp-${o.id}`}
                         >
-                          <MessageCircle className="w-3.5 h-3.5 mr-1" /> {sendingInvoiceOrderId === o.id ? "Preparing PDF..." : "Send Invoice PDF WhatsApp"}
+                          <MessageCircle className="w-3.5 h-3.5 mr-1" /> {sendingInvoiceOrderId === o.id ? "Preparing PDF..." : "Send Invoice to Customer WhatsApp"}
                         </button>
                       ) : null}
                       <p className="text-[11px] text-amber-700 mt-1">{invoiceReady ? "Invoice, commission, and sales breakdown still hidden." : "Invoice will be available after admin approval."}</p>
