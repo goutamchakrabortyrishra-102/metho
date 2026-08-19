@@ -795,10 +795,11 @@ export default function AddProductDialog({
               <SelectTrigger className="mt-1.5" data-testid="new-product-type-select"><SelectValue /></SelectTrigger>
               <SelectContent>
                 <SelectItem value="metho">METHO Product (Smart Cycle qualified)</SelectItem>
-                <SelectItem value="metho_service">METHO Service (Smart Cycle qualified)</SelectItem>
+                <SelectItem value="metho_service" disabled={!isEdit}>METHO Service (use Tourism Control Center)</SelectItem>
                 <SelectItem value="associate_partner">Associate Partner Product</SelectItem>
               </SelectContent>
             </Select>
+            {!isEdit ? <p className="mt-1.5 text-[11px] text-sky-800">Tourism offers are created from Tourism Control Center so image, itinerary, and public booking details stay together.</p> : null}
             {form.product_type === "associate_partner" && (
               <div className="mt-3 rounded-lg border-2 border-amber-300 bg-amber-50 p-3">
                 <Label className="flex items-center gap-1.5 text-amber-900"><Store className="w-3.5 h-3.5" /> Link to Partner <span className="text-red-500">*</span></Label>

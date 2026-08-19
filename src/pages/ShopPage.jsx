@@ -470,8 +470,8 @@ export default function ShopPage() {
         <div className={`mt-10 grid gap-4 ${isGalleryView ? "grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5" : "grid-cols-2 md:grid-cols-3 lg:grid-cols-4"}`}>
           {visibleProducts.map((p, i) => {
             const stock = getStock(p);
-            const isOutOfStock = stock <= 0;
             const isTourismService = String(p?.product_type || "").toLowerCase() === "metho_service" && Boolean(p?.is_service);
+            const isOutOfStock = !isTourismService && stock <= 0;
             const rawImageRef =
               p?.image_url ||
               p?.product_image_url ||

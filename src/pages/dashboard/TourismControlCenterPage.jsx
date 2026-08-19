@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Navigate, Link } from "react-router-dom";
+import { Navigate } from "react-router-dom";
 import { BadgeCheck, CalendarDays, CheckCircle2, ClipboardCheck, Compass, CreditCard, ExternalLink, ImagePlus, Loader2, RefreshCw, ShieldCheck, Upload, XCircle } from "lucide-react";
 import { toast } from "sonner";
 import api from "@/services/api";
@@ -34,6 +34,18 @@ export default function TourismControlCenterPage() {
   const [mediaLoading, setMediaLoading] = useState(false);
   const [mediaUploading, setMediaUploading] = useState(false);
   const imageInputRef = useRef(null);
+  const [offerOpen, setOfferOpen] = useState(false);
+  const [offerSaving, setOfferSaving] = useState(false);
+  const [offerUploading, setOfferUploading] = useState(false);
+  const offerImageInputRef = useRef(null);
+  const [offerForm, setOfferForm] = useState({
+    name: "",
+    category: "Tour Package",
+    price: "",
+    description: "",
+    image_url: "",
+    commission_percent: "",
+  });
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -123,6 +135,70 @@ export default function TourismControlCenterPage() {
     }
   };
 
+  const uploadOfferImage = async (event) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+    if (file.size > 2 * 1024 * 1024) {
+      toast.error("Image too large (maximum 2MB)");
+      event.target.value = "";
+      return;
+    }
+    setOfferUploading(true);
+    try {
+      const formData = new FormData();
+      formData.append("file", file);
+      const { data: response } = await api.post("/admin/upload/tourism-booking-image", formData, { headers: { "Content-Type": "multipart/form-data" } });
+      setOfferForm((current) => ({ ...current, image_url: String(response?.url || "") }));
+      toast.success("Offer image uploaded");
+    } catch (err) {
+      toast.error(err?.response?.data?.detail || "Offer image upload failed");
+    } finally {
+      setOfferUploading(false);
+      event.target.value = "";
+    }
+  };
+
+  const saveOffer = async (event) => {
+    event.preventDefault();
+    const name = offerForm.name.trim();
+    const price = Number(offerForm.price || 0);
+    const commission = offerForm.commission_percent === "" ? null : Number(offerForm.commission_percent);
+    if (!name || !Number.isFinite(price) || price <= 0) {
+      toast.error("Offer name and a valid price are required");
+      return;
+    }
+    if (commission !== null && (!Number.isFinite(commission) || commission < 0 || commission > 100)) {
+      toast.error("Commission must be between 0 and 100");
+      return;
+    }
+    setOfferSaving(true);
+    try {
+      await api.post("/products", {
+        name,
+        category: offerForm.category.trim() || "Tour Package",
+        price,
+        mrp: price,
+        stock: 0,
+        gst_percent: 0,
+        discount_percent: 0,
+        description: offerForm.description.trim(),
+        image_url: offerForm.image_url,
+        product_type: "metho_service",
+        commission_percent: commission,
+        service_booking_enabled: true,
+        service_template_key: "tourism_booking",
+      });
+      toast.success("Travel offer is live on the public booking page");
+      setOfferForm({ name: "", category: "Tour Package", price: "", description: "", image_url: "", commission_percent: "" });
+      setOfferOpen(false);
+      load();
+    } catch (err) {
+      toast.error(err?.response?.data?.detail || "Travel offer could not be created");
+    } finally {
+      setOfferSaving(false);
+    }
+  };
+
   const summary = data.summary || {};
   return <div className="space-y-6" data-testid="tourism-control-center-page">
     <div className="flex flex-wrap items-end justify-between gap-4">
@@ -132,7 +208,7 @@ export default function TourismControlCenterPage() {
         <p className="mt-1 text-sm text-muted-foreground font-body">Bookings, payment verification, traveller contact, consent audit, and supplier-ready operational queue.</p>
       </div>
       <div className="flex gap-2">
-        <Link to="/app/products?upload=1"><Button variant="outline" className="rounded-full border-sky-300 text-sky-900 hover:bg-sky-50">Tourism Inventory</Button></Link>
+        <Button onClick={() => setOfferOpen(true)} className="rounded-full bg-emerald-800 hover:bg-emerald-900"><ImagePlus className="mr-2 h-4 w-4" />Create Travel Offer</Button>
         <Button variant="outline" className="rounded-full" onClick={load} disabled={loading}><RefreshCw className={`mr-2 h-4 w-4 ${loading ? "animate-spin" : ""}`} />Refresh</Button>
       </div>
     </div>
@@ -194,6 +270,7 @@ export default function TourismControlCenterPage() {
       </article>)}
     </div>
 
+    <Dialog open={offerOpen} onOpenChange={setOfferOpen}><DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-2xl"><DialogHeader><DialogTitle>Create Travel Offer</DialogTitle><DialogDescription>This offer will appear publicly as a tourism service with a Book Now flow. Product inventory upload remains separate.</DialogDescription></DialogHeader><form onSubmit={saveOffer} className="space-y-4"><div className="grid gap-4 sm:grid-cols-2"><div className="sm:col-span-2"><label className="text-sm font-semibold text-emerald-950">Offer name *</label><Input className="mt-1" value={offerForm.name} onChange={(e) => setOfferForm((current) => ({ ...current, name: e.target.value }))} placeholder="Darjeeling 3N / 4D Family Package" data-testid="tourism-offer-name" /></div><div><label className="text-sm font-semibold text-emerald-950">Category</label><Input className="mt-1" value={offerForm.category} onChange={(e) => setOfferForm((current) => ({ ...current, category: e.target.value }))} placeholder="Tour Package" data-testid="tourism-offer-category" /></div><div><label className="text-sm font-semibold text-emerald-950">Starting price *</label><Input className="mt-1" type="number" min="1" step="0.01" value={offerForm.price} onChange={(e) => setOfferForm((current) => ({ ...current, price: e.target.value }))} placeholder="25000" data-testid="tourism-offer-price" /></div><div><label className="text-sm font-semibold text-emerald-950">Smart Cycle item commission %</label><Input className="mt-1" type="number" min="0" max="100" step="0.01" value={offerForm.commission_percent} onChange={(e) => setOfferForm((current) => ({ ...current, commission_percent: e.target.value }))} placeholder="Blank = old global rate" data-testid="tourism-offer-commission" /><p className="mt-1 text-[11px] text-slate-500">Blank রাখলে পুরোনো global Smart Cycle rate ব্যবহার হবে।</p></div><div className="flex items-end"><input ref={offerImageInputRef} type="file" accept="image/jpeg,image/png,image/webp,image/gif,image/svg+xml" className="hidden" onChange={uploadOfferImage} data-testid="tourism-offer-image-file" /><Button type="button" variant="outline" onClick={() => offerImageInputRef.current?.click()} disabled={offerUploading} className="w-full rounded-full border-sky-300 text-sky-900">{offerUploading ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Uploading...</> : <><Upload className="mr-2 h-4 w-4" />{offerForm.image_url ? "Change offer image" : "Upload offer image"}</>}</Button></div></div>{offerForm.image_url ? <img src={resolveAssetUrl(offerForm.image_url)} alt="Offer preview" className="h-36 w-full rounded-lg border border-slate-200 object-cover" /> : null}<div><label className="text-sm font-semibold text-emerald-950">Public booking details *</label><Textarea className="mt-1 min-h-28" value={offerForm.description} onChange={(e) => setOfferForm((current) => ({ ...current, description: e.target.value }))} placeholder="Inclusions, preferred dates, stay details, transport, exclusions, and confirmation notes" data-testid="tourism-offer-description" /></div><DialogFooter><Button type="button" variant="outline" onClick={() => setOfferOpen(false)}>Cancel</Button><Button type="submit" disabled={offerSaving || offerUploading} className="bg-emerald-800 hover:bg-emerald-900">{offerSaving ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Publishing...</> : "Publish Travel Offer"}</Button></DialogFooter></form></DialogContent></Dialog>
     <Dialog open={Boolean(rejectTarget)} onOpenChange={(open) => !open && setRejectTarget(null)}><DialogContent><DialogHeader><DialogTitle>Reject Tourism Payment</DialogTitle><DialogDescription>{rejectTarget?.order_no} will remain visible for the traveller to resubmit payment.</DialogDescription></DialogHeader><Textarea value={rejectReason} onChange={(e) => setRejectReason(e.target.value)} placeholder="Clear reason for traveller and operations team" /><DialogFooter><Button variant="outline" onClick={() => setRejectTarget(null)}>Cancel</Button><Button onClick={reject} disabled={busyId === rejectTarget?.id} className="bg-red-700 hover:bg-red-800">Reject Payment</Button></DialogFooter></DialogContent></Dialog>
   </div>;
 }
