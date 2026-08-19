@@ -2691,8 +2691,9 @@ export default function PartnerDashboardPage() {
               <p className="text-sm text-muted-foreground">No orders yet.</p>
             ) : (
               <div className="space-y-3">
-                {normalizedOrders.map(o => (
-                  <div key={o.id} className="border border-border rounded-lg p-4 flex flex-wrap justify-between gap-3" data-testid={`partner-order-${o.id}`}>
+                {normalizedOrders.map(o => {
+                  const invoiceReady = ["paid", "approved"].includes(String(o?.status || "").trim().toLowerCase());
+                  return <div key={o.id} className="border border-border rounded-lg p-4 flex flex-wrap justify-between gap-3" data-testid={`partner-order-${o.id}`}>
                     <div>
                       <p className="font-mono text-xs text-emerald-800">{o.order_no}</p>
                       <p className="text-xs text-muted-foreground">Status: {String(o?.status || "pending_approval").toUpperCase()}</p>
@@ -2712,7 +2713,7 @@ export default function PartnerDashboardPage() {
                       ) : null}
                     </div>
                     <div className="text-right">
-                      {o.customer_whatsapp_invoice_url ? (
+                      {invoiceReady && o.customer_whatsapp_invoice_url ? (
                         <button
                           type="button"
                           onClick={() => sendInvoicePdfOnWhatsApp(o)}
@@ -2723,10 +2724,10 @@ export default function PartnerDashboardPage() {
                           <MessageCircle className="w-3.5 h-3.5 mr-1" /> {sendingInvoiceOrderId === o.id ? "Preparing PDF..." : "Send Invoice PDF WhatsApp"}
                         </button>
                       ) : null}
-                      <p className="text-[11px] text-amber-700 mt-1">Invoice, commission, and sales breakdown still hidden.</p>
+                      <p className="text-[11px] text-amber-700 mt-1">{invoiceReady ? "Invoice, commission, and sales breakdown still hidden." : "Invoice will be available after admin approval."}</p>
                     </div>
                   </div>
-                ))}
+                })}
               </div>
             )}
           </div>
