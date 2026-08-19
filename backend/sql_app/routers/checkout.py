@@ -2134,8 +2134,11 @@ def partner_orders(db: Session = Depends(get_db), current_user=Depends(get_curre
                 "can_service_rate_edit": False,
                 "service_rate_locked": False,
                 "wallet_balance_snapshot": 0,
+                "wallet_balance_available": round(wallet_balance, 2),
                 "commission_reserve_required": my_commission,
                 "blocked_by_wallet_reserve": blocked_by_wallet_reserve,
+                "can_partner_auto_approve": not has_metho_item and not has_foreign_partner_item,
+                "wallet_shortfall": round(max(0.0, my_commission - wallet_balance), 2) if blocked_by_wallet_reserve else 0.0,
                 "invoice_locked_reason": invoice_locked_reason or "Invoice access partner view-এ disabled আছে।",
             }
         )

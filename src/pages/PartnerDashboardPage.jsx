@@ -1384,7 +1384,7 @@ export default function PartnerDashboardPage() {
               </p>
             </div>
 
-            <div className="mt-4 rounded-xl border border-border p-4 bg-white">
+            <div id="wallet-topup" className="mt-4 rounded-xl border border-border p-4 bg-white">
               <p className="text-[10px] uppercase tracking-widest text-emerald-800 font-bold">Top-up METHO Commission Wallet</p>
               <p className="text-xs text-slate-600 mt-1">এই wallet recharge করলে order approval-এর সময় commission auto deduct হবে।</p>
               <div className="mt-3 rounded-lg border border-red-200 bg-red-50 p-3 text-xs text-red-900" data-testid="partner-otp-safety-notice">
@@ -2694,6 +2694,7 @@ export default function PartnerDashboardPage() {
                 {normalizedOrders.map(o => {
                   const invoiceReady = ["paid", "approved"].includes(String(o?.status || "").trim().toLowerCase());
                   const customerWhatsAppAvailable = Boolean(String(o?.delivery_phone || "").replace(/\D/g, "") || String(o?.customer_whatsapp_invoice_url || "").trim());
+                  const walletRechargeRequired = String(o?.status || "").trim().toLowerCase() === "pending_approval" && o?.blocked_by_wallet_reserve && o?.can_partner_auto_approve;
                   return <div key={o.id} className="border border-border rounded-lg p-4 flex flex-wrap justify-between gap-3" data-testid={`partner-order-${o.id}`}>
                     <div>
                       <p className="font-mono text-xs text-emerald-800">{o.order_no}</p>
@@ -2725,7 +2726,12 @@ export default function PartnerDashboardPage() {
                           <MessageCircle className="w-3.5 h-3.5 mr-1" /> {sendingInvoiceOrderId === o.id ? "Preparing PDF..." : "Send Invoice to Customer WhatsApp"}
                         </button>
                       ) : null}
-                      <p className="text-[11px] text-amber-700 mt-1">{invoiceReady ? "Invoice, commission, and sales breakdown still hidden." : "Invoice will be available after admin approval."}</p>
+                      {walletRechargeRequired ? (
+                        <>
+                          <p className="text-[11px] text-amber-700 mt-1">Wallet reserve short by {inr(o.wallet_shortfall || 0)}. Recharge করলে order auto-approve হবে.</p>
+                          <Button type="button" size="sm" className="mt-2 rounded-full bg-amber-500 text-emerald-950 hover:bg-amber-600" onClick={() => { setTab("overview"); window.setTimeout(() => document.getElementById("wallet-topup")?.scrollIntoView({ behavior: "smooth", block: "start" }), 0); }} data-testid={`recharge-wallet-order-${o.id}`}>Recharge Wallet</Button>
+                        </>
+                      ) : <p className="text-[11px] text-amber-700 mt-1">{invoiceReady ? "Invoice, commission, and sales breakdown still hidden." : "Invoice will be available after admin approval."}</p>}
                     </div>
                   </div>
                 })}
