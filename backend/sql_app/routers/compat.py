@@ -4319,14 +4319,51 @@ def _invoice_payload(db: Session, order_id: str, current_user: User):
                 for (pid,) in db.query(PartnerProduct.id).filter(PartnerProduct.partner_id == partner.id).all()
                 if pid
             }
+            has_foreign_partner_item = any(
+                str(item.get("product_type") or "").strip().lower() != "metho"
+                and str(item.get("product_id") or "") not in partner_product_ids
+                for item in items
+            )
             has_any_partner_item = any(str(item.get("product_id") or "") in partner_product_ids for item in items)
             has_metho_item = any(str(item.get("product_type") or "").strip().lower() == "metho" for item in items)
-            is_partner_order = has_any_partner_item and not has_metho_item
+            is_partner_order = has_any_partner_item and not has_metho_item and not has_foreign_partner_item
 
     if not (is_admin or is_buyer or is_partner_order):
         raise HTTPException(status_code=403, detail="Not allowed")
 
     status_norm = str(row.status or "").strip().lower()
+    if status_norm == "pending_approval" and getattr(current_user, "role", "") == "partner":
+        partner = _resolve_partner_for_user(db, current_user)
+        partner_product_ids = {
+            str(pid)
+            for (pid,) in db.query(PartnerProduct.id).filter(PartnerProduct.partner_id == partner.id).all()
+        } if partner else set()
+        own_partner_order = bool(partner_product_ids)
+        commission_base = 0.0
+        for item in items:
+            product_type = str(item.get("product_type") or "").strip().lower()
+            product_id = str(item.get("product_id") or "").strip()
+            if product_type == "metho" or product_id not in partner_product_ids:
+                own_partner_order = False
+                break
+            commission_base += float(item.get("subtotal") or 0)
+        commission_percent = max(0.0, min(100.0, float(partner.commission_percent or 0))) if partner else 0.0
+        commission_required = round(commission_base * commission_percent / 100.0, 2)
+        wallet_row = db.query(AppSetting).filter(AppSetting.key == f"partner_wallet:{partner.id}").first() if partner else None
+        try:
+            wallet_payload = json.loads(wallet_row.value_json or "{}") if wallet_row else {}
+        except Exception:
+            wallet_payload = {}
+        wallet_balance = round(float((wallet_payload or {}).get("balance") or 0), 2)
+        if own_partner_order and wallet_balance + 1e-9 >= commission_required:
+            admin_approve_order(
+                order_id=row.id,
+                payload={"note": "Auto-approved for partner invoice from reserve wallet"},
+                db=db,
+                current_user=SimpleNamespace(role="super_admin"),
+            )
+            db.refresh(row)
+            status_norm = str(row.status or "").strip().lower()
     if status_norm not in {"paid", "approved"}:
         raise HTTPException(status_code=400, detail="Invoice is available only after admin approval")
     invoice_cache_key = f"invoice:{row.id}"

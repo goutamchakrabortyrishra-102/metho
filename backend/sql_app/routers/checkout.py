@@ -2114,6 +2114,12 @@ def partner_orders(db: Session = Depends(get_db), current_user=Depends(get_curre
             else:
                 invoice_locked_reason = "Admin approval pending. Approve হলে invoice unlock হবে।"
         all_my_items_service = my_service_items > 0 and my_service_items == len(my_items)
+        invoice_available = status_norm in {"paid", "approved"} or (
+            status_norm == "pending_approval"
+            and not has_metho_item
+            and not has_foreign_partner_item
+            and (wallet_balance + 1e-9) >= my_commission
+        )
         out.append(
             {
                 "id": row.id,
@@ -2130,7 +2136,7 @@ def partner_orders(db: Session = Depends(get_db), current_user=Depends(get_curre
                 "my_sales": my_sales,
                 "my_commission": my_commission,
                 "my_items": my_items,
-                "invoice_available": False,
+                "invoice_available": invoice_available,
                 "can_service_rate_edit": False,
                 "service_rate_locked": False,
                 "wallet_balance_snapshot": 0,
@@ -2139,7 +2145,7 @@ def partner_orders(db: Session = Depends(get_db), current_user=Depends(get_curre
                 "blocked_by_wallet_reserve": blocked_by_wallet_reserve,
                 "can_partner_auto_approve": not has_metho_item and not has_foreign_partner_item,
                 "wallet_shortfall": round(max(0.0, my_commission - wallet_balance), 2) if blocked_by_wallet_reserve else 0.0,
-                "invoice_locked_reason": invoice_locked_reason or "Invoice access partner view-এ disabled আছে।",
+                "invoice_locked_reason": invoice_locked_reason or ("Invoice ready for customer WhatsApp." if invoice_available else "Invoice access partner view-এ disabled আছে।"),
             }
         )
 
