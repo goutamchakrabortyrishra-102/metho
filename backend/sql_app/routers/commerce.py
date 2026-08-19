@@ -24,6 +24,47 @@ def _product_youtube_key(product_id: str) -> str:
     return f"product_youtube:{product_id}"
 
 
+def _product_service_meta_key(product_id: str) -> str:
+    return f"product_service_meta:{product_id}"
+
+
+def _load_product_service_meta(db: Session, product_id: str) -> dict:
+    row = db.query(AppSetting).filter(AppSetting.key == _product_service_meta_key(product_id)).first()
+    if not row:
+        return {}
+    try:
+        import json
+        value = json.loads(row.value_json or "{}")
+    except Exception:
+        value = {}
+    return value if isinstance(value, dict) else {}
+
+
+def _save_product_service_meta(db: Session, product_id: str, payload: ProductCreate) -> dict:
+    is_service = str(payload.product_type or "").strip().lower() == "metho_service"
+    try:
+        commission = float(payload.commission_percent) if payload.commission_percent is not None else None
+    except (TypeError, ValueError):
+        commission = None
+    if commission is not None:
+        commission = max(0.0, min(100.0, commission))
+    value = {
+        "is_service": is_service,
+        "service_booking_enabled": bool(payload.service_booking_enabled) if is_service else False,
+        "service_template_key": str(payload.service_template_key or "").strip().lower() if is_service else "",
+        "commission_percent": commission,
+    }
+    key = _product_service_meta_key(product_id)
+    row = db.query(AppSetting).filter(AppSetting.key == key).first()
+    import json
+    if not row:
+        db.add(AppSetting(key=key, value_json=json.dumps(value), updated_at=datetime.now(timezone.utc)))
+    else:
+        row.value_json = json.dumps(value)
+        row.updated_at = datetime.now(timezone.utc)
+    return value
+
+
 def _list_existing_codes(db: Session) -> set[str]:
     rows = db.query(AppSetting).filter(AppSetting.key.like("product_code:%")).all()
     out: set[str] = set()
@@ -71,7 +112,7 @@ def _ensure_product_code(db: Session, product_id: str, product_type: str) -> str
         except Exception:
             pass
 
-    prefix = "MTH" if (product_type or "metho") == "metho" else "APR"
+    prefix = "MTH" if (product_type or "metho") in {"metho", "metho_service"} else "APR"
     code = _generate_product_code(db, prefix)
     import json
 
@@ -228,6 +269,7 @@ def list_products(limit: int | None = None, authorization: str | None = Header(d
         discount_percent = float(m.discount_percent if m else 0)
         gst_percent = float(m.gst_percent if m else 0)
         price = float(p.price)
+        service_meta = _load_product_service_meta(db, p.id)
         if price <= 0:
             price = round(mrp * (1 - (discount_percent / 100)), 2)
         out.append(
@@ -248,6 +290,10 @@ def list_products(limit: int | None = None, authorization: str | None = Header(d
                 "pricing_tiers": pricing_tier_map.get(p.id, []),
                 "youtube_url": str(youtube_map.get(str(p.id)) or "").strip(),
                 "hidden": bool(hidden_map.get(p.id, False)),
+                "is_service": bool(service_meta.get("is_service")),
+                "service_booking_enabled": bool(service_meta.get("service_booking_enabled")),
+                "service_template_key": str(service_meta.get("service_template_key") or ""),
+                "commission_percent": service_meta.get("commission_percent"),
             }
         )
     if not is_authenticated:
@@ -256,6 +302,7 @@ def list_products(limit: int | None = None, authorization: str | None = Header(d
         for item in out[:public_limit]:
             next_item = dict(item)
             next_item.pop("purchase_cost", None)
+            next_item.pop("commission_percent", None)
             next_item["image_url"] = _public_image_ref(next_item.get("id") or "", next_item.get("image_url") or "")
             description = str(next_item.get("description") or "")
             if len(description) > 320:
@@ -394,6 +441,8 @@ def create_product(payload: ProductCreate, db: Session = Depends(get_db), curren
         )
     )
 
+    _save_product_service_meta(db, product.id, payload)
+
     db.commit()
     db.refresh(product)
     _set_product_youtube_url(db, product.id, payload.youtube_url)
@@ -493,6 +542,7 @@ def update_product(product_id: str, payload: ProductCreate, db: Session = Depend
     meta.mrp = mrp
     meta.discount_percent = discount_percent
     meta.gst_percent = (gst_percent if product_type == "metho" else 0)
+    _save_product_service_meta(db, product.id, payload)
 
     db.commit()
     _set_product_youtube_url(db, product.id, payload.youtube_url)

@@ -29,6 +29,9 @@ class ProductCreate(BaseModel):
     gst_percent: float = 0
     pricing_tiers: list[dict] | None = None
     youtube_url: str = ""
+    commission_percent: float | None = None
+    service_booking_enabled: bool = False
+    service_template_key: str = ""
 
 
 class OrderCreate(BaseModel):

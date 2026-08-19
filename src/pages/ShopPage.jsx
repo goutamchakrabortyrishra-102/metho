@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
-import { ArrowLeft, Minus, Plus, ShoppingCart, Images, Search, X } from "lucide-react";
+import { ArrowLeft, CalendarDays, MapPinned, Minus, Plus, ShoppingCart, Images, Search, X } from "lucide-react";
 import { toast } from "sonner";
 import api from "@/services/api";
 import { Logo } from "@/components/Logo";
@@ -121,13 +121,13 @@ const calcTieredSubtotal = (quantity, unitPrice, tiers) => {
 
 const getCustomerUnitPrice = (product) => {
   const productType = String(product?.product_type || "metho").toLowerCase();
-  const gstPercent = productType === "metho" ? Number(product?.gst_percent || 0) : 0;
+  const gstPercent = ["metho", "metho_service"].includes(productType) ? Number(product?.gst_percent || 0) : 0;
   return getGstInclusivePrice(product?.price, gstPercent);
 };
 
 const getCustomerPricingTiers = (product) => {
   const tiers = Array.isArray(product?.pricing_tiers) ? product.pricing_tiers : [];
-  if (String(product?.product_type || "metho").toLowerCase() !== "metho") return tiers;
+  if (!["metho", "metho_service"].includes(String(product?.product_type || "metho").toLowerCase())) return tiers;
   const gstPercent = Number(product?.gst_percent || 0);
   return tiers.map((tier) => ({
     ...tier,
@@ -255,7 +255,7 @@ export default function ShopPage() {
 
   const methoProducts = useMemo(() => {
     return (products || []).filter((p) => {
-      const typeOk = String(p?.product_type || "metho").toLowerCase() === "metho";
+      const typeOk = ["metho", "metho_service"].includes(String(p?.product_type || "metho").toLowerCase());
       const hiddenRaw = p?.hidden;
       const isHidden = hiddenRaw === true || String(hiddenRaw).toLowerCase() === "true" || String(hiddenRaw) === "1";
       return typeOk && !isHidden;
@@ -291,6 +291,12 @@ export default function ShopPage() {
             image_url: p?.image_url || "",
             pdf_url: getPdfUrl(p),
             category: p?.category || "",
+            product_type: p?.product_type || "metho",
+            is_service: Boolean(p?.is_service),
+            listing_type: p?.is_service ? "service" : "product",
+            item_kind: p?.is_service ? "service" : "product",
+            service_booking_enabled: Boolean(p?.service_booking_enabled),
+            service_template_key: p?.service_template_key || "",
           };
         })
         .filter(Boolean)
@@ -398,9 +404,9 @@ export default function ShopPage() {
 
       <div className="max-w-7xl mx-auto px-6 py-12">
         <p className="text-xs uppercase tracking-[0.25em] text-emerald-800 font-semibold">Shop</p>
-        <h1 className="mt-2 font-display font-black text-4xl md:text-5xl tracking-tight text-emerald-950">All Products</h1>
+        <h1 className="mt-2 font-display font-black text-4xl md:text-5xl tracking-tight text-emerald-950">Shop &amp; Travel</h1>
         <p className="text-slate-600 font-body mt-2 max-w-2xl">
-          Buy directly as guest or sign in as member. If you are buying as guest, you can optionally add a Member ID/Code during checkout for reward attribution.
+          Shop METHO essentials and reserve curated travel services in one secure checkout.
         </p>
         <div className="mt-4 flex flex-wrap items-center gap-2">
           <Button
@@ -434,7 +440,7 @@ export default function ShopPage() {
                   runSearch();
                 }
               }}
-              placeholder="Search METHO products by name/category"
+              placeholder="Search products, stays, and travel services"
               className="h-11 pl-9 rounded-full"
               data-testid="shop-search-input"
             />
@@ -465,6 +471,7 @@ export default function ShopPage() {
           {visibleProducts.map((p, i) => {
             const stock = getStock(p);
             const isOutOfStock = stock <= 0;
+            const isTourismService = String(p?.product_type || "").toLowerCase() === "metho_service" && Boolean(p?.is_service);
             const rawImageRef =
               p?.image_url ||
               p?.product_image_url ||
@@ -474,7 +481,7 @@ export default function ShopPage() {
               "";
             const fallbackCandidates = getAssetImageFallbackCandidates(rawImageRef, [placeholder, FALLBACK_IMAGE]);
             return (
-            <div key={p.id} className="bg-white rounded-xl overflow-hidden border border-border group hover:shadow-lg transition-all" data-testid={`shop-product-${i}`}>
+            <div key={p.id} className={`bg-white rounded-xl overflow-hidden border group hover:shadow-lg transition-all ${isTourismService ? "border-sky-200 shadow-sm" : "border-border"}`} data-testid={`shop-product-${i}`}>
               <div
                 className="aspect-square overflow-hidden bg-secondary relative cursor-zoom-in"
                 onClick={() => setPreviewProduct(p)}
@@ -499,20 +506,21 @@ export default function ShopPage() {
                 />
                 <span className={
                   "absolute top-2 left-2 pointer-events-none text-[9px] font-bold uppercase tracking-widest px-2 py-1 rounded-full " +
-                  "bg-amber-500 text-emerald-950"
+                  (isTourismService ? "bg-sky-700 text-white" : "bg-amber-500 text-emerald-950")
                 }>
-                  METHO
+                  {isTourismService ? "Travel" : "METHO"}
                 </span>
               </div>
               <div className="p-4">
-                <p className="text-[10px] uppercase tracking-wider text-emerald-800 font-semibold">{p.category}</p>
+                <p className={`text-[10px] uppercase tracking-wider font-semibold ${isTourismService ? "text-sky-800" : "text-emerald-800"}`}>{p.category}</p>
                 <h4 className="mt-1 font-display font-bold text-emerald-950 line-clamp-1">{p.name}</h4>
                 {!isGalleryView && <p className="text-xs text-muted-foreground mt-1 line-clamp-3 font-body whitespace-pre-line">{p.description}</p>}
+                {isTourismService ? <div className="mt-3 flex items-center gap-3 text-[11px] font-semibold text-sky-800"><span className="inline-flex items-center gap-1"><CalendarDays className="w-3.5 h-3.5" /> Request date &amp; time</span><span className="inline-flex items-center gap-1"><MapPinned className="w-3.5 h-3.5" /> Booking support</span></div> : null}
                 <div className="mt-3 flex items-center justify-between">
                   <span className="font-display font-black text-xl text-emerald-950">₹{getCustomerUnitPrice(p).toLocaleString("en-IN")}</span>
                   {Number(p?.gst_percent || 0) > 0 ? <span className="text-[10px] text-amber-700 font-semibold">GST {Number(p.gst_percent)}% Included</span> : null}
                   <div className="flex items-center gap-1.5">
-                    <span className="text-xs px-2 py-0.5 rounded-full font-semibold bg-amber-100 text-amber-900">METHO</span>
+                    <span className={`text-xs px-2 py-0.5 rounded-full font-semibold ${isTourismService ? "bg-sky-100 text-sky-900" : "bg-amber-100 text-amber-900"}`}>{isTourismService ? "Bookable service" : "METHO"}</span>
                     {isOutOfStock ? (
                       <span className="text-[10px] px-2 py-0.5 rounded-full font-semibold bg-red-100 text-red-700">
                         Out of Stock
@@ -549,7 +557,7 @@ export default function ShopPage() {
                       onClick={() => inc(p)}
                       disabled={isOutOfStock}
                     >
-                      {isOutOfStock ? "Out of Stock" : "Add to Cart"}
+                      {isOutOfStock ? "Unavailable" : (isTourismService ? "Reserve Now" : "Add to Cart")}
                     </Button>
                   )}
                   {getProductVideoUrl(p) ? (
@@ -568,6 +576,7 @@ export default function ShopPage() {
             </div>
           );})}
         </div>
+        <p className="mt-6 text-xs leading-5 text-slate-500">Travel services are subject to <Link to="/travel-booking-terms" className="font-semibold text-sky-800 underline">Travel Booking Terms</Link>. Supplier availability, itinerary, inclusions and final confirmation are provided for each booking.</p>
       </div>
 
       {previewProduct ? (
@@ -599,7 +608,7 @@ export default function ShopPage() {
               <h3 className="font-display font-black text-emerald-950 text-xl mt-1">{previewProduct?.name || "Product"}</h3>
               {previewProduct?.description ? <p className="text-sm text-slate-600 mt-2 whitespace-pre-line">{previewProduct.description}</p> : <p className="text-sm text-slate-500 mt-2">No description provided.</p>}
               <div className="mt-3 flex items-center justify-between">
-                <span className="font-display font-black text-3xl text-emerald-950">₹{previewProduct?.price || 0}</span>
+                <span className="font-display font-black text-3xl text-emerald-950">₹{getCustomerUnitPrice(previewProduct).toLocaleString("en-IN")}</span>
                 {Math.max(0, Number(previewProduct?.stock ?? 0)) <= 0 ? <span className="text-sm text-slate-500">Out of Stock</span> : null}
               </div>
               {getProductVideoUrl(previewProduct) ? (
@@ -623,7 +632,7 @@ export default function ShopPage() {
           <div className="flex items-center justify-between gap-3">
             <div className="min-w-0">
               <p className="text-xs uppercase tracking-wider text-emerald-800 font-semibold flex items-center gap-1.5">
-                <ShoppingCart className="w-3.5 h-3.5" /> Cart
+                <ShoppingCart className="w-3.5 h-3.5" /> Booking Cart
               </p>
               <p className="text-sm text-slate-700 mt-0.5">{items.length} item(s) selected</p>
               {!user && <p className="text-[11px] text-amber-800 mt-0.5">Continue as Guest Checkout</p>}

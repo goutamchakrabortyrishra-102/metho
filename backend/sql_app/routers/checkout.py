@@ -32,6 +32,7 @@ PARTNER_PRODUCT_UNITS_KEY = "partner_product_units"
 PARTNER_PRODUCT_META_KEY = "partner_product_meta"
 PARTNER_UNIT_OPTIONS = {"piece", "kg", "gram", "litre", "ml"}
 ORDER_CONTACT_KEY_PREFIX = "order_contact:"
+TOURISM_TERMS_VERSION = "2026-08-19"
 RESTAURANT_SLOT_TEMPLATE_KEYS = {
     "restaurant_table_booking",
     "banquet_slot",
@@ -71,6 +72,7 @@ SERVICE_SLOT_TEMPLATE_KEYS = {
     "gym_personal_training",
     "photo_event_shoot",
     "video_shoot_edit",
+    "tourism_booking",
 }
 TRANSPORT_TEMPLATE_KEYS = {
     "cab_airport_drop",
@@ -128,8 +130,6 @@ def _extract_slot_datetime_from_shipping_address(address: str | None) -> datetim
 def _service_slot_product_ids_from_items(items: list[dict] | None) -> set[str]:
     product_ids: set[str] = set()
     for item in items or []:
-        if str(item.get("product_type") or "").strip() != "associate_partner":
-            continue
         if not _is_service_order_item(item):
             continue
         template_key = str(item.get("service_template_key") or "").strip().lower()
@@ -139,6 +139,17 @@ def _service_slot_product_ids_from_items(items: list[dict] | None) -> set[str]:
         if product_id:
             product_ids.add(product_id)
     return product_ids
+
+
+def _load_global_product_service_meta(db: Session, product_id: str) -> dict:
+    row = db.query(AppSetting).filter(AppSetting.key == f"product_service_meta:{product_id}").first()
+    if not row:
+        return {}
+    try:
+        value = json.loads(row.value_json or "{}")
+    except Exception:
+        value = {}
+    return value if isinstance(value, dict) else {}
 
 
 def _normalize_slot_interval_minutes(value, default_value: int = SLOT_SUGGESTION_INTERVAL_MINUTES) -> int:
@@ -331,6 +342,21 @@ def _load_order_contact_phone(db: Session, order_id: str) -> str:
         return ""
     digits = "".join(ch for ch in str(payload.get("customer_phone") or "") if ch.isdigit())
     return digits
+
+
+def _save_tourism_terms_acceptance(db: Session, order_id: str, customer_name: str, customer_phone: str) -> None:
+    key = f"tourism_terms_acceptance:{str(order_id or '').strip()}"
+    payload = {
+        "policy_version": TOURISM_TERMS_VERSION,
+        "accepted_at": datetime.now(timezone.utc).isoformat(),
+        "customer_name": str(customer_name or "").strip(),
+        "customer_phone": "".join(ch for ch in str(customer_phone or "") if ch.isdigit()),
+    }
+    row = db.query(AppSetting).filter(AppSetting.key == key).first()
+    if not row:
+        db.add(AppSetting(key=key, value_json=json.dumps(payload)))
+    else:
+        row.value_json = json.dumps(payload)
 
 
 def _normalize_partner_unit_type(value: str | None) -> str:
@@ -966,6 +992,7 @@ def create_public_order(payload: dict, db: Session = Depends(get_db), authorizat
         mrp = 0.0
         discount_percent = 0.0
         image_url = ""
+        global_service_meta = {}
         if product:
             meta = db.query(ProductMeta).filter(ProductMeta.product_id == product.id).first()
             if meta:
@@ -974,6 +1001,7 @@ def create_public_order(payload: dict, db: Session = Depends(get_db), authorizat
                 mrp = float(meta.mrp or 0)
                 discount_percent = float(meta.discount_percent or 0)
                 image_url = meta.image_url or ""
+            global_service_meta = _load_global_product_service_meta(db, product.id)
         if not product:
             product = db.query(PartnerProduct).filter(PartnerProduct.id == product_id).first()
             if product:
@@ -993,24 +1021,33 @@ def create_public_order(payload: dict, db: Session = Depends(get_db), authorizat
             unit_info = _partner_unit_info(partner_unit_map, product.id)
             listing_meta = _partner_product_meta(partner_meta_map, product.id)
             gst_percent = float(listing_meta.get("gst_percent") or 0)
+        elif product_type == "metho_service":
+            listing_meta = {
+                "listing_type": "service",
+                "item_kind": "service",
+                "is_service": True,
+                "service_booking_enabled": bool(global_service_meta.get("service_booking_enabled")),
+                "service_invoice_mode": "detailed",
+                "service_template_key": str(global_service_meta.get("service_template_key") or "").strip().lower(),
+            }
 
         if unit_info["unit_type"] == "piece":
             qty = max(1, int(round(qty_value or 1)))
         else:
             qty = _round_to_step(qty_value or unit_info["quantity_step"], unit_info["quantity_step"])
 
-        is_partner_service = product_type == "associate_partner" and bool(listing_meta.get("is_service"))
-        if is_partner_service and not bool(listing_meta.get("is_available")):
+        is_service = bool(listing_meta.get("is_service"))
+        if product_type == "associate_partner" and is_service and not bool(listing_meta.get("is_available")):
             raise HTTPException(status_code=400, detail=f"{product.name}: service is currently unavailable")
         available_stock = max(0.0, float(getattr(product, "stock", 0) or 0))
-        if not is_partner_service and qty > available_stock:
+        if not is_service and qty > available_stock:
             raise HTTPException(
                 status_code=400,
                 detail="Insufficient stock available.",
             )
         unit_price = float(product.price)
         pricing_tiers = []
-        if product_type == "metho":
+        if product_type in {"metho", "metho_service"}:
             pricing_tiers = _normalize_pricing_tiers(pricing_tier_map.get(product.id, []))
         elif product_type == "associate_partner" and enable_partner_slab_pricing:
             pricing_tiers = _normalize_pricing_tiers(pricing_tier_map.get(product.id, []))
@@ -1023,7 +1060,7 @@ def create_public_order(payload: dict, db: Session = Depends(get_db), authorizat
         gst_amount = 0.0
         pre_tax = base_subtotal
         line_total = base_subtotal
-        if product_type == "metho" or (product_type == "associate_partner" and gst_percent > 0):
+        if product_type in {"metho", "metho_service"} or (product_type == "associate_partner" and gst_percent > 0):
             gst_amount = round(base_subtotal * (max(0.0, gst_percent) / 100.0), 2)
             line_total = round(base_subtotal + gst_amount, 2)
             # Round final GST-inclusive price to nearest whole rupee
@@ -1045,18 +1082,19 @@ def create_public_order(payload: dict, db: Session = Depends(get_db), authorizat
                 "quantity": qty,
                 "subtotal": float(round_half_up_to_whole_rupee(line_total)),
                 "product_type": product_type,
+                "commission_percent": global_service_meta.get("commission_percent") if product_type in {"metho", "metho_service"} else None,
                 "unit_type": unit_info["unit_type"],
                 "unit_label": unit_info["unit_label"],
                 "quantity_step": unit_info["quantity_step"],
                 "image_url": image_url,
                 "pricing_tiers": pricing_tiers,
                 "tier_breakdown": tier_breakdown,
-                "listing_type": str(item.get("listing_type") or listing_meta["listing_type"]).strip().lower(),
-                "item_kind": str(item.get("item_kind") or listing_meta["item_kind"]).strip().lower(),
-                "is_service": bool(item.get("is_service") if item.get("is_service") is not None else listing_meta["is_service"]),
+                "listing_type": str(listing_meta["listing_type"] if product_type == "metho_service" else (item.get("listing_type") or listing_meta["listing_type"])).strip().lower(),
+                "item_kind": str(listing_meta["item_kind"] if product_type == "metho_service" else (item.get("item_kind") or listing_meta["item_kind"])).strip().lower(),
+                "is_service": bool(listing_meta["is_service"] if product_type == "metho_service" else (item.get("is_service") if item.get("is_service") is not None else listing_meta["is_service"])),
                 "service_booking_enabled": bool(listing_meta["service_booking_enabled"]),
                 "service_invoice_mode": str(item.get("service_invoice_mode") or listing_meta["service_invoice_mode"]).strip().lower(),
-                "service_template_key": str(item.get("service_template_key") or listing_meta["service_template_key"]).strip(),
+                "service_template_key": str(listing_meta["service_template_key"] if product_type == "metho_service" else (item.get("service_template_key") or listing_meta["service_template_key"])).strip(),
                 "pricing_unit": str(listing_meta.get("pricing_unit") or "PER_ITEM"),
                 "availability": str(listing_meta.get("availability") or ""),
             }
@@ -1096,9 +1134,9 @@ def create_public_order(payload: dict, db: Session = Depends(get_db), authorizat
     has_service_slot_item = False
     has_restaurant_slot_item = False
     for item in normalized_items:
-        if str(item.get("product_type") or "").strip() != "associate_partner":
-            continue
-        has_partner_item = True
+        item_type = str(item.get("product_type") or "").strip()
+        if item_type == "associate_partner":
+            has_partner_item = True
         template_key = str(item.get("service_template_key") or "").strip().lower()
         if template_key in {"courier_pickup", "parcel_delivery", "express_delivery", "same_day_delivery", "delivery_partner"}:
             has_delivery_partner_item = True
@@ -1106,7 +1144,7 @@ def create_public_order(payload: dict, db: Session = Depends(get_db), authorizat
             has_restaurant_slot_item = True
         elif _is_service_order_item(item) and template_key not in TRANSPORT_TEMPLATE_KEYS:
             has_service_slot_item = True
-        if not _is_service_order_item(item):
+        if item_type == "associate_partner" and not _is_service_order_item(item):
             has_partner_physical_item = True
 
     if has_partner_item and not customer_phone_digits:
@@ -1149,6 +1187,14 @@ def create_public_order(payload: dict, db: Session = Depends(get_db), authorizat
 
     if has_service_slot_item and not slot_datetime:
         raise HTTPException(status_code=400, detail="Service slot booking requires date and time")
+
+    has_tourism_item = any(
+        str(item.get("product_type") or "").strip().lower() == "metho_service"
+        and str(item.get("service_template_key") or "").strip().lower() == "tourism_booking"
+        for item in normalized_items
+    )
+    if has_tourism_item and payload.get("tourism_terms_accepted") is not True:
+        raise HTTPException(status_code=400, detail="Travel booking terms must be accepted before payment")
 
     if has_service_slot_item:
         requested_slot_dt = _parse_slot_datetime(slot_datetime)
@@ -1200,6 +1246,9 @@ def create_public_order(payload: dict, db: Session = Depends(get_db), authorizat
     db.add(row)
     db.commit()
     _save_order_contact_phone(db, row.id, customer_phone_digits)
+    if has_tourism_item:
+        _save_tourism_terms_acceptance(db, row.id, customer_name, customer_phone_digits)
+        db.commit()
 
     partner_whatsapp_urls = []
     partner_ids_seen = set()

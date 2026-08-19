@@ -82,6 +82,9 @@ export default function AddProductDialog({
     partner_id: "",
     pricing_tiers_input: "",
     youtube_url: "",
+    commission_percent: "",
+    service_booking_enabled: false,
+    service_template_key: "",
   });
   const [partners, setPartners] = useState([]);
   const [generating, setGenerating] = useState(false);
@@ -135,6 +138,9 @@ export default function AddProductDialog({
           ? product.pricing_tiers.map((t) => `${t.qty}:${t.price}`).join(", ")
           : "",
         youtube_url: product.youtube_url || "",
+        commission_percent: product.commission_percent ?? "",
+        service_booking_enabled: Boolean(product.service_booking_enabled),
+        service_template_key: product.service_template_key || "",
       });
       return;
     }
@@ -154,7 +160,7 @@ export default function AddProductDialog({
 
   const resetForm = () => setForm({
     name: "", category: categories[0] || "Health & Wellness", price: "", purchase_cost: "", mrp: "", discount_percent: "", gst_percent: "", stock: "",
-    description: "", image_url: "", product_type: "metho", pricing_tiers_input: "", youtube_url: "",
+    description: "", image_url: "", product_type: "metho", pricing_tiers_input: "", youtube_url: "", commission_percent: "", service_booking_enabled: false, service_template_key: "",
   });
 
   const parsePricingTiers = (raw) => {
@@ -376,6 +382,9 @@ export default function AddProductDialog({
         category: form.category,
         product_type: form.product_type,
         partner_id: form.product_type === "associate_partner" ? (form.partner_id || null) : null,
+        commission_percent: form.product_type === "associate_partner" || form.commission_percent === "" ? null : Number(form.commission_percent),
+        service_booking_enabled: form.product_type === "metho_service" && form.service_booking_enabled,
+        service_template_key: form.product_type === "metho_service" ? form.service_template_key : "",
       });
       setForm(f => ({ ...f, description: data.description }));
       toast.success("AI description generated ✨");
@@ -764,7 +773,7 @@ export default function AddProductDialog({
             </div>
           )}
 
-          {(form.product_type === "metho" || form.product_type === "associate_partner") && (
+          {(form.product_type === "metho" || form.product_type === "metho_service" || form.product_type === "associate_partner") && (
             <div>
               <Label>Pack / Tier Pricing (qty=price)</Label>
               <Input
@@ -782,10 +791,11 @@ export default function AddProductDialog({
 
           <div>
             <Label>Product Type</Label>
-            <Select value={form.product_type} onValueChange={(v) => setForm({ ...form, product_type: v, partner_id: v === "metho" ? "" : form.partner_id })}>
+            <Select value={form.product_type} onValueChange={(v) => setForm({ ...form, product_type: v, partner_id: v === "associate_partner" ? form.partner_id : "", service_booking_enabled: v === "metho_service", service_template_key: v === "metho_service" ? "tourism_booking" : "" })}>
               <SelectTrigger className="mt-1.5" data-testid="new-product-type-select"><SelectValue /></SelectTrigger>
               <SelectContent>
                 <SelectItem value="metho">METHO Product (Smart Cycle qualified)</SelectItem>
+                <SelectItem value="metho_service">METHO Service (Smart Cycle qualified)</SelectItem>
                 <SelectItem value="associate_partner">Associate Partner Product</SelectItem>
               </SelectContent>
             </Select>
@@ -819,6 +829,33 @@ export default function AddProductDialog({
               </div>
             )}
           </div>
+
+          {form.product_type !== "associate_partner" && (
+            <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-4 space-y-3">
+              <div>
+                <Label>Product / Service Smart Cycle Commission % (Admin set)</Label>
+                <Input type="number" min="0" max="100" step="0.01" value={form.commission_percent} onChange={setF("commission_percent")} className="mt-1.5 max-w-xs bg-white" placeholder="Blank = default METHO rate" data-testid="product-commission-percent-input" />
+                <p className="mt-1 text-[11px] text-emerald-800">প্রতিটি METHO product বা service-এর আলাদা Slot 5 payout rate। খালি রাখলে global METHO default rate ব্যবহার হবে।</p>
+              </div>
+              {form.product_type === "metho_service" && (
+                <>
+                  <label className="flex items-center gap-2 text-sm font-medium text-emerald-950">
+                    <input type="checkbox" checked={form.service_booking_enabled} onChange={(e) => setForm({ ...form, service_booking_enabled: e.target.checked })} data-testid="metho-service-booking-enabled" />
+                    Enable date & time booking
+                  </label>
+                  <div>
+                    <Label>Service template</Label>
+                    <Select value={form.service_template_key || "tourism_booking"} onValueChange={(v) => setForm({ ...form, service_template_key: v })}>
+                      <SelectTrigger className="mt-1.5 bg-white" data-testid="metho-service-template-select"><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="tourism_booking">Tourism booking</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </>
+              )}
+            </div>
+          )}
 
           {/* Description with AI generator */}
           <div>

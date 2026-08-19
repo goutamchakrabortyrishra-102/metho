@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from "react";
+import { Link } from "react-router-dom";
 import { toast } from "sonner";
 import { Upload, Loader2, QrCode, Copy, CheckCircle2, ShoppingCart } from "lucide-react";
 import api from "@/services/api";
@@ -151,6 +152,7 @@ export default function UpiPaymentDialog({
   const [qrImageFailed, setQrImageFailed] = useState(false);
   const [memberLookupBusy, setMemberLookupBusy] = useState(false);
   const [memberLookupInfo, setMemberLookupInfo] = useState(null);
+  const [travelTermsAccepted, setTravelTermsAccepted] = useState(false);
   const codEnabled = paymentConfig ? paymentConfig.cod_enabled !== false : true;
   const normalizedPayerPhone = String(payerPhone || "").replace(/\D/g, "");
   const normalizedUserPhone = String(user?.phone || "").replace(/\D/g, "");
@@ -184,6 +186,9 @@ export default function UpiPaymentDialog({
   const requiresDeliveryAreaCheck = Array.isArray(items)
     ? items.some((item) => DELIVERY_PARTNER_TEMPLATE_KEYS.has(String(item?.service_template_key || "").trim().toLowerCase()))
     : false;
+  const requiresTravelTerms = Array.isArray(items)
+    ? items.some((item) => String(item?.product_type || "").trim().toLowerCase() === "metho_service" && String(item?.service_template_key || "").trim().toLowerCase() === "tourism_booking")
+    : false;
   const configuredDeliveryCity = normalizeText(paymentConfig?.delivery_city || "");
   const configuredDeliveryPincode = String(paymentConfig?.delivery_pincode || "").replace(/\D/g, "");
   const customerCity = extractCityFromAddress(address);
@@ -201,6 +206,7 @@ export default function UpiPaymentDialog({
     if (open) return;
     setForceManualUpiFlow(false);
     setPaymentMode("upi");
+    setTravelTermsAccepted(false);
   }, [open]);
 
   useEffect(() => {
@@ -324,6 +330,7 @@ export default function UpiPaymentDialog({
     if (!existingOrderId && deliveryAreaMismatch) return toast.error(`Delivery is available only in ${[paymentConfig?.delivery_city, paymentConfig?.delivery_pincode].filter(Boolean).join(", ")}`);
     if (!existingOrderId && requiresServiceSlot && !slotDateTime.trim()) return toast.error("Service slot date and time দিন");
     if (!existingOrderId && requiresRestaurantSlot && Number(slotGuestCount || 0) <= 0) return toast.error("Guest count দিন");
+    if (!existingOrderId && requiresTravelTerms && !travelTermsAccepted) return toast.error("Please accept the Travel Booking Terms");
     if (paymentMode === "upi") {
       if (!txnId.trim()) return toast.error("Please enter UPI Transaction ID");
       if (!screenshot?.url) return toast.error("Please upload payment screenshot");
@@ -348,6 +355,7 @@ export default function UpiPaymentDialog({
         customer_phone: resolvedCustomerPhone,
         slot_datetime: requiresServiceSlot ? slotDateTime : "",
         guest_count: requiresRestaurantSlot ? Number(slotGuestCount || 0) : 0,
+        tourism_terms_accepted: requiresTravelTerms ? travelTermsAccepted : undefined,
       };
       const ref = (memberRef || "").trim();
       if (ref) {
@@ -399,6 +407,7 @@ export default function UpiPaymentDialog({
     if (!resolvedPayerName) return toast.error("Order-এর জন্য Customer Name দিন");
     if (isGuest && !normalizedPayerPhone) return toast.error("Please enter mobile number");
     if (!resolvedCustomerPhone) return toast.error("Please enter mobile number");
+    if (requiresTravelTerms && !travelTermsAccepted) return toast.error("Please accept the Travel Booking Terms");
 
     setSubmitting(true);
     try {
@@ -418,6 +427,7 @@ export default function UpiPaymentDialog({
         customer_phone: resolvedCustomerPhone,
         slot_datetime: requiresServiceSlot ? slotDateTime : "",
         guest_count: requiresRestaurantSlot ? Number(slotGuestCount || 0) : 0,
+        tourism_terms_accepted: requiresTravelTerms ? travelTermsAccepted : undefined,
       };
       const ref = (memberRef || "").trim();
       if (ref) {
@@ -952,6 +962,13 @@ export default function UpiPaymentDialog({
               </div>
             </div>
           )}
+
+          {!existingOrderId && requiresTravelTerms ? (
+            <label className="md:col-span-2 flex items-start gap-2 rounded-lg border border-sky-200 bg-sky-50 p-3 text-xs leading-5 text-sky-950" data-testid="travel-terms-consent">
+              <input type="checkbox" checked={travelTermsAccepted} onChange={(e) => setTravelTermsAccepted(e.target.checked)} className="mt-1 h-4 w-4 shrink-0" data-testid="travel-terms-checkbox" />
+              <span>I have read and accept the <Link to="/travel-booking-terms" target="_blank" className="font-semibold underline">Travel Booking Terms</Link>, including traveller-document, cancellation, refund, supplier, and safety conditions.</span>
+            </label>
+          ) : null}
 
           <DialogFooter className={manualUpiEnabled ? "md:col-span-2" : ""}>
             <div className="w-full space-y-2">

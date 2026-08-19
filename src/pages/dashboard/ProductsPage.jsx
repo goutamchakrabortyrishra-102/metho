@@ -520,7 +520,7 @@ export default function ProductsPage() {
             </div>
           ) : (
             <Button onClick={() => inc(p)} size="sm" className="w-full bg-emerald-900 hover:bg-emerald-950 rounded-full text-xs" data-testid={`product-add-${i}`}>
-              Add to Cart
+              {p.is_service ? "Book Now" : "Add to Cart"}
             </Button>
           )}
         </div>

@@ -68,6 +68,11 @@ ADMIN_ACCOUNTS_LEDGER_KEY = "admin_accounts_ledger"
 CUSTOMER_ORDER_CONTACT_KEY_PREFIX = "order_contact:"
 CUSTOMER_ORDER_OTP_KEY_PREFIX = "customer_mobile_otp:"
 CUSTOMER_ACCESS_MODES = {"mobile_only", "mobile_otp"}
+METHO_QUALIFIED_PRODUCT_TYPES = {"metho", "metho_service"}
+
+
+def _is_metho_qualified_item(item: dict | None) -> bool:
+    return str((item or {}).get("product_type") or "metho").strip().lower() in METHO_QUALIFIED_PRODUCT_TYPES
 
 
 def _normalize_partner_unit_type(value: str | None) -> str:
@@ -429,8 +434,8 @@ def _serialize_public_order_list_row(row: PublicOrder) -> dict:
         items = json.loads(row.items_json or "[]")
     except Exception:
         items = []
-    metho_amount = sum(float(i.get("subtotal") or 0) for i in items if i.get("product_type") == "metho")
-    associate_amount = sum(float(i.get("subtotal") or 0) for i in items if i.get("product_type") != "metho")
+    metho_amount = sum(float(i.get("subtotal") or 0) for i in items if _is_metho_qualified_item(i))
+    associate_amount = sum(float(i.get("subtotal") or 0) for i in items if not _is_metho_qualified_item(i))
     return {
         "id": row.id,
         "order_no": f"ORD-{row.id[:8].upper()}",
@@ -662,7 +667,7 @@ def _approved_member_purchases(db: Session, user_id: str, period: str | None = N
             items = json.loads(order.items_json or "[]")
         except Exception:
             items = []
-        metho_sales = round(sum(float(item.get("subtotal") or 0) for item in items if str(item.get("product_type") or "").lower() == "metho"), 2)
+        metho_sales = round(sum(float(item.get("subtotal") or 0) for item in items if _is_metho_qualified_item(item)), 2)
         if metho_sales > 0:
             out.append({"order": order, "metho_sales": metho_sales})
     return out
@@ -693,13 +698,21 @@ def _parse_cycle_datetime(value) -> datetime:
 
 
 def _metho_sale_excluding_gst(item: dict) -> float:
-    if str(item.get("product_type") or "").lower() != "metho":
+    if not _is_metho_qualified_item(item):
         return 0.0
     subtotal = max(0.0, float(item.get("pre_tax") or item.get("subtotal") or 0))
     if item.get("pre_tax") is not None:
         return round(subtotal, 2)
     gst_percent = max(0.0, float(item.get("gst_percent") or 0))
     return round(subtotal / (1 + (gst_percent / 100.0)), 2) if gst_percent > 0 else round(subtotal, 2)
+
+
+def _metho_cycle_commission(item: dict, default_rate: float) -> float:
+    try:
+        rate = float(item.get("commission_percent")) if item.get("commission_percent") is not None else default_rate
+    except (TypeError, ValueError):
+        rate = default_rate
+    return round(_metho_sale_excluding_gst(item) * max(0.0, min(100.0, rate)) / 100.0, 2)
 
 
 def _member_has_approved_metho_sale(db: Session, user_id: str) -> bool:
@@ -744,6 +757,25 @@ def _smart_cycle_network_sale(db: Session, owner_id: str, slot_start: datetime, 
     return round(sale_total, 2), order_count
 
 
+def _smart_cycle_network_commission(db: Session, owner_id: str, slot_start: datetime, slot_end: datetime, default_rate: float) -> float:
+    eligible_ids = {str(owner_id)} | _descendant_member_ids(db, owner_id)
+    active_ids = {member_id for member_id in eligible_ids if _member_has_approved_metho_sale(db, member_id)}
+    total = 0.0
+    for order in db.query(PublicOrder).filter(PublicOrder.status == "paid").all():
+        created_at = order.created_at.replace(tzinfo=timezone.utc) if order.created_at and order.created_at.tzinfo is None else order.created_at
+        if not created_at or created_at < slot_start or created_at >= slot_end:
+            continue
+        member = _order_member(db, order)
+        if not member or str(member.id) not in active_ids:
+            continue
+        try:
+            items = json.loads(order.items_json or "[]")
+        except Exception:
+            items = []
+        total += sum(_metho_cycle_commission(item, default_rate) for item in items)
+    return round(total, 2)
+
+
 def _load_smart_cycle_history(db: Session, user_id: str) -> list[dict]:
     history = _load_json_setting(db, _smart_cycle_history_key(user_id), [])
     return history if isinstance(history, list) else []
@@ -772,7 +804,7 @@ def _settle_completed_smart_cycles(db: Session, user_id: str, now: datetime | No
         settings = load_settings(db)
         bonus_percent = max(0.0, float(settings.get("smart_cycle_bonus_percent") or 0))
         leader_match_percent = max(0.0, min(100.0, float(settings.get("leader_match_percent") or 0)))
-        commission = round(eligible_sale * bonus_percent / 100.0, 2)
+        commission = _smart_cycle_network_commission(db, user_id, slot_five_start, cycle_end, bonus_percent)
         match_paid = 0.0
         if commission > 0:
             wallet = _load_user_wallet(db, user_id)
@@ -864,9 +896,12 @@ def _calculate_sql_pool(db: Session, period: str) -> dict:
             items = []
         commission = 0.0
         for item in items:
-            if str(item.get("product_type") or "").lower() == "metho":
+            if _is_metho_qualified_item(item):
                 subtotal = max(0.0, float(item.get("pre_tax") or item.get("subtotal") or 0))
-                rate = float(settings.get("metho_commission_percent") or 10)
+                try:
+                    rate = float(item.get("commission_percent")) if item.get("commission_percent") is not None else float(settings.get("metho_commission_percent") or 10)
+                except (TypeError, ValueError):
+                    rate = float(settings.get("metho_commission_percent") or 10)
             else:
                 subtotal = max(0.0, float(item.get("subtotal") or 0))
                 partner_product = db.query(PartnerProduct).filter(PartnerProduct.id == str(item.get("product_id") or "")).first()
@@ -4689,6 +4724,58 @@ def admin_pending_orders(db: Session = Depends(get_db), current_user=Depends(get
             }
         )
     return out
+
+
+@router.get("/admin/tourism/bookings")
+def admin_tourism_bookings(db: Session = Depends(get_db), current_user=Depends(get_current_user)):
+    _require_admin_user(current_user)
+    bookings = []
+    for row in db.query(PublicOrder).order_by(PublicOrder.created_at.desc()).limit(1000).all():
+        try:
+            items = json.loads(row.items_json or "[]")
+        except Exception:
+            items = []
+        tourism_items = [
+            item for item in items
+            if str(item.get("product_type") or "").strip().lower() == "metho_service"
+            and str(item.get("service_template_key") or "").strip().lower() == "tourism_booking"
+        ]
+        if not tourism_items:
+            continue
+        acceptance = _load_json_setting(db, f"tourism_terms_acceptance:{row.id}", {})
+        customer = _order_member(db, row)
+        bookings.append({
+            "id": row.id,
+            "order_no": f"ORD-{row.id[:8].upper()}",
+            "status": str(row.status or "pending_approval"),
+            "created_at": row.created_at.isoformat() if row.created_at else now_iso(),
+            "customer_name": str(row.payer_name or getattr(customer, "name", "") or "Customer"),
+            "customer_phone": str(_load_json_setting(db, f"order_contact:{row.id}", {}).get("customer_phone") or ""),
+            "member_code": member_code_for_user(customer.id) if customer else str(row.member_ref or ""),
+            "booking_note": str(row.shipping_address or ""),
+            "payment_method": str(row.payment_method or "").lower(),
+            "payment_reference": str(row.txn_id or ""),
+            "payment_screenshot_url": str(row.payment_screenshot_url or ""),
+            "total_amount": round(float(row.total_amount or 0), 2),
+            "terms_accepted": bool(acceptance),
+            "terms_accepted_at": str(acceptance.get("accepted_at") or ""),
+            "terms_version": str(acceptance.get("policy_version") or ""),
+            "items": [{
+                "product_id": item.get("product_id"),
+                "name": item.get("name") or "Tourism service",
+                "quantity": item.get("quantity") or 1,
+                "subtotal": round(float(item.get("subtotal") or 0), 2),
+                "slot_datetime": str(row.shipping_address or "").split("|", 1)[0].replace("Service Slot:", "").strip(),
+            } for item in tourism_items],
+        })
+    summary = {
+        "total_bookings": len(bookings),
+        "pending_approval": sum(1 for row in bookings if row["status"] == "pending_approval"),
+        "paid": sum(1 for row in bookings if row["status"] == "paid"),
+        "terms_complete": sum(1 for row in bookings if row["terms_accepted"]),
+        "gross_value": round(sum(float(row["total_amount"]) for row in bookings), 2),
+    }
+    return {"summary": summary, "items": bookings}
 
 
 @router.post("/admin/orders/{order_id}/approve")

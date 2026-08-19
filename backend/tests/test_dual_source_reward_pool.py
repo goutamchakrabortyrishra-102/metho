@@ -147,6 +147,34 @@ def test_metho_smart_cycle_and_leader_match_use_configured_percentages(monkeypat
         db.close()
 
 
+def test_metho_product_and_service_use_their_own_slot_five_commission_rates(monkeypatch):
+    db = _make_session()
+    _patch_settings(monkeypatch)
+    try:
+        sponsor = User(name="Sponsor", email="dynamic-sponsor@example.com", phone="9000000030", password=hash_password("secret1"), role="member", is_active=True)
+        member = User(name="Member", email="dynamic-member@example.com", phone="9000000031", password=hash_password("secret1"), role="member", is_active=True)
+        db.add_all([sponsor, member])
+        db.flush()
+        db.add(UserReferral(user_id=member.id, sponsor_user_id=sponsor.id, sponsor_code="DYNAMIC"))
+        cycle_start = datetime.now(timezone.utc) - timedelta(days=40)
+        _add_order(db, member.id, [{"product_id": "activation", "product_type": "metho", "subtotal": 100, "pre_tax": 100}], cycle_start)
+        slot_five_sale = cycle_start + timedelta(days=29)
+        _add_order(db, member.id, [
+            {"product_id": "product-20", "product_type": "metho", "subtotal": 100, "pre_tax": 100, "commission_percent": 20},
+            {"product_id": "tourism-2", "product_type": "metho_service", "subtotal": 100, "pre_tax": 100, "commission_percent": 2},
+        ], slot_five_sale)
+        db.commit()
+
+        settled = _settle_completed_smart_cycles(db, member.id, datetime.now(timezone.utc))
+
+        assert settled["bonus_paid"] == 22.0
+        assert settled["direct_sponsor_match_paid"] == 11.0
+        assert _load_user_wallet(db, member.id)["balance"] == 22.0
+        assert _load_user_wallet(db, sponsor.id)["balance"] == 11.0
+    finally:
+        db.close()
+
+
 def test_duplicate_order_approval_does_not_duplicate_rewards(monkeypatch):
     db = _make_session()
     _patch_settings(monkeypatch)

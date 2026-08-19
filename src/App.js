@@ -59,6 +59,8 @@ const loadCompanyInventoryPage = () => import("@/pages/dashboard/CompanyInventor
 const loadCustomerOrdersAccessPage = () => import("@/pages/CustomerOrdersAccessPage");
 const loadCustomerInvoicePage = () => import("@/pages/CustomerInvoicePage");
 const loadPrivacyPolicyPage = () => import("@/pages/PrivacyPolicyPage");
+const loadTravelBookingTermsPage = () => import("@/pages/TravelBookingTermsPage");
+const loadTourismControlCenterPage = () => import("@/pages/dashboard/TourismControlCenterPage");
 
 const LandingPage = lazy(loadLandingPage);
 const LoginPage = lazy(loadLoginPage);
@@ -113,6 +115,8 @@ const CompanyInventoryPage = lazy(loadCompanyInventoryPage);
 const CustomerOrdersAccessPage = lazy(loadCustomerOrdersAccessPage);
 const CustomerInvoicePage = lazy(loadCustomerInvoicePage);
 const PrivacyPolicyPage = lazy(loadPrivacyPolicyPage);
+const TravelBookingTermsPage = lazy(loadTravelBookingTermsPage);
+const TourismControlCenterPage = lazy(loadTourismControlCenterPage);
 
 const prefetchedChunks = new Set();
 const prefetchChunk = (loader) => {
@@ -295,6 +299,7 @@ function App() {
               <Route path="/customer-orders" element={<CustomerOrdersAccessPage />} />
               <Route path="/customer-invoice/:orderId" element={<CustomerInvoicePage />} />
               <Route path="/privacy-policy" element={<PrivacyPolicyPage />} />
+              <Route path="/travel-booking-terms" element={<TravelBookingTermsPage />} />
               <Route path="/login" element={<LoginPage />} />
               <Route path="/admin-login" element={<LoginPage adminOnly />} />
               <Route path="/register" element={<RegisterPage />} />
@@ -348,6 +353,7 @@ function App() {
                 <Route path="withdrawals" element={<AdminRoute><WithdrawalsPage /></AdminRoute>} />
                 <Route path="transport-bookings" element={<AdminRoute><AdminTransportPage /></AdminRoute>} />
                 <Route path="stay-dining-bookings" element={<AdminRoute><AdminStayDiningBookingsPage /></AdminRoute>} />
+                <Route path="tourism-control" element={<AdminRoute><TourismControlCenterPage /></AdminRoute>} />
                 <Route path="property-buy-sell" element={<AdminRoute><AdminPropertyBuySellPage /></AdminRoute>} />
                 <Route path="service-sectors" element={<AdminRoute><AdminServiceSectorsPage /></AdminRoute>} />
                 <Route path="leaderboard" element={<LeaderboardPage />} />
