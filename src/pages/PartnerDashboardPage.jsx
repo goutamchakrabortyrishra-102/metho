@@ -2198,16 +2198,22 @@ export default function PartnerDashboardPage() {
                 ) : (
                   <div className="mt-4 grid grid-cols-2 md:grid-cols-4 gap-4">
                     {deliveryItems.map((p) => (
-                      <div key={p.id} className="rounded-lg border border-cyan-200 overflow-hidden bg-white shadow-sm">
-                        <div className="aspect-square bg-secondary relative">
-                          <img src={getPreviewImageUrl(p) || undefined} alt={p.name} className="w-full h-full object-cover" />
-                          <span className="absolute right-2 top-2 rounded-full bg-cyan-100 text-cyan-900 px-2 py-0.5 text-[10px] font-bold">Delivery</span>
+                      <div key={p.id} className="rounded-xl border border-cyan-200 overflow-hidden bg-white shadow-md hover:shadow-lg transition-shadow">
+                        <div className="p-3 flex items-center gap-2 bg-cyan-50/80 border-b border-cyan-100">
+                          <span className="inline-flex items-center justify-center w-9 h-9 rounded-full bg-cyan-600 text-white shrink-0">
+                            <Package className="w-4.5 h-4.5" />
+                          </span>
+                          <div className="min-w-0">
+                            <p className="font-semibold text-sm text-emerald-950 truncate">{p.name}</p>
+                            <p className="text-[10px] uppercase tracking-wide text-cyan-700 font-semibold">{p.category || "Courier / Delivery"}</p>
+                          </div>
                         </div>
                         <div className="p-3">
-                          <p className="font-semibold text-sm text-emerald-950">{p.name}</p>
-                          <p className="text-xs text-muted-foreground">{p.category}</p>
-                          <p className="font-display font-black text-emerald-800 mt-1">{withUnit(p.price, p.unit_type)}</p>
-                          <div className="flex gap-1 mt-2">
+                          <div className="flex items-center justify-between">
+                            <p className="font-display font-black text-emerald-950 text-lg">{withUnit(p.price, p.unit_type)}</p>
+                            <span className="inline-flex items-center rounded-full bg-emerald-50 text-emerald-800 border border-emerald-200 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide">Active</span>
+                          </div>
+                          <div className="flex gap-1 mt-2.5">
                             <PartnerProductForm
                               product={p}
                               onSaved={loadAll}
