@@ -2098,9 +2098,13 @@ export default function PartnerDashboardPage() {
         )}
 
         {tab === "property-buy-sell" && canViewPropertySector && (
-          <div className="bg-white rounded-xl border border-indigo-200 p-6" data-testid="partner-property-sector-tab">
-            <div className="flex items-center justify-between mb-4">
-              <h3 className="font-display font-bold text-emerald-950 text-lg">Property Buy & Sell Listings</h3>
+          <div className="rounded-2xl border border-indigo-200 bg-gradient-to-br from-indigo-50 via-white to-slate-50 p-6" data-testid="partner-property-sector-tab">
+            <div className="rounded-2xl border border-indigo-200/80 bg-white/90 p-4 md:p-5 flex flex-wrap items-center justify-between gap-3">
+              <div>
+                <p className="text-[10px] uppercase tracking-[0.18em] text-indigo-700 font-semibold">Real Estate Desk</p>
+                <h3 className="font-display font-black text-emerald-950 text-xl mt-1">Property Buy & Sell Listings</h3>
+                <p className="text-xs text-slate-600 mt-1">Flat, house, plot sale/resale, broker assistance, এবং site visit listing এখান থেকে manage করুন।</p>
+              </div>
               <div className="flex items-center gap-2">
                 {summary?.partner_code && (
                   <Link to={`/gallery/${summary.partner_code}?tab=property-buy-sell`} target="_blank">
@@ -2121,29 +2125,36 @@ export default function PartnerDashboardPage() {
                 />
               </div>
             </div>
-            <p className="mb-4 text-xs text-slate-600">
+            <p className="mt-4 mb-4 text-xs text-slate-600">
               এখানে property buy-sell, flat/house/plot sale, broker assistance, এবং site visit related service listing manage করুন।
             </p>
             {propertyItems.length === 0 ? (
               <p className="text-sm text-muted-foreground">No property service yet. Click "Add Property Service" to create one.</p>
             ) : (
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
                 {propertyItems.map((p) => (
-                  <div key={p.id} className="rounded-lg border border-indigo-200 overflow-hidden bg-white">
-                    <div className="aspect-square bg-secondary relative">
+                  <div key={p.id} className="rounded-xl border border-indigo-100 overflow-hidden bg-white shadow-md hover:shadow-lg transition-shadow">
+                    <div className="aspect-[16/10] bg-secondary relative">
                       <img src={getPreviewImageUrl(p) || undefined} alt={p.name} className="w-full h-full object-cover" />
+                      <span className="absolute left-0 top-3 bg-indigo-700 text-white text-[10px] font-bold uppercase tracking-wide px-3 py-1 rounded-r-full shadow">For Sale</span>
                       {getPdfUrl(p) ? (
                         <button
                           type="button"
                           onClick={() => window.open(getPdfUrl(p), "_blank")}
-                          className="absolute left-2 top-2 rounded-full bg-white/90 text-emerald-900 px-2.5 py-1 text-[10px] font-bold"
+                          className="absolute right-2 top-2 rounded-full bg-white/90 text-emerald-900 px-2.5 py-1 text-[10px] font-bold shadow"
                         >
-                          Open Preview
+                          Preview
                         </button>
                       ) : null}
                     </div>
-                    <div className="p-3"><p className="font-semibold text-sm text-emerald-950">{p.name}</p><p className="text-xs text-muted-foreground">{p.category}</p><p className="font-display font-black text-emerald-800 mt-1">{withUnit(p.price, p.unit_type)}</p><p className="text-[10px] text-slate-500">{String(p?.service_invoice_mode || "detailed").replace(/_/g, " ")}</p>
-                    <div className="flex gap-1 mt-2">
+                    <div className="p-4">
+                      <p className="font-display font-black text-2xl text-indigo-900">{withUnit(p.price, p.unit_type)}</p>
+                      <p className="font-semibold text-sm text-emerald-950 mt-1">{p.name}</p>
+                      <div className="flex items-center gap-2 mt-1.5">
+                        <span className="inline-flex items-center rounded-full bg-indigo-50 text-indigo-800 border border-indigo-200 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide">{p.category || "Property"}</span>
+                        <span className="text-[10px] text-slate-500">{String(p?.service_invoice_mode || "detailed").replace(/_/g, " ")}</span>
+                      </div>
+                    <div className="flex gap-1 mt-3">
                       <PartnerProductForm
                         product={p}
                         onSaved={loadAll}
