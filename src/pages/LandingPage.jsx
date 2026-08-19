@@ -613,8 +613,8 @@ const Hero = () => {
             <div className="absolute -top-4 -left-4 w-28 h-28 bg-amber-300/30 rounded-full blur-3xl" />
             <div className="absolute -bottom-4 -right-4 w-40 h-40 bg-emerald-500/15 rounded-full blur-3xl" />
             <div className="absolute -left-3 top-10 bottom-10 w-1.5 rounded-full bg-gradient-to-b from-[#ff9933] via-white to-[#138808]" />
-            <div className="relative rounded-[28px] overflow-hidden shadow-2xl border border-emerald-900/10 bg-white p-3">
-              <div className="relative min-h-[500px] md:min-h-[470px] rounded-[22px] overflow-hidden bg-emerald-950">
+            <div className="relative rounded-[28px] overflow-hidden shadow-xl border border-emerald-900/10 bg-white p-2.5">
+              <div className="relative rounded-[22px] overflow-hidden bg-gradient-to-br from-emerald-950 via-emerald-900 to-emerald-950">
                 <img
                   src={NETWORK_IMG}
                   alt="Associate partner network"
@@ -625,10 +625,11 @@ const Hero = () => {
                 />
                 <div className="absolute inset-0 bg-gradient-to-br from-emerald-950 via-emerald-900 to-emerald-950" />
 
-                <div className="relative z-10 p-4 md:p-5 h-full flex flex-col">
+                <div className="relative z-10 p-4 md:p-5 flex flex-col">
                   <div className="flex items-start justify-between gap-3">
                     <div className="max-w-[78%]">
                       <p className="text-[9px] uppercase tracking-[0.3em] text-amber-300 font-bold">Quick Access</p>
+                      <p className="mt-1 font-display text-xl font-black text-white">METHO direct access</p>
                     </div>
                     <div className="rounded-2xl bg-white/10 border border-white/15 p-2.5 md:p-3 text-white shrink-0 backdrop-blur-sm">
                       <Building2 className="w-5 h-5 md:w-6 md:h-6" />
@@ -695,12 +696,12 @@ const Hero = () => {
                       <Link
                         key={item.title}
                         to={item.href}
-                        className="group rounded-2xl bg-emerald-950/78 border border-emerald-100/30 backdrop-blur px-4 py-3 text-white shadow-[0_14px_30px_rgba(0,0,0,0.35)] hover:bg-emerald-950/86 hover:border-amber-200/50 transition-colors"
+                        className="group rounded-xl bg-white/95 border border-emerald-100/30 px-3.5 py-2.5 text-emerald-950 shadow-sm hover:bg-emerald-50 hover:border-amber-200/70 transition-colors"
                         data-testid={item.testId}
                       >
                         <div className="flex items-center justify-between gap-3">
-                          <p className="font-display font-bold text-[0.96rem] md:text-[1.02rem] leading-tight tracking-tight">{item.title}</p>
-                          <div className="w-8 h-8 rounded-xl bg-emerald-950/70 border border-emerald-100/35 flex items-center justify-center group-hover:bg-emerald-950 transition-colors shrink-0">
+                          <p className="font-display font-bold text-sm leading-tight tracking-tight">{item.title}</p>
+                          <div className="w-8 h-8 rounded-xl bg-emerald-50 border border-emerald-200 flex items-center justify-center text-emerald-900 group-hover:bg-emerald-100 transition-colors shrink-0">
                             <item.icon className="w-4 h-4" />
                           </div>
                         </div>
@@ -712,12 +713,12 @@ const Hero = () => {
                         href={companyVideoUrl}
                         target="_blank"
                         rel="noreferrer"
-                        className="group rounded-2xl bg-emerald-950/78 border border-emerald-100/30 backdrop-blur px-4 py-3 text-white shadow-[0_14px_30px_rgba(0,0,0,0.35)] hover:bg-emerald-950/86 hover:border-amber-200/50 transition-colors sm:col-span-2"
+                        className="group rounded-xl bg-white/95 border border-emerald-100/30 px-3.5 py-2.5 text-emerald-950 shadow-sm hover:bg-emerald-50 hover:border-amber-200/70 transition-colors sm:col-span-2"
                         data-testid="landing-quick-watch-video"
                       >
                         <div className="flex items-center justify-between gap-3">
-                          <p className="font-display font-bold text-[0.96rem] md:text-[1.02rem] leading-tight tracking-tight">Watch VDO</p>
-                          <div className="w-8 h-8 rounded-xl bg-emerald-950/70 border border-emerald-100/35 flex items-center justify-center group-hover:bg-emerald-950 transition-colors shrink-0">
+                          <p className="font-display font-bold text-sm leading-tight tracking-tight">Watch VDO</p>
+                          <div className="w-8 h-8 rounded-xl bg-emerald-50 border border-emerald-200 flex items-center justify-center text-emerald-900 group-hover:bg-emerald-100 transition-colors shrink-0">
                             <PlayCircle className="w-4 h-4" />
                           </div>
                         </div>
@@ -725,12 +726,12 @@ const Hero = () => {
                     ) : (
                       <Link
                         to="/shop"
-                        className="group rounded-2xl bg-emerald-950/78 border border-emerald-100/30 backdrop-blur px-4 py-3 text-white shadow-[0_14px_30px_rgba(0,0,0,0.35)] hover:bg-emerald-950/86 hover:border-amber-200/50 transition-colors sm:col-span-2"
+                        className="group rounded-xl bg-white/95 border border-emerald-100/30 px-3.5 py-2.5 text-emerald-950 shadow-sm hover:bg-emerald-50 hover:border-amber-200/70 transition-colors sm:col-span-2"
                         data-testid="landing-quick-watch-video"
                       >
                         <div className="flex items-center justify-between gap-3">
-                          <p className="font-display font-bold text-[0.96rem] md:text-[1.02rem] leading-tight tracking-tight">Watch VDO</p>
-                          <div className="w-8 h-8 rounded-xl bg-emerald-950/70 border border-emerald-100/35 flex items-center justify-center group-hover:bg-emerald-950 transition-colors shrink-0">
+                          <p className="font-display font-bold text-sm leading-tight tracking-tight">Watch VDO</p>
+                          <div className="w-8 h-8 rounded-xl bg-emerald-50 border border-emerald-200 flex items-center justify-center text-emerald-900 group-hover:bg-emerald-100 transition-colors shrink-0">
                             <PlayCircle className="w-4 h-4" />
                           </div>
                         </div>
