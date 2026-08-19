@@ -52,6 +52,7 @@ export function SettingsProvider({ children }) {
       // Resolve full URLs for brand assets so consumers can render directly
       s.site_logo_url_full = resolveAssetUrl(s.site_logo_url);
       s.landing_hero_image_url_full = resolveAssetUrl(s.landing_hero_image_url);
+      s.landing_tourism_banner_image_url_full = resolveAssetUrl(s.landing_tourism_banner_image_url);
       s.directory_hero_image_url_full = resolveAssetUrl(s.directory_hero_image_url);
       s.product_placeholder_image_url_full = resolveAssetUrl(s.product_placeholder_image_url);
       s.social_share_image_url_full = resolveAssetUrl(s.social_share_image_url);

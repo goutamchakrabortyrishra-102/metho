@@ -22,6 +22,7 @@ DATA_URL_MAX_LEN = 4_000_000
 PUBLIC_BRANDING_DATA_KEYS = {
     "site_logo_url",
     "landing_hero_image_url",
+    "landing_tourism_banner_image_url",
     "directory_hero_image_url",
     "product_placeholder_image_url",
     "social_share_image_url",
@@ -115,6 +116,7 @@ DEFAULT_SETTINGS = {
     "partner_agreement_policy": "",
     "site_logo_url": "",
     "landing_hero_image_url": "",
+    "landing_tourism_banner_image_url": "",
     "landing_tagline": "",
     "landing_subheading": "",
     "company_youtube_url": "",
