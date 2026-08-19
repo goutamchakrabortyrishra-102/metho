@@ -37,6 +37,8 @@ UPI_QR_UPLOAD_DIR = UPLOADED_OBJECTS_DIR / "payment_screenshots"
 UPI_QR_UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
 BRANDING_UPLOAD_DIR = UPLOADED_OBJECTS_DIR / "branding_images"
 BRANDING_UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
+TOURISM_BOOKING_IMAGE_DIR = UPLOADED_OBJECTS_DIR / "tourism_booking_images"
+TOURISM_BOOKING_IMAGE_DIR.mkdir(parents=True, exist_ok=True)
 PARTNER_IMAGE_MAX_UPLOAD_BYTES = 200 * 1024
 GLOBAL_IMAGE_MAX_UPLOAD_BYTES = 2 * 1024 * 1024
 UPI_PROOF_MAX_UPLOAD_BYTES = 5 * 1024 * 1024
@@ -4776,6 +4778,42 @@ def admin_tourism_bookings(db: Session = Depends(get_db), current_user=Depends(g
         "gross_value": round(sum(float(row["total_amount"]) for row in bookings), 2),
     }
     return {"summary": summary, "items": bookings}
+
+
+@router.get("/admin/tourism/booking-images")
+def admin_tourism_booking_images(current_user=Depends(get_current_user)):
+    _require_admin_user(current_user)
+    items = []
+    for path in sorted(TOURISM_BOOKING_IMAGE_DIR.iterdir(), key=lambda item: item.stat().st_mtime, reverse=True):
+        if not path.is_file() or path.suffix.lower() not in {".jpg", ".jpeg", ".png", ".webp", ".gif", ".svg"}:
+            continue
+        stat = path.stat()
+        items.append({
+            "name": path.name,
+            "url": f"/api/files/tourism_booking_images/{path.name}",
+            "size": stat.st_size,
+            "updated_at": datetime.fromtimestamp(stat.st_mtime, timezone.utc).isoformat(),
+        })
+    return {"items": items[:100]}
+
+
+@router.get("/tourism/booking-images")
+def public_tourism_booking_images():
+    items = []
+    for path in sorted(TOURISM_BOOKING_IMAGE_DIR.iterdir(), key=lambda item: item.stat().st_mtime, reverse=True):
+        if not path.is_file() or path.suffix.lower() not in {".jpg", ".jpeg", ".png", ".webp", ".gif", ".svg"}:
+            continue
+        items.append({"name": path.name, "url": f"/api/files/tourism_booking_images/{path.name}"})
+    return {"items": items[:24]}
+
+
+@router.post("/admin/upload/tourism-booking-image")
+async def upload_tourism_booking_image(file: UploadFile = File(...), current_user=Depends(get_current_user)):
+    _require_admin_user(current_user)
+    ext, content, _mime = _read_validated_image_upload(file, GLOBAL_IMAGE_MAX_UPLOAD_BYTES)
+    name = f"tourism-booking-{uuid.uuid4().hex}{ext}"
+    (TOURISM_BOOKING_IMAGE_DIR / name).write_bytes(content)
+    return {"ok": True, "url": f"/api/files/tourism_booking_images/{name}", "name": name}
 
 
 @router.post("/admin/orders/{order_id}/approve")

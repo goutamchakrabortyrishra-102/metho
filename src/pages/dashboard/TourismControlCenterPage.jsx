@@ -1,6 +1,6 @@
-import React, { useCallback, useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Navigate, Link } from "react-router-dom";
-import { BadgeCheck, CalendarDays, CheckCircle2, ClipboardCheck, Compass, CreditCard, ExternalLink, RefreshCw, ShieldCheck, XCircle } from "lucide-react";
+import { BadgeCheck, CalendarDays, CheckCircle2, ClipboardCheck, Compass, CreditCard, ExternalLink, ImagePlus, Loader2, RefreshCw, ShieldCheck, Upload, XCircle } from "lucide-react";
 import { toast } from "sonner";
 import api from "@/services/api";
 import { useAuth } from "@/contexts/AuthContext";
@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { resolveAssetUrl } from "@/lib/utils";
 
 const STATUS_STYLE = {
   pending_approval: "bg-amber-100 text-amber-900 border-amber-200",
@@ -29,6 +30,10 @@ export default function TourismControlCenterPage() {
   const [statusFilter, setStatusFilter] = useState("all");
   const [rejectTarget, setRejectTarget] = useState(null);
   const [rejectReason, setRejectReason] = useState("");
+  const [bookingImages, setBookingImages] = useState([]);
+  const [mediaLoading, setMediaLoading] = useState(false);
+  const [mediaUploading, setMediaUploading] = useState(false);
+  const imageInputRef = useRef(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -43,6 +48,19 @@ export default function TourismControlCenterPage() {
   }, []);
 
   useEffect(() => { if (isAdmin) load(); }, [isAdmin, load]);
+  const loadBookingImages = useCallback(async () => {
+    setMediaLoading(true);
+    try {
+      const { data: response } = await api.get("/admin/tourism/booking-images");
+      setBookingImages(Array.isArray(response?.items) ? response.items : []);
+    } catch (err) {
+      toast.error(err?.response?.data?.detail || "Tourism image library could not be loaded");
+    } finally {
+      setMediaLoading(false);
+    }
+  }, []);
+
+  useEffect(() => { if (isAdmin) loadBookingImages(); }, [isAdmin, loadBookingImages]);
   const bookings = useMemo(() => {
     const term = String(query || "").trim().toLowerCase();
     return data.items.filter((item) => {
@@ -82,6 +100,29 @@ export default function TourismControlCenterPage() {
     } finally { setBusyId(""); }
   };
 
+  const uploadBookingImage = async (event) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+    if (file.size > 2 * 1024 * 1024) {
+      toast.error("Image too large (maximum 2MB)");
+      event.target.value = "";
+      return;
+    }
+    setMediaUploading(true);
+    try {
+      const formData = new FormData();
+      formData.append("file", file);
+      await api.post("/admin/upload/tourism-booking-image", formData, { headers: { "Content-Type": "multipart/form-data" } });
+      toast.success("Tourism booking image added to the media library");
+      loadBookingImages();
+    } catch (err) {
+      toast.error(err?.response?.data?.detail || "Tourism image upload failed");
+    } finally {
+      setMediaUploading(false);
+      event.target.value = "";
+    }
+  };
+
   const summary = data.summary || {};
   return <div className="space-y-6" data-testid="tourism-control-center-page">
     <div className="flex flex-wrap items-end justify-between gap-4">
@@ -109,6 +150,22 @@ export default function TourismControlCenterPage() {
         <div><p className="font-display font-bold text-emerald-950">Operational Release Gate</p><p className="mt-1 text-xs text-slate-600">Approve payment only after proof review. Then confirm availability, supplier reference, inclusions, traveller documents, and final cancellation terms directly with the customer.</p></div>
         <a href="/travel-booking-terms" target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 text-sm font-semibold text-sky-900 underline">Customer terms <ExternalLink className="h-3.5 w-3.5" /></a>
       </div>
+    </section>
+
+    <section className="rounded-xl border border-emerald-200 bg-white p-5 shadow-sm" data-testid="tourism-booking-media">
+      <div className="flex flex-wrap items-start justify-between gap-4">
+        <div className="flex gap-3">
+          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-emerald-50 text-emerald-800"><ImagePlus className="h-5 w-5" /></div>
+          <div><p className="font-display text-lg font-bold text-emerald-950">Tourism Booking Media</p><p className="mt-1 max-w-2xl text-xs text-slate-500">Upload destination, hotel, vehicle, and itinerary visuals for the travel operations team. These files stay separate from the METHO product catalog.</p></div>
+        </div>
+        <>
+          <input ref={imageInputRef} type="file" accept="image/jpeg,image/png,image/webp,image/gif,image/svg+xml" className="hidden" onChange={uploadBookingImage} data-testid="tourism-booking-image-file" />
+          <Button type="button" onClick={() => imageInputRef.current?.click()} disabled={mediaUploading} className="rounded-full bg-emerald-800 hover:bg-emerald-900"><Upload className="mr-2 h-4 w-4" />{mediaUploading ? <><Loader2 className="mr-1 h-4 w-4 animate-spin" />Uploading...</> : "Upload booking image"}</Button>
+        </>
+      </div>
+      {mediaLoading ? <p className="mt-5 text-sm text-slate-500">Loading media library...</p> : null}
+      {!mediaLoading && bookingImages.length === 0 ? <div className="mt-5 rounded-lg border border-dashed border-emerald-200 bg-emerald-50/30 p-6 text-center text-sm text-slate-500">No tourism media uploaded yet.</div> : null}
+      {bookingImages.length > 0 ? <div className="mt-5 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">{bookingImages.map((image) => <a key={image.name} href={resolveAssetUrl(image.url)} target="_blank" rel="noreferrer" className="group overflow-hidden rounded-lg border border-slate-200 bg-slate-50"><img src={resolveAssetUrl(image.url)} alt={image.name} className="aspect-[4/3] w-full object-cover transition duration-200 group-hover:scale-105" /><span className="block truncate px-2 py-2 text-[10px] font-medium text-slate-600">{image.name}</span></a>)}</div> : null}
     </section>
 
     <div className="flex flex-wrap gap-3 rounded-lg border border-border bg-white p-3">
