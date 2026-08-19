@@ -656,6 +656,12 @@ const Hero = () => {
                         testId: "landing-quick-view-all-products",
                       },
                       {
+                        title: "Tour & Travel",
+                        href: "/shop?q=travel",
+                        icon: Plane,
+                        testId: "landing-quick-tour-travel",
+                      },
+                      {
                         title: "View All Partners/Services",
                         href: "/directory",
                         icon: Globe,
