@@ -2509,34 +2509,50 @@ export default function PartnerDashboardPage() {
                   const walletShort = status === "booked" && required > 0 && walletBalance + 1e-9 < required;
                   const statusMeta = TRANSPORT_STATUS_META?.[status] || { label: status, tone: "bg-slate-100 text-slate-700 border-slate-200" };
                   return (
-                    <div key={trip.id} className="rounded-xl border border-border p-4" data-testid={`partner-trip-${trip.id}`}>
-                      <div className="flex flex-wrap items-start justify-between gap-3">
-                        <div>
-                          <p className="font-mono text-xs text-emerald-800">{trip.trip_code || trip.id}</p>
-                          <p className="font-semibold text-emerald-950 mt-1">{trip.service_name || "Transport Service"} · {trip.vehicle_type || "cab"}</p>
-                          <p className="text-xs text-slate-600 mt-1">{trip.pickup} -> {trip.destination}</p>
-                          <p className="text-xs text-slate-600">Customer: {trip.customer_name || "Customer"}{trip.customer_phone ? ` (${trip.customer_phone})` : ""}</p>
-                          {trip?.travel_date ? <p className="text-xs text-slate-600">Schedule: {String(trip.travel_date)}</p> : null}
+                    <div key={trip.id} className="rounded-xl border border-slate-200 bg-white shadow-sm overflow-hidden" data-testid={`partner-trip-${trip.id}`}>
+                      <div className="flex flex-wrap items-start justify-between gap-3 p-4">
+                        <div className="min-w-[220px]">
+                          <div className="flex items-center gap-2">
+                            <span className="font-mono text-[11px] text-slate-500">{trip.trip_code || trip.id}</span>
+                            <span className="inline-flex items-center rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-slate-600">{trip.vehicle_type || "cab"}</span>
+                          </div>
+                          <p className="font-display font-bold text-emerald-950 mt-1">{trip.service_name || "Transport Service"}</p>
+
+                          <div className="mt-2.5 pl-1">
+                            <div className="flex items-start gap-2.5">
+                              <div className="flex flex-col items-center pt-0.5">
+                                <span className="w-2.5 h-2.5 rounded-full bg-emerald-600 shrink-0" />
+                                <span className="w-px flex-1 min-h-[18px] bg-slate-300 my-0.5" />
+                                <span className="w-2.5 h-2.5 rounded-full border-2 border-rose-500 shrink-0" />
+                              </div>
+                              <div className="flex-1 space-y-2.5">
+                                <p className="text-xs text-slate-700 leading-tight">{trip.pickup || "Pickup location"}</p>
+                                <p className="text-xs text-slate-700 leading-tight">{trip.destination || "Drop location"}</p>
+                              </div>
+                            </div>
+                          </div>
+
+                          <p className="text-xs text-slate-600 mt-2">Rider: {trip.customer_name || "Customer"}{trip.customer_phone ? ` · ${trip.customer_phone}` : ""}</p>
+                          {trip?.travel_date ? <p className="text-xs text-slate-500">Schedule: {String(trip.travel_date)}</p> : null}
                           <button
                             type="button"
-                            className="text-xs text-emerald-800 underline mt-1"
+                            className="inline-flex items-center gap-1 text-xs font-semibold text-sky-700 hover:text-sky-900 mt-1.5"
                             onClick={() => {
                               const url = routeMapsUrl(trip.pickup, trip.destination);
                               if (url) window.open(url, "_blank", "noopener,noreferrer");
                             }}
                           >
-                            Open route in Google Maps
+                            <ExternalLink className="w-3 h-3" /> Open route in Google Maps
                           </button>
                         </div>
-                        <div className="text-right">
-                          <p className="text-[10px] uppercase tracking-widest text-slate-500 font-bold">Status</p>
-                          <span className={`inline-flex mt-1 items-center gap-1 px-2.5 py-1 rounded-full border text-xs font-semibold ${statusMeta.tone}`}>
+                        <div className="text-right shrink-0">
+                          <span className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full border text-xs font-semibold ${statusMeta.tone}`}>
                             <Clock3 className="w-3.5 h-3.5" /> {statusMeta.label}
                           </span>
-                          <p className="text-xs text-slate-600 mt-1">Fare: {inr(fare)}</p>
-                          <p className="text-xs text-amber-700">Reserve needed: {inr(required)}</p>
+                          <p className="font-display font-black text-xl text-emerald-950 mt-2">{inr(fare)}</p>
+                          <p className="text-[11px] text-amber-700">Reserve needed: {inr(required)}</p>
                           {walletShort ? (
-                            <p className="text-xs font-semibold text-red-700 mt-1">Wallet balance low. Please top up wallet before confirming.</p>
+                            <p className="text-[11px] font-semibold text-red-700 mt-1 max-w-[160px]">Wallet balance low. Please top up wallet before confirming.</p>
                           ) : null}
                         </div>
                       </div>
