@@ -197,14 +197,15 @@ export default function ShopPage() {
 
   const inc = (product) => {
     const stock = getStock(product);
-    if (stock <= 0) {
+    const isTourismService = String(product?.product_type || "").toLowerCase() === "metho_service" && Boolean(product?.is_service);
+    if (!isTourismService && stock <= 0) {
       toast.error(`${product?.name || "Product"}: out of stock`);
       return;
     }
 
     setCart((c) => {
       const current = c[product.id] || 0;
-      if (current >= stock) {
+      if (!isTourismService && current >= stock) {
         toast.error(`${product?.name || "Product"}: max available stock is ${stock}`);
         return c;
       }

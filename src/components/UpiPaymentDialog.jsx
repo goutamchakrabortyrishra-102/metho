@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import { toast } from "sonner";
 import { Upload, Loader2, QrCode, Copy, CheckCircle2, ShoppingCart } from "lucide-react";
@@ -152,6 +152,7 @@ export default function UpiPaymentDialog({
   const [qrImageFailed, setQrImageFailed] = useState(false);
   const [memberLookupBusy, setMemberLookupBusy] = useState(false);
   const [memberLookupInfo, setMemberLookupInfo] = useState(null);
+  const lastMemberLookupRef = useRef("");
   const [travelTermsAccepted, setTravelTermsAccepted] = useState(false);
   const codEnabled = paymentConfig ? paymentConfig.cod_enabled !== false : true;
   const normalizedPayerPhone = String(payerPhone || "").replace(/\D/g, "");
@@ -255,8 +256,11 @@ export default function UpiPaymentDialog({
     const ref = String(memberRef || "").trim();
     if (!open || !canUseMemberLookup || !ref) {
       setMemberLookupInfo(null);
+      lastMemberLookupRef.current = "";
       return;
     }
+    if (lastMemberLookupRef.current === ref) return;
+    lastMemberLookupRef.current = ref;
     const timer = setTimeout(async () => {
       setMemberLookupBusy(true);
       try {
@@ -278,7 +282,7 @@ export default function UpiPaymentDialog({
       }
     }, 350);
     return () => clearTimeout(timer);
-  }, [open, canUseMemberLookup, memberRef, payerName, payerPhone]);
+  }, [open, canUseMemberLookup, memberRef, payerName, payerPhone, address]);
 
   const copyUpi = async () => {
     if (!settings?.upi_id) return;
