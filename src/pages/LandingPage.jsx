@@ -482,7 +482,8 @@ const Hero = () => {
               </Button>
             </Link>
           </div>
-          <div className="mt-8 flex flex-wrap items-center gap-3 rounded-[1.75rem] border border-emerald-900/10 bg-gradient-to-r from-white/95 via-emerald-50/75 to-white/95 p-2.5 shadow-sm">
+          <div className="mt-8 rounded-[2rem] border border-emerald-900/12 bg-white/90 p-3 shadow-[0_18px_42px_rgba(15,23,42,0.08)] md:p-4" data-testid="hero-direct-access-card">
+            <div className="flex flex-wrap items-center gap-3 rounded-[1.5rem] border border-emerald-900/10 bg-gradient-to-r from-white via-emerald-50/75 to-white p-2.5">
             <Link to="/shop" className="w-full sm:w-auto" data-testid="hero-cta-shop">
               <Button size="lg" variant="outline" className="rounded-full px-7 h-12 text-base border-emerald-900/20 bg-white/95 shadow-sm hover:bg-emerald-50 hover:text-emerald-900 w-full sm:w-auto">
                 Browse METHO Products <ChevronRight className="ml-1 w-4 h-4" />
@@ -511,90 +512,25 @@ const Hero = () => {
               </Button>
             </div>
           </div>
-          <div className="mt-4 grid gap-3 md:grid-cols-2" data-testid="hero-commerce-focus-cards">
-            <Link to="/shop" className="group rounded-2xl border border-emerald-900/12 bg-white/92 px-4 py-3.5 shadow-sm hover:shadow-md hover:border-emerald-900/20 transition-all" data-testid="hero-focus-metho-products">
-              <div className="flex items-center justify-between gap-3">
-                <div>
-                  <p className="text-[10px] uppercase tracking-[0.22em] text-emerald-800 font-semibold">METHO Product</p>
-                  <p className="mt-1 font-display font-black text-lg text-emerald-950 leading-tight">Fast moving catalog</p>
-                  <p className="mt-1 text-xs text-slate-600">Category-ready browsing with direct shop access.</p>
-                </div>
-                <div className="w-10 h-10 rounded-xl border border-emerald-200 bg-emerald-50 flex items-center justify-center text-emerald-900 group-hover:bg-emerald-100 transition-colors">
-                  <Store className="w-5 h-5" />
-                </div>
-              </div>
-            </Link>
-            <Link to="/directory" className="group rounded-2xl border border-emerald-900/12 bg-white/92 px-4 py-3.5 shadow-sm hover:shadow-md hover:border-emerald-900/20 transition-all" data-testid="hero-focus-partner-shop">
-              <div className="flex items-center justify-between gap-3">
-                <div>
-                  <p className="text-[10px] uppercase tracking-[0.22em] text-emerald-800 font-semibold">Partner Shop</p>
-                  <p className="mt-1 font-display font-black text-lg text-emerald-950 leading-tight">Verified local partners</p>
-                  <p className="mt-1 text-xs text-slate-600">Find services by city, category, and business type.</p>
-                </div>
-                <div className="w-10 h-10 rounded-xl border border-emerald-200 bg-emerald-50 flex items-center justify-center text-emerald-900 group-hover:bg-emerald-100 transition-colors">
-                  <MapPin className="w-5 h-5" />
-                </div>
-              </div>
-            </Link>
-          </div>
-          <div className="mt-4 rounded-2xl border border-emerald-700/40 bg-gradient-to-r from-emerald-900 via-emerald-800 to-emerald-900 p-3.5 text-white shadow-lg shadow-emerald-900/25" data-testid="hero-sector-quick-access">
-            <div className="flex items-center justify-between gap-2 flex-wrap">
-              <p className="text-[10px] uppercase tracking-[0.2em] text-emerald-100 font-semibold">Member / Customer Direct Sector Access</p>
-              <span className="text-[10px] text-emerald-100/80">One tap to browse</span>
+            <div className="mt-4 grid gap-3 md:grid-cols-2" data-testid="hero-commerce-focus-cards">
+              <Link to="/shop" className="group rounded-2xl border border-emerald-900/12 bg-white/92 px-4 py-3.5 shadow-sm hover:shadow-md hover:border-emerald-900/20 transition-all" data-testid="hero-focus-metho-products">
+                <div className="flex items-center justify-between gap-3"><div><p className="text-[10px] uppercase tracking-[0.22em] text-emerald-800 font-semibold">METHO Product</p><p className="mt-1 font-display font-black text-lg text-emerald-950 leading-tight">Fast moving catalog</p><p className="mt-1 text-xs text-slate-600">Category-ready browsing with direct shop access.</p></div><div className="w-10 h-10 rounded-xl border border-emerald-200 bg-emerald-50 flex items-center justify-center text-emerald-900 group-hover:bg-emerald-100 transition-colors"><Store className="w-5 h-5" /></div></div>
+              </Link>
+              <Link to="/directory" className="group rounded-2xl border border-emerald-900/12 bg-white/92 px-4 py-3.5 shadow-sm hover:shadow-md hover:border-emerald-900/20 transition-all" data-testid="hero-focus-partner-shop">
+                <div className="flex items-center justify-between gap-3"><div><p className="text-[10px] uppercase tracking-[0.22em] text-emerald-800 font-semibold">Partner Shop</p><p className="mt-1 font-display font-black text-lg text-emerald-950 leading-tight">Verified local partners</p><p className="mt-1 text-xs text-slate-600">Find services by city, category, and business type.</p></div><div className="w-10 h-10 rounded-xl border border-emerald-200 bg-emerald-50 flex items-center justify-center text-emerald-900 group-hover:bg-emerald-100 transition-colors"><MapPin className="w-5 h-5" /></div></div>
+              </Link>
             </div>
-            <div className="mt-3 grid gap-3 lg:grid-cols-12">
-              <div className="grid grid-cols-2 lg:grid-cols-3 gap-2 lg:col-span-7">
-              <Link to="/directory?quick=products" className="group" data-testid="hero-sector-products">
-                <div className="rounded-xl border border-emerald-200/35 bg-white/95 text-emerald-950 px-3 py-2.5 hover:bg-emerald-50 transition-colors">
-                  <p className="text-[10px] uppercase tracking-widest text-emerald-700 font-semibold">Sector</p>
-                  <p className="text-sm font-bold mt-0.5">All Products</p>
+            <div className="mt-4 rounded-2xl border border-emerald-700/40 bg-gradient-to-r from-emerald-900 via-emerald-800 to-emerald-900 p-3.5 text-white" data-testid="hero-sector-quick-access">
+              <div className="flex items-center justify-between gap-2 flex-wrap"><p className="text-[10px] uppercase tracking-[0.2em] text-emerald-100 font-semibold">Member / Customer Direct Sector Access</p><span className="text-[10px] text-emerald-100/80">One tap to browse</span></div>
+              <div className="mt-3 grid gap-3 lg:grid-cols-12">
+                <div className="grid grid-cols-2 lg:grid-cols-3 gap-2 lg:col-span-7">
+                  <Link to="/directory?quick=products" className="group" data-testid="hero-sector-products"><div className="rounded-xl border border-emerald-200/35 bg-white/95 text-emerald-950 px-3 py-2.5 hover:bg-emerald-50 transition-colors"><p className="text-[10px] uppercase tracking-widest text-emerald-700 font-semibold">Sector</p><p className="text-sm font-bold mt-0.5">All Products</p></div></Link>
+                  <Link to="/directory?quick=transport" className="group" data-testid="hero-sector-transport"><div className="rounded-xl border border-emerald-200/35 bg-white/95 text-emerald-950 px-3 py-2.5 hover:bg-emerald-50 transition-colors"><p className="text-[10px] uppercase tracking-widest text-emerald-700 font-semibold">Sector</p><p className="text-sm font-bold mt-0.5">Transport</p></div></Link>
+                  <Link to="/directory?quick=stay-dining" className="group" data-testid="hero-sector-stay-dining"><div className="rounded-xl border border-emerald-200/35 bg-white/95 text-emerald-950 px-3 py-2.5 hover:bg-emerald-50 transition-colors"><p className="text-[10px] uppercase tracking-widest text-emerald-700 font-semibold">Sector</p><p className="text-sm font-bold mt-0.5">Stay &amp; Dining</p></div></Link>
+                  <Link to="/directory?quick=doorstep" className="group" data-testid="hero-sector-doorstep"><div className="rounded-xl border border-emerald-200/35 bg-white/95 text-emerald-950 px-3 py-2.5 hover:bg-emerald-50 transition-colors"><p className="text-[10px] uppercase tracking-widest text-emerald-700 font-semibold">Sector</p><p className="text-sm font-bold mt-0.5">Doorstep</p></div></Link>
+                  <Link to="/directory?quick=other-services" className="group" data-testid="hero-sector-other-services"><div className="rounded-xl border border-emerald-200/35 bg-white/95 text-emerald-950 px-3 py-2.5 hover:bg-emerald-50 transition-colors"><p className="text-[10px] uppercase tracking-widest text-emerald-700 font-semibold">Sector</p><p className="text-sm font-bold mt-0.5">Other Services</p></div></Link>
                 </div>
-              </Link>
-              <Link to="/directory?quick=transport" className="group" data-testid="hero-sector-transport">
-                <div className="rounded-xl border border-emerald-200/35 bg-white/95 text-emerald-950 px-3 py-2.5 hover:bg-emerald-50 transition-colors">
-                  <p className="text-[10px] uppercase tracking-widest text-emerald-700 font-semibold">Sector</p>
-                  <p className="text-sm font-bold mt-0.5">Transport</p>
-                </div>
-              </Link>
-              <Link to="/directory?quick=stay-dining" className="group" data-testid="hero-sector-stay-dining">
-                <div className="rounded-xl border border-emerald-200/35 bg-white/95 text-emerald-950 px-3 py-2.5 hover:bg-emerald-50 transition-colors">
-                  <p className="text-[10px] uppercase tracking-widest text-emerald-700 font-semibold">Sector</p>
-                  <p className="text-sm font-bold mt-0.5">Stay & Dining</p>
-                </div>
-              </Link>
-              <Link to="/directory?quick=doorstep" className="group" data-testid="hero-sector-doorstep">
-                <div className="rounded-xl border border-emerald-200/35 bg-white/95 text-emerald-950 px-3 py-2.5 hover:bg-emerald-50 transition-colors">
-                  <p className="text-[10px] uppercase tracking-widest text-emerald-700 font-semibold">Sector</p>
-                  <p className="text-sm font-bold mt-0.5">Doorstep</p>
-                </div>
-              </Link>
-              <Link to="/directory?quick=other-services" className="group" data-testid="hero-sector-other-services">
-                <div className="rounded-xl border border-emerald-200/35 bg-white/95 text-emerald-950 px-3 py-2.5 hover:bg-emerald-50 transition-colors">
-                  <p className="text-[10px] uppercase tracking-widest text-emerald-700 font-semibold">Sector</p>
-                  <p className="text-sm font-bold mt-0.5">Other Services</p>
-                </div>
-              </Link>
-              </div>
-
-              <div className="lg:col-span-5 rounded-xl border border-emerald-200/35 bg-white/95 text-emerald-950 px-3 py-2.5" data-testid="hero-product-subsectors">
-                <div className="flex items-center justify-between gap-2">
-                  <p className="text-[10px] uppercase tracking-widest text-emerald-700 font-semibold">Product Sectors</p>
-                  <span className="text-[10px] text-slate-500">4 parts</span>
-                </div>
-                <div className="mt-2 grid grid-cols-2 gap-2">
-                  <Link to="/partner-shop/MTH-PARTNER-004" className="rounded-lg border border-emerald-200 bg-emerald-50/50 px-2.5 py-2 text-sm font-semibold hover:bg-emerald-100 transition-colors" data-testid="hero-product-vegetables">
-                    Vegetables
-                  </Link>
-                  <Link to="/directory?quick=grocery" className="rounded-lg border border-emerald-200 bg-emerald-50/50 px-2.5 py-2 text-sm font-semibold hover:bg-emerald-100 transition-colors" data-testid="hero-product-grocery">
-                    Grocery
-                  </Link>
-                  <Link to="/directory?quick=cosmetics-beauty" className="rounded-lg border border-emerald-200 bg-emerald-50/50 px-2.5 py-2 text-sm font-semibold hover:bg-emerald-100 transition-colors" data-testid="hero-product-cosmetics-beauty">
-                    Cosmetics &amp; Beauty
-                  </Link>
-                  <Link to="/directory?quick=others" className="rounded-lg border border-emerald-200 bg-emerald-50/50 px-2.5 py-2 text-sm font-semibold hover:bg-emerald-100 transition-colors" data-testid="hero-product-others">
-                    Others
-                  </Link>
-                </div>
+                <div className="lg:col-span-5 rounded-xl border border-emerald-200/35 bg-white/95 text-emerald-950 px-3 py-2.5" data-testid="hero-product-subsectors"><div className="flex items-center justify-between gap-2"><p className="text-[10px] uppercase tracking-widest text-emerald-700 font-semibold">Product Sectors</p><span className="text-[10px] text-slate-500">4 parts</span></div><div className="mt-2 grid grid-cols-2 gap-2"><Link to="/partner-shop/MTH-PARTNER-004" className="rounded-lg border border-emerald-200 bg-emerald-50/50 px-2.5 py-2 text-sm font-semibold hover:bg-emerald-100 transition-colors" data-testid="hero-product-vegetables">Vegetables</Link><Link to="/directory?quick=grocery" className="rounded-lg border border-emerald-200 bg-emerald-50/50 px-2.5 py-2 text-sm font-semibold hover:bg-emerald-100 transition-colors" data-testid="hero-product-grocery">Grocery</Link><Link to="/directory?quick=cosmetics-beauty" className="rounded-lg border border-emerald-200 bg-emerald-50/50 px-2.5 py-2 text-sm font-semibold hover:bg-emerald-100 transition-colors" data-testid="hero-product-cosmetics-beauty">Cosmetics &amp; Beauty</Link><Link to="/directory?quick=others" className="rounded-lg border border-emerald-200 bg-emerald-50/50 px-2.5 py-2 text-sm font-semibold hover:bg-emerald-100 transition-colors" data-testid="hero-product-others">Others</Link></div></div>
               </div>
             </div>
           </div>
