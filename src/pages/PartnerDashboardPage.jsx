@@ -2692,7 +2692,9 @@ export default function PartnerDashboardPage() {
             ) : (
               <div className="space-y-3">
                 {normalizedOrders.map(o => {
-                  const invoiceReady = ["paid", "approved"].includes(String(o?.status || "").trim().toLowerCase());
+                  const statusReady = ["paid", "approved"].includes(String(o?.status || "").trim().toLowerCase());
+                  const walletReadyForPartnerApproval = String(o?.status || "").trim().toLowerCase() === "pending_approval" && o?.can_partner_auto_approve && !o?.blocked_by_wallet_reserve;
+                  const invoiceReady = statusReady || walletReadyForPartnerApproval;
                   const customerWhatsAppAvailable = Boolean(String(o?.delivery_phone || "").replace(/\D/g, "") || String(o?.customer_whatsapp_invoice_url || "").trim());
                   const walletRechargeRequired = String(o?.status || "").trim().toLowerCase() === "pending_approval" && o?.blocked_by_wallet_reserve && o?.can_partner_auto_approve;
                   return <div key={o.id} className="border border-border rounded-lg p-4 flex flex-wrap justify-between gap-3" data-testid={`partner-order-${o.id}`}>
