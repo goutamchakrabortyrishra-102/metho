@@ -1039,7 +1039,7 @@ export default function PartnerDashboardPage() {
     }
   };
 
-  const savePartnerUpiId = async ({ validateOffer = false } = {}) => {
+  const savePartnerUpiId = async ({ validateOffer = false, successMessage = "Payment settings updated" } = {}) => {
     if (validateOffer && offerPopupEnabled && !String(offerPopupTitle || offerPopupMessage || "").trim()) {
       toast.error("Popup enabled থাকলে title বা message দিতে হবে");
       return;
@@ -1069,7 +1069,7 @@ export default function PartnerDashboardPage() {
         ...(prev || {}),
         ...data,
       }));
-      toast.success("Payment settings updated");
+      toast.success(successMessage);
       loadAll();
     } catch (err) {
       toast.error(err?.response?.data?.detail || "Payment settings update failed");
@@ -2306,7 +2306,7 @@ export default function PartnerDashboardPage() {
                 </div>
                 <Button
                   type="button"
-                  onClick={() => savePartnerUpiId()}
+                  onClick={() => savePartnerUpiId({ successMessage: "Delivery coverage updated" })}
                   disabled={savingPartnerUpi}
                   className="rounded-full bg-cyan-700 hover:bg-cyan-800 text-white w-full"
                 >
