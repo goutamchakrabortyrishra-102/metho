@@ -1517,17 +1517,17 @@ const Tourism = () => {
           </div>
           <Link to="/shop" data-testid="landing-tourism-view-all"><Button className="rounded-full bg-amber-400 text-emerald-950 hover:bg-amber-300">Explore Travel <Plane className="ml-2 h-4 w-4" /></Button></Link>
         </div>
-        {displayBannerImage ? <div className="mt-7 overflow-hidden rounded-2xl border border-sky-300/40 bg-sky-900/60 p-2 shadow-2xl" data-testid="landing-tourism-banner-box">
-          <div className="relative aspect-[21/7] min-h-[180px] overflow-hidden rounded-xl bg-sky-900">
+        {displayBannerImage ? <div className="mx-auto mt-7 max-w-5xl overflow-hidden rounded-2xl border border-sky-300/40 bg-sky-900/60 p-2 shadow-2xl" data-testid="landing-tourism-banner-box">
+          <div className="relative h-44 overflow-hidden rounded-xl bg-sky-900 sm:h-56 md:h-64">
             <img src={displayBannerImage} alt="METHO Tour & Travels" className="h-full w-full object-cover" loading="lazy" decoding="async" onError={(e) => applyLandingImageFallback(e, [displayBannerImage], placeholder)} />
             <div className="absolute inset-0 bg-gradient-to-r from-sky-950/65 via-sky-950/15 to-transparent" aria-hidden="true" />
             <div className="absolute inset-x-5 bottom-4 max-w-md sm:inset-x-8 sm:bottom-6"><p className="text-xs font-semibold uppercase tracking-[0.22em] text-amber-300">METHO Tour &amp; Travels</p><p className="mt-1 font-display text-xl font-black text-white drop-shadow md:text-3xl">Journeys curated for you.</p></div>
           </div>
         </div> : null}
-        <div className="mt-7 grid gap-4 md:grid-cols-3">
+        <div className="mx-auto mt-7 grid max-w-5xl gap-4 md:grid-cols-3">
           {services.map((service, index) => (
             <article key={service.id} className="group overflow-hidden rounded-xl border border-white/15 bg-white/95 text-slate-800 shadow-xl transition-transform hover:-translate-y-1" data-testid={`landing-tourism-card-${index}`}>
-              <div className="relative aspect-[16/10] overflow-hidden bg-sky-100"><img src={pickProductImageSrc(service) || resolveAssetUrl(tourismMedia[index]?.url) || placeholder} alt={service.name} className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-105" loading="lazy" onError={(e) => applyLandingImageFallback(e, [pickProductImageSrc(service), resolveAssetUrl(tourismMedia[index]?.url)], placeholder)} /><span className="absolute left-3 top-3 rounded-full bg-sky-950/85 px-2.5 py-1 text-[10px] font-bold uppercase tracking-widest text-white">METHO Travel</span></div>
+              <div className="relative h-40 overflow-hidden bg-sky-100 sm:h-44"><img src={pickProductImageSrc(service) || resolveAssetUrl(tourismMedia[index]?.url) || placeholder} alt={service.name} className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-105" loading="lazy" onError={(e) => applyLandingImageFallback(e, [pickProductImageSrc(service), resolveAssetUrl(tourismMedia[index]?.url)], placeholder)} /><span className="absolute left-3 top-3 rounded-full bg-sky-950/85 px-2.5 py-1 text-[10px] font-bold uppercase tracking-widest text-white">METHO Travel</span></div>
               <div className="p-4"><p className="text-[10px] font-bold uppercase tracking-wider text-sky-800">{service.category || "Tourism"}</p><h3 className="mt-1 font-display text-lg font-bold text-emerald-950 line-clamp-1">{service.name}</h3>{service.description ? <p className="mt-2 text-xs leading-5 text-slate-600 line-clamp-3">{service.description}</p> : null}<div className="mt-3 flex items-center justify-between gap-3"><span className="font-display text-xl font-black text-emerald-950">₹{getCustomerUnitPrice(service).toLocaleString("en-IN")}</span><span className="inline-flex items-center gap-1 text-xs font-semibold text-sky-800"><CalendarDays className="h-3.5 w-3.5" /> Date-based booking</span></div><Link to={`/shop?q=${encodeURIComponent(service.name || "")}`} className="mt-4 inline-flex w-full"><Button className="w-full rounded-full bg-emerald-900 text-white hover:bg-emerald-950" data-testid={`landing-tourism-book-${index}`}>Book Now <ArrowRight className="ml-2 h-4 w-4" /></Button></Link></div>
             </article>
           ))}
