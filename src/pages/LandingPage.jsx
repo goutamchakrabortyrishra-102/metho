@@ -90,6 +90,28 @@ const isVisibleMethoProduct = (product) => {
   return typeOk && !isHidden;
 };
 
+const mixProductsByCategory = (products, limit = 6) => {
+  const groups = new Map();
+  (products || []).forEach((product) => {
+    const category = String(product?.category || "General");
+    if (!groups.has(category)) groups.set(category, []);
+    groups.get(category).push(product);
+  });
+  const mixed = [];
+  while (mixed.length < limit) {
+    let added = false;
+    for (const group of groups.values()) {
+      const next = group.shift();
+      if (!next) continue;
+      mixed.push(next);
+      added = true;
+      if (mixed.length >= limit) break;
+    }
+    if (!added) break;
+  }
+  return mixed;
+};
+
 const normalizeYoutubeUrl = (value) => {
   const raw = String(value || "").trim();
   if (!raw) return "";
@@ -1363,7 +1385,7 @@ const Products = () => {
     if (process.env.NODE_ENV !== "production") {
       api.post("/seed").catch(() => {});
     }
-    loadLandingProducts().then((rows) => setProducts(rows.filter(isVisibleMethoProduct).slice(0, 4))).catch(() => {});
+    loadLandingProducts().then((rows) => setProducts(mixProductsByCategory(rows.filter(isVisibleMethoProduct), 6))).catch(() => {});
   }, [isSectionActive]);
   return (
     <section ref={sectionRef} id="products" className="relative py-24 overflow-hidden bg-[radial-gradient(circle_at_10%_20%,rgba(16,185,129,0.12),transparent_38%),radial-gradient(circle_at_90%_0%,rgba(245,158,11,0.14),transparent_42%),linear-gradient(180deg,#f8faf9_0%,#eef7f2_100%)]">
@@ -1376,7 +1398,7 @@ const Products = () => {
         <div className="flex flex-wrap items-end justify-between gap-4">
           <div>
             <p className="text-xs uppercase tracking-[0.25em] text-emerald-800 font-semibold">METHO Products</p>
-            <h2 className="mt-3 font-display font-black text-4xl md:text-5xl tracking-tight text-emerald-950">
+            <h2 className="mt-2 font-display font-black text-3xl md:text-4xl tracking-tight text-emerald-950">
               Products that move daily.
               <br />
               <span className="text-amber-500 italic">Clean catalog. Fast partner sales.</span>
@@ -1394,15 +1416,15 @@ const Products = () => {
             <span key={tag} className="rounded-full border border-emerald-900/10 bg-white/80 px-3 py-1 font-semibold text-emerald-900">{tag}</span>
           ))}
         </div>
-        <div className="mt-8 grid grid-cols-2 md:grid-cols-4 gap-4">
+        <div className="mt-6 grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
           {products.map((p, i) => (
             <Link
               key={p.id}
               to={p?.name ? `/shop?q=${encodeURIComponent(p.name)}` : "/shop"}
-              className="group block bg-white/95 backdrop-blur rounded-2xl overflow-hidden border border-emerald-900/10 hover:shadow-xl hover:shadow-emerald-900/10 hover:-translate-y-0.5 transition-all"
+              className="group block bg-white/95 backdrop-blur rounded-xl overflow-hidden border border-emerald-900/10 hover:shadow-lg hover:shadow-emerald-900/10 hover:-translate-y-0.5 transition-all"
               data-testid={`product-card-${i}`}
             >
-              <div className="aspect-square overflow-hidden bg-gradient-to-br from-white to-emerald-50/40">
+              <div className="aspect-[4/3] overflow-hidden bg-gradient-to-br from-white to-emerald-50/40">
                 <img
                   src={pickProductImageSrc(p) || placeholder}
                   alt={p.name}
@@ -1412,18 +1434,18 @@ const Products = () => {
                   onError={(e) => { applyLandingImageFallback(e, [pickProductImageSrc(p)], placeholder || FALLBACK_PRODUCT_IMG); }}
                 />
               </div>
-              <div className="p-4">
+              <div className="p-3">
                 <p className="text-[10px] uppercase tracking-wider text-emerald-800 font-semibold">{p.category}</p>
                 <h4 className="mt-1 font-display font-bold text-emerald-950 line-clamp-1">{p.name}</h4>
                 <div className="mt-2 flex items-center justify-between">
-                  <span className="font-display font-black text-lg text-emerald-950">₹{getCustomerUnitPrice(p).toLocaleString("en-IN")}</span>
+                  <span className="font-display font-black text-base text-emerald-950">₹{getCustomerUnitPrice(p).toLocaleString("en-IN")}</span>
                   {p.product_type === "associate_partner" ? (
                     <span className="text-xs bg-slate-100 text-slate-700 px-2 py-0.5 rounded-full font-semibold">Partner</span>
                   ) : (
                     <span className="text-xs bg-amber-100 text-amber-900 px-2 py-0.5 rounded-full font-semibold">METHO</span>
                   )}
                 </div>
-                <div className="mt-3">
+                <div className="mt-2">
                   <span className="inline-flex items-center text-xs font-semibold text-emerald-800">
                     Open Product <ChevronRight className="ml-1 w-3.5 h-3.5" />
                   </span>
@@ -1464,19 +1486,23 @@ const Tourism = () => {
     }).catch(() => setServices([]));
   }, [isSectionActive]);
 
+  const bannerService = services[0];
+  const bannerImage = pickProductImageSrc(bannerService);
+
   return (
-    <section ref={sectionRef} id="travel" className="relative overflow-hidden bg-sky-950 py-20 text-white" data-testid="landing-tourism-section">
-      <div className="absolute inset-0 bg-[radial-gradient(circle_at_10%_10%,rgba(56,189,248,0.26),transparent_34%),radial-gradient(circle_at_88%_72%,rgba(250,204,21,0.18),transparent_30%)]" />
+    <section ref={sectionRef} id="travel" className="relative overflow-hidden bg-sky-950 py-16 text-white" data-testid="landing-tourism-section">
+      {bannerImage ? <img src={bannerImage} alt="" className="absolute inset-0 h-full w-full object-cover opacity-35" aria-hidden="true" /> : null}
+      <div className="absolute inset-0 bg-[linear-gradient(90deg,rgba(8,47,73,0.98)_0%,rgba(8,47,73,0.9)_45%,rgba(8,47,73,0.62)_100%)]" />
       <div className="relative mx-auto max-w-7xl px-6">
         <div className="flex flex-wrap items-end justify-between gap-5">
           <div className="max-w-2xl">
             <p className="text-xs font-semibold uppercase tracking-[0.24em] text-sky-200">METHO Travel</p>
-            <h2 className="mt-3 font-display text-4xl font-black tracking-tight md:text-5xl">Travel plans, ready to reserve.</h2>
-            <p className="mt-3 text-sm leading-6 text-sky-100/85">Browse curated tourism services, choose a preferred date and complete a secure booking request. Final availability and itinerary are confirmed through the booking team.</p>
+            <h2 className="mt-2 font-display text-3xl font-black tracking-tight md:text-4xl">Travel plans, ready to reserve.</h2>
+            <p className="mt-2 text-sm leading-6 text-sky-100/90">Browse curated tourism services, choose a preferred date and complete a secure booking request. Final availability and itinerary are confirmed through the booking team.</p>
           </div>
           <Link to="/shop" data-testid="landing-tourism-view-all"><Button className="rounded-full bg-amber-400 text-emerald-950 hover:bg-amber-300">Explore Travel <Plane className="ml-2 h-4 w-4" /></Button></Link>
         </div>
-        <div className="mt-9 grid gap-4 md:grid-cols-3">
+        <div className="mt-7 grid gap-4 md:grid-cols-3">
           {services.map((service, index) => (
             <Link key={service.id} to={`/shop?q=${encodeURIComponent(service.name || "")}`} className="group overflow-hidden rounded-lg border border-white/15 bg-white/95 text-slate-800 shadow-xl transition-transform hover:-translate-y-1" data-testid={`landing-tourism-card-${index}`}>
               <div className="aspect-[16/10] overflow-hidden bg-sky-100"><img src={pickProductImageSrc(service) || placeholder} alt={service.name} className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-105" loading="lazy" onError={(e) => applyLandingImageFallback(e, [pickProductImageSrc(service)], placeholder)} /></div>
