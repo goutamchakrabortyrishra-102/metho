@@ -1825,21 +1825,27 @@ export default function PartnerDashboardPage() {
             ) : (
               <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                 {hospitalityItems.map(p => (
-                  <div key={p.id} className="rounded-xl border border-amber-200 overflow-hidden bg-white shadow-sm">
-                    <div className="aspect-square bg-secondary relative">
+                  <div key={p.id} className="rounded-2xl border border-amber-100 overflow-hidden bg-white shadow-md hover:shadow-lg transition-shadow">
+                    <div className="aspect-[4/3] bg-secondary relative">
                       <img src={getPreviewImageUrl(p) || undefined} alt={p.name} className="w-full h-full object-cover" />
-                      <span className="absolute right-2 top-2 rounded-full bg-amber-100 text-amber-900 px-2 py-0.5 text-[10px] font-bold">Stay/Dining</span>
+                      <div className="absolute inset-x-0 bottom-0 h-14 bg-gradient-to-t from-black/60 to-transparent" />
+                      <span className="absolute left-2 top-2 rounded-full bg-white/95 text-amber-900 px-2.5 py-1 text-[10px] font-bold uppercase tracking-wide shadow">{p.category || "Stay & Dining"}</span>
                       {getPdfUrl(p) ? (
                         <button
                           type="button"
                           onClick={() => window.open(getPreviewImageUrl(p) || getPdfUrl(p), "_blank")}
-                          className="absolute left-2 top-2 rounded-full bg-white/90 text-emerald-900 px-2.5 py-1 text-[10px] font-bold"
+                          className="absolute right-2 top-2 rounded-full bg-white/90 text-emerald-900 px-2.5 py-1 text-[10px] font-bold shadow"
                         >
-                          Open Preview
+                          Preview
                         </button>
                       ) : null}
+                      <p className="absolute left-3 bottom-2 right-3 text-white font-display font-bold text-sm truncate drop-shadow">{p.name}</p>
                     </div>
-                    <div className="p-3"><p className="font-semibold text-sm text-emerald-950">{p.name}</p><p className="text-xs text-muted-foreground">{p.category}</p><p className="font-display font-black text-emerald-800 mt-1">{withUnit(p.price, p.unit_type)}</p><p className="text-[10px] text-slate-500">{String(p?.service_invoice_mode || "detailed").replace(/_/g, " ")}</p>
+                    <div className="p-3">
+                      <div className="flex items-baseline justify-between gap-2">
+                        <p className="font-display font-black text-emerald-950 text-lg">{withUnit(p.price, p.unit_type)}</p>
+                        <span className="inline-flex items-center rounded-full bg-amber-50 text-amber-800 border border-amber-200 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide">{String(p?.service_invoice_mode || "detailed").replace(/_/g, " ")}</span>
+                      </div>
                     {isRestaurantSlotService(p) ? (
                       <div className="mt-2 rounded-lg border border-amber-200 bg-amber-50 p-2 space-y-2">
                         <p className="text-[10px] font-semibold uppercase tracking-wider text-amber-800">Restaurant Slot Control</p>
