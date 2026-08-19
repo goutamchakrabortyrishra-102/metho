@@ -1907,13 +1907,17 @@ export default function PartnerDashboardPage() {
         )}
 
         {tab === "doorstep" && canViewDoorstepSector && (
-          <div className="bg-white rounded-xl border border-border p-6">
-            <div className="flex items-center justify-between mb-4">
-              <h3 className="font-display font-bold text-emerald-950 text-lg">Doorstep Service Listings</h3>
+          <div className="rounded-2xl border border-violet-200 bg-gradient-to-br from-violet-50 via-white to-indigo-50 p-6" data-testid="partner-doorstep-tab">
+            <div className="rounded-2xl border border-violet-200/80 bg-white/90 p-4 md:p-5 flex flex-wrap items-center justify-between gap-3">
+              <div>
+                <p className="text-[10px] uppercase tracking-[0.18em] text-violet-700 font-semibold">Doorstep Service Desk</p>
+                <h3 className="font-display font-black text-emerald-950 text-xl mt-1">Home Service Professional Panel</h3>
+                <p className="text-xs text-slate-600 mt-1">Plumber, electrician, cleaning, beauty at home, laundry, tailoring - একটি professional service marketplace panel-এ manage করুন।</p>
+              </div>
               <div className="flex items-center gap-2">
                 {summary?.partner_code && (
                   <Link to={`/gallery/${summary.partner_code}?tab=doorstep`} target="_blank">
-                    <Button size="sm" variant="outline" className="rounded-full border-emerald-300 text-emerald-900 hover:bg-emerald-50">
+                    <Button size="sm" variant="outline" className="rounded-full border-violet-300 text-violet-900 hover:bg-violet-50">
                       <Images className="w-4 h-4 mr-1" /> View Doorstep Services
                     </Button>
                   </Link>
@@ -1930,7 +1934,7 @@ export default function PartnerDashboardPage() {
                 />
               </div>
             </div>
-            <p className="mb-4 text-xs text-slate-600">
+            <p className="mt-4 mb-4 text-xs text-slate-600">
               এখান থেকে শুধু home service, laundry, cleaning, beauty at home, courier, tailoring type service add/edit করুন।
             </p>
             {doorstepItems.length === 0 ? (
@@ -1938,20 +1942,21 @@ export default function PartnerDashboardPage() {
             ) : (
               <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                 {doorstepItems.map(p => (
-                  <div key={p.id} className="rounded-lg border border-border overflow-hidden">
+                  <div key={p.id} className="rounded-xl border border-violet-100 overflow-hidden bg-white shadow-md hover:shadow-lg transition-shadow">
                     <div className="aspect-square bg-secondary relative">
                       <img src={getPreviewImageUrl(p) || undefined} alt={p.name} className="w-full h-full object-cover" />
+                      <span className="absolute left-2 top-2 rounded-full bg-violet-600 text-white px-2.5 py-1 text-[10px] font-bold shadow">{p.category || "Home Service"}</span>
                       {getPdfUrl(p) ? (
                         <button
                           type="button"
                           onClick={() => window.open(getPdfUrl(p), "_blank")}
-                          className="absolute left-2 top-2 rounded-full bg-white/90 text-emerald-900 px-2.5 py-1 text-[10px] font-bold"
+                          className="absolute right-2 top-2 rounded-full bg-white/90 text-emerald-900 px-2.5 py-1 text-[10px] font-bold shadow"
                         >
-                          Open Preview
+                          Preview
                         </button>
                       ) : null}
                     </div>
-                    <div className="p-3"><p className="font-semibold text-sm text-emerald-950">{p.name}</p><p className="text-xs text-muted-foreground">{p.category}</p><p className="font-display font-black text-emerald-800 mt-1">{withUnit(p.price, p.unit_type)}</p><p className="text-[10px] text-slate-500">{String(p?.service_invoice_mode || "detailed").replace(/_/g, " ")}</p>
+                    <div className="p-3"><p className="font-semibold text-sm text-emerald-950">{p.name}</p><p className="font-display font-black text-violet-800 mt-1">{withUnit(p.price, p.unit_type)}</p><span className="inline-flex items-center rounded-full bg-violet-50 text-violet-800 border border-violet-200 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide mt-1">{String(p?.service_invoice_mode || "detailed").replace(/_/g, " ")}</span>
                     {isDoorstepOrOtherSlotService(p) ? (
                       <div className="mt-2 rounded-lg border border-emerald-200 bg-emerald-50 p-2 space-y-2">
                         <p className="text-[10px] font-semibold uppercase tracking-wider text-emerald-800">Slot Rate Control</p>
