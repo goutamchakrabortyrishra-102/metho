@@ -701,6 +701,7 @@ export default function SettingsPage() {
   const dedupeImageFields = [
     "site_logo_url",
     "landing_hero_image_url",
+    "landing_tourism_banner_image_url",
     "directory_hero_image_url",
     "product_placeholder_image_url",
     "social_share_image_url",
@@ -959,6 +960,7 @@ export default function SettingsPage() {
     einvoice_password: source.einvoice_password || "",
     site_logo_url: source.site_logo_url || "",
     landing_hero_image_url: "",
+    landing_tourism_banner_image_url: "",
     landing_tagline: source.landing_tagline || "",
     landing_subheading: source.landing_subheading || "",
     company_youtube_url: source.company_youtube_url || "",
@@ -1699,6 +1701,17 @@ export default function SettingsPage() {
                 readOnly={readOnly}
                 testId="branding-og"
                 uploadEndpoint="/admin/upload/branding-image?purpose=social_share"
+              />
+              <BrandingImageUpload
+                purpose="landing_tourism_banner"
+                label="Tourism Section Banner"
+                hint="Landing page-এর Tourism/Travel section-এ background হিসেবে দেখানো banner image (landscape format recommended)।"
+                value={form.landing_tourism_banner_image_url}
+                onChange={setF("landing_tourism_banner_image_url")}
+                onPersist={(value) => persistBrandingField("landing_tourism_banner_image_url", value)}
+                readOnly={readOnly}
+                testId="branding-tourism-banner"
+                uploadEndpoint="/admin/upload/branding-image?purpose=landing_tourism_banner"
               />
             </div>
             <div className="md:col-span-2 rounded-xl border border-amber-200 bg-amber-50 p-3 text-xs text-amber-900">

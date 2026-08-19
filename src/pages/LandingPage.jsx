@@ -1494,10 +1494,12 @@ const Tourism = () => {
 
   const bannerService = services[0];
   const bannerImage = pickProductImageSrc(bannerService);
+  const customTourismBanner = settings?.landing_tourism_banner_image_url_full || settings?.landing_tourism_banner_image_url;
+  const displayBannerImage = customTourismBanner || bannerImage;
 
   return (
     <section ref={sectionRef} id="travel" className="relative overflow-hidden bg-sky-950 py-16 text-white" data-testid="landing-tourism-section">
-      {bannerImage ? <img src={bannerImage} alt="" className="absolute inset-0 h-full w-full object-cover opacity-35" aria-hidden="true" /> : null}
+      {displayBannerImage ? <img src={displayBannerImage} alt="" className="absolute inset-0 h-full w-full object-cover opacity-35" aria-hidden="true" /> : null}
       <div className="absolute inset-0 bg-[linear-gradient(90deg,rgba(8,47,73,0.98)_0%,rgba(8,47,73,0.9)_45%,rgba(8,47,73,0.62)_100%)]" />
       <div className="relative mx-auto max-w-7xl px-6">
         <div className="flex flex-wrap items-end justify-between gap-5">
