@@ -2006,13 +2006,17 @@ export default function PartnerDashboardPage() {
         )}
 
         {tab === "services" && canViewOtherServiceSector && (
-          <div className="bg-white rounded-xl border border-border p-6">
-            <div className="flex items-center justify-between mb-4">
-              <h3 className="font-display font-bold text-emerald-950 text-lg">Other Service Listings</h3>
+          <div className="rounded-2xl border border-teal-200 bg-gradient-to-br from-teal-50 via-white to-emerald-50 p-6" data-testid="partner-other-services-tab">
+            <div className="rounded-2xl border border-teal-200/80 bg-white/90 p-4 md:p-5 flex flex-wrap items-center justify-between gap-3">
+              <div>
+                <p className="text-[10px] uppercase tracking-[0.18em] text-teal-700 font-semibold">Booking & Session Desk</p>
+                <h3 className="font-display font-black text-emerald-950 text-xl mt-1">Other Services / Creative & Media Listings</h3>
+                <p className="text-xs text-slate-600 mt-1">Clinic, education, legal, accounting, fitness, photography, travel, repair center, singing/dance/recording studio session বুকিং এখান থেকে manage করুন।</p>
+              </div>
               <div className="flex items-center gap-2">
                 {summary?.partner_code && (
                   <Link to={`/gallery/${summary.partner_code}?tab=other-services`} target="_blank">
-                    <Button size="sm" variant="outline" className="rounded-full border-emerald-300 text-emerald-900 hover:bg-emerald-50">
+                    <Button size="sm" variant="outline" className="rounded-full border-teal-300 text-teal-900 hover:bg-teal-50">
                       <Images className="w-4 h-4 mr-1" /> View Other Services
                     </Button>
                   </Link>
@@ -2028,7 +2032,7 @@ export default function PartnerDashboardPage() {
                 />
               </div>
             </div>
-            <p className="mb-4 text-xs text-slate-600">
+            <p className="mt-4 mb-4 text-xs text-slate-600">
               এখান থেকে clinic, education, legal, accounting, fitness, photography, travel, repair center ইত্যাদি other service add/edit করুন।
             </p>
             {serviceItems.length === 0 ? (
@@ -2036,20 +2040,21 @@ export default function PartnerDashboardPage() {
             ) : (
               <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                 {serviceItems.map(p => (
-                  <div key={p.id} className="rounded-lg border border-border overflow-hidden">
+                  <div key={p.id} className="rounded-xl border border-teal-100 overflow-hidden bg-white shadow-md hover:shadow-lg transition-shadow">
                     <div className="aspect-square bg-secondary relative">
                       <img src={getPreviewImageUrl(p) || undefined} alt={p.name} className="w-full h-full object-cover" />
+                      <span className="absolute left-2 top-2 rounded-full bg-teal-600 text-white px-2.5 py-1 text-[10px] font-bold shadow">{p.service_sector || p.category || "Service"}</span>
                       {getPdfUrl(p) ? (
                         <button
                           type="button"
                           onClick={() => window.open(getPdfUrl(p), "_blank")}
-                          className="absolute left-2 top-2 rounded-full bg-white/90 text-emerald-900 px-2.5 py-1 text-[10px] font-bold"
+                          className="absolute right-2 top-2 rounded-full bg-white/90 text-emerald-900 px-2.5 py-1 text-[10px] font-bold shadow"
                         >
-                          Open Preview
+                          Preview
                         </button>
                       ) : null}
                     </div>
-                    <div className="p-3"><p className="font-semibold text-sm text-emerald-950">{p.name}</p><p className="text-xs text-muted-foreground">{p.category}</p><p className="font-display font-black text-emerald-800 mt-1">{withUnit(p.price, p.unit_type)}</p><p className="text-[10px] text-slate-500">{String(p?.service_invoice_mode || "detailed").replace(/_/g, " ")}</p>
+                    <div className="p-3"><p className="font-semibold text-sm text-emerald-950">{p.name}</p><p className="font-display font-black text-teal-800 mt-1">{withUnit(p.price, p.unit_type)}</p><span className="inline-flex items-center rounded-full bg-teal-50 text-teal-800 border border-teal-200 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide mt-1">{String(p?.service_invoice_mode || "detailed").replace(/_/g, " ")}</span>
                     {isDoorstepOrOtherSlotService(p) ? (
                       <div className="mt-2 rounded-lg border border-emerald-200 bg-emerald-50 p-2 space-y-2">
                         <p className="text-[10px] font-semibold uppercase tracking-wider text-emerald-800">Slot Rate Control</p>
