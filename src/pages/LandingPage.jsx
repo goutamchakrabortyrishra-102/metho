@@ -1508,8 +1508,6 @@ const Tourism = () => {
 
   return (
     <section ref={sectionRef} id="travel" className="relative overflow-hidden bg-sky-950 py-16 text-white" data-testid="landing-tourism-section">
-      {displayBannerImage ? <img src={displayBannerImage} alt="" className="absolute inset-0 h-full w-full object-cover opacity-35" aria-hidden="true" /> : null}
-      <div className="absolute inset-0 bg-[linear-gradient(90deg,rgba(8,47,73,0.98)_0%,rgba(8,47,73,0.9)_45%,rgba(8,47,73,0.62)_100%)]" />
       <div className="relative mx-auto max-w-7xl px-6">
         <div className="flex flex-wrap items-end justify-between gap-5">
           <div className="max-w-2xl">
@@ -1519,6 +1517,13 @@ const Tourism = () => {
           </div>
           <Link to="/shop" data-testid="landing-tourism-view-all"><Button className="rounded-full bg-amber-400 text-emerald-950 hover:bg-amber-300">Explore Travel <Plane className="ml-2 h-4 w-4" /></Button></Link>
         </div>
+        {displayBannerImage ? <div className="mt-7 overflow-hidden rounded-2xl border border-sky-300/40 bg-sky-900/60 p-2 shadow-2xl" data-testid="landing-tourism-banner-box">
+          <div className="relative aspect-[21/7] min-h-[180px] overflow-hidden rounded-xl bg-sky-900">
+            <img src={displayBannerImage} alt="METHO Tour & Travels" className="h-full w-full object-cover" loading="lazy" decoding="async" onError={(e) => applyLandingImageFallback(e, [displayBannerImage], placeholder)} />
+            <div className="absolute inset-0 bg-gradient-to-r from-sky-950/65 via-sky-950/15 to-transparent" aria-hidden="true" />
+            <div className="absolute inset-x-5 bottom-4 max-w-md sm:inset-x-8 sm:bottom-6"><p className="text-xs font-semibold uppercase tracking-[0.22em] text-amber-300">METHO Tour &amp; Travels</p><p className="mt-1 font-display text-xl font-black text-white drop-shadow md:text-3xl">Journeys curated for you.</p></div>
+          </div>
+        </div> : null}
         <div className="mt-7 grid gap-4 md:grid-cols-3">
           {services.map((service, index) => (
             <article key={service.id} className="group overflow-hidden rounded-xl border border-white/15 bg-white/95 text-slate-800 shadow-xl transition-transform hover:-translate-y-1" data-testid={`landing-tourism-card-${index}`}>
