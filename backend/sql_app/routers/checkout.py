@@ -297,15 +297,32 @@ def _resolve_member_user_by_ref(db: Session, member_ref: str) -> User | None:
     return None
 
 
+def _member_profile_key(user_id: str) -> str:
+    return f"member_profile:{str(user_id or '').strip()}"
+
+
+def _load_member_profile(db: Session, user_id: str) -> dict:
+    row = db.query(AppSetting).filter(AppSetting.key == _member_profile_key(user_id)).first()
+    if not row:
+        return {}
+    try:
+        payload = json.loads(row.value_json or "{}")
+    except Exception:
+        return {}
+    return payload if isinstance(payload, dict) else {}
+
+
 @router.get("/member-lookup/{member_ref}")
 def member_lookup(member_ref: str, db: Session = Depends(get_db)):
     user = _resolve_member_user_by_ref(db, member_ref)
     if not user:
         raise HTTPException(status_code=404, detail="Member not found")
+    profile = _load_member_profile(db, user.id)
     return {
         "id": user.id,
         "name": str(user.name or "").strip(),
         "phone": str(user.phone or "").strip(),
+        "address": str(profile.get("address") or "").strip(),
         "member_code": member_code_for_user(user.id),
     }
 

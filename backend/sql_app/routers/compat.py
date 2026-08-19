@@ -6891,13 +6891,31 @@ async def admin_upload_partner_metho_topup_qr(partner_id: str, file: UploadFile 
 
 
 @router.get("/kyc/me")
-def kyc_me(current_user=Depends(get_current_user)):
-    return {"status": "approved", "submitted_at": now_iso(), "nid_number": "", "address": ""}
+def kyc_me(db: Session = Depends(get_db), current_user=Depends(get_current_user)):
+    row = db.query(AppSetting).filter(AppSetting.key == f"member_profile:{current_user.id}").first()
+    try:
+        profile = json.loads(row.value_json or "{}") if row else {}
+    except Exception:
+        profile = {}
+    return {"status": "approved", "submitted_at": now_iso(), "nid_number": str(profile.get("nid_number") or ""), "address": str(profile.get("address") or "")}
 
 
 @router.post("/kyc/submit")
-def kyc_submit(payload: dict, current_user=Depends(get_current_user)):
-    return {"ok": True, "status": "pending", "message": "KYC submitted"}
+def kyc_submit(payload: dict, db: Session = Depends(get_db), current_user=Depends(get_current_user)):
+    key = f"member_profile:{current_user.id}"
+    row = db.query(AppSetting).filter(AppSetting.key == key).first()
+    profile = {
+        "nid_number": str((payload or {}).get("nid_number") or "").strip(),
+        "address": str((payload or {}).get("address") or "").strip(),
+        "date_of_birth": str((payload or {}).get("date_of_birth") or "").strip(),
+    }
+    if not row:
+        db.add(AppSetting(key=key, value_json=json.dumps(profile), updated_at=datetime.now(timezone.utc)))
+    else:
+        row.value_json = json.dumps(profile)
+        row.updated_at = datetime.now(timezone.utc)
+    db.commit()
+    return {"ok": True, "status": "pending", "message": "KYC submitted", "kyc": {"status": "pending", **profile}}
 
 
 @router.get("/admin/system-health")

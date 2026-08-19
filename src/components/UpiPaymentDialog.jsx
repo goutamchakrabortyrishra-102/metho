@@ -159,6 +159,7 @@ export default function UpiPaymentDialog({
   const resolvedPayerName = String(payerName || "").trim() || String(user?.name || "").trim();
   const resolvedCustomerPhone = normalizedPayerPhone || normalizedUserPhone;
   const normalizedUserRole = String(user?.role || "").trim().toLowerCase();
+  const canUseMemberLookup = isGuest || normalizedUserRole === "member";
   const shouldAutoAttachMemberId = Boolean(
     user?.id &&
     normalizedUserRole &&
@@ -252,7 +253,7 @@ export default function UpiPaymentDialog({
 
   useEffect(() => {
     const ref = String(memberRef || "").trim();
-    if (!open || !ref) {
+    if (!open || !canUseMemberLookup || !ref) {
       setMemberLookupInfo(null);
       return;
     }
@@ -267,6 +268,9 @@ export default function UpiPaymentDialog({
         if (!String(payerPhone || "").trim() && String(data?.phone || "").trim()) {
           setPayerPhone(String(data.phone).trim());
         }
+        if (!String(address || "").trim() && String(data?.address || "").trim()) {
+          setAddress(String(data.address).trim());
+        }
       } catch {
         setMemberLookupInfo(null);
       } finally {
@@ -274,7 +278,7 @@ export default function UpiPaymentDialog({
       }
     }, 350);
     return () => clearTimeout(timer);
-  }, [open, memberRef, payerName, payerPhone]);
+  }, [open, canUseMemberLookup, memberRef, payerName, payerPhone]);
 
   const copyUpi = async () => {
     if (!settings?.upi_id) return;
@@ -358,7 +362,7 @@ export default function UpiPaymentDialog({
         tourism_terms_accepted: requiresTravelTerms ? travelTermsAccepted : undefined,
       };
       const ref = (memberRef || "").trim();
-      if (ref) {
+      if (ref && canUseMemberLookup) {
         const looksLikeMemberCode = /^MTH-/i.test(ref);
         if (looksLikeMemberCode) payload.member_code = ref.toUpperCase();
         else payload.member_id = ref;
@@ -430,7 +434,7 @@ export default function UpiPaymentDialog({
         tourism_terms_accepted: requiresTravelTerms ? travelTermsAccepted : undefined,
       };
       const ref = (memberRef || "").trim();
-      if (ref) {
+      if (ref && canUseMemberLookup) {
         const looksLikeMemberCode = /^MTH-/i.test(ref);
         if (looksLikeMemberCode) orderPayload.member_code = ref.toUpperCase();
         else orderPayload.member_id = ref;
@@ -720,7 +724,7 @@ export default function UpiPaymentDialog({
                   </div>
                 ) : null}
 
-                {!existingOrderId && (
+                {!existingOrderId && canUseMemberLookup && (
               <div>
                 <Label htmlFor="member-ref">Member ID / Member Code (optional)</Label>
                 <Input
@@ -776,9 +780,9 @@ export default function UpiPaymentDialog({
                   </div>
                 ) : null}
 
-                {!existingOrderId && requiresShippingAddress && (
+                {!existingOrderId && (requiresShippingAddress || requiresTravelTerms) && (
               <div>
-                <Label htmlFor="ship">Shipping Address <span className="text-red-500">*</span></Label>
+                <Label htmlFor="ship">Booking / Shipping Address <span className="text-red-500">*</span></Label>
                 <Textarea
                   id="ship"
                   required
@@ -870,7 +874,7 @@ export default function UpiPaymentDialog({
                   : "Razorpay is disabled in this checkout flow. Partner payments require the UPI/QR proof flow to stay active."}
               </div>
 
-              {!existingOrderId ? (
+              {!existingOrderId && canUseMemberLookup ? (
                 <div>
                   <Label htmlFor="member-ref-razorpay">Member ID / Member Code (optional)</Label>
                   <Input
@@ -919,9 +923,9 @@ export default function UpiPaymentDialog({
                 </div>
               ) : null}
 
-              {!existingOrderId && requiresShippingAddress ? (
+              {!existingOrderId && (requiresShippingAddress || requiresTravelTerms) ? (
                 <div>
-                  <Label htmlFor="ship-razorpay">Shipping Address <span className="text-red-500">*</span></Label>
+                  <Label htmlFor="ship-razorpay">Booking / Shipping Address <span className="text-red-500">*</span></Label>
                   <Textarea
                     id="ship-razorpay"
                     required
