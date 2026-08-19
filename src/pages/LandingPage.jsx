@@ -1508,13 +1508,13 @@ const Tourism = () => {
   const displayBannerImage = customTourismBanner || bannerImage || resolveAssetUrl(tourismMedia[0]?.url);
 
   return (
-    <section ref={sectionRef} id="travel" className="relative overflow-hidden bg-sky-950 py-16 text-white" data-testid="landing-tourism-section">
+    <section ref={sectionRef} id="travel" className="relative overflow-hidden bg-gradient-to-br from-sky-50 via-white to-emerald-50 py-16 text-slate-800" data-testid="landing-tourism-section">
       <div className="relative mx-auto max-w-7xl px-6">
         <div className="flex flex-wrap items-end justify-between gap-5">
           <div className="max-w-2xl">
             <p className="text-xs font-semibold uppercase tracking-[0.24em] text-amber-300">METHO Tour &amp; Travels</p>
             <h2 className="mt-2 font-display text-3xl font-black tracking-tight md:text-4xl">Travel plans, ready to reserve.</h2>
-            <p className="mt-2 text-sm leading-6 text-sky-100/90">Browse curated tourism services, choose a preferred date and complete a secure booking request. Final availability and itinerary are confirmed through the booking team.</p>
+            <p className="mt-2 text-sm leading-6 text-slate-600">Browse curated tourism services, choose a preferred date and complete a secure booking request. Final availability and itinerary are confirmed through the booking team.</p>
           </div>
           <Link to="/shop" data-testid="landing-tourism-view-all"><Button className="rounded-full bg-amber-400 text-emerald-950 hover:bg-amber-300">Explore Travel <Plane className="ml-2 h-4 w-4" /></Button></Link>
         </div>
@@ -1532,9 +1532,9 @@ const Tourism = () => {
               <div className="p-4"><p className="text-[10px] font-bold uppercase tracking-wider text-sky-800">{service.category || "Tourism"}</p><h3 className="mt-1 font-display text-lg font-bold text-emerald-950 line-clamp-1">{service.name}</h3>{service.description ? <p className="mt-2 text-xs leading-5 text-slate-600 line-clamp-3">{service.description}</p> : null}<div className="mt-3 flex items-center justify-between gap-3"><span className="font-display text-xl font-black text-emerald-950">₹{getCustomerUnitPrice(service).toLocaleString("en-IN")}</span><span className="inline-flex items-center gap-1 text-xs font-semibold text-sky-800"><CalendarDays className="h-3.5 w-3.5" /> Date-based booking</span></div><Link to={`/shop?q=${encodeURIComponent(service.name || "")}`} className="mt-4 inline-flex w-full"><Button className="w-full rounded-full bg-emerald-900 text-white hover:bg-emerald-950" data-testid={`landing-tourism-book-${index}`}>Book Now <ArrowRight className="ml-2 h-4 w-4" /></Button></Link></div>
             </article>
           ))}
-          {services.length === 0 ? <div className="md:col-span-3 rounded-lg border border-dashed border-sky-300/40 bg-sky-900/60 p-7 text-center"><p className="font-display text-lg font-bold">Travel services are being curated</p><p className="mt-1 text-sm text-sky-100/80">New destinations and packages will appear here as they are released.</p><Link to="/shop" className="mt-4 inline-flex"><Button variant="outline" className="rounded-full border-sky-200 bg-transparent text-white hover:bg-sky-900">Open Shop &amp; Travel</Button></Link></div> : null}
+          {services.length === 0 ? <div className="md:col-span-3 rounded-lg border border-dashed border-sky-300 bg-white/80 p-7 text-center"><p className="font-display text-lg font-bold text-sky-950">Travel services are being curated</p><p className="mt-1 text-sm text-slate-600">New destinations and packages will appear here as they are released.</p><Link to="/shop" className="mt-4 inline-flex"><Button variant="outline" className="rounded-full border-sky-300 bg-white text-sky-900 hover:bg-sky-50">Open Shop &amp; Travel</Button></Link></div> : null}
         </div>
-        <p className="mt-5 text-xs text-sky-100/70">Travel bookings are governed by the <Link to="/travel-booking-terms" className="font-semibold text-sky-100 underline">Travel Booking Terms</Link>.</p>
+        <p className="mt-5 text-xs text-slate-500">Travel bookings are governed by the <Link to="/travel-booking-terms" className="font-semibold text-sky-800 underline">Travel Booking Terms</Link>.</p>
       </div>
     </section>
   );
