@@ -1122,6 +1122,8 @@ def create_public_order(payload: dict, db: Session = Depends(get_db), authorizat
                 "service_booking_enabled": bool(listing_meta["service_booking_enabled"]),
                 "service_invoice_mode": str(item.get("service_invoice_mode") or listing_meta["service_invoice_mode"]).strip().lower(),
                 "service_template_key": str(listing_meta["service_template_key"] if product_type == "metho_service" else (item.get("service_template_key") or listing_meta["service_template_key"])).strip(),
+                "booking_available_from": str(global_service_meta.get("booking_available_from") or "") if product_type in {"metho", "metho_service"} else "",
+                "booking_available_until": str(global_service_meta.get("booking_available_until") or "") if product_type in {"metho", "metho_service"} else "",
                     "delivery_charge": max(0.0, float(global_service_meta.get("delivery_charge") if product_type in {"metho", "metho_service"} else listing_meta.get("delivery_charge") or 0)),
                     "free_delivery_threshold": max(0.0, float(global_service_meta.get("free_delivery_threshold") if product_type in {"metho", "metho_service"} else listing_meta.get("free_delivery_threshold") or 0)),
                 "pricing_unit": str(listing_meta.get("pricing_unit") or "PER_ITEM"),
@@ -1233,6 +1235,20 @@ def create_public_order(payload: dict, db: Session = Depends(get_db), authorizat
     )
     if has_tourism_item and payload.get("tourism_terms_accepted") is not True:
         raise HTTPException(status_code=400, detail="Travel booking terms must be accepted before payment")
+
+    if has_tourism_item:
+        requested_tourism_dt = _parse_slot_datetime(slot_datetime)
+        if not requested_tourism_dt:
+            raise HTTPException(status_code=400, detail="Valid tourism booking date and time is required")
+        for tourism_item in normalized_items:
+            if str(tourism_item.get("service_template_key") or "").strip().lower() != "tourism_booking":
+                continue
+            available_from = _parse_slot_datetime(tourism_item.get("booking_available_from"))
+            available_until = _parse_slot_datetime(tourism_item.get("booking_available_until"))
+            if available_from and requested_tourism_dt < available_from:
+                raise HTTPException(status_code=409, detail=f"This tour is available from {available_from.strftime('%d %b %Y, %I:%M %p')}")
+            if available_until and requested_tourism_dt > available_until:
+                raise HTTPException(status_code=409, detail=f"This tour is available until {available_until.strftime('%d %b %Y, %I:%M %p')}")
 
     if has_service_slot_item:
         requested_slot_dt = _parse_slot_datetime(slot_datetime)

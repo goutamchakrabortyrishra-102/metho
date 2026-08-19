@@ -301,6 +301,8 @@ export default function ShopPage() {
             item_kind: p?.is_service ? "service" : "product",
             service_booking_enabled: Boolean(p?.service_booking_enabled),
             service_template_key: p?.service_template_key || "",
+            booking_available_from: p?.booking_available_from || "",
+            booking_available_until: p?.booking_available_until || "",
           };
         })
         .filter(Boolean)

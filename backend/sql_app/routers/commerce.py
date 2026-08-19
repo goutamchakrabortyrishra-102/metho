@@ -40,6 +40,23 @@ def _load_product_service_meta(db: Session, product_id: str) -> dict:
     return value if isinstance(value, dict) else {}
 
 
+def _validate_booking_window(payload: ProductCreate) -> tuple[str, str]:
+    if str(payload.product_type or "").strip().lower() != "metho_service" or not bool(payload.service_booking_enabled):
+        return "", ""
+    available_from = str(getattr(payload, "booking_available_from", "") or "").strip()
+    available_until = str(getattr(payload, "booking_available_until", "") or "").strip()
+    if not available_from and not available_until:
+        return "", ""
+    try:
+        start = datetime.fromisoformat(available_from.replace("Z", "+00:00")) if available_from else None
+        end = datetime.fromisoformat(available_until.replace("Z", "+00:00")) if available_until else None
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail="Booking availability dates are invalid") from exc
+    if start and end and start > end:
+        raise HTTPException(status_code=400, detail="Available From must be before Available Until")
+    return available_from, available_until
+
+
 def _save_product_service_meta(db: Session, product_id: str, payload: ProductCreate) -> dict:
     is_service = str(payload.product_type or "").strip().lower() == "metho_service"
     try:
@@ -48,6 +65,7 @@ def _save_product_service_meta(db: Session, product_id: str, payload: ProductCre
         commission = None
     if commission is not None:
         commission = max(0.0, min(100.0, commission))
+    available_from, available_until = _validate_booking_window(payload)
     value = {
         "is_service": is_service,
         "service_booking_enabled": bool(payload.service_booking_enabled) if is_service else False,
@@ -55,6 +73,8 @@ def _save_product_service_meta(db: Session, product_id: str, payload: ProductCre
         "commission_percent": commission,
         "delivery_charge": max(0.0, float(getattr(payload, "delivery_charge", 0) or 0)),
         "free_delivery_threshold": max(0.0, float(getattr(payload, "free_delivery_threshold", 0) or 0)),
+        "booking_available_from": available_from,
+        "booking_available_until": available_until,
     }
     key = _product_service_meta_key(product_id)
     row = db.query(AppSetting).filter(AppSetting.key == key).first()
@@ -298,6 +318,8 @@ def list_products(limit: int | None = None, authorization: str | None = Header(d
                 "commission_percent": service_meta.get("commission_percent"),
                 "delivery_charge": max(0.0, float(service_meta.get("delivery_charge") or 0)),
                 "free_delivery_threshold": max(0.0, float(service_meta.get("free_delivery_threshold") or 0)),
+                "booking_available_from": str(service_meta.get("booking_available_from") or "").strip(),
+                "booking_available_until": str(service_meta.get("booking_available_until") or "").strip(),
             }
         )
     if not is_authenticated:

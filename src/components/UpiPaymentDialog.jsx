@@ -191,6 +191,9 @@ export default function UpiPaymentDialog({
   const requiresTravelTerms = Array.isArray(items)
     ? items.some((item) => String(item?.product_type || "").trim().toLowerCase() === "metho_service" && String(item?.service_template_key || "").trim().toLowerCase() === "tourism_booking")
     : false;
+  const tourismAvailability = Array.isArray(items)
+    ? items.find((item) => String(item?.service_template_key || "").trim().toLowerCase() === "tourism_booking") || {}
+    : {};
   const configuredDeliveryCity = normalizeText(paymentConfig?.delivery_city || "");
   const configuredDeliveryPincode = String(paymentConfig?.delivery_pincode || "").replace(/\D/g, "");
   const customerCity = extractCityFromAddress(address);
@@ -307,6 +310,23 @@ export default function UpiPaymentDialog({
     toast.error(message);
   };
 
+  const validateTourismSelection = () => {
+    if (!requiresTravelTerms) return true;
+    const selected = String(slotDateTime || "").trim();
+    if (!selected) return true;
+    const from = String(tourismAvailability.booking_available_from || "").trim();
+    const until = String(tourismAvailability.booking_available_until || "").trim();
+    if (from && selected < from) {
+      toast.error(`This tour is available from ${new Date(from).toLocaleString("en-IN")}`);
+      return false;
+    }
+    if (until && selected > until) {
+      toast.error(`This tour is available until ${new Date(until).toLocaleString("en-IN")}`);
+      return false;
+    }
+    return true;
+  };
+
   const handleFile = async (e) => {
     const f = e.target.files?.[0];
     if (!f) return;
@@ -337,6 +357,8 @@ export default function UpiPaymentDialog({
     if (!existingOrderId && requiresShippingAddress && !address.trim()) return toast.error("Please enter shipping address");
     if (!existingOrderId && deliveryAreaMismatch) return toast.error(`Delivery is available only in ${[paymentConfig?.delivery_city, paymentConfig?.delivery_pincode].filter(Boolean).join(", ")}`);
     if (!existingOrderId && requiresServiceSlot && !slotDateTime.trim()) return toast.error("Service slot date and time দিন");
+    if (!validateTourismSelection()) return;
+    if (!validateTourismSelection()) return;
     if (!existingOrderId && requiresRestaurantSlot && Number(slotGuestCount || 0) <= 0) return toast.error("Guest count দিন");
     if (!existingOrderId && requiresTravelTerms && !travelTermsAccepted) return toast.error("Please accept the Travel Booking Terms");
     if (paymentMode === "upi") {
@@ -762,6 +784,8 @@ export default function UpiPaymentDialog({
                         type="datetime-local"
                         value={slotDateTime}
                         onChange={(e) => setSlotDateTime(e.target.value)}
+                        min={tourismAvailability.booking_available_from || undefined}
+                        max={tourismAvailability.booking_available_until || undefined}
                         className="mt-1.5 h-11"
                         data-testid="restaurant-slot-datetime"
                       />
@@ -905,6 +929,8 @@ export default function UpiPaymentDialog({
                       type="datetime-local"
                       value={slotDateTime}
                       onChange={(e) => setSlotDateTime(e.target.value)}
+                      min={tourismAvailability.booking_available_from || undefined}
+                      max={tourismAvailability.booking_available_until || undefined}
                       className="mt-1.5 h-11"
                       data-testid="restaurant-slot-datetime-razorpay"
                     />

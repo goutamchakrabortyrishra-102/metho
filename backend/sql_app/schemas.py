@@ -34,6 +34,8 @@ class ProductCreate(BaseModel):
     service_template_key: str = ""
     delivery_charge: float = 0
     free_delivery_threshold: float = 0
+    booking_available_from: str = ""
+    booking_available_until: str = ""
 
 
 class OrderCreate(BaseModel):
