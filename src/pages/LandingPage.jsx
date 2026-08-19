@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { motion } from "framer-motion";
-import { ArrowRight, TrendingUp, Users, Wallet, Shield, Award, Sparkles, Check, ChevronRight, Star, Building2, Zap, Globe, MapPin, Store, Search, Phone, PlayCircle } from "lucide-react";
+import { ArrowRight, TrendingUp, Users, Wallet, Shield, Award, Sparkles, Check, ChevronRight, Star, Building2, Zap, Globe, MapPin, Store, Search, Phone, PlayCircle, CalendarDays, Plane } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Logo } from "@/components/Logo";
@@ -910,6 +910,8 @@ const Features = () => {
   }, [settings?.landing_featured_store_ids]);
   const [storeListings, setStoreListings] = React.useState([]);
   const [loadingStore, setLoadingStore] = React.useState(true);
+  const [tourismListings, setTourismListings] = React.useState([]);
+  const [loadingTourism, setLoadingTourism] = React.useState(true);
 
   useEffect(() => {
     if (!isSectionActive) return;
@@ -940,20 +942,37 @@ const Features = () => {
     };
   }, [featuredStoreIds, isSectionActive]);
 
+  useEffect(() => {
+    if (!isSectionActive) return;
+    let active = true;
+    setLoadingTourism(true);
+    loadLandingProducts().then((rows) => {
+      if (!active) return;
+      setTourismListings(rows.filter((item) => String(item?.product_type || "").toLowerCase() === "metho_service" && Boolean(item?.is_service)).slice(0, 2));
+    }).catch(() => {
+      if (active) setTourismListings([]);
+    }).finally(() => {
+      if (active) setLoadingTourism(false);
+    });
+    return () => { active = false; };
+  }, [isSectionActive]);
+
   if (!showMethoStore) return null;
 
   return (
     <section ref={sectionRef} id="features" className="py-24 bg-[linear-gradient(180deg,#ffffff_0%,#f4faf7_100%)]">
       <div className="max-w-7xl mx-auto px-6">
         <div className="max-w-3xl">
-          <p className="text-xs uppercase tracking-[0.25em] text-emerald-800 font-semibold">METHO Store</p>
+          <p className="text-xs uppercase tracking-[0.25em] text-emerald-800 font-semibold">METHO Store &amp; Travel</p>
           <h2 className="mt-3 font-display font-black text-4xl md:text-5xl tracking-tight text-emerald-950">
-            Live store listings from admin setup.
-            <span className="text-amber-500 italic"> Auto listed in rows.</span>
+            Shop locally. Plan your next trip.
+            <span className="text-amber-500 italic"> Live listings, one destination.</span>
           </h2>
-          <p className="mt-4 text-slate-600 font-body">Whenever admin creates or updates a Metho Store, this section automatically shows the latest store listings.</p>
+          <p className="mt-4 text-slate-600 font-body">Store listings and travel services are managed separately by admin and appear here automatically when available.</p>
         </div>
-        <div className="mt-10 rounded-3xl border border-emerald-900/10 bg-white/90 p-4 md:p-5 shadow-sm">
+        <div className="mt-10 grid gap-5 xl:grid-cols-2">
+        <div className="rounded-3xl border border-emerald-900/10 bg-white/90 p-4 md:p-5 shadow-sm">
+          <div className="mb-4 flex items-center justify-between gap-3"><div><p className="text-xs font-bold uppercase tracking-wider text-emerald-800">METHO Store</p><p className="mt-1 text-sm text-slate-600">Latest local store listings</p></div><Store className="h-6 w-6 text-emerald-800" /></div>
           {loadingStore ? (
             <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 md:gap-4">
               {Array.from({ length: 8 }).map((_, i) => (
@@ -1019,6 +1038,12 @@ const Features = () => {
               </Button>
             </Link>
           </div>
+        </div>
+        <div className="rounded-3xl border border-sky-200 bg-sky-50/70 p-4 md:p-5 shadow-sm">
+          <div className="mb-4 flex items-center justify-between gap-3"><div><p className="text-xs font-bold uppercase tracking-wider text-sky-800">METHO Travel</p><p className="mt-1 text-sm text-slate-600">Reserve curated travel services</p></div><Plane className="h-6 w-6 text-sky-800" /></div>
+          {loadingTourism ? <div className="grid grid-cols-2 gap-3"><div className="aspect-[4/3] animate-pulse rounded-2xl bg-sky-100" /><div className="aspect-[4/3] animate-pulse rounded-2xl bg-sky-100" /></div> : tourismListings.length === 0 ? <div className="rounded-2xl border border-dashed border-sky-200 bg-white/80 p-6 text-center"><p className="font-semibold text-sky-950">Travel services are being curated.</p><p className="mt-1 text-sm text-slate-600">New destinations and packages will appear here.</p></div> : <div className="grid grid-cols-2 gap-3" data-testid="landing-features-tourism-grid">{tourismListings.map((service, index) => <Link key={service.id} to={`/shop?q=${encodeURIComponent(service.name || "")}`} className="group overflow-hidden rounded-2xl border border-sky-100 bg-white hover:shadow-md" data-testid={`landing-feature-tourism-${index + 1}`}><div className="aspect-[4/3] overflow-hidden bg-sky-100"><img src={pickProductImageSrc(service) || FALLBACK_PRODUCT_IMG} alt={service.name} className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-105" loading="lazy" onError={(e) => applyLandingImageFallback(e, [pickProductImageSrc(service)])} /></div><div className="p-3"><p className="text-[10px] font-bold uppercase tracking-wider text-sky-800">{service.category || "Tourism"}</p><p className="mt-1 text-sm font-semibold text-emerald-950 line-clamp-1">{service.name}</p><p className="mt-1 font-display text-base font-black text-emerald-950">₹{getCustomerUnitPrice(service).toLocaleString("en-IN")}</p></div></Link>)}</div>}
+          <div className="mt-5 flex justify-center"><Link to="/shop" data-testid="landing-features-tourism-view-all"><Button variant="outline" className="rounded-full border-sky-300 bg-white text-sky-900 hover:bg-sky-100">Explore Travel <Plane className="ml-1 h-4 w-4" /></Button></Link></div>
+        </div>
         </div>
       </div>
     </section>
@@ -1422,6 +1447,50 @@ const Products = () => {
   );
 };
 
+const Tourism = () => {
+  const { settings } = useSettings();
+  const [sectionRef, isSectionActive] = useSectionActivation();
+  const placeholder = settings?.product_placeholder_image_url_full || FALLBACK_PRODUCT_IMG;
+  const [services, setServices] = useState([]);
+
+  useEffect(() => {
+    if (!isSectionActive) return;
+    loadLandingProducts().then((rows) => {
+      setServices(rows.filter((item) => {
+        const type = String(item?.product_type || "").toLowerCase();
+        const hidden = item?.hidden === true || String(item?.hidden).toLowerCase() === "true" || String(item?.hidden) === "1";
+        return type === "metho_service" && Boolean(item?.is_service) && !hidden;
+      }).slice(0, 3));
+    }).catch(() => setServices([]));
+  }, [isSectionActive]);
+
+  return (
+    <section ref={sectionRef} id="travel" className="relative overflow-hidden bg-sky-950 py-20 text-white" data-testid="landing-tourism-section">
+      <div className="absolute inset-0 bg-[radial-gradient(circle_at_10%_10%,rgba(56,189,248,0.26),transparent_34%),radial-gradient(circle_at_88%_72%,rgba(250,204,21,0.18),transparent_30%)]" />
+      <div className="relative mx-auto max-w-7xl px-6">
+        <div className="flex flex-wrap items-end justify-between gap-5">
+          <div className="max-w-2xl">
+            <p className="text-xs font-semibold uppercase tracking-[0.24em] text-sky-200">METHO Travel</p>
+            <h2 className="mt-3 font-display text-4xl font-black tracking-tight md:text-5xl">Travel plans, ready to reserve.</h2>
+            <p className="mt-3 text-sm leading-6 text-sky-100/85">Browse curated tourism services, choose a preferred date and complete a secure booking request. Final availability and itinerary are confirmed through the booking team.</p>
+          </div>
+          <Link to="/shop" data-testid="landing-tourism-view-all"><Button className="rounded-full bg-amber-400 text-emerald-950 hover:bg-amber-300">Explore Travel <Plane className="ml-2 h-4 w-4" /></Button></Link>
+        </div>
+        <div className="mt-9 grid gap-4 md:grid-cols-3">
+          {services.map((service, index) => (
+            <Link key={service.id} to={`/shop?q=${encodeURIComponent(service.name || "")}`} className="group overflow-hidden rounded-lg border border-white/15 bg-white/95 text-slate-800 shadow-xl transition-transform hover:-translate-y-1" data-testid={`landing-tourism-card-${index}`}>
+              <div className="aspect-[16/10] overflow-hidden bg-sky-100"><img src={pickProductImageSrc(service) || placeholder} alt={service.name} className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-105" loading="lazy" onError={(e) => applyLandingImageFallback(e, [pickProductImageSrc(service)], placeholder)} /></div>
+              <div className="p-4"><p className="text-[10px] font-bold uppercase tracking-wider text-sky-800">{service.category || "Tourism"}</p><h3 className="mt-1 font-display text-lg font-bold text-emerald-950 line-clamp-1">{service.name}</h3><div className="mt-3 flex items-center justify-between gap-3"><span className="font-display text-xl font-black text-emerald-950">₹{getCustomerUnitPrice(service).toLocaleString("en-IN")}</span><span className="inline-flex items-center gap-1 text-xs font-semibold text-sky-800"><CalendarDays className="h-3.5 w-3.5" /> Reserve</span></div></div>
+            </Link>
+          ))}
+          {services.length === 0 ? <div className="md:col-span-3 rounded-lg border border-dashed border-sky-300/40 bg-sky-900/60 p-7 text-center"><p className="font-display text-lg font-bold">Travel services are being curated</p><p className="mt-1 text-sm text-sky-100/80">New destinations and packages will appear here as they are released.</p><Link to="/shop" className="mt-4 inline-flex"><Button variant="outline" className="rounded-full border-sky-200 bg-transparent text-white hover:bg-sky-900">Open Shop &amp; Travel</Button></Link></div> : null}
+        </div>
+        <p className="mt-5 text-xs text-sky-100/70">Travel bookings are governed by the <Link to="/travel-booking-terms" className="font-semibold text-sky-100 underline">Travel Booking Terms</Link>.</p>
+      </div>
+    </section>
+  );
+};
+
 const TopLeaders = () => {
   const { settings } = useSettings();
   const leaders = [
@@ -1764,6 +1833,8 @@ export default function LandingPage() {
       <ReferralEntryStrip />
       <Hero />
       <AssociatePartnerFinder />
+      <Products />
+      <Tourism />
       <Features />
       <BusinessPlan />
       <TopLeaders />

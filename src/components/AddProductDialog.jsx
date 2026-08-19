@@ -899,7 +899,7 @@ export default function AddProductDialog({
 
           {/* Image upload */}
           <div>
-            <Label>Product Image (mobile/PC থেকে upload)</Label>
+            <Label>{form.product_type === "metho_service" ? "Tour Image / Poster (mobile/PC থেকে upload)" : "Product Image (mobile/PC থেকে upload)"}</Label>
             <div className="mt-1.5 flex items-center gap-3">
               <input
                 ref={fileRef}
@@ -946,7 +946,7 @@ export default function AddProductDialog({
                 </div>
               )}
             </div>
-            <p className="text-[11px] text-muted-foreground mt-1.5 font-body">JPG / PNG / WebP · max 5 MB</p>
+            <p className="text-[11px] text-muted-foreground mt-1.5 font-body">JPG / PNG / WebP · max 5 MB{form.product_type === "metho_service" ? " · poster-এর জন্য 4:3 বা 16:10 image ভালো দেখাবে" : ""}</p>
             {isEdit ? (
               <p className="text-[11px] text-emerald-700 mt-1 font-body">Image change করতে চাইলে নতুন image upload করে Update Product দিলেই পুরোনো image replace হবে।</p>
             ) : null}
