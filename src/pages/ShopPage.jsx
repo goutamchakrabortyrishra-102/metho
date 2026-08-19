@@ -283,12 +283,15 @@ export default function ShopPage() {
           if (!p) return null;
           const customerPrice = getCustomerUnitPrice(p);
           const subtotal = calcTieredSubtotal(qty, customerPrice, getCustomerPricingTiers(p));
+          const deliveryCharge = Math.max(0, Number(p?.delivery_charge || 0));
           return {
             id,
             name: p?.name,
             price: customerPrice,
             quantity: qty,
             subtotal,
+            delivery_charge: deliveryCharge,
+            free_delivery_threshold: Math.max(0, Number(p?.free_delivery_threshold || 0)),
             image_url: p?.image_url || "",
             pdf_url: getPdfUrl(p),
             category: p?.category || "",
@@ -305,7 +308,12 @@ export default function ShopPage() {
     [cart, methoProducts]
   );
 
-  const total = items.reduce((sum, i) => sum + i.subtotal, 0);
+  const merchandiseSubtotal = items.reduce((sum, i) => sum + i.subtotal, 0);
+  const cartDeliveryCharge = Math.max(0, ...items.map((item) => Number(item.delivery_charge || 0)));
+  const freeDeliveryThreshold = Math.max(0, ...items.map((item) => Number(item.free_delivery_threshold || 0)));
+  const cartDeliveryTotal = freeDeliveryThreshold > 0 && merchandiseSubtotal >= freeDeliveryThreshold ? 0 : cartDeliveryCharge;
+  const checkoutItems = items.map((item, index) => ({ ...item, delivery_total: index === 0 ? cartDeliveryTotal : 0 }));
+  const total = merchandiseSubtotal + cartDeliveryTotal;
 
   const downloadCatalogPdf = useCallback(async () => {
     if (!visibleProducts.length) {
@@ -653,7 +661,7 @@ export default function ShopPage() {
       <UpiPaymentDialog
         open={checkoutOpen}
         onOpenChange={setCheckoutOpen}
-        items={items}
+        items={checkoutItems}
         total={total}
         isGuest={!user}
         memberRef={guestMemberRef}

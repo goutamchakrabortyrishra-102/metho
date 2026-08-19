@@ -604,7 +604,7 @@ export default function UpiPaymentDialog({
                   </div>
                   <div className="min-w-0 flex-1">
                     <p className="font-semibold text-emerald-950 truncate text-sm">{item.name}</p>
-                    <p className="text-[11px] text-slate-500 truncate">Qty {item.quantity_label || item.quantity} · ₹{Number(item.subtotal || 0).toLocaleString("en-IN")}</p>
+                    <p className="text-[11px] text-slate-500 truncate">Qty {item.quantity_label || item.quantity} · ₹{Number(item.subtotal || 0).toLocaleString("en-IN")}{Number(item.delivery_total || 0) > 0 ? ` · Delivery ₹${Number(item.delivery_total).toLocaleString("en-IN")}` : " · Free Delivery"}</p>
                   </div>
                   {onItemQtyChange ? (
                     <div className="flex items-center gap-1 shrink-0">

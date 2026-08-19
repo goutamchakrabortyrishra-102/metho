@@ -32,6 +32,8 @@ class ProductCreate(BaseModel):
     commission_percent: float | None = None
     service_booking_enabled: bool = False
     service_template_key: str = ""
+    delivery_charge: float = 0
+    free_delivery_threshold: float = 0
 
 
 class OrderCreate(BaseModel):

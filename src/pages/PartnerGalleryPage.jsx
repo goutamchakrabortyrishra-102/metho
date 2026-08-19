@@ -880,6 +880,8 @@ export default function PartnerGalleryPage() {
         quantity: q,
         quantity_label: isServiceListing(p) ? String(q) : formatQtyForMeasureUnit(q, p, resolveMeasureUnit(p, cartUnits[id] || "")),
         subtotal: (p?.price || 0) * q,
+        delivery_charge: Math.max(0, Number(p?.delivery_charge || 0)),
+        free_delivery_threshold: Math.max(0, Number(p?.free_delivery_threshold || 0)),
         image_url: p?.image_url || "",
         pdf_url: getPdfUrl(p),
         listing_type: isServiceListing(p) ? "service" : "product",
@@ -889,7 +891,12 @@ export default function PartnerGalleryPage() {
     }),
     [cart, cartUnits, products]
   );
-  const total = items.reduce((s, i) => s + i.subtotal, 0);
+  const merchandiseSubtotal = items.reduce((s, i) => s + i.subtotal, 0);
+  const cartDeliveryCharge = Math.max(0, ...items.map((item) => Number(item.delivery_charge || 0)));
+  const freeDeliveryThreshold = Math.max(0, ...items.map((item) => Number(item.free_delivery_threshold || 0)));
+  const cartDeliveryTotal = freeDeliveryThreshold > 0 && merchandiseSubtotal >= freeDeliveryThreshold ? 0 : cartDeliveryCharge;
+  const checkoutItems = items.map((item, index) => ({ ...item, delivery_total: index === 0 ? cartDeliveryTotal : 0 }));
+  const total = merchandiseSubtotal + cartDeliveryTotal;
 
   const galleryUrl = `${window.location.origin}/gallery/${partnerCode}`;
   const partnerChatUrl = ownerChatUrl(partner);

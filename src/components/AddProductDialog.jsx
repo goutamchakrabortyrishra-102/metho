@@ -85,6 +85,8 @@ export default function AddProductDialog({
     commission_percent: "",
     service_booking_enabled: false,
     service_template_key: "",
+    delivery_charge: "",
+    free_delivery_threshold: "",
   });
   const [partners, setPartners] = useState([]);
   const [generating, setGenerating] = useState(false);
@@ -141,6 +143,8 @@ export default function AddProductDialog({
         commission_percent: product.commission_percent ?? "",
         service_booking_enabled: Boolean(product.service_booking_enabled),
         service_template_key: product.service_template_key || "",
+        delivery_charge: String(product.delivery_charge ?? ""),
+        free_delivery_threshold: String(product.free_delivery_threshold ?? ""),
       });
       return;
     }
@@ -160,7 +164,7 @@ export default function AddProductDialog({
 
   const resetForm = () => setForm({
     name: "", category: categories[0] || "Health & Wellness", price: "", purchase_cost: "", mrp: "", discount_percent: "", gst_percent: "", stock: "",
-    description: "", image_url: "", product_type: "metho", pricing_tiers_input: "", youtube_url: "", commission_percent: "", service_booking_enabled: false, service_template_key: "",
+    description: "", image_url: "", product_type: "metho", pricing_tiers_input: "", youtube_url: "", commission_percent: "", service_booking_enabled: false, service_template_key: "", delivery_charge: "", free_delivery_threshold: "",
   });
 
   const parsePricingTiers = (raw) => {
@@ -382,6 +386,8 @@ export default function AddProductDialog({
         category: form.category,
         product_type: form.product_type,
         partner_id: form.product_type === "associate_partner" ? (form.partner_id || null) : null,
+        delivery_charge: Math.max(0, Number(form.delivery_charge || 0)),
+        free_delivery_threshold: Math.max(0, Number(form.free_delivery_threshold || 0)),
         commission_percent: form.product_type === "associate_partner" || form.commission_percent === "" ? null : Number(form.commission_percent),
         service_booking_enabled: form.product_type === "metho_service" && form.service_booking_enabled,
         service_template_key: form.product_type === "metho_service" ? form.service_template_key : "",
@@ -857,6 +863,14 @@ export default function AddProductDialog({
               )}
             </div>
           )}
+
+          <div className="rounded-lg border border-sky-200 bg-sky-50 p-3">
+            <Label>Delivery Charge per Unit (₹)</Label>
+            <Input type="number" min="0" step="0.01" value={form.delivery_charge} onChange={setF("delivery_charge")} className="mt-1.5 max-w-xs bg-white" placeholder="0 = Free Delivery" data-testid="product-delivery-charge" />
+            <Label className="mt-2 block">Free Delivery Above Cart Total (₹)</Label>
+            <Input type="number" min="0" step="0.01" value={form.free_delivery_threshold} onChange={setF("free_delivery_threshold")} className="mt-1.5 max-w-xs bg-white" placeholder="0 = no threshold" data-testid="product-free-delivery-threshold" />
+            <p className="mt-1 text-[11px] text-sky-800">Cart subtotal এই limit-এ পৌঁছালে delivery free হবে। Quantity যতই হোক, এক cart-এ charge একবারই।</p>
+          </div>
 
           {/* Description with AI generator */}
           <div>

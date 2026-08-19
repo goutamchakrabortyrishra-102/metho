@@ -45,6 +45,8 @@ const EMPTY = {
   working_hours: "",
   advance_booking_required: false,
   advance_amount: "",
+  delivery_charge: "",
+  free_delivery_threshold: "",
 };
 const TRANSPORT_CARD_PREVIEW = "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 800 520'><defs><linearGradient id='bg' x1='0' y1='0' x2='1' y2='1'><stop offset='0%25' stop-color='%230b1220'/><stop offset='100%25' stop-color='%231e293b'/></linearGradient><linearGradient id='road' x1='0' y1='0' x2='0' y2='1'><stop offset='0%25' stop-color='%23334155'/><stop offset='100%25' stop-color='%230f172a'/></linearGradient></defs><rect width='800' height='520' fill='url(%23bg)'/><rect y='330' width='800' height='190' fill='url(%23road)'/><path d='M90 335 C185 255 303 205 446 205 H560 C624 205 684 246 711 302 L740 362 H640 L608 312 C593 289 568 274 540 274 H438 C353 274 270 301 201 352 L178 369 H62 Z' fill='%23dc2626'/><path d='M254 223 H537 C589 223 634 251 659 293 L675 320 H611 L584 282 C569 260 545 246 519 246 H338 C304 246 270 253 238 267 Z' fill='%23fca5a5' opacity='0.18'/><circle cx='243' cy='368' r='44' fill='%230f172a'/><circle cx='243' cy='368' r='19' fill='%23e2e8f0'/><circle cx='592' cy='368' r='44' fill='%230f172a'/><circle cx='592' cy='368' r='19' fill='%23e2e8f0'/><rect x='368' y='236' width='118' height='48' rx='12' fill='%23dbeafe' opacity='0.92'/><rect x='498' y='236' width='73' height='48' rx='12' fill='%23dbeafe' opacity='0.92'/><rect x='95' y='402' width='610' height='8' rx='4' fill='%23f8fafc' opacity='0.2'/><text x='62' y='82' fill='%23fecaca' font-size='28' font-family='Arial' font-weight='700'>Transport Card Preview</text><text x='62' y='120' fill='%23ffffff' font-size='44' font-family='Arial' font-weight='700'>Vehicle image + Book Now</text></svg>";
 
@@ -989,6 +991,8 @@ export default function PartnerProductForm({
         working_hours: String(form.working_hours || "").trim(),
         advance_booking_required: Boolean(form.advance_booking_required),
         advance_amount: Number(form.advance_amount || 0),
+        delivery_charge: Math.max(0, Number(form.delivery_charge || 0)),
+        free_delivery_threshold: Math.max(0, Number(form.free_delivery_threshold || 0)),
       };
 
       let saved = null;
@@ -1069,6 +1073,13 @@ export default function PartnerProductForm({
             {isTransportOnlyTemplateMode ? null : (
               <div><Label>PDF Link</Label><Input value={form.pdf_url || ""} onChange={(e) => setForm({ ...form, pdf_url: e.target.value })} className="mt-1" placeholder="https://...pdf" data-testid="my-prod-pdf" /></div>
             )}
+          </div>
+          <div className="rounded-xl border border-sky-200 bg-sky-50/60 p-3">
+            <Label>Delivery Charge per Unit (₹)</Label>
+            <Input type="number" min="0" step="0.01" value={form.delivery_charge || ""} onChange={(e) => setForm({ ...form, delivery_charge: e.target.value })} className="mt-1" placeholder="0 = Free Delivery" data-testid="partner-delivery-charge" />
+            <Label className="mt-2 block">Free Delivery Above Cart Total (₹)</Label>
+            <Input type="number" min="0" step="0.01" value={form.free_delivery_threshold || ""} onChange={(e) => setForm({ ...form, free_delivery_threshold: e.target.value })} className="mt-1" placeholder="0 = no threshold" data-testid="partner-free-delivery-threshold" />
+            <p className="text-[11px] text-sky-800 mt-1">Cart subtotal limit-এ পৌঁছালে free হবে। Quantity যতই হোক, এক cart-এ delivery charge একবারই।</p>
           </div>
           {activeListingType !== "service" ? (
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">

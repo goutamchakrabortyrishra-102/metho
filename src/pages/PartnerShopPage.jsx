@@ -843,11 +843,14 @@ export default function PartnerShopPage() {
       .map(([id, q]) => {
         const pr = products.find(x => String(x.id) === String(id));
         const subtotal = Number(((pr?.price || 0) * q).toFixed(2));
+        const deliveryCharge = Math.max(0, Number(pr?.delivery_charge || 0));
         return {
           ...pr,
           quantity: q,
           quantity_label: isServiceListing(pr) ? String(q) : formatQtyForMeasureUnit(q, pr, resolveMeasureUnit(pr, cartUnits[id] || "")),
           subtotal,
+          delivery_charge: deliveryCharge,
+          free_delivery_threshold: Math.max(0, Number(pr?.free_delivery_threshold || 0)),
           pdf_url: getPdfUrl(pr),
           listing_type: isServiceListing(pr) ? "service" : "product",
           item_kind: isServiceListing(pr) ? "service" : "product",
@@ -858,7 +861,12 @@ export default function PartnerShopPage() {
       }),
     [cart, cartUnits, products]
   );
-  const total = items.reduce((s, i) => s + i.subtotal, 0);
+  const merchandiseSubtotal = items.reduce((s, i) => s + i.subtotal, 0);
+  const cartDeliveryCharge = Math.max(0, ...items.map((item) => Number(item.delivery_charge || 0)));
+  const freeDeliveryThreshold = Math.max(0, ...items.map((item) => Number(item.free_delivery_threshold || 0)));
+  const cartDeliveryTotal = freeDeliveryThreshold > 0 && merchandiseSubtotal >= freeDeliveryThreshold ? 0 : cartDeliveryCharge;
+  const checkoutItems = items.map((item, index) => ({ ...item, delivery_total: index === 0 ? cartDeliveryTotal : 0 }));
+  const total = merchandiseSubtotal + cartDeliveryTotal;
 
   const share = async () => {
     const url = window.location.href;
@@ -2373,7 +2381,7 @@ export default function PartnerShopPage() {
       <UpiPaymentDialog
         open={open}
         onOpenChange={setOpen}
-        items={items}
+        items={checkoutItems}
         total={total}
         paymentConfig={paymentProfile ? {
           upi_id: paymentProfile.upi_id,

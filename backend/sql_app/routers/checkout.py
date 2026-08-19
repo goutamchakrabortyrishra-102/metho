@@ -518,6 +518,8 @@ def _partner_product_meta(meta_map: dict[str, dict], product_id: str) -> dict:
         "working_hours": str((meta or {}).get("working_hours") or "").strip(),
         "advance_booking_required": bool((meta or {}).get("advance_booking_required") or False),
         "advance_amount": max(0.0, float((meta or {}).get("advance_amount") or 0)),
+        "delivery_charge": max(0.0, float((meta or {}).get("delivery_charge") or 0)),
+        "free_delivery_threshold": max(0.0, float((meta or {}).get("free_delivery_threshold") or 0)),
         "vehicle_id": str((meta or {}).get("vehicle_id") or product_id).strip(),
         "vehicle_type": str((meta or {}).get("vehicle_type") or "").strip(),
         "vehicle_number": str((meta or {}).get("vehicle_number") or "").strip().upper(),
@@ -600,6 +602,8 @@ def _set_partner_product_meta(db: Session, product_id: str, payload: dict | None
         "working_hours": str(src.get("working_hours") or prev.get("working_hours") or "").strip(),
         "advance_booking_required": bool(src.get("advance_booking_required") if src.get("advance_booking_required") is not None else prev.get("advance_booking_required") or False),
         "advance_amount": max(0.0, float(src.get("advance_amount") or prev.get("advance_amount") or 0)),
+        "delivery_charge": max(0.0, float(src.get("delivery_charge") if src.get("delivery_charge") is not None else prev.get("delivery_charge") or 0)),
+        "free_delivery_threshold": max(0.0, float(src.get("free_delivery_threshold") if src.get("free_delivery_threshold") is not None else prev.get("free_delivery_threshold") or 0)),
         "vehicle_id": str(src.get("vehicle_id") or prev.get("vehicle_id") or product_id).strip(),
         "vehicle_type": str(src.get("vehicle_type") or prev.get("vehicle_type") or "").strip(),
         "vehicle_number": str(src.get("vehicle_number") or prev.get("vehicle_number") or "").strip().upper(),
@@ -1046,6 +1050,7 @@ def create_public_order(payload: dict, db: Session = Depends(get_db), authorizat
                 "service_booking_enabled": bool(global_service_meta.get("service_booking_enabled")),
                 "service_invoice_mode": "detailed",
                 "service_template_key": str(global_service_meta.get("service_template_key") or "").strip().lower(),
+                "delivery_charge": max(0.0, float(global_service_meta.get("delivery_charge") or 0)),
             }
 
         if unit_info["unit_type"] == "piece":
@@ -1083,6 +1088,8 @@ def create_public_order(payload: dict, db: Session = Depends(get_db), authorizat
             # Round final GST-inclusive price to nearest whole rupee
             line_total = float(round_half_up_to_whole_rupee(line_total))
 
+        delivery_charge = max(0.0, float(global_service_meta.get("delivery_charge") or 0) if product_type in {"metho", "metho_service"} else float(listing_meta.get("delivery_charge") or 0))
+        delivery_threshold = max(0.0, float(global_service_meta.get("free_delivery_threshold") or 0) if product_type in {"metho", "metho_service"} else float(listing_meta.get("free_delivery_threshold") or 0))
         total = round(total + float(round_half_up_to_whole_rupee(line_total)), 2)
 
         normalized_items.append(
@@ -1098,6 +1105,9 @@ def create_public_order(payload: dict, db: Session = Depends(get_db), authorizat
                 "pre_tax": pre_tax,
                 "quantity": qty,
                 "subtotal": float(round_half_up_to_whole_rupee(line_total)),
+                "delivery_charge": delivery_charge,
+                "delivery_total": 0.0,
+                "free_delivery_threshold": delivery_threshold,
                 "product_type": product_type,
                 "commission_percent": global_service_meta.get("commission_percent") if product_type in {"metho", "metho_service"} else None,
                 "unit_type": unit_info["unit_type"],
@@ -1112,6 +1122,8 @@ def create_public_order(payload: dict, db: Session = Depends(get_db), authorizat
                 "service_booking_enabled": bool(listing_meta["service_booking_enabled"]),
                 "service_invoice_mode": str(item.get("service_invoice_mode") or listing_meta["service_invoice_mode"]).strip().lower(),
                 "service_template_key": str(listing_meta["service_template_key"] if product_type == "metho_service" else (item.get("service_template_key") or listing_meta["service_template_key"])).strip(),
+                    "delivery_charge": max(0.0, float(global_service_meta.get("delivery_charge") if product_type in {"metho", "metho_service"} else listing_meta.get("delivery_charge") or 0)),
+                    "free_delivery_threshold": max(0.0, float(global_service_meta.get("free_delivery_threshold") if product_type in {"metho", "metho_service"} else listing_meta.get("free_delivery_threshold") or 0)),
                 "pricing_unit": str(listing_meta.get("pricing_unit") or "PER_ITEM"),
                 "availability": str(listing_meta.get("availability") or ""),
             }
@@ -1119,6 +1131,15 @@ def create_public_order(payload: dict, db: Session = Depends(get_db), authorizat
 
     if len(normalized_items) == 0:
         raise HTTPException(status_code=400, detail="No valid products found in order")
+
+    merchandise_total = round(sum(float(item.get("subtotal") or 0) for item in normalized_items), 2)
+    delivery_items = [item for item in normalized_items if float(item.get("delivery_charge") or 0) > 0]
+    cart_delivery_charge = max((float(item.get("delivery_charge") or 0) for item in delivery_items), default=0.0)
+    free_delivery_threshold = max((float(item.get("free_delivery_threshold") or 0) for item in delivery_items), default=0.0)
+    cart_delivery_total = 0.0 if free_delivery_threshold > 0 and merchandise_total >= free_delivery_threshold else float(round_half_up_to_whole_rupee(cart_delivery_charge))
+    if normalized_items:
+        normalized_items[0]["delivery_total"] = cart_delivery_total
+    total = round(merchandise_total + cart_delivery_total, 2)
 
     member_ref = str(payload.get("member_code") or payload.get("member_id") or "").strip()
     payer_name_raw = str(payload.get("payer_name") or "").strip()

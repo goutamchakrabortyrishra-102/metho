@@ -53,6 +53,8 @@ def _save_product_service_meta(db: Session, product_id: str, payload: ProductCre
         "service_booking_enabled": bool(payload.service_booking_enabled) if is_service else False,
         "service_template_key": str(payload.service_template_key or "").strip().lower() if is_service else "",
         "commission_percent": commission,
+        "delivery_charge": max(0.0, float(getattr(payload, "delivery_charge", 0) or 0)),
+        "free_delivery_threshold": max(0.0, float(getattr(payload, "free_delivery_threshold", 0) or 0)),
     }
     key = _product_service_meta_key(product_id)
     row = db.query(AppSetting).filter(AppSetting.key == key).first()
@@ -294,6 +296,8 @@ def list_products(limit: int | None = None, authorization: str | None = Header(d
                 "service_booking_enabled": bool(service_meta.get("service_booking_enabled")),
                 "service_template_key": str(service_meta.get("service_template_key") or ""),
                 "commission_percent": service_meta.get("commission_percent"),
+                "delivery_charge": max(0.0, float(service_meta.get("delivery_charge") or 0)),
+                "free_delivery_threshold": max(0.0, float(service_meta.get("free_delivery_threshold") or 0)),
             }
         )
     if not is_authenticated:
