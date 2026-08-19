@@ -37,7 +37,94 @@ function emptyLine() {
   return { product_id: "", quantity: 1, price: 0, query: "" };
 }
 
-export default function OfflineBillingPanel({ title = "Offline Billing", compact = false, showPartnerScope = false }) {
+const SECTOR_BILLING_LABELS = {
+  products: {
+    panelTitle: "Partner Counter Billing",
+    itemLabel: "Product",
+    itemPlaceholder: "Type product name / code",
+    selectPlaceholder: "Select product",
+    rateLabel: "Rate",
+    qtyLabel: "Qty",
+    addLineLabel: "Add Product",
+    helpText: "Member ID দিন, product select করুন, quantity লিখুন, payment mode cash/online দিয়ে instant invoice generate করুন।",
+  },
+  "stay-dining": {
+    panelTitle: "Hotel & Restaurant Counter Billing",
+    itemLabel: "Room / Dish",
+    itemPlaceholder: "Type room type or dish name",
+    selectPlaceholder: "Select room or dish",
+    rateLabel: "Rate",
+    qtyLabel: "Nights / Qty",
+    addLineLabel: "Add Room / Dish",
+    helpText: "Member ID দিন, room/dish select করুন, nights/qty লিখুন, payment mode cash/online দিয়ে instant invoice generate করুন।",
+  },
+  transport: {
+    panelTitle: "Transport Trip Billing",
+    itemLabel: "Vehicle / Route",
+    itemPlaceholder: "Type vehicle name or route",
+    selectPlaceholder: "Select vehicle / route",
+    rateLabel: "Fare",
+    qtyLabel: "Trips",
+    addLineLabel: "Add Trip",
+    helpText: "Member ID দিন, vehicle/route select করুন, trip সংখ্যা লিখুন, payment mode cash/online দিয়ে instant invoice generate করুন।",
+  },
+  "delivery-partner": {
+    panelTitle: "Courier & Delivery Billing",
+    itemLabel: "Delivery Service",
+    itemPlaceholder: "Type courier / delivery service name",
+    selectPlaceholder: "Select delivery service",
+    rateLabel: "Delivery Charge",
+    qtyLabel: "Parcels",
+    addLineLabel: "Add Delivery",
+    helpText: "Member ID দিন, delivery service select করুন, parcel সংখ্যা লিখুন, payment mode cash/online দিয়ে instant invoice generate করুন।",
+  },
+  doorstep: {
+    panelTitle: "Doorstep Service Billing",
+    itemLabel: "Service",
+    itemPlaceholder: "Type service name (plumber, electrician, cleaning...)",
+    selectPlaceholder: "Select service",
+    rateLabel: "Service Charge",
+    qtyLabel: "Visits",
+    addLineLabel: "Add Service",
+    helpText: "Member ID দিন, service select করুন, visit সংখ্যা লিখুন, payment mode cash/online দিয়ে instant invoice generate করুন।",
+  },
+  "property-buy-sell": {
+    panelTitle: "Property Service Billing",
+    itemLabel: "Property Service",
+    itemPlaceholder: "Type property service name",
+    selectPlaceholder: "Select property service",
+    rateLabel: "Charge",
+    qtyLabel: "Qty",
+    addLineLabel: "Add Property Service",
+    helpText: "Member ID দিন, property service select করুন, quantity লিখুন, payment mode cash/online দিয়ে instant invoice generate করুন।",
+  },
+  "other-services": {
+    panelTitle: "Service Counter Billing",
+    itemLabel: "Service",
+    itemPlaceholder: "Type service name",
+    selectPlaceholder: "Select service",
+    rateLabel: "Rate",
+    qtyLabel: "Qty",
+    addLineLabel: "Add Service",
+    helpText: "Member ID দিন, service select করুন, quantity লিখুন, payment mode cash/online দিয়ে instant invoice generate করুন।",
+  },
+  "creative-media": {
+    panelTitle: "Creative & Media Booking Billing",
+    itemLabel: "Session / Booking",
+    itemPlaceholder: "Type session or booking name",
+    selectPlaceholder: "Select session / booking",
+    rateLabel: "Rate",
+    qtyLabel: "Sessions",
+    addLineLabel: "Add Session",
+    helpText: "Member ID দিন, session/booking select করুন, quantity লিখুন, payment mode cash/online দিয়ে instant invoice generate করুন।",
+  },
+};
+
+const billingLabelsForSector = (sector) => SECTOR_BILLING_LABELS[sector] || SECTOR_BILLING_LABELS.products;
+
+export default function OfflineBillingPanel({ title = "", compact = false, showPartnerScope = false, sector = "products" }) {
+  const labels = billingLabelsForSector(sector);
+  const panelTitle = title || labels.panelTitle;
   const [products, setProducts] = useState([]);
   const [partners, setPartners] = useState([]);
   const [partnerId, setPartnerId] = useState("");
@@ -201,7 +288,7 @@ export default function OfflineBillingPanel({ title = "Offline Billing", compact
     <div className="bg-white rounded-xl border border-border p-4 md:p-6" data-testid="offline-billing-panel">
       <div className="flex items-center gap-2 mb-4">
         <ReceiptText className="w-4 h-4 text-emerald-700" />
-        <h3 className="font-display font-bold text-emerald-950 text-lg">{title}</h3>
+        <h3 className="font-display font-bold text-emerald-950 text-lg">{panelTitle}</h3>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
@@ -270,11 +357,11 @@ export default function OfflineBillingPanel({ title = "Offline Billing", compact
           return (
             <div key={idx} className="grid grid-cols-1 md:grid-cols-12 gap-2 items-end rounded-lg border border-border p-3" data-testid={`offline-line-${idx}`}>
               <div className="md:col-span-6">
-                <Label>Product</Label>
+                <Label>{labels.itemLabel}</Label>
                 <Input
                   value={line.query || ""}
                   onChange={(e) => onSearchProduct(idx, e.target.value)}
-                  placeholder="Type product name / code"
+                  placeholder={labels.itemPlaceholder}
                   className="mt-1.5 h-10"
                 />
                 <select
@@ -282,7 +369,7 @@ export default function OfflineBillingPanel({ title = "Offline Billing", compact
                   onChange={(e) => onPickProduct(idx, e.target.value)}
                   className="mt-1.5 h-10 w-full rounded-md border border-input bg-white px-3 text-sm"
                 >
-                  <option value="">Select product</option>
+                  <option value="">{labels.selectPlaceholder}</option>
                   {visibleProducts.map((item) => (
                     <option key={item.id} value={item.id}>
                       {item.name} {item.product_code ? `· ${item.product_code}` : ""} ({item.product_type === "associate_partner" ? "Partner" : "METHO"})
@@ -292,12 +379,12 @@ export default function OfflineBillingPanel({ title = "Offline Billing", compact
               </div>
 
               <div className="md:col-span-2">
-                <Label>Rate</Label>
+                <Label>{labels.rateLabel}</Label>
                 <Input value={line.price || 0} readOnly className="mt-1.5 h-10 font-semibold" />
               </div>
 
               <div className="md:col-span-2">
-                <Label>Qty{p?.unit_type && normalizeUnitType(p.unit_type) !== "piece" ? ` (${normalizeUnitType(p.unit_type)})` : ""}</Label>
+                <Label>{labels.qtyLabel}{p?.unit_type && normalizeUnitType(p.unit_type) !== "piece" ? ` (${normalizeUnitType(p.unit_type)})` : ""}</Label>
                 <Input
                   type="number"
                   min={String(Number(p?.quantity_step || qtyStepForUnit(p?.unit_type || "piece")) || 1)}
@@ -317,7 +404,7 @@ export default function OfflineBillingPanel({ title = "Offline Billing", compact
                 ) : null}
               </div>
 
-              {p?.stock >= 0 ? (
+              {!p?.is_service && p?.stock >= 0 ? (
                 <div className="md:col-span-12 text-[11px] text-slate-500">Stock: {p.stock}{p?.unit_type && normalizeUnitType(p.unit_type) !== "piece" ? ` ${normalizeUnitType(p.unit_type)}` : ""}{p?.product_code ? ` · Code: ${p.product_code}` : ""}</div>
               ) : null}
             </div>
@@ -325,7 +412,7 @@ export default function OfflineBillingPanel({ title = "Offline Billing", compact
         })}
 
         <Button type="button" variant="outline" onClick={addLine} className="rounded-full" data-testid="offline-add-line">
-          <Plus className="w-4 h-4 mr-1" /> Add Product
+          <Plus className="w-4 h-4 mr-1" /> {labels.addLineLabel}
         </Button>
       </div>
 

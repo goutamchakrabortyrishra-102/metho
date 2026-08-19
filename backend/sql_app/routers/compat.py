@@ -2831,6 +2831,7 @@ def _get_offline_billing_product(db: Session, product_id: str) -> dict | None:
 
 def _offline_catalog_for_partner(db: Session, partner_id: str) -> list[dict]:
     unit_map = _load_partner_product_units(db)
+    meta_map = _load_partner_product_meta(db)
     rows = (
         db.query(PartnerProduct)
         .filter(
@@ -2841,20 +2842,25 @@ def _offline_catalog_for_partner(db: Session, partner_id: str) -> list[dict]:
         .order_by(PartnerProduct.created_at.desc())
         .all()
     )
-    return [
-        {
-            "id": p.id,
-            "product_code": _ensure_product_code(db, p.id, "associate_partner"),
-            "name": p.name,
-            "category": p.category,
-            "price": round(float(p.price or 0), 2),
-            "stock": float(p.stock or 0),
-            "product_type": "associate_partner",
-            "partner_id": p.partner_id,
-            **_partner_unit_info(unit_map, p.id),
-        }
-        for p in rows
-    ]
+    out = []
+    for p in rows:
+        meta = meta_map.get(str(p.id), {})
+        is_service = bool(meta.get("is_service") or str(meta.get("listing_type") or "").lower() == "service")
+        out.append(
+            {
+                "id": p.id,
+                "product_code": _ensure_product_code(db, p.id, "associate_partner"),
+                "name": p.name,
+                "category": p.category,
+                "price": round(float(p.price or 0), 2),
+                "stock": float(p.stock or 0),
+                "product_type": "associate_partner",
+                "partner_id": p.partner_id,
+                "is_service": is_service,
+                **_partner_unit_info(unit_map, p.id),
+            }
+        )
+    return out
 
 
 def _offline_catalog_for_admin(db: Session) -> list[dict]:

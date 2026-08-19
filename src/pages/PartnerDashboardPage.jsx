@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+﻿import React, { useEffect, useState } from "react";
 import { Link, Navigate, useLocation } from "react-router-dom";
 import { Store, TrendingUp, Percent, Package, ShoppingCart, FileText, LogOut, ScrollText, FileSpreadsheet, FileDown, Images, ReceiptText, Copy, MessageCircle, ExternalLink, CarTaxiFront, PlayCircle, CheckCircle2, Wallet, Clock3, XCircle } from "lucide-react";
 import * as XLSX from "xlsx";
@@ -253,6 +253,16 @@ const DASHBOARD_SECTOR_LABEL = {
   [PARTNER_SECTOR_KEYS.HOSPITALITY_SECTOR]: "Stay & Dining",
   [PARTNER_SECTOR_KEYS.DOORSTEP_SECTOR]: "Doorstep",
   [PARTNER_SECTOR_KEYS.OTHER_SERVICE_SECTOR]: "Other Services",
+};
+
+const OFFLINE_BILLING_HELP_TEXT = {
+  [PARTNER_SECTOR_KEYS.PRODUCT_SECTOR]: "Member ID দিন, product select করুন, quantity লিখুন, payment mode cash/online দিয়ে instant invoice generate করুন।",
+  [PARTNER_SECTOR_KEYS.TRANSPORT_SECTOR]: "Member ID দিন, vehicle/route select করুন, trip সংখ্যা লিখুন, payment mode cash/online দিয়ে instant invoice generate করুন।",
+  [PARTNER_SECTOR_KEYS.DELIVERY_PARTNER_SECTOR]: "Member ID দিন, delivery service select করুন, parcel সংখ্যা লিখুন, payment mode cash/online দিয়ে instant invoice generate করুন।",
+  [PARTNER_SECTOR_KEYS.HOSPITALITY_SECTOR]: "Member ID দিন, room/dish select করুন, nights/qty লিখুন, payment mode cash/online দিয়ে instant invoice generate করুন।",
+  [PARTNER_SECTOR_KEYS.DOORSTEP_SECTOR]: "Member ID দিন, service select করুন, visit সংখ্যা লিখুন, payment mode cash/online দিয়ে instant invoice generate করুন।",
+  [PARTNER_SECTOR_KEYS.PROPERTY_SECTOR]: "Member ID দিন, property service select করুন, quantity লিখুন, payment mode cash/online দিয়ে instant invoice generate করুন।",
+  [PARTNER_SECTOR_KEYS.OTHER_SERVICE_SECTOR]: "Member ID দিন, service select করুন, quantity লিখুন, payment mode cash/online দিয়ে instant invoice generate করুন।",
 };
 
 const getDashboardTheme = (primarySector) => {
@@ -2626,9 +2636,9 @@ export default function PartnerDashboardPage() {
           <div className="space-y-3">
             <div className="rounded-lg border border-amber-300 bg-amber-50 px-3 py-2 text-xs text-amber-900 flex items-center gap-2">
               <ReceiptText className="w-3.5 h-3.5" />
-              Member ID দিন, product select করুন, quantity লিখুন, payment mode cash/online দিয়ে instant invoice generate করুন।
+              {OFFLINE_BILLING_HELP_TEXT[primarySector] || OFFLINE_BILLING_HELP_TEXT[PARTNER_SECTOR_KEYS.PRODUCT_SECTOR]}
             </div>
-            <OfflineBillingPanel title="Partner Counter Billing" />
+            <OfflineBillingPanel sector={primarySector} />
           </div>
         )}
 
