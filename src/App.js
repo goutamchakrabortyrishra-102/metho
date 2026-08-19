@@ -48,6 +48,7 @@ const loadPartnerInventoryPage = () => import("@/pages/dashboard/PartnerInventor
 const loadShopPage = () => import("@/pages/ShopPage");
 const loadPartnerGalleryPage = () => import("@/pages/PartnerGalleryPage");
 const loadInstallPage = () => import("@/pages/InstallPage");
+const loadDownloadAppPage = () => import("@/pages/DownloadAppPage");
 const loadMethoStoreAdminPage = () => import("@/pages/dashboard/MethoStoreAdminPage");
 const loadAdminTransportPage = () => import("@/pages/dashboard/AdminTransportPage");
 const loadAdminStayDiningBookingsPage = () => import("@/pages/dashboard/AdminStayDiningBookingsPage");
@@ -101,6 +102,7 @@ const PartnerInventoryPage = lazy(loadPartnerInventoryPage);
 const ShopPage = lazy(loadShopPage);
 const PartnerGalleryPage = lazy(loadPartnerGalleryPage);
 const InstallPage = lazy(loadInstallPage);
+const DownloadAppPage = lazy(loadDownloadAppPage);
 const MethoStoreAdminPage = lazy(loadMethoStoreAdminPage);
 const AdminTransportPage = lazy(loadAdminTransportPage);
 const AdminStayDiningBookingsPage = lazy(loadAdminStayDiningBookingsPage);
@@ -289,6 +291,7 @@ function App() {
               <Route path="/" element={<LandingPage />} />
               <Route path="/shop" element={<ShopPage />} />
               <Route path="/install" element={<InstallPage />} />
+              <Route path="/download" element={<DownloadAppPage />} />
               <Route path="/customer-orders" element={<CustomerOrdersAccessPage />} />
               <Route path="/customer-invoice/:orderId" element={<CustomerInvoicePage />} />
               <Route path="/privacy-policy" element={<PrivacyPolicyPage />} />
