@@ -70,7 +70,10 @@ ADMIN_ACCOUNTS_LEDGER_KEY = "admin_accounts_ledger"
 CUSTOMER_ORDER_CONTACT_KEY_PREFIX = "order_contact:"
 CUSTOMER_ORDER_OTP_KEY_PREFIX = "customer_mobile_otp:"
 CUSTOMER_ACCESS_MODES = {"mobile_only", "mobile_otp"}
-METHO_QUALIFIED_PRODUCT_TYPES = {"metho", "metho_service"}
+METHO_QUALIFIED_PRODUCT_TYPES = {"metho", "metho_service", "metho_vegetable"}
+# METHO Vegetable is a distinct storefront but is company-owned stock like METHO products
+# (not a partner product), so every 'metho'-only check below must also match it.
+METHO_VEGETABLE_LIKE_PRODUCT_TYPES = {"metho", "metho_vegetable"}
 
 
 def _is_metho_qualified_item(item: dict | None) -> bool:
@@ -4546,12 +4549,12 @@ def _invoice_payload(db: Session, order_id: str, current_user: User):
                 if pid
             }
             has_foreign_partner_item = any(
-                str(item.get("product_type") or "").strip().lower() != "metho"
+                str(item.get("product_type") or "").strip().lower() not in METHO_VEGETABLE_LIKE_PRODUCT_TYPES
                 and str(item.get("product_id") or "") not in partner_product_ids
                 for item in items
             )
             has_any_partner_item = any(str(item.get("product_id") or "") in partner_product_ids for item in items)
-            has_metho_item = any(str(item.get("product_type") or "").strip().lower() == "metho" for item in items)
+            has_metho_item = any(str(item.get("product_type") or "").strip().lower() in METHO_VEGETABLE_LIKE_PRODUCT_TYPES for item in items)
             is_partner_order = has_any_partner_item and not has_metho_item and not has_foreign_partner_item
 
     if not (is_admin or is_buyer or is_partner_order):
@@ -4569,7 +4572,7 @@ def _invoice_payload(db: Session, order_id: str, current_user: User):
         for item in items:
             product_type = str(item.get("product_type") or "").strip().lower()
             product_id = str(item.get("product_id") or "").strip()
-            if product_type == "metho" or product_id not in partner_product_ids:
+            if product_type in METHO_VEGETABLE_LIKE_PRODUCT_TYPES or product_id not in partner_product_ids:
                 own_partner_order = False
                 break
             commission_base += float(item.get("subtotal") or 0)
@@ -4630,7 +4633,7 @@ def _invoice_payload(db: Session, order_id: str, current_user: User):
                 "product_code": item.get("product_code") or "",
                 "product_name": item.get("name") or "Product",
                 "product_type": product_type,
-                "hsn_sac": "3004" if product_type == "metho" else "9983",
+                "hsn_sac": "3004" if product_type == "metho" else ("0709" if product_type == "metho_vegetable" else "9983"),
                 "quantity": float(item.get("quantity") or 1),
                 "price": float(item.get("price") or 0),
                 "pre_tax": pre_tax,
@@ -5086,7 +5089,7 @@ def admin_approve_order(order_id: str, payload: dict | None = None, db: Session 
     except Exception:
         items = []
 
-    metho_taxable = sum(float(i.get("pre_tax") or i.get("subtotal") or 0) for i in items if (i.get("product_type") or "metho") == "metho")
+    metho_taxable = sum(float(i.get("pre_tax") or i.get("subtotal") or 0) for i in items if (i.get("product_type") or "metho") in METHO_VEGETABLE_LIKE_PRODUCT_TYPES)
     commission_base_ex_gst = round(metho_taxable, 2)
     settings = load_settings(db)
     metho_commission_percent = max(0.0, min(100.0, float(settings.get("metho_commission_percent", 10) or 10)))
@@ -5101,7 +5104,7 @@ def admin_approve_order(order_id: str, payload: dict | None = None, db: Session 
 
     for item in items:
         product_type = (item.get("product_type") or "metho").strip()
-        if product_type == "metho":
+        if product_type in METHO_VEGETABLE_LIKE_PRODUCT_TYPES:
             continue
         pid = str(item.get("product_id") or "").strip()
         if not pid:
@@ -5287,7 +5290,7 @@ def admin_approve_order(order_id: str, payload: dict | None = None, db: Session 
     db.commit()
 
     approved_member = _order_member(db, row)
-    has_metho_product = any(str(item.get("product_type") or "").lower() == "metho" for item in items)
+    has_metho_product = any(str(item.get("product_type") or "").lower() in METHO_VEGETABLE_LIKE_PRODUCT_TYPES for item in items)
     activation_source = str(row.payment_method or "admin_confirmed").strip().lower()
     member_purchase_activated = _activate_member_purchase(
         db,
@@ -8017,7 +8020,7 @@ def settlement_preview(year: int, month: int, db: Session = Depends(get_db), cur
             items = json.loads(order.items_json or "[]")
         except Exception:
             items = []
-        amount = sum(float(item.get("subtotal") or 0) for item in items if str(item.get("product_type") or "").lower() == "metho")
+        amount = sum(float(item.get("subtotal") or 0) for item in items if str(item.get("product_type") or "").lower() in METHO_VEGETABLE_LIKE_PRODUCT_TYPES)
         member_totals[member.id] = member_totals.get(member.id, 0.0) + amount
     total_points = sum(max(0.0, amount) / 100.0 for amount in member_totals.values())
     point_value = round(pool["member_pool"] / total_points, 4) if total_points else 0.0

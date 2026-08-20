@@ -33,6 +33,8 @@ PARTNER_PRODUCT_META_KEY = "partner_product_meta"
 PARTNER_UNIT_OPTIONS = {"piece", "kg", "gram", "litre", "ml"}
 ORDER_CONTACT_KEY_PREFIX = "order_contact:"
 TOURISM_TERMS_VERSION = "2026-08-19"
+# METHO Vegetable is priced/rewarded identically to METHO products at checkout time.
+METHO_GLOBAL_PRODUCT_TYPES = {"metho", "metho_service", "metho_vegetable"}
 RESTAURANT_SLOT_TEMPLATE_KEYS = {
     "restaurant_table_booking",
     "banquet_slot",
@@ -1100,7 +1102,7 @@ def create_public_order(payload: dict, db: Session = Depends(get_db), authorizat
             )
         unit_price = float(product.price)
         pricing_tiers = []
-        if product_type in {"metho", "metho_service"}:
+        if product_type in METHO_GLOBAL_PRODUCT_TYPES:
             pricing_tiers = _normalize_pricing_tiers(pricing_tier_map.get(product.id, []))
         elif product_type == "associate_partner" and enable_partner_slab_pricing:
             pricing_tiers = _normalize_pricing_tiers(pricing_tier_map.get(product.id, []))
@@ -1113,14 +1115,14 @@ def create_public_order(payload: dict, db: Session = Depends(get_db), authorizat
         gst_amount = 0.0
         pre_tax = base_subtotal
         line_total = base_subtotal
-        if product_type in {"metho", "metho_service"} or (product_type == "associate_partner" and gst_percent > 0):
+        if product_type in METHO_GLOBAL_PRODUCT_TYPES or (product_type == "associate_partner" and gst_percent > 0):
             gst_amount = round(base_subtotal * (max(0.0, gst_percent) / 100.0), 2)
             line_total = round(base_subtotal + gst_amount, 2)
             # Round final GST-inclusive price to nearest whole rupee
             line_total = float(round_half_up_to_whole_rupee(line_total))
 
-        product_delivery_charge = max(0.0, float(global_service_meta.get("delivery_charge") or 0) if product_type in {"metho", "metho_service"} else float(listing_meta.get("delivery_charge") or 0))
-        product_delivery_threshold = max(0.0, float(global_service_meta.get("free_delivery_threshold") or 0) if product_type in {"metho", "metho_service"} else float(listing_meta.get("free_delivery_threshold") or 0))
+        product_delivery_charge = max(0.0, float(global_service_meta.get("delivery_charge") or 0) if product_type in METHO_GLOBAL_PRODUCT_TYPES else float(listing_meta.get("delivery_charge") or 0))
+        product_delivery_threshold = max(0.0, float(global_service_meta.get("free_delivery_threshold") or 0) if product_type in METHO_GLOBAL_PRODUCT_TYPES else float(listing_meta.get("free_delivery_threshold") or 0))
         category_rule = _partner_category_delivery_rule(partner_pref_cache.get(str(getattr(product, "partner_id", "") or "")), str(getattr(product, "category", "") or "")) if product_type == "associate_partner" else _category_delivery_rule(settings, str(getattr(product, "category", "") or ""))
         delivery_charge = product_delivery_charge or category_rule["delivery_charge"]
         delivery_threshold = product_delivery_threshold or category_rule["free_delivery_threshold"]
@@ -1143,7 +1145,7 @@ def create_public_order(payload: dict, db: Session = Depends(get_db), authorizat
                 "delivery_total": 0.0,
                 "free_delivery_threshold": delivery_threshold,
                 "product_type": product_type,
-                "commission_percent": global_service_meta.get("commission_percent") if product_type in {"metho", "metho_service"} else None,
+                "commission_percent": global_service_meta.get("commission_percent") if product_type in METHO_GLOBAL_PRODUCT_TYPES else None,
                 "unit_type": unit_info["unit_type"],
                 "unit_label": unit_info["unit_label"],
                 "quantity_step": unit_info["quantity_step"],
@@ -1156,8 +1158,8 @@ def create_public_order(payload: dict, db: Session = Depends(get_db), authorizat
                 "service_booking_enabled": bool(listing_meta["service_booking_enabled"]),
                 "service_invoice_mode": str(item.get("service_invoice_mode") or listing_meta["service_invoice_mode"]).strip().lower(),
                 "service_template_key": str(listing_meta["service_template_key"] if product_type == "metho_service" else (item.get("service_template_key") or listing_meta["service_template_key"])).strip(),
-                "booking_available_from": str(global_service_meta.get("booking_available_from") or "") if product_type in {"metho", "metho_service"} else "",
-                "booking_available_until": str(global_service_meta.get("booking_available_until") or "") if product_type in {"metho", "metho_service"} else "",
+                "booking_available_from": str(global_service_meta.get("booking_available_from") or "") if product_type in METHO_GLOBAL_PRODUCT_TYPES else "",
+                "booking_available_until": str(global_service_meta.get("booking_available_until") or "") if product_type in METHO_GLOBAL_PRODUCT_TYPES else "",
                 "delivery_category": str(getattr(product, "category", "") or "").strip(),
                 "pricing_unit": str(listing_meta.get("pricing_unit") or "PER_ITEM"),
                 "availability": str(listing_meta.get("availability") or ""),
@@ -2155,7 +2157,7 @@ def partner_orders(db: Session = Depends(get_db), current_user=Depends(get_curre
         my_service_items = 0
         for item in items:
             product_type = str(item.get("product_type") or "").strip().lower()
-            if product_type == "metho":
+            if product_type in {"metho", "metho_vegetable"}:
                 has_metho_item = True
             product_id = str(item.get("product_id") or "").strip()
             if product_type == "associate_partner" and product_id and product_id not in partner_product_ids:
@@ -2328,7 +2330,7 @@ def partner_set_service_final_fare(order_id: str, payload: dict | None = None, d
     for idx, item in enumerate(items):
         product_id = str((item or {}).get("product_id") or "").strip()
         product_type = str((item or {}).get("product_type") or "").strip().lower()
-        if product_type == "metho":
+        if product_type in {"metho", "metho_vegetable"}:
             raise HTTPException(status_code=403, detail="METHO orders are admin-only")
         if product_type == "associate_partner" and product_id and product_id not in partner_product_ids:
             raise HTTPException(status_code=403, detail="Mixed partner order cannot be edited")
@@ -2390,7 +2392,7 @@ def partner_confirm_service_booking(order_id: str, db: Session = Depends(get_db)
     for item in items:
         product_id = str((item or {}).get("product_id") or "").strip()
         product_type = str((item or {}).get("product_type") or "").strip().lower()
-        if product_type == "metho":
+        if product_type in {"metho", "metho_vegetable"}:
             raise HTTPException(status_code=403, detail="METHO orders are admin-only")
         if product_type == "associate_partner" and product_id and product_id not in partner_product_ids:
             raise HTTPException(status_code=403, detail="Mixed partner order cannot be confirmed")

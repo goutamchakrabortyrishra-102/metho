@@ -18,6 +18,7 @@ const links = [
   { to: "/app/leaderboard", icon: Trophy, label: "Leaderboard", testId: "nav-leaderboard" },
   { to: "/app/business", icon: TrendingUp, label: "Business", testId: "nav-business" },
   { to: "/app/products", icon: Package, label: "Products", testId: "nav-products" },
+  { to: "/app/metho-vegetable-admin?type=metho_vegetable", icon: Package, label: "METHO Vegetable", testId: "nav-metho-vegetable-admin", adminOnly: true },
   { to: "/app/metho-store-owner", icon: Store, label: "Metho Store Owner", testId: "nav-metho-store-owner", ownerOnly: true },
   { to: "/app/products?upload=1", icon: Upload, label: "Image Upload", testId: "nav-product-upload", adminOnly: true },
   { to: "/directory", icon: Compass, label: "Explore Partners", testId: "nav-explore", external: true },

@@ -15,6 +15,9 @@ from .settings import load_settings, save_settings
 
 router = APIRouter(prefix="/api", tags=["commerce"])
 
+# METHO Vegetable is a distinct storefront/sector but priced identically to METHO products (GST-inclusive).
+GST_QUALIFIED_PRODUCT_TYPES = {"metho", "metho_vegetable"}
+
 
 def _product_code_key(product_id: str) -> str:
     return f"product_code:{product_id}"
@@ -465,7 +468,7 @@ def create_product(payload: ProductCreate, db: Session = Depends(get_db), curren
         raise HTTPException(status_code=400, detail="MRP must be greater than 0")
     effective_price = round(mrp * (1 - (discount_percent / 100)), 2)
     gst_percent = float(payload.gst_percent or 0)
-    if product_type == "metho" and gst_percent < 0:
+    if product_type in GST_QUALIFIED_PRODUCT_TYPES and gst_percent < 0:
         gst_percent = 0
 
     if product_type == "associate_partner":
@@ -520,7 +523,7 @@ def create_product(payload: ProductCreate, db: Session = Depends(get_db), curren
             image_url=(payload.image_url or "").strip(),
             mrp=mrp,
             discount_percent=discount_percent,
-            gst_percent=(gst_percent if product_type == "metho" else 0),
+            gst_percent=(gst_percent if product_type in GST_QUALIFIED_PRODUCT_TYPES else 0),
         )
     )
 
@@ -541,7 +544,7 @@ def create_product(payload: ProductCreate, db: Session = Depends(get_db), curren
             "mrp": mrp,
             "discount_percent": discount_percent,
             "final_price": effective_price,
-            "gst_percent": (gst_percent if product_type == "metho" else 0),
+            "gst_percent": (gst_percent if product_type in GST_QUALIFIED_PRODUCT_TYPES else 0),
         },
         "pricing_tiers": saved_tiers,
     }
@@ -565,7 +568,7 @@ def update_product(product_id: str, payload: ProductCreate, db: Session = Depend
         raise HTTPException(status_code=400, detail="MRP must be greater than 0")
     effective_price = round(mrp * (1 - (discount_percent / 100)), 2)
     gst_percent = float(payload.gst_percent or 0)
-    if product_type == "metho" and gst_percent < 0:
+    if product_type in GST_QUALIFIED_PRODUCT_TYPES and gst_percent < 0:
         gst_percent = 0
 
     # Prevent destructive type migration between Product and PartnerProduct tables.
@@ -624,7 +627,7 @@ def update_product(product_id: str, payload: ProductCreate, db: Session = Depend
     meta.image_url = (payload.image_url or "").strip()
     meta.mrp = mrp
     meta.discount_percent = discount_percent
-    meta.gst_percent = (gst_percent if product_type == "metho" else 0)
+    meta.gst_percent = (gst_percent if product_type in GST_QUALIFIED_PRODUCT_TYPES else 0)
     _save_product_service_meta(db, product.id, payload)
 
     db.commit()
@@ -641,7 +644,7 @@ def update_product(product_id: str, payload: ProductCreate, db: Session = Depend
             "mrp": mrp,
             "discount_percent": discount_percent,
             "final_price": effective_price,
-            "gst_percent": (gst_percent if product_type == "metho" else 0),
+            "gst_percent": (gst_percent if product_type in GST_QUALIFIED_PRODUCT_TYPES else 0),
         },
         "pricing_tiers": saved_tiers,
     }

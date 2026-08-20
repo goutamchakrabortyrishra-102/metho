@@ -104,6 +104,9 @@ export default function ProductsPage() {
   const [savingCategoryOrder, setSavingCategoryOrder] = useState(false);
   const [loadingProducts, setLoadingProducts] = useState(true);
   const [productLoadError, setProductLoadError] = useState("");
+  const isVegetableAdmin = searchParams.get("type") === "metho_vegetable";
+  const productScopeLabel = isVegetableAdmin ? "METHO Vegetable" : "Products";
+  const visibleProductType = isVegetableAdmin ? "metho_vegetable" : "";
   const getStock = (product) => Math.max(0, Number(product?.stock ?? 0));
 
   const loadProducts = async () => {
@@ -323,8 +326,11 @@ export default function ProductsPage() {
   });
   const total = items.reduce((s, i) => s + i.subtotal, 0);
 
-  const categories = categoryOrder;
-  const productsById = new Map(products.map((item) => [String(item?.id || ""), item]));
+  const scopedProducts = visibleProductType
+    ? products.filter((product) => String(product?.product_type || "").toLowerCase() === visibleProductType)
+    : products;
+  const categories = categoryOrder.filter((category) => scopedProducts.some((product) => product.category === category));
+  const productsById = new Map(scopedProducts.map((item) => [String(item?.id || ""), item]));
   const selectedTopProducts = landingTopProductIds
     .map((id) => {
       const product = productsById.get(String(id));
@@ -337,12 +343,12 @@ export default function ProductsPage() {
     .filter((item) => item.id);
   const selectedTopProductSlots = Array.from({ length: LANDING_TOP_PRODUCTS_LIMIT }, (_, idx) => selectedTopProducts[idx] || null);
   const filteredProducts = selectedCategory === "all"
-    ? products
-    : products.filter((p) => p.category === selectedCategory);
+    ? scopedProducts
+    : scopedProducts.filter((p) => p.category === selectedCategory);
 
   const groupedProducts = categories.map((category) => ({
     category,
-    items: products.filter((p) => p.category === category),
+    items: scopedProducts.filter((p) => p.category === category),
   })).filter((g) => g.items.length > 0);
 
   const productCard = (p, i) => (
@@ -535,7 +541,7 @@ export default function ProductsPage() {
       <div className="flex flex-wrap items-end justify-between gap-4">
         <div>
           <p className="text-xs uppercase tracking-[0.2em] text-emerald-800 font-semibold">Shop</p>
-          <h1 className="font-display font-black text-3xl md:text-4xl text-emerald-950 tracking-tight mt-1">Products</h1>
+          <h1 className="font-display font-black text-3xl md:text-4xl text-emerald-950 tracking-tight mt-1">{productScopeLabel}</h1>
         </div>
         <div className="flex items-center gap-2">
           {isAdmin ? (
@@ -565,6 +571,7 @@ export default function ProductsPage() {
                   }
                 }}
                 showTrigger={false}
+                defaultProductType={visibleProductType || "metho"}
               />
               <AddProductDialog
                 onCreated={loadProducts}
@@ -609,10 +616,10 @@ export default function ProductsPage() {
           onClick={() => setSelectedCategory("all")}
           data-testid="category-all"
         >
-          All ({products.length})
+          All ({scopedProducts.length})
         </Button>
         {categories.map((cat) => {
-          const count = products.filter((p) => p.category === cat).length;
+          const count = scopedProducts.filter((p) => p.category === cat).length;
           return (
             <Button
               key={cat}
@@ -637,7 +644,7 @@ export default function ProductsPage() {
         </div>
       ) : null}
 
-      {isAdmin ? (
+      {isAdmin && !isVegetableAdmin ? (
         <div className="rounded-xl border border-emerald-200 bg-emerald-50/50 p-3" data-testid="landing-top-products-panel">
           <div className="flex flex-wrap items-center justify-between gap-2">
             <div>
@@ -723,7 +730,7 @@ export default function ProductsPage() {
         </div>
       ) : null}
 
-      {isAdmin && categories.length > 1 ? (
+      {isAdmin && !isVegetableAdmin && categories.length > 1 ? (
         <div className="rounded-xl border border-border bg-slate-50 p-3" data-testid="admin-category-order-panel">
           <p className="text-xs uppercase tracking-[0.18em] text-slate-600 font-semibold">Landing Category Row Order</p>
           <p className="text-[11px] text-slate-500 mt-1">Row number সেট করে দিন — Landing page-এ সেই category সেই row-এ scroll করে দেখাবে।</p>
@@ -777,7 +784,7 @@ export default function ProductsPage() {
       {selectedCategory === "all" ? (
         <div className="space-y-7" data-testid="products-grouped-by-category">
           {loadingProducts ? <p className="text-sm text-slate-500">Loading products...</p> : null}
-          {!loadingProducts && products.length === 0 && !productLoadError ? <p className="text-sm text-slate-500">No products found. Use Product Upload to add one.</p> : null}
+          {!loadingProducts && scopedProducts.length === 0 && !productLoadError ? <p className="text-sm text-slate-500">No {isVegetableAdmin ? "vegetables" : "products"} found. Use Product Upload to add one.</p> : null}
           {groupedProducts.map((group) => (
             <section key={group.category} className="space-y-3">
               <div className="flex items-center justify-between gap-2">

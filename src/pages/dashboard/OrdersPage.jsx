@@ -2,7 +2,7 @@ import React, { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { toast } from "sonner";
 import api from "@/services/api";
-import { Package, RotateCcw, AlertCircle, FileText, FileArchive } from "lucide-react";
+import { Package, RotateCcw, AlertCircle, FileText, FileArchive, Printer } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import UpiPaymentDialog from "@/components/UpiPaymentDialog";
@@ -40,6 +40,12 @@ export default function OrdersPage() {
   const [bulkYear, setBulkYear] = useState(now.getFullYear());
   const [bulkMonth, setBulkMonth] = useState(now.getMonth() + 1);
   const [busy, setBusy] = useState(false);
+  const toLocalDateInput = (date) => {
+    const offset = date.getTimezoneOffset();
+    return new Date(date.getTime() - offset * 60000).toISOString().slice(0, 10);
+  };
+  const [sheetDate, setSheetDate] = useState(toLocalDateInput(now));
+  const [sheetBusy, setSheetBusy] = useState(false);
 
   const load = () => api.get("/orders").then(r => setOrders(r.data));
   useEffect(() => { load(); }, []);
@@ -71,6 +77,86 @@ export default function OrdersPage() {
     }
   };
 
+  const printDailyOrderSheet = async () => {
+    const dayOrders = orders.filter((o) => toLocalDateInput(new Date(o.created_at)) === sheetDate);
+    if (dayOrders.length === 0) {
+      toast.error("No orders found for the selected date");
+      return;
+    }
+    setSheetBusy(true);
+    try {
+      const { jsPDF } = await import("jspdf");
+      const doc = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
+      const W = doc.internal.pageSize.getWidth();
+      let y = 14;
+
+      doc.setFillColor(5, 46, 22);
+      doc.rect(0, 0, W, 22, "F");
+      doc.setTextColor(251, 191, 36);
+      doc.setFont("helvetica", "bold");
+      doc.setFontSize(14);
+      doc.text("METHO Daily Order Sheet", 10, 10);
+      doc.setTextColor(255, 255, 255);
+      doc.setFont("helvetica", "normal");
+      doc.setFontSize(9);
+      doc.text(new Date(sheetDate).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" }), W - 10, 10, { align: "right" });
+      doc.text(`${dayOrders.length} order(s)`, W - 10, 17, { align: "right" });
+
+      y = 30;
+      dayOrders.forEach((order, idx) => {
+        if (y > 265) {
+          doc.addPage();
+          y = 14;
+        }
+        doc.setDrawColor(226, 232, 240);
+        doc.line(10, y, W - 10, y);
+        doc.setFont("helvetica", "bold");
+        doc.setFontSize(9);
+        doc.setTextColor(5, 46, 22);
+        doc.text(`${idx + 1}. ${order.order_no || `ORD-${String(order.id || "").slice(0, 8).toUpperCase()}`}`, 10, y + 6);
+        doc.setFont("helvetica", "normal");
+        doc.setTextColor(71, 85, 105);
+        doc.text(`${new Date(order.created_at).toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit" })} · ${String(order.status || "").replace(/_/g, " ")}`, 10, y + 11);
+        doc.setFont("helvetica", "bold");
+        doc.setTextColor(5, 46, 22);
+        doc.text(`₹${Number(order.total_amount || 0).toLocaleString("en-IN")}`, W - 10, y + 6, { align: "right" });
+        doc.setFont("helvetica", "normal");
+        doc.setTextColor(71, 85, 105);
+        doc.text(`Ship to: ${String(order.shipping_address || "-").slice(0, 60)}`, W - 10, y + 11, { align: "right" });
+
+        let itemY = y + 16;
+        doc.setFontSize(8);
+        (order.items || []).forEach((item) => {
+          if (itemY > 280) {
+            doc.addPage();
+            itemY = 14;
+          }
+          doc.setTextColor(51, 65, 85);
+          doc.text(`- ${item.product_name || "Item"} x${item.quantity}`, 14, itemY);
+          doc.text(`₹${Number(item.subtotal || 0).toLocaleString("en-IN")}`, W - 14, itemY, { align: "right" });
+          itemY += 4.5;
+        });
+        doc.setFontSize(9);
+        y = itemY + 4;
+      });
+
+      const totalPages = doc.internal.getNumberOfPages();
+      for (let pg = 1; pg <= totalPages; pg++) {
+        doc.setPage(pg);
+        doc.setFontSize(7);
+        doc.setTextColor(148, 163, 184);
+        doc.text(`METHO Daily Order Sheet · ${sheetDate} · Page ${pg}/${totalPages}`, W / 2, 292, { align: "center" });
+      }
+
+      doc.save(`METHO_Order_Sheet_${sheetDate}.pdf`);
+      toast.success("Daily order sheet PDF ready");
+    } catch (err) {
+      toast.error("Daily order sheet could not be generated");
+    } finally {
+      setSheetBusy(false);
+    }
+  };
+
   return (
     <div className="space-y-6" data-testid="orders-page">
       <div className="flex flex-wrap justify-between gap-4 items-end">
@@ -82,17 +168,28 @@ export default function OrdersPage() {
           </p>
         </div>
         {isAdmin && (
-          <div className="flex items-end gap-2 bg-emerald-50/50 border border-emerald-200 rounded-xl p-3" data-testid="bulk-zip-panel">
-            <div>
-              <p className="text-[10px] uppercase text-emerald-800 font-bold tracking-wider">Bulk Invoice ZIP</p>
-              <div className="flex items-center gap-1 mt-1">
-                <Input type="number" value={bulkYear} onChange={(e) => setBulkYear(Number(e.target.value))} className="h-9 w-24" data-testid="bulk-year-input" />
-                <Input type="number" min={1} max={12} value={bulkMonth} onChange={(e) => setBulkMonth(Number(e.target.value))} className="h-9 w-16" data-testid="bulk-month-input" />
+          <div className="flex flex-wrap items-end gap-2">
+            <div className="flex items-end gap-2 bg-emerald-50/50 border border-emerald-200 rounded-xl p-3" data-testid="daily-order-sheet-panel">
+              <div>
+                <p className="text-[10px] uppercase text-emerald-800 font-bold tracking-wider">Daily Order Sheet</p>
+                <Input type="date" value={sheetDate} onChange={(e) => setSheetDate(e.target.value)} className="h-9 mt-1" data-testid="daily-order-sheet-date-input" />
               </div>
+              <Button onClick={printDailyOrderSheet} disabled={sheetBusy} className="bg-emerald-900 hover:bg-emerald-950 text-white rounded-full h-9" data-testid="daily-order-sheet-button">
+                <Printer className="w-4 h-4 mr-2" /> {sheetBusy ? "Preparing..." : "Print Day's Orders"}
+              </Button>
             </div>
-            <Button onClick={downloadBulkZip} disabled={busy} className="bg-emerald-900 hover:bg-emerald-950 text-white rounded-full h-9" data-testid="bulk-download-button">
-              <FileArchive className="w-4 h-4 mr-2" /> {busy ? "Zipping..." : "Download ZIP"}
-            </Button>
+            <div className="flex items-end gap-2 bg-emerald-50/50 border border-emerald-200 rounded-xl p-3" data-testid="bulk-zip-panel">
+              <div>
+                <p className="text-[10px] uppercase text-emerald-800 font-bold tracking-wider">Bulk Invoice ZIP</p>
+                <div className="flex items-center gap-1 mt-1">
+                  <Input type="number" value={bulkYear} onChange={(e) => setBulkYear(Number(e.target.value))} className="h-9 w-24" data-testid="bulk-year-input" />
+                  <Input type="number" min={1} max={12} value={bulkMonth} onChange={(e) => setBulkMonth(Number(e.target.value))} className="h-9 w-16" data-testid="bulk-month-input" />
+                </div>
+              </div>
+              <Button onClick={downloadBulkZip} disabled={busy} className="bg-emerald-900 hover:bg-emerald-950 text-white rounded-full h-9" data-testid="bulk-download-button">
+                <FileArchive className="w-4 h-4 mr-2" /> {busy ? "Zipping..." : "Download ZIP"}
+              </Button>
+            </div>
           </div>
         )}
       </div>

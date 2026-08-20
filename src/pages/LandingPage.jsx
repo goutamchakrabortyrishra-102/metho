@@ -471,7 +471,7 @@ const Hero = () => {
                 </h1>
               )}
             </div>
-            <Link to="/partner-shop/MTH-PARTNER-004" className="hidden lg:inline-flex shrink-0 mt-2" data-testid="landing-highlight-vegetables">
+            <Link to="/metho-vegetable" className="hidden lg:inline-flex shrink-0 mt-2" data-testid="landing-highlight-vegetables">
               <Button size="lg" className="rounded-full bg-red-600 hover:bg-red-700 text-white font-bold px-7 h-14 text-base shadow-[0_16px_34px_rgba(185,28,28,0.22)]">
                 Open METHO Vegetable
               </Button>
@@ -481,7 +481,7 @@ const Hero = () => {
             <p className="inline-flex items-center rounded-full border border-emerald-200 bg-white/95 px-4 py-2 text-sm font-semibold tracking-wide text-emerald-900 shadow-sm">
               Powered By Metho Logistics Private Limited
             </p>
-            <Link to="/partner-shop/MTH-PARTNER-004" className="inline-flex lg:hidden" data-testid="landing-highlight-vegetables-mobile">
+            <Link to="/metho-vegetable" className="inline-flex lg:hidden" data-testid="landing-highlight-vegetables-mobile">
               <Button size="lg" className="rounded-full bg-red-600 hover:bg-red-700 text-white font-bold px-7 h-14 text-base shadow-[0_16px_34px_rgba(185,28,28,0.22)]">
                 Open METHO Vegetable
               </Button>

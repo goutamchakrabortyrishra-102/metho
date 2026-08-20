@@ -59,6 +59,7 @@ export default function AddProductDialog({
   showTrigger = true,
   triggerText = "Add Product",
   product = null,
+  defaultProductType = "metho",
 }) {
   const { settings, refresh } = useSettings();
   const [uncontrolledOpen, setUncontrolledOpen] = useState(false);
@@ -153,7 +154,7 @@ export default function AddProductDialog({
       return;
     }
     resetForm();
-  }, [open, product?.id, categories]);
+  }, [open, product?.id, categories, defaultProductType]);
 
   useEffect(() => {
     const mrp = Number(form.mrp || 0);
@@ -168,7 +169,7 @@ export default function AddProductDialog({
 
   const resetForm = () => setForm({
     name: "", category: categories[0] || "Health & Wellness", price: "", purchase_cost: "", mrp: "", discount_percent: "", gst_percent: "", stock: "",
-    description: "", image_url: "", product_type: "metho", pricing_tiers_input: "", youtube_url: "", commission_percent: "", service_booking_enabled: false, service_template_key: "", delivery_charge: "", free_delivery_threshold: "", booking_available_from: "", booking_available_until: "",
+    description: "", image_url: "", product_type: defaultProductType, pricing_tiers_input: "", youtube_url: "", commission_percent: "", service_booking_enabled: false, service_template_key: "", delivery_charge: "", free_delivery_threshold: "", booking_available_from: "", booking_available_until: "",
   });
 
   const parsePricingTiers = (raw) => {
@@ -468,10 +469,10 @@ export default function AddProductDialog({
         name: form.name,
         category: form.category,
         price: Number(form.price || form.mrp || 0),
-        purchase_cost: form.product_type === "metho" ? Number(form.purchase_cost || 0) : null,
+        purchase_cost: (form.product_type === "metho" || form.product_type === "metho_vegetable") ? Number(form.purchase_cost || 0) : null,
         mrp: Number(form.mrp || form.price || 0),
         discount_percent: Number(form.discount_percent || 0),
-        gst_percent: form.product_type === "metho" ? Number(form.gst_percent || 0) : 0,
+        gst_percent: (form.product_type === "metho" || form.product_type === "metho_vegetable") ? Number(form.gst_percent || 0) : 0,
         bv: 0,
         stock: Number(form.stock || 0),
         description: form.description || "",
@@ -771,9 +772,9 @@ export default function AddProductDialog({
             </div>
           </div>
 
-          {form.product_type === "metho" && (
+          {(form.product_type === "metho" || form.product_type === "metho_vegetable") && (
             <div>
-              <Label>GST % (only METHO product)</Label>
+              <Label>GST % (METHO / METHO Vegetable product)</Label>
               <Input type="number" value={form.gst_percent} onChange={setF("gst_percent")} data-testid="new-product-gst-input" className="mt-1.5 max-w-xs" placeholder="e.g. 18" />
               <div className="mt-3 rounded-xl border-2 border-emerald-300 bg-emerald-50 p-4" data-testid="gst-final-price-preview">
                 <p className="text-xs uppercase tracking-[0.18em] text-emerald-800 font-bold">GST &amp; FINAL PRICE PREVIEW</p>
@@ -788,7 +789,7 @@ export default function AddProductDialog({
             </div>
           )}
 
-          {(form.product_type === "metho" || form.product_type === "metho_service" || form.product_type === "associate_partner") && (
+          {(form.product_type === "metho" || form.product_type === "metho_vegetable" || form.product_type === "metho_service" || form.product_type === "associate_partner") && (
             <div>
               <Label>Pack / Tier Pricing (qty=price)</Label>
               <Input
@@ -810,6 +811,7 @@ export default function AddProductDialog({
               <SelectTrigger className="mt-1.5" data-testid="new-product-type-select"><SelectValue /></SelectTrigger>
               <SelectContent>
                 <SelectItem value="metho">METHO Product (Smart Cycle qualified)</SelectItem>
+                <SelectItem value="metho_vegetable">METHO Vegetable (separate page, Smart Cycle qualified)</SelectItem>
                 <SelectItem value="metho_service" disabled={!isEdit}>METHO Service (use Tourism Control Center)</SelectItem>
                 <SelectItem value="associate_partner">Associate Partner Product</SelectItem>
               </SelectContent>
