@@ -8319,7 +8319,7 @@ def generate_product_description(payload: dict, current_user=Depends(get_current
 async def upload_branding_image(purpose: str, file: UploadFile = File(...), current_user=Depends(get_current_user)):
     _require_admin_user(current_user)
     allowed_purposes = {
-        "site_logo", "landing_hero", "landing_tourism_banner", "product_placeholder", "directory_hero", "social_share",
+        "site_logo", "landing_hero", "landing_tourism_banner", "landing_metho_delivery_banner", "product_placeholder", "directory_hero", "social_share",
         "top_leader_1", "top_leader_2", "top_leader_3", "top_leader_4", "top_leader_5", "top_leader_6",
     }
     safe_purpose = "".join(ch for ch in str(purpose or "branding") if ch.isalnum() or ch in {"-", "_"}).strip("-_")

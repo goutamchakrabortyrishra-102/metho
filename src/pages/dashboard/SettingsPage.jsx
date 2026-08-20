@@ -962,6 +962,7 @@ export default function SettingsPage() {
     site_logo_url: source.site_logo_url || "",
     landing_hero_image_url: source.landing_hero_image_url || "",
     landing_tourism_banner_image_url: source.landing_tourism_banner_image_url || "",
+    landing_metho_delivery_banner_image_url: source.landing_metho_delivery_banner_image_url || "",
     landing_tagline: source.landing_tagline || "",
     landing_subheading: source.landing_subheading || "",
     company_youtube_url: source.company_youtube_url || "",
@@ -1738,6 +1739,17 @@ export default function SettingsPage() {
                 readOnly={readOnly}
                 testId="branding-tourism-banner"
                 uploadEndpoint="/admin/upload/branding-image?purpose=landing_tourism_banner"
+              />
+              <BrandingImageUpload
+                purpose="landing_metho_delivery_banner"
+                label="METHO Delivery Public Booking Banner"
+                hint="Landing page-এর green quick action card-এর নিচে public booking CTA banner image।"
+                value={form.landing_metho_delivery_banner_image_url}
+                onChange={setF("landing_metho_delivery_banner_image_url")}
+                onPersist={(value) => persistBrandingField("landing_metho_delivery_banner_image_url", value)}
+                readOnly={readOnly}
+                testId="branding-metho-delivery-banner"
+                uploadEndpoint="/admin/upload/branding-image?purpose=landing_metho_delivery_banner"
               />
             </div>
             <div className="md:col-span-2 rounded-xl border border-amber-200 bg-amber-50 p-3 text-xs text-amber-900">

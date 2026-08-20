@@ -242,26 +242,28 @@ const Nav = () => (
           <Link to="/register" data-testid="nav-register-link">
             <Button size="sm" className="bg-emerald-900 hover:bg-emerald-950 text-white rounded-full px-4 md:px-5">Join Now <ArrowRight className="ml-1 w-4 h-4" /></Button>
           </Link>
+          <Link to="/partner-register?mode=rider" data-testid="nav-rider-register-link"><Button variant="outline" size="sm" className="hidden sm:inline-flex rounded-full border-emerald-900/20">Rider Register</Button></Link>
+          <Link to="/login?next=/app/driver-registry&mode=rider" data-testid="nav-rider-login-link"><Button variant="ghost" size="sm" className="hidden md:inline-flex">Rider Login</Button></Link>
         </div>
       </div>
 
       <nav className="flex items-center gap-2 overflow-x-auto pb-1 -mx-4 px-4 text-xs font-body xl:hidden" aria-label="Primary mobile navigation">
-        <a href="#features" className="shrink-0 rounded-full border border-emerald-900/10 bg-white/90 px-3 py-1.5 text-slate-700 hover:text-emerald-900">Features</a>
-        <a href="#plan" className="shrink-0 rounded-full border border-emerald-900/10 bg-white/90 px-3 py-1.5 text-slate-700 hover:text-emerald-900">Growth Plan</a>
-        <a href="#partner-finder" className="shrink-0 rounded-full border border-emerald-900/10 bg-white/90 px-3 py-1.5 text-slate-700 hover:text-emerald-900">Partner Finder</a>
+        <Link to="/partner-register?mode=rider" className="shrink-0 rounded-full border border-emerald-900/10 bg-white/90 px-3 py-1.5 text-slate-700 hover:text-emerald-900">Rider Register</Link>
+        <Link to="/login?next=/app/driver-registry&mode=rider" className="shrink-0 rounded-full border border-emerald-900/10 bg-white/90 px-3 py-1.5 text-slate-700 hover:text-emerald-900">Rider Login</Link>
         <a href="#products" className="shrink-0 rounded-full border border-emerald-900/10 bg-white/90 px-3 py-1.5 text-slate-700 hover:text-emerald-900">Products</a>
         <a href="#return-policy" className="shrink-0 rounded-full border border-emerald-900/10 bg-white/90 px-3 py-1.5 text-slate-700 hover:text-emerald-900">Return Policy</a>
         <Link to="/partner-register" className="shrink-0 rounded-full border border-emerald-900/10 bg-white/90 px-3 py-1.5 text-slate-700 hover:text-emerald-900">Partner Register</Link>
+        <Link to="/partner-register?mode=rider" className="shrink-0 rounded-full border border-emerald-900/10 bg-white/90 px-3 py-1.5 text-slate-700 hover:text-emerald-900">Rider Register</Link>
         <Link to="/directory" className="shrink-0 rounded-full border border-emerald-900/10 bg-white/90 px-3 py-1.5 text-slate-700 hover:text-emerald-900">Partner Shop</Link>
         <Link to="/metho-store" className="shrink-0 rounded-full border border-emerald-900/10 bg-white/90 px-3 py-1.5 text-slate-700 hover:text-emerald-900">View Metho Store</Link>
         <Link to="/login" className="shrink-0 rounded-full border border-emerald-900/10 bg-white/90 px-3 py-1.5 text-slate-700 hover:text-emerald-900">Partner Login</Link>
+        <Link to="/login?next=/app/driver-registry&mode=rider" className="shrink-0 rounded-full border border-emerald-900/10 bg-white/90 px-3 py-1.5 text-slate-700 hover:text-emerald-900">Rider Login</Link>
         <Link to="/login?next=/app/metho-store-owner" className="shrink-0 rounded-full border border-emerald-900/10 bg-white/90 px-3 py-1.5 text-slate-700 hover:text-emerald-900">Store Login</Link>
       </nav>
 
       <nav className="hidden xl:flex items-center gap-6 font-body text-sm">
-        <a href="#features" className="text-slate-700 hover:text-emerald-900 transition-colors">Features</a>
-        <a href="#plan" className="text-slate-700 hover:text-emerald-900 transition-colors">Growth Plan</a>
-        <a href="#partner-finder" className="text-slate-700 hover:text-emerald-900 transition-colors">Partner Finder</a>
+        <Link to="/partner-register?mode=rider" className="text-slate-700 hover:text-emerald-900 transition-colors">Rider Register</Link>
+        <Link to="/login?next=/app/driver-registry&mode=rider" className="text-slate-700 hover:text-emerald-900 transition-colors">Rider Login</Link>
         <a href="#products" className="text-slate-700 hover:text-emerald-900 transition-colors">Products</a>
         <a href="#return-policy" className="text-slate-700 hover:text-emerald-900 transition-colors">Return Policy</a>
       </nav>
@@ -513,6 +515,15 @@ const Hero = () => {
               >
                 <Search className="w-4 h-4" />
               </Button>
+            </div>
+            <div className="mt-4 overflow-hidden rounded-2xl border border-emerald-200/70 bg-white shadow-sm" data-testid="landing-public-booking-banner">
+              <div className="grid min-h-[96px] grid-cols-[112px_1fr] sm:grid-cols-[150px_1fr]">
+                <img src={resolveAssetUrl(settings?.landing_metho_delivery_banner_image_url || NETWORK_IMG)} alt="METHO public booking" className="h-full min-h-[96px] w-full object-cover" loading="lazy" />
+                <div className="flex flex-wrap items-center justify-between gap-3 p-3 sm:p-4">
+                  <div><p className="text-[10px] uppercase tracking-widest text-emerald-700 font-bold">METHO Public Booking</p><p className="mt-1 font-display text-base font-black text-emerald-950">Book a bike, e-rickshaw or auto-rickshaw</p><p className="mt-1 text-xs text-slate-600">Choose your vehicle and start a public booking request.</p></div>
+                  <Link to="/directory?quick=transport" data-testid="landing-public-booking-cta"><Button className="rounded-full bg-emerald-900 text-white hover:bg-emerald-950">Book Now <ArrowRight className="ml-1 h-4 w-4" /></Button></Link>
+                </div>
+              </div>
             </div>
           </div>
             <div className="mt-4 grid gap-3 md:grid-cols-2" data-testid="hero-commerce-focus-cards">

@@ -121,6 +121,7 @@ DEFAULT_SETTINGS = {
     "site_logo_url": "",
     "landing_hero_image_url": "",
     "landing_tourism_banner_image_url": "",
+    "landing_metho_delivery_banner_image_url": "",
     "landing_tagline": "",
     "landing_subheading": "",
     "company_youtube_url": "",
