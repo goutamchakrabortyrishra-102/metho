@@ -19,7 +19,7 @@ class RiderRegisterRequest(BaseModel):
     phone: str
     password: str
     vehicle_type: str
-    vehicle_number: str
+    vehicle_number: str = ""
     whatsapp: str = ""
     email: str = ""
     dob: str = ""
