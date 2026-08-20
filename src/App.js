@@ -50,6 +50,7 @@ const loadPartnerReportsPage = () => import("@/pages/dashboard/PartnerReportsPag
 const loadPartnerInventoryPage = () => import("@/pages/dashboard/PartnerInventoryPage");
 const loadShopPage = () => import("@/pages/ShopPage");
 const loadMethoVegetablePage = () => import("@/pages/MethoVegetablePage");
+const loadMethoVegetableInventoryPage = () => import("@/pages/dashboard/MethoVegetableInventoryPage");
 const loadPartnerGalleryPage = () => import("@/pages/PartnerGalleryPage");
 const loadInstallPage = () => import("@/pages/InstallPage");
 const loadDownloadAppPage = () => import("@/pages/DownloadAppPage");
@@ -115,6 +116,7 @@ const PartnerReportsPage = lazy(loadPartnerReportsPage);
 const PartnerInventoryPage = lazy(loadPartnerInventoryPage);
 const ShopPage = lazy(loadShopPage);
 const MethoVegetablePage = lazy(loadMethoVegetablePage);
+const MethoVegetableInventoryPage = lazy(loadMethoVegetableInventoryPage);
 const PartnerGalleryPage = lazy(loadPartnerGalleryPage);
 const InstallPage = lazy(loadInstallPage);
 const DownloadAppPage = lazy(loadDownloadAppPage);
@@ -356,6 +358,7 @@ function App() {
                 <Route path="genealogy" element={<GenealogyPage />} />
                 <Route path="products" element={<ProductsPage />} />
                 <Route path="metho-vegetable-admin" element={<AdminRoute><ProductsPage /></AdminRoute>} />
+                <Route path="metho-vegetable-inventory" element={<AdminRoute><MethoVegetableInventoryPage /></AdminRoute>} />
                 <Route path="orders" element={<OrdersPage />} />
                 <Route path="business" element={<BusinessPage />} />
                 <Route path="profile" element={<ProfilePage />} />

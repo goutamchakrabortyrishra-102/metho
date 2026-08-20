@@ -98,6 +98,36 @@ const getQuantityStep = (product) => {
   return unit === "kg" ? 0.1 : unit === "gram" ? 100 : 1;
 };
 
+const getMeasureOptions = (product) => {
+  const base = getUnitType(product);
+  if (base === "kg") return ["kg", "gram"];
+  if (base === "gram") return ["gram", "kg"];
+  return ["piece"];
+};
+
+const measureStepInBaseUnit = (product, measureUnit) => {
+  const base = getUnitType(product);
+  if (base === "piece") return 1;
+  if (base === "kg") return measureUnit === "kg" ? 1 : 0.1;
+  return measureUnit === "kg" ? 1000 : 100;
+};
+
+const formatMeasureQuantity = (quantity, product, measureUnit) => {
+  const base = getUnitType(product);
+  const converted = base === "kg" && measureUnit === "gram" ? quantity * 1000
+    : base === "gram" && measureUnit === "kg" ? quantity / 1000
+      : quantity;
+  const text = Number.isInteger(converted) ? String(converted) : String(Number(converted.toFixed(3)));
+  return measureUnit === "piece" ? `${text} pc` : `${text} ${measureUnit}`;
+};
+
+const quantityChoices = (product, measureUnit) => {
+  const stock = Math.max(0, Number(product?.stock || 0));
+  const step = measureStepInBaseUnit(product, measureUnit);
+  const count = Math.min(100, Math.floor((stock + 0.000001) / step));
+  return Array.from({ length: count }, (_, index) => Number(((index + 1) * step).toFixed(3)));
+};
+
 const formatQuantity = (quantity, product) => {
   const value = Number(quantity || 0);
   const label = getUnitType(product);
@@ -163,6 +193,7 @@ export default function MethoVegetablePage() {
   const [previewProduct, setPreviewProduct] = useState(null);
   const [checkoutOpen, setCheckoutOpen] = useState(false);
   const [guestMemberRef, setGuestMemberRef] = useState("");
+  const [selectedUnits, setSelectedUnits] = useState({});
 
   const getStock = (product) => Math.max(0, Number(product?.stock ?? 0));
 
@@ -220,6 +251,14 @@ export default function MethoVegetablePage() {
     });
   }, [vegetableProducts, query]);
 
+  const selectedUnitFor = (product) => selectedUnits[product.id] || getMeasureOptions(product)[0];
+
+  const setQuantity = (product, quantity) => {
+    const stock = getStock(product);
+    const next = Math.min(stock, Math.max(0, Number(quantity || 0)));
+    setCart((current) => ({ ...current, [product.id]: Number(next.toFixed(3)) }));
+  };
+
   const inc = (product) => {
     const stock = getStock(product);
     if (stock <= 0) {
@@ -227,7 +266,7 @@ export default function MethoVegetablePage() {
       return;
     }
     setCart((c) => {
-      const step = getQuantityStep(product);
+      const step = measureStepInBaseUnit(product, selectedUnitFor(product));
       const current = Number(c[product.id] || 0);
       if (current + step > stock + 0.0001) {
         toast.error(`${product?.name || "Item"}: max available stock is ${stock}`);
@@ -237,10 +276,7 @@ export default function MethoVegetablePage() {
     });
   };
 
-  const dec = (product) => setCart((c) => ({
-    ...c,
-    [product.id]: Math.max(0, Number((Number(c[product.id] || 0) - getQuantityStep(product)).toFixed(3))),
-  }));
+  const dec = (product) => setCart((c) => ({ ...c, [product.id]: Math.max(0, Number((Number(c[product.id] || 0) - measureStepInBaseUnit(product, selectedUnitFor(product))).toFixed(3))) }));
 
   const items = useMemo(
     () =>
@@ -410,7 +446,20 @@ export default function MethoVegetablePage() {
                     ) : null}
                   </div>
                   <div className="mt-3">
-                    {(cart[p.id] || 0) > 0 ? (
+                    {(() => {
+                      const selectedUnit = selectedUnitFor(p);
+                      const choices = quantityChoices(p, selectedUnit);
+                      const isWeighted = getUnitType(p) !== "piece";
+                      return <div className="space-y-2">
+                        <div className={isWeighted ? "grid grid-cols-2 gap-2" : "grid grid-cols-1"}>
+                          {isWeighted ? <select value={selectedUnit} onChange={(event) => { const unit = event.target.value; setSelectedUnits((current) => ({ ...current, [p.id]: unit })); if (cart[p.id] > 0) setQuantity(p, quantityChoices(p, unit)[0] || 0); }} className="h-9 rounded-md border border-emerald-200 bg-white px-2 text-xs font-semibold text-emerald-950" data-testid={`vegetable-unit-${i}`}>
+                            {getMeasureOptions(p).map((unit) => <option key={unit} value={unit}>{unit.toUpperCase()}</option>)}
+                          </select> : null}
+                          <select value={String(cart[p.id] || choices[0] || "")} onChange={(event) => setQuantity(p, Number(event.target.value))} disabled={!choices.length} className="h-9 rounded-md border border-emerald-200 bg-white px-2 text-xs font-semibold text-emerald-950" data-testid={`vegetable-quantity-${i}`}>
+                            {choices.map((quantity) => <option key={quantity} value={quantity}>{formatMeasureQuantity(quantity, p, selectedUnit)}</option>)}
+                          </select>
+                        </div>
+                        {(cart[p.id] || 0) > 0 ? (
                       <div className="flex items-center justify-between bg-emerald-50 rounded-full px-2 py-1" data-testid={`vegetable-qty-wrap-${i}`}>
                         <button type="button" onClick={() => dec(p)} className="w-7 h-7 rounded-full bg-white hover:bg-emerald-100 flex items-center justify-center" data-testid={`vegetable-dec-${i}`}>
                           <Minus className="w-3.5 h-3.5" />
@@ -430,7 +479,8 @@ export default function MethoVegetablePage() {
                       >
                         {isOutOfStock ? "Unavailable" : "Add to Cart"}
                       </Button>
-                    )}
+                    )}</div>;
+                    })()}
                   </div>
                 </div>
               </div>
