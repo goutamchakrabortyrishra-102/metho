@@ -364,6 +364,8 @@ def list_public_products(limit: int = 120, db: Session = Depends(get_db)):
     safe_limit = max(1, min(int(limit), 500))
     rows = list_products(limit=safe_limit, db=db)
     for item in rows:
+        item.pop("purchase_cost", None)
+        item.pop("commission_percent", None)
         item["image_url"] = _public_image_ref(item.get("id") or "", item.get("image_url") or "")
     return rows
 
