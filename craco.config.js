@@ -98,6 +98,16 @@ let webpackConfig = {
       if (config.enableHealthCheck && healthPluginInstance) {
         webpackConfig.plugins.push(healthPluginInstance);
       }
+
+      // Cap individual chunk size so webpack's default vendor grouping cannot merge many
+      // unrelated heavy libraries (charts, pdf, tree, animation, etc.) into one giant shared
+      // bundle that every lazy route ends up downloading. This only changes how output files
+      // are split, not any application behavior.
+      webpackConfig.optimization = webpackConfig.optimization || {};
+      webpackConfig.optimization.splitChunks = {
+        ...(webpackConfig.optimization.splitChunks || { chunks: "all" }),
+        maxSize: 244000,
+      };
       return webpackConfig;
     },
   },

@@ -654,6 +654,13 @@ def _order_member(db: Session, order: PublicOrder):
     ref = str(order.member_ref or "").strip().upper()
     if not ref:
         return None
+    # Current member ids equal their member_code directly (MAU-prefixed), so this indexed
+    # lookup avoids a full user-table scan for the common case; only legacy non-MAU ids
+    # (where member_code_for_user derives a different code) fall through to the scan below.
+    if ref.startswith("MAU"):
+        direct = db.query(User).filter(User.id == ref).first()
+        if direct:
+            return direct
     for candidate in db.query(User).all():
         if member_code_for_user(candidate.id).upper() == ref:
             return candidate

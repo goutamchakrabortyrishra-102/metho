@@ -286,6 +286,35 @@ def _compact_public_image_url(value: str) -> str:
     return str(value or "").strip()
 
 
+def _parse_product_code_value(payload: str | None) -> str:
+    try:
+        text = payload or ""
+        if text.strip().startswith("{"):
+            import json
+
+            doc = json.loads(text)
+            return str(doc.get("code") or "").strip().upper()
+        return str(text or "").strip().upper()
+    except Exception:
+        return ""
+
+
+def _batch_load_appsettings_by_prefix(db: Session, prefix: str) -> dict[str, str]:
+    """One query for a whole prefix instead of one query per product (avoids N+1)."""
+    rows = db.query(AppSetting).filter(AppSetting.key.like(f"{prefix}%")).all()
+    return {row.key[len(prefix):]: (row.value_json or "") for row in rows}
+
+
+def _parse_json_value(payload: str | None) -> dict:
+    try:
+        import json
+
+        value = json.loads(payload or "{}")
+    except Exception:
+        value = {}
+    return value if isinstance(value, dict) else {}
+
+
 @router.get("/products")
 def list_products(limit: int | None = None, authorization: str | None = Header(default=None), db: Session = Depends(get_db)):
     products = db.query(Product).order_by(Product.created_at.desc()).all()
@@ -297,24 +326,33 @@ def list_products(limit: int | None = None, authorization: str | None = Header(d
     youtube_map = _get_product_youtube_map(db)
     is_authenticated = bool(str(authorization or "").strip())
 
+    # Batch-load per-product AppSettings rows once instead of querying per product in the loop below.
+    code_values = _batch_load_appsettings_by_prefix(db, "product_code:")
+    service_meta_values = _batch_load_appsettings_by_prefix(db, "product_service_meta:")
+    inventory_values = _batch_load_appsettings_by_prefix(db, "company_inventory:")
+
     out = []
     for p in products:
         if bool(hidden_map.get(p.id, False)) and not is_authenticated:
             continue
         m = meta_map.get(p.id)
-        inventory_record = get_company_inventory_record(db, p.id)
+        inventory_record = _parse_json_value(inventory_values.get(p.id))
         mrp = float(m.mrp if m and m.mrp else p.price)
         discount_percent = float(m.discount_percent if m else 0)
         gst_percent = float(m.gst_percent if m else 0)
         price = float(p.price)
-        service_meta = _load_product_service_meta(db, p.id)
+        service_meta = _parse_json_value(service_meta_values.get(p.id))
         category_rule = _category_delivery_rule(settings, p.category)
         if price <= 0:
             price = round(mrp * (1 - (discount_percent / 100)), 2)
+        product_code = _parse_product_code_value(code_values.get(p.id))
+        if not product_code:
+            # Rare path: only hits the DB when a code hasn't been generated yet for this product.
+            product_code = _ensure_product_code(db, p.id, (m.product_type if m else "metho") or "metho")
         out.append(
             {
                 "id": p.id,
-                "product_code": _ensure_product_code(db, p.id, (m.product_type if m else "metho") or "metho"),
+                "product_code": product_code,
                 "name": p.name,
                 "category": p.category,
                 "description": p.description,

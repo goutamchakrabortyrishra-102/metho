@@ -752,57 +752,71 @@ export default function PartnerDashboardPage() {
 
   useEffect(() => {
     let cancelled = false;
+    let idleId = null;
+    let timerId = null;
     setDeliveryMetaBusy(true);
-    import("indian-pincodes")
-      .then((mod) => {
-        if (cancelled) return;
-        const pkg = mod?.default || mod;
-        const allRows = typeof pkg?.getAllPincodes === "function" ? pkg.getAllPincodes() : [];
-        const rows = Array.isArray(allRows) ? allRows : [];
-        const statesSet = new Set();
-        const districtsMap = {};
-        const citiesMap = {};
 
-        rows.forEach((row) => {
-          const state = String(row?.state || "").trim();
-          const district = String(row?.district || "").trim();
-          const city = String(row?.name || "").trim();
-          if (!state || !district) return;
-          statesSet.add(state);
-          if (!districtsMap[state]) districtsMap[state] = new Set();
-          districtsMap[state].add(district);
-          if (city) {
-            const key = `${state.toLowerCase()}||${district.toLowerCase()}`;
-            if (!citiesMap[key]) citiesMap[key] = new Set();
-            citiesMap[key].add(city);
+    const loadDeliveryLocationMeta = () => {
+      import("indian-pincodes")
+        .then((mod) => {
+          if (cancelled) return;
+          const pkg = mod?.default || mod;
+          const allRows = typeof pkg?.getAllPincodes === "function" ? pkg.getAllPincodes() : [];
+          const rows = Array.isArray(allRows) ? allRows : [];
+          const statesSet = new Set();
+          const districtsMap = {};
+          const citiesMap = {};
+
+          rows.forEach((row) => {
+            const state = String(row?.state || "").trim();
+            const district = String(row?.district || "").trim();
+            const city = String(row?.name || "").trim();
+            if (!state || !district) return;
+            statesSet.add(state);
+            if (!districtsMap[state]) districtsMap[state] = new Set();
+            districtsMap[state].add(district);
+            if (city) {
+              const key = `${state.toLowerCase()}||${district.toLowerCase()}`;
+              if (!citiesMap[key]) citiesMap[key] = new Set();
+              citiesMap[key].add(city);
+            }
+          });
+
+          const states = Array.from(statesSet).sort((a, b) => a.localeCompare(b));
+          const districtsByState = Object.fromEntries(
+            Object.entries(districtsMap).map(([state, districts]) => [state, Array.from(districts).sort((a, b) => a.localeCompare(b))])
+          );
+          const citiesByStateDistrict = Object.fromEntries(
+            Object.entries(citiesMap).map(([key, citySet]) => [key, Array.from(citySet).sort((a, b) => a.localeCompare(b))])
+          );
+
+          setDeliveryLocationMeta({
+            states: states.length ? states : [...INDIAN_STATES],
+            districtsByState,
+            citiesByStateDistrict,
+          });
+        })
+        .catch(() => {
+          if (!cancelled) {
+            setDeliveryLocationMeta({ states: [...INDIAN_STATES], districtsByState: {}, citiesByStateDistrict: {} });
           }
+        })
+        .finally(() => {
+          if (!cancelled) setDeliveryMetaBusy(false);
         });
+    };
 
-        const states = Array.from(statesSet).sort((a, b) => a.localeCompare(b));
-        const districtsByState = Object.fromEntries(
-          Object.entries(districtsMap).map(([state, districts]) => [state, Array.from(districts).sort((a, b) => a.localeCompare(b))])
-        );
-        const citiesByStateDistrict = Object.fromEntries(
-          Object.entries(citiesMap).map(([key, citySet]) => [key, Array.from(citySet).sort((a, b) => a.localeCompare(b))])
-        );
-
-        setDeliveryLocationMeta({
-          states: states.length ? states : [...INDIAN_STATES],
-          districtsByState,
-          citiesByStateDistrict,
-        });
-      })
-      .catch(() => {
-        if (!cancelled) {
-          setDeliveryLocationMeta({ states: [...INDIAN_STATES], districtsByState: {}, citiesByStateDistrict: {} });
-        }
-      })
-      .finally(() => {
-        if (!cancelled) setDeliveryMetaBusy(false);
-      });
+    // Defer this heavy dataset load to idle time so it never blocks the dashboard's first paint.
+    if (typeof window !== "undefined" && typeof window.requestIdleCallback === "function") {
+      idleId = window.requestIdleCallback(loadDeliveryLocationMeta, { timeout: 2000 });
+    } else {
+      timerId = window.setTimeout(loadDeliveryLocationMeta, 450);
+    }
 
     return () => {
       cancelled = true;
+      if (idleId !== null && typeof window !== "undefined" && typeof window.cancelIdleCallback === "function") window.cancelIdleCallback(idleId);
+      if (timerId !== null) window.clearTimeout(timerId);
     };
   }, []);
 

@@ -390,7 +390,7 @@ export default function DirectoryPage() {
                   </div>
                   <div className="flex items-start gap-3">
                     <div className="w-14 h-14 rounded-xl bg-emerald-950 text-amber-400 flex items-center justify-center shrink-0 overflow-hidden">
-                      {p.logo_url ? <img src={resolveAssetUrl(p.logo_url)} alt="" className="w-full h-full object-cover" /> : <Building2 className="w-7 h-7" />}
+                      {p.logo_url ? <img src={resolveAssetUrl(p.logo_url)} alt="" className="w-full h-full object-cover" loading="lazy" decoding="async" /> : <Building2 className="w-7 h-7" />}
                     </div>
                     <div className="min-w-0 flex-1 pr-16">
                       <p className="text-[10px] uppercase tracking-widest text-emerald-800 font-bold">{p.partner_code}</p>
@@ -471,7 +471,7 @@ function PartnerCard({ p, openDeliveryTab = false, showDeliveryRate = false }) {
       <Link to={shopLink} className="block">
         <div className="flex items-start gap-3">
           <div className="w-12 h-12 rounded-xl bg-emerald-100 flex items-center justify-center shrink-0 overflow-hidden">
-            {p.logo_url ? <img src={resolveAssetUrl(p.logo_url)} alt="" className="w-full h-full object-cover" /> : <Building2 className="w-6 h-6 text-emerald-800" />}
+            {p.logo_url ? <img src={resolveAssetUrl(p.logo_url)} alt="" className="w-full h-full object-cover" loading="lazy" decoding="async" /> : <Building2 className="w-6 h-6 text-emerald-800" />}
           </div>
           <div className="min-w-0 flex-1">
             <p className="text-[10px] uppercase tracking-widest text-emerald-800 font-semibold">{p.partner_code}</p>

@@ -4,6 +4,29 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import "@/index.css";
 import App from "@/App";
 import InstallAppPrompt from "@/components/InstallAppPrompt";
+import { getBackendBaseUrlOrDefault } from "@/lib/utils";
+
+// Ping backend health as early as possible so the connection/TLS handshake is
+// already warming up while the rest of the app bundle is still loading/parsing.
+const warmUpBackend = () => {
+  if (typeof window === "undefined" || typeof fetch !== "function") return;
+  try {
+    const backendUrl = getBackendBaseUrlOrDefault("http://localhost:8000");
+    if (!backendUrl) return;
+
+    const link = document.createElement("link");
+    link.rel = "preconnect";
+    link.href = backendUrl;
+    link.crossOrigin = "anonymous";
+    document.head.appendChild(link);
+
+    fetch(`${backendUrl}/api/health`, { mode: "cors", cache: "no-store", keepalive: true }).catch(() => {});
+  } catch {
+    // Best-effort warm-up only; never block app boot on this.
+  }
+};
+
+warmUpBackend();
 
 const BootMarker = () => {
   React.useEffect(() => {
