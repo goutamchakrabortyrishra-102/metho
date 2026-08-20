@@ -7462,6 +7462,8 @@ def admin_partners(db: Session = Depends(get_db), current_user=Depends(get_curre
             "partner_code": p.partner_code,
             "business_name": p.business_name,
             "business_type": p.business_type,
+            "service_sector": str((_load_json_setting(db, f"partner_classification:partner:{p.id}", {}) or {}).get("service_sector") or ""),
+            "service_category": str((_load_json_setting(db, f"partner_classification:partner:{p.id}", {}) or {}).get("service_category") or ""),
             "contact_person": p.contact_person,
             "phone": p.phone,
             "email": p.email,

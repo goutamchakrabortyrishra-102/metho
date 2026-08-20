@@ -7,7 +7,11 @@ import { Button } from "@/components/ui/button";
 import { useAuth } from "@/contexts/AuthContext";
 
 const ADMIN_ROLES = ["super_admin", "company_admin", "admin"];
-const isCreative = (item) => /singing|music|poetry|recitation|kobita|dance|recording|studio|acting|creative|media/i.test([item.business_type, item.business_name, item.notes, item.business_description].join(" "));
+const isCreative = (item) => {
+  const sector = String(item.service_sector || "").toLowerCase();
+  if (sector) return sector.includes("creative") || sector.includes("media");
+  return /singing|music|poetry|recitation|kobita|dance|recording|studio|acting|creative|media/i.test([item.business_type, item.business_name, item.notes, item.business_description].join(" "));
+};
 const isCreativeOrder = (order) => /singing|music|poetry|recitation|dance|recording|studio|creative|media/i.test(JSON.stringify(order));
 
 export default function AdminCreativeMediaPage() {

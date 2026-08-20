@@ -8,7 +8,11 @@ import { useAuth } from "@/contexts/AuthContext";
 
 const ADMIN_ROLES = ["super_admin", "company_admin", "admin"];
 const normalize = (value) => String(value || "").toLowerCase();
-const isCourier = (item) => /courier|logistics|parcel|delivery|cargo/i.test([item.business_type, item.business_name, item.notes, item.business_description].join(" "));
+const isCourier = (item) => {
+  const sector = String(item.service_sector || "").toLowerCase();
+  if (sector) return sector.includes("delivery") || sector.includes("courier") || sector.includes("logistics");
+  return /courier|logistics|parcel|delivery|cargo/i.test([item.business_type, item.business_name, item.notes, item.business_description].join(" "));
+};
 const liveLocationUrl = (location) => {
   const latitude = Number(location?.latitude);
   const longitude = Number(location?.longitude);
