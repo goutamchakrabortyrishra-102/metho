@@ -1752,11 +1752,26 @@ def _clear_current_admin_transaction_data(db: Session) -> dict:
     owner_ids = [str((owner or {}).get("id") or "").strip() for owner in _store_owner_docs(db) if isinstance(owner, dict)]
     owner_ids = [owner_id for owner_id in owner_ids if owner_id]
 
+    # Delete child rows first to satisfy FK constraints on stricter DB engines.
+    deleted_payment_records = db.query(PaymentRecord).delete(synchronize_session=False)
+    deleted_invoice_records = db.query(InvoiceRecord).delete(synchronize_session=False)
+    deleted_reward_records = db.query(RewardRecord).delete(synchronize_session=False)
     deleted_public_orders = db.query(PublicOrder).delete(synchronize_session=False)
+    deleted_financial_ledger_entries = db.query(FinancialLedgerEntry).delete(synchronize_session=False)
+    deleted_orders = db.query(Order).delete(synchronize_session=False)
+
     cleared_admin_ledger = db.query(AppSetting).filter(AppSetting.key == ADMIN_ACCOUNTS_LEDGER_KEY).delete(synchronize_session=False)
     cleared_partner_topups = db.query(AppSetting).filter(AppSetting.key.like("partner_topup:%")).delete(synchronize_session=False)
     cleared_transport_bookings = db.query(AppSetting).filter(AppSetting.key.like("transport_trip:%")).delete(synchronize_session=False)
     cleared_delivery_bookings = db.query(AppSetting).filter(AppSetting.key.like("delivery_trip:%")).delete(synchronize_session=False)
+    cleared_customer_order_contacts = db.query(AppSetting).filter(AppSetting.key.like("order_contact:%")).delete(synchronize_session=False)
+    cleared_customer_mobile_otps = db.query(AppSetting).filter(AppSetting.key.like("customer_mobile_otp:%")).delete(synchronize_session=False)
+    cleared_company_inventory = db.query(AppSetting).filter(AppSetting.key.like("company_inventory:%")).delete(synchronize_session=False)
+    cleared_product_code_rows = db.query(AppSetting).filter(AppSetting.key.like("product_code:%")).delete(synchronize_session=False)
+    cleared_property_enquiries = db.query(AppSetting).filter(AppSetting.key.like("property_enquiry:%")).delete(synchronize_session=False)
+    cleared_partner_driver_rows = db.query(AppSetting).filter(AppSetting.key.like("partner_driver:%")).delete(synchronize_session=False)
+    cleared_other_trip_rows = db.query(AppSetting).filter(AppSetting.key.like("%_trip:%")).delete(synchronize_session=False)
+    cleared_other_booking_rows = db.query(AppSetting).filter(AppSetting.key.like("%_booking:%")).delete(synchronize_session=False)
 
     cleared_store_invoices = 0
     for owner_id in owner_ids:
@@ -1770,15 +1785,27 @@ def _clear_current_admin_transaction_data(db: Session) -> dict:
     db.commit()
     return {
         "deleted_public_orders": int(deleted_public_orders or 0),
+        "deleted_payment_records": int(deleted_payment_records or 0),
+        "deleted_invoice_records": int(deleted_invoice_records or 0),
+        "deleted_financial_ledger_entries": int(deleted_financial_ledger_entries or 0),
+        "deleted_reward_records": int(deleted_reward_records or 0),
+        "deleted_orders": int(deleted_orders or 0),
         "cleared_admin_ledger": int(cleared_admin_ledger or 0),
         "cleared_partner_topups": int(cleared_partner_topups or 0),
         "cleared_transport_bookings": int(cleared_transport_bookings or 0),
         "cleared_delivery_bookings": int(cleared_delivery_bookings or 0),
+        "cleared_customer_order_contacts": int(cleared_customer_order_contacts or 0),
+        "cleared_customer_mobile_otps": int(cleared_customer_mobile_otps or 0),
+        "cleared_company_inventory": int(cleared_company_inventory or 0),
+        "cleared_product_code_rows": int(cleared_product_code_rows or 0),
+        "cleared_property_enquiries": int(cleared_property_enquiries or 0),
+        "cleared_partner_driver_rows": int(cleared_partner_driver_rows or 0),
+        "cleared_other_trip_rows": int(cleared_other_trip_rows or 0),
+        "cleared_other_booking_rows": int(cleared_other_booking_rows or 0),
         "cleared_store_invoice_sets": int(cleared_store_invoices or 0),
         "cleared_withdrawals": int(withdrawal_count or 0),
         "cleared_mps_claims": int(mps_claim_count or 0),
     }
-    return payload
 
 
 def _load_transport_trip(db: Session, trip_id: str) -> dict | None:
