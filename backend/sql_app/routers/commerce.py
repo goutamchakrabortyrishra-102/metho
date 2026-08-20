@@ -17,6 +17,7 @@ router = APIRouter(prefix="/api", tags=["commerce"])
 
 # METHO Vegetable is a distinct storefront/sector but priced identically to METHO products (GST-inclusive).
 GST_QUALIFIED_PRODUCT_TYPES = {"metho", "metho_vegetable"}
+VEGETABLE_UNIT_TYPES = {"piece", "kg", "gram"}
 
 
 def _product_code_key(product_id: str) -> str:
@@ -76,6 +77,11 @@ def _validate_booking_window(payload: ProductCreate) -> tuple[str, str]:
 
 def _save_product_service_meta(db: Session, product_id: str, payload: ProductCreate) -> dict:
     is_service = str(payload.product_type or "").strip().lower() == "metho_service"
+    product_type = str(payload.product_type or "").strip().lower()
+    unit_type = str(getattr(payload, "unit_type", "piece") or "piece").strip().lower()
+    if product_type != "metho_vegetable" or unit_type not in VEGETABLE_UNIT_TYPES:
+        unit_type = "piece"
+    quantity_step = 0.1 if unit_type == "kg" else 100.0 if unit_type == "gram" else 1.0
     try:
         commission = float(payload.commission_percent) if payload.commission_percent is not None else None
     except (TypeError, ValueError):
@@ -92,6 +98,9 @@ def _save_product_service_meta(db: Session, product_id: str, payload: ProductCre
         "free_delivery_threshold": max(0.0, float(getattr(payload, "free_delivery_threshold", 0) or 0)),
         "booking_available_from": available_from,
         "booking_available_until": available_until,
+        "unit_type": unit_type,
+        "unit_label": unit_type,
+        "quantity_step": quantity_step,
     }
     key = _product_service_meta_key(product_id)
     row = db.query(AppSetting).filter(AppSetting.key == key).first()
@@ -378,6 +387,9 @@ def list_products(limit: int | None = None, authorization: str | None = Header(d
                 "free_delivery_threshold": max(0.0, float(service_meta.get("free_delivery_threshold") or 0)) or category_rule["free_delivery_threshold"],
                 "booking_available_from": str(service_meta.get("booking_available_from") or "").strip(),
                 "booking_available_until": str(service_meta.get("booking_available_until") or "").strip(),
+                "unit_type": str(service_meta.get("unit_type") or "piece"),
+                "unit_label": str(service_meta.get("unit_label") or service_meta.get("unit_type") or "piece"),
+                "quantity_step": float(service_meta.get("quantity_step") or 1),
             }
         )
     if not is_authenticated:

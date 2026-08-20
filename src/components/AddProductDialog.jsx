@@ -90,6 +90,7 @@ export default function AddProductDialog({
     free_delivery_threshold: "",
     booking_available_from: "",
     booking_available_until: "",
+    unit_type: "piece",
   });
   const [partners, setPartners] = useState([]);
   const [generating, setGenerating] = useState(false);
@@ -150,6 +151,7 @@ export default function AddProductDialog({
         free_delivery_threshold: String(product.free_delivery_threshold ?? ""),
         booking_available_from: product.booking_available_from || "",
         booking_available_until: product.booking_available_until || "",
+        unit_type: product.unit_type || "piece",
       });
       return;
     }
@@ -169,7 +171,7 @@ export default function AddProductDialog({
 
   const resetForm = () => setForm({
     name: "", category: categories[0] || "Health & Wellness", price: "", purchase_cost: "", mrp: "", discount_percent: "", gst_percent: "", stock: "",
-    description: "", image_url: "", product_type: defaultProductType, pricing_tiers_input: "", youtube_url: "", commission_percent: "", service_booking_enabled: false, service_template_key: "", delivery_charge: "", free_delivery_threshold: "", booking_available_from: "", booking_available_until: "",
+    description: "", image_url: "", product_type: defaultProductType, pricing_tiers_input: "", youtube_url: "", commission_percent: "", service_booking_enabled: false, service_template_key: "", delivery_charge: "", free_delivery_threshold: "", booking_available_from: "", booking_available_until: "", unit_type: "piece",
   });
 
   const parsePricingTiers = (raw) => {
@@ -483,6 +485,7 @@ export default function AddProductDialog({
         commission_percent: toNumberOrNull(form.commission_percent),
         delivery_charge: Number(form.delivery_charge || 0),
         free_delivery_threshold: Number(form.free_delivery_threshold || 0),
+        unit_type: form.product_type === "metho_vegetable" ? form.unit_type : "piece",
       };
       let data;
       if (isEdit) {
@@ -767,10 +770,27 @@ export default function AddProductDialog({
               <Input required type="number" value={form.price} onChange={setF("price")} data-testid="new-product-price-input" className="mt-1.5" />
             </div>
             <div>
-              <Label>Stock</Label>
+              <Label>{form.product_type === "metho_vegetable" && form.unit_type !== "piece" ? `Stock (${form.unit_type})` : "Stock"}</Label>
               <Input type="number" value={form.stock} onChange={setF("stock")} data-testid="new-product-stock-input" className="mt-1.5" placeholder="0" />
             </div>
           </div>
+
+          {form.product_type === "metho_vegetable" ? (
+            <div className="rounded-xl border border-emerald-200 bg-emerald-50/60 p-4">
+              <Label>Vegetable Sales Unit</Label>
+              <Select value={form.unit_type} onValueChange={(unit_type) => setForm({ ...form, unit_type })}>
+                <SelectTrigger className="mt-1.5 max-w-sm" data-testid="vegetable-unit-type-select"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="kg">Kilogram (cart starts at 100g)</SelectItem>
+                  <SelectItem value="gram">Gram (cart starts at 100g)</SelectItem>
+                  <SelectItem value="piece">Piece (e.g. cauliflower)</SelectItem>
+                </SelectContent>
+              </Select>
+              <p className="mt-2 text-[11px] text-emerald-900">
+                {form.unit_type === "piece" ? "Customer can order 1, 2, 3 pieces." : `Rate is per ${form.unit_type}; customer quantity starts at ${form.unit_type === "kg" ? "0.1 kg (100g)" : "100g"}.`}
+              </p>
+            </div>
+          ) : null}
 
           {(form.product_type === "metho" || form.product_type === "metho_vegetable") && (
             <div>

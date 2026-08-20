@@ -62,6 +62,7 @@ class ProductCreate(BaseModel):
     free_delivery_threshold: float = 0
     booking_available_from: str = ""
     booking_available_until: str = ""
+    unit_type: str = "piece"
 
 
 class OrderCreate(BaseModel):

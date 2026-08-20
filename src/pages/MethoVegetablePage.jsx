@@ -88,6 +88,23 @@ const calcTieredSubtotal = (quantity, unitPrice, tiers) => {
   return Number(dp[qty].toFixed(2));
 };
 
+const getUnitType = (product) => {
+  const unit = String(product?.unit_type || "piece").trim().toLowerCase();
+  return ["kg", "gram", "piece"].includes(unit) ? unit : "piece";
+};
+
+const getQuantityStep = (product) => {
+  const unit = getUnitType(product);
+  return unit === "kg" ? 0.1 : unit === "gram" ? 100 : 1;
+};
+
+const formatQuantity = (quantity, product) => {
+  const value = Number(quantity || 0);
+  const label = getUnitType(product);
+  const text = Number.isInteger(value) ? String(value) : String(Number(value.toFixed(3)));
+  return label === "piece" ? `${text} pc` : `${text} ${label}`;
+};
+
 const getCustomerUnitPrice = (product) => getGstInclusivePrice(product?.price, Number(product?.gst_percent || 0));
 
 const getCustomerPricingTiers = (product) => {
@@ -185,7 +202,8 @@ export default function MethoVegetablePage() {
       Object.entries(prev).forEach(([id, qty]) => {
         const p = vegetableProducts.find((x) => x.id === id);
         const stock = getStock(p);
-        const normalizedQty = Math.min(Math.max(0, Number(qty) || 0), stock);
+        const step = getQuantityStep(p);
+        const normalizedQty = Math.min(Math.max(0, Math.round((Number(qty) || 0) / step) * step), stock);
         if (normalizedQty > 0) next[id] = normalizedQty;
       });
       return next;
@@ -209,16 +227,20 @@ export default function MethoVegetablePage() {
       return;
     }
     setCart((c) => {
-      const current = c[product.id] || 0;
-      if (current >= stock) {
+      const step = getQuantityStep(product);
+      const current = Number(c[product.id] || 0);
+      if (current + step > stock + 0.0001) {
         toast.error(`${product?.name || "Item"}: max available stock is ${stock}`);
         return c;
       }
-      return { ...c, [product.id]: current + 1 };
+      return { ...c, [product.id]: Number((current + step).toFixed(3)) };
     });
   };
 
-  const dec = (id) => setCart((c) => ({ ...c, [id]: Math.max(0, (c[id] || 0) - 1) }));
+  const dec = (product) => setCart((c) => ({
+    ...c,
+    [product.id]: Math.max(0, Number((Number(c[product.id] || 0) - getQuantityStep(product)).toFixed(3))),
+  }));
 
   const items = useMemo(
     () =>
@@ -228,7 +250,10 @@ export default function MethoVegetablePage() {
           const p = vegetableProducts.find((x) => x.id === id);
           if (!p) return null;
           const customerPrice = getCustomerUnitPrice(p);
-          const subtotal = calcTieredSubtotal(qty, customerPrice, getCustomerPricingTiers(p));
+          const weighted = getUnitType(p) !== "piece";
+          const subtotal = weighted
+            ? Number((Number(qty) * customerPrice).toFixed(2))
+            : calcTieredSubtotal(qty, customerPrice, getCustomerPricingTiers(p));
           const deliveryCharge = Math.max(0, Number(p?.delivery_charge || 0));
           return {
             id,
@@ -241,6 +266,9 @@ export default function MethoVegetablePage() {
             image_url: p?.image_url || "",
             category: p?.category || "",
             product_type: VEGETABLE_PRODUCT_TYPE,
+            unit_type: getUnitType(p),
+            unit_label: getUnitType(p),
+            quantity_step: getQuantityStep(p),
             is_service: false,
             listing_type: "product",
             item_kind: "product",
@@ -376,7 +404,7 @@ export default function MethoVegetablePage() {
                   <h4 className="mt-1 font-display font-bold text-emerald-950 line-clamp-1">{p.name}</h4>
                   <p className="text-xs text-muted-foreground mt-1 line-clamp-2 font-body whitespace-pre-line">{p.description}</p>
                   <div className="mt-3 flex items-center justify-between">
-                    <span className="font-display font-black text-xl text-emerald-950">₹{getCustomerUnitPrice(p).toLocaleString("en-IN")}</span>
+                    <span className="font-display font-black text-xl text-emerald-950">₹{getCustomerUnitPrice(p).toLocaleString("en-IN")}{getUnitType(p) === "piece" ? "" : `/${getUnitType(p)}`}</span>
                     {isOutOfStock ? (
                       <span className="text-[10px] px-2 py-0.5 rounded-full font-semibold bg-red-100 text-red-700">Out of Stock</span>
                     ) : null}
@@ -384,10 +412,10 @@ export default function MethoVegetablePage() {
                   <div className="mt-3">
                     {(cart[p.id] || 0) > 0 ? (
                       <div className="flex items-center justify-between bg-emerald-50 rounded-full px-2 py-1" data-testid={`vegetable-qty-wrap-${i}`}>
-                        <button type="button" onClick={() => dec(p.id)} className="w-7 h-7 rounded-full bg-white hover:bg-emerald-100 flex items-center justify-center" data-testid={`vegetable-dec-${i}`}>
+                        <button type="button" onClick={() => dec(p)} className="w-7 h-7 rounded-full bg-white hover:bg-emerald-100 flex items-center justify-center" data-testid={`vegetable-dec-${i}`}>
                           <Minus className="w-3.5 h-3.5" />
                         </button>
-                        <span className="font-bold text-emerald-950 text-sm" data-testid={`vegetable-qty-${i}`}>{cart[p.id] || 0}</span>
+                        <span className="font-bold text-emerald-950 text-sm" data-testid={`vegetable-qty-${i}`}>{formatQuantity(cart[p.id], p)}</span>
                         <button type="button" onClick={() => inc(p)} className="w-7 h-7 rounded-full bg-white hover:bg-emerald-100 flex items-center justify-center" data-testid={`vegetable-inc-${i}`}>
                           <Plus className="w-3.5 h-3.5" />
                         </button>
@@ -440,7 +468,7 @@ export default function MethoVegetablePage() {
               <h3 className="font-display font-black text-emerald-950 text-xl mt-1">{previewProduct?.name || "Vegetable"}</h3>
               {previewProduct?.description ? <p className="text-sm text-slate-600 mt-2 whitespace-pre-line">{previewProduct.description}</p> : <p className="text-sm text-slate-500 mt-2">No description provided.</p>}
               <div className="mt-3 flex items-center justify-between">
-                <span className="font-display font-black text-3xl text-emerald-950">₹{getCustomerUnitPrice(previewProduct).toLocaleString("en-IN")}</span>
+                <span className="font-display font-black text-3xl text-emerald-950">₹{getCustomerUnitPrice(previewProduct).toLocaleString("en-IN")}{getUnitType(previewProduct) === "piece" ? "" : `/${getUnitType(previewProduct)}`}</span>
                 {Math.max(0, Number(previewProduct?.stock ?? 0)) <= 0 ? <span className="text-sm text-slate-500">Out of Stock</span> : null}
               </div>
             </div>
@@ -483,7 +511,7 @@ export default function MethoVegetablePage() {
           const product = vegetableProducts.find((p) => p.id === item.id);
           if (!product) return;
           if (delta > 0) inc(product);
-          else dec(item.id);
+          else dec(product);
         }}
         onOrderPlaced={() => {
           setCheckoutOpen(false);

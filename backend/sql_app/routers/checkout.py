@@ -1085,6 +1085,12 @@ def create_public_order(payload: dict, db: Session = Depends(get_db), authorizat
                 "service_template_key": str(global_service_meta.get("service_template_key") or "").strip().lower(),
                 "delivery_charge": max(0.0, float(global_service_meta.get("delivery_charge") or 0)),
             }
+        elif product_type == "metho_vegetable":
+            unit_type = str(global_service_meta.get("unit_type") or "piece").strip().lower()
+            if unit_type not in {"piece", "kg", "gram"}:
+                unit_type = "piece"
+            quantity_step = 0.1 if unit_type == "kg" else 100.0 if unit_type == "gram" else 1.0
+            unit_info = {"unit_type": unit_type, "unit_label": unit_type, "quantity_step": quantity_step}
 
         if unit_info["unit_type"] == "piece":
             qty = max(1, int(round(qty_value or 1)))
@@ -1107,6 +1113,9 @@ def create_public_order(payload: dict, db: Session = Depends(get_db), authorizat
         elif product_type == "associate_partner" and enable_partner_slab_pricing:
             pricing_tiers = _normalize_pricing_tiers(pricing_tier_map.get(product.id, []))
         if product_type == "associate_partner" and unit_info["unit_type"] != "piece":
+            base_subtotal = round(unit_price * float(qty), 2)
+            tier_breakdown = [{"qty": float(qty), "count": 1, "price": round(unit_price, 2)}]
+        elif product_type == "metho_vegetable" and unit_info["unit_type"] != "piece":
             base_subtotal = round(unit_price * float(qty), 2)
             tier_breakdown = [{"qty": float(qty), "count": 1, "price": round(unit_price, 2)}]
         else:
