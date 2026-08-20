@@ -30,6 +30,13 @@ const guideWhatsAppUrl = (guide, orderNo) => {
   if (!number) return "";
   return `https://wa.me/${number}?text=${encodeURIComponent(`Hello ${guide?.name || "Guide"}, I am contacting you about ${orderNo}.`)}`;
 };
+const formatOrderItemQuantity = (item) => {
+  const quantity = Number(item?.quantity || 0);
+  const text = Number.isInteger(quantity) ? String(quantity) : String(Number(quantity.toFixed(3)));
+  const unit = String(item?.unit_label || item?.unit_type || "piece").trim().toLowerCase();
+  if (unit === "piece") return `${text} pc`;
+  return `${text} ${unit}`;
+};
 
 export default function OrdersPage() {
   const { user } = useAuth();
@@ -132,7 +139,7 @@ export default function OrdersPage() {
             itemY = 14;
           }
           doc.setTextColor(51, 65, 85);
-          doc.text(`- ${item.product_name || "Item"} x${item.quantity}`, 14, itemY);
+          doc.text(`- ${item.product_name || "Item"} x${formatOrderItemQuantity(item)}`, 14, itemY);
           doc.text(`₹${Number(item.subtotal || 0).toLocaleString("en-IN")}`, W - 14, itemY, { align: "right" });
           itemY += 4.5;
         });
@@ -230,7 +237,7 @@ export default function OrdersPage() {
               <div className="mt-4 divide-y divide-border border-t border-border">
                 {o.items?.map((it, j) => (
                   <div key={j} className="py-2 flex justify-between text-sm">
-                    <span className="text-slate-700">{it.product_name} × {it.quantity}</span>
+                    <span className="text-slate-700">{it.product_name} × {formatOrderItemQuantity(it)}</span>
                     <span className="font-semibold">₹{it.subtotal?.toLocaleString("en-IN")}</span>
                   </div>
                 ))}

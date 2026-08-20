@@ -350,6 +350,18 @@ export default function ProductsPage() {
     category,
     items: scopedProducts.filter((p) => p.category === category),
   })).filter((g) => g.items.length > 0);
+  const vegetableInventory = scopedProducts.map((product) => {
+    const unit = ["kg", "gram", "piece"].includes(String(product?.unit_type || "").toLowerCase())
+      ? String(product.unit_type).toLowerCase()
+      : "piece";
+    const stock = Math.max(0, Number(product?.stock || 0));
+    return {
+      ...product,
+      unit,
+      stock,
+      isLowStock: stock <= 0 || (unit === "piece" ? stock <= 5 : stock <= (unit === "kg" ? 1 : 1000)),
+    };
+  });
 
   const productCard = (p, i) => (
     (() => {
@@ -607,6 +619,58 @@ export default function ProductsPage() {
           setOpen(false);
         }}
       />
+
+      {isVegetableAdmin && isAdmin ? (
+        <section className="border border-emerald-200 bg-emerald-50/50" data-testid="vegetable-inventory-panel">
+          <div className="flex flex-wrap items-center justify-between gap-3 border-b border-emerald-200 px-4 py-3">
+            <div>
+              <p className="text-xs uppercase tracking-[0.18em] text-emerald-800 font-semibold">Vegetable Inventory</p>
+              <p className="mt-1 text-sm text-slate-600">প্রতিদিনের rate বা stock update করতে কোনো item-এর পাশে Edit Rate &amp; Stock চাপুন।</p>
+            </div>
+            <div className="flex items-center gap-2 text-xs font-semibold">
+              <span className="rounded-full bg-white px-3 py-1.5 text-emerald-900">{vegetableInventory.length} items</span>
+              <span className="rounded-full bg-amber-100 px-3 py-1.5 text-amber-900">{vegetableInventory.filter((item) => item.isLowStock).length} low stock</span>
+            </div>
+          </div>
+          <div className="overflow-x-auto">
+            <table className="w-full min-w-[660px] text-left text-sm">
+              <thead className="bg-white/80 text-xs uppercase tracking-wider text-slate-500">
+                <tr>
+                  <th className="px-4 py-3 font-semibold">Vegetable</th>
+                  <th className="px-4 py-3 font-semibold">Category</th>
+                  <th className="px-4 py-3 font-semibold">Rate</th>
+                  <th className="px-4 py-3 font-semibold">Available Stock</th>
+                  <th className="px-4 py-3 font-semibold">Status</th>
+                  <th className="px-4 py-3 font-semibold text-right">Action</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-emerald-100 bg-white">
+                {vegetableInventory.map((item) => (
+                  <tr key={item.id}>
+                    <td className="px-4 py-3 font-semibold text-emerald-950">{item.name}</td>
+                    <td className="px-4 py-3 text-slate-600">{item.category || "Other Vegetables"}</td>
+                    <td className="px-4 py-3 text-slate-700">₹{getCustomerUnitPrice(item).toLocaleString("en-IN")}{item.unit === "piece" ? " / pc" : ` / ${item.unit}`}</td>
+                    <td className="px-4 py-3 font-semibold text-slate-800">{item.stock} {item.unit === "piece" ? "pc" : item.unit}</td>
+                    <td className="px-4 py-3">
+                      <span className={"inline-flex rounded-full px-2.5 py-1 text-xs font-semibold " + (item.hidden ? "bg-slate-100 text-slate-600" : item.isLowStock ? "bg-amber-100 text-amber-900" : "bg-emerald-100 text-emerald-800")}>
+                        {item.hidden ? "Hidden" : item.isLowStock ? "Low Stock" : "Available"}
+                      </span>
+                    </td>
+                    <td className="px-4 py-3 text-right">
+                      <Button type="button" size="sm" variant="outline" className="rounded-full" onClick={() => openEdit(item)} data-testid={`vegetable-inventory-edit-${item.id}`}>
+                        <Pencil className="mr-1 h-3.5 w-3.5" /> Edit Rate &amp; Stock
+                      </Button>
+                    </td>
+                  </tr>
+                ))}
+                {vegetableInventory.length === 0 ? (
+                  <tr><td colSpan={6} className="px-4 py-6 text-center text-slate-500">No vegetable inventory yet. Add your first vegetable above.</td></tr>
+                ) : null}
+              </tbody>
+            </table>
+          </div>
+        </section>
+      ) : null}
 
       <div className="flex flex-wrap items-center gap-2" data-testid="product-category-filters">
         <Button

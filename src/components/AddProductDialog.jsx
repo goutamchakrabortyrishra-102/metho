@@ -23,6 +23,15 @@ const CATEGORIES = [
   "Utilities",
 ];
 
+const VEGETABLE_CATEGORIES = [
+  "Leafy Vegetables",
+  "Root Vegetables",
+  "Fruit Vegetables",
+  "Cruciferous Vegetables",
+  "Herbs & Greens",
+  "Other Vegetables",
+];
+
 const normalizeCategories = (value) => {
   if (Array.isArray(value)) return value;
   if (typeof value === "string") {
@@ -104,15 +113,22 @@ export default function AddProductDialog({
   const [renameValue, setRenameValue] = useState("");
   const fileRef = useRef(null);
   const isEdit = Boolean(product?.id);
+  const isVegetableDialog = defaultProductType === "metho_vegetable" || product?.product_type === "metho_vegetable";
   const gstPreview = calculateGstPreview(form.price, form.gst_percent);
   const formatPreviewAmount = (value) => Number(value || 0).toLocaleString("en-IN", { maximumFractionDigits: 2 });
 
   const categories = useMemo(() => {
+    if (isVegetableDialog) {
+      const currentCategory = String(product?.category || "").trim();
+      const configured = normalizeCategories(settings?.vegetable_categories);
+      const source = configured.length ? configured : VEGETABLE_CATEGORIES;
+      return currentCategory && !source.includes(currentCategory) ? [...source, currentCategory] : source;
+    }
     const source = normalizeCategories(settings?.product_categories);
     return (source.length ? source : CATEGORIES)
       .filter(Boolean)
       .filter((value, index, arr) => arr.indexOf(value) === index);
-  }, [settings?.product_categories]);
+  }, [settings?.product_categories, settings?.vegetable_categories, isVegetableDialog, product?.category]);
 
   useEffect(() => {
     if (open) api.get("/partners").then(r => setPartners(r.data)).catch(() => {});
@@ -120,7 +136,7 @@ export default function AddProductDialog({
 
   useEffect(() => {
     if (!categories.includes(form.category)) {
-      setForm((current) => ({ ...current, category: categories[0] || "Health & Wellness" }));
+      setForm((current) => ({ ...current, category: categories[0] || "Other Vegetables" }));
     }
   }, [categories, form.category]);
 
@@ -170,7 +186,7 @@ export default function AddProductDialog({
   const setF = (k) => (e) => setForm({ ...form, [k]: e.target?.value ?? e });
 
   const resetForm = () => setForm({
-    name: "", category: categories[0] || "Health & Wellness", price: "", purchase_cost: "", mrp: "", discount_percent: "", gst_percent: "", stock: "",
+    name: "", category: categories[0] || "Other Vegetables", price: "", purchase_cost: "", mrp: "", discount_percent: "", gst_percent: "", stock: "",
     description: "", image_url: "", product_type: defaultProductType, pricing_tiers_input: "", youtube_url: "", commission_percent: "", service_booking_enabled: false, service_template_key: "", delivery_charge: "", free_delivery_threshold: "", booking_available_from: "", booking_available_until: "", unit_type: "piece",
   });
 
@@ -318,6 +334,32 @@ export default function AddProductDialog({
     }
   };
 
+  const addVegetableCategory = async () => {
+    const trimmed = newCategory.trim();
+    if (!trimmed) {
+      toast.error("Enter a vegetable category name");
+      return;
+    }
+    const existing = categories.find((category) => category.toLowerCase() === trimmed.toLowerCase());
+    if (existing) {
+      setForm((current) => ({ ...current, category: existing }));
+      setNewCategory("");
+      return;
+    }
+    setSavingCategory(true);
+    try {
+      await api.put("/settings", { vegetable_categories: [...categories, trimmed] });
+      await refresh();
+      setForm((current) => ({ ...current, category: trimmed }));
+      setNewCategory("");
+      toast.success("Vegetable category added");
+    } catch (err) {
+      toast.error(err?.response?.data?.detail || "Category update failed");
+    } finally {
+      setSavingCategory(false);
+    }
+  };
+
   const startRenameCategory = (category) => {
     setEditingCategory(category);
     setRenameValue(category);
@@ -391,7 +433,7 @@ export default function AddProductDialog({
       const { data } = await api.post("/admin/products/generate-description", {
         name: form.name,
         category: form.category,
-        product_type: form.product_type,
+        product_type: isVegetableDialog ? "metho_vegetable" : form.product_type,
         partner_id: form.product_type === "associate_partner" ? (form.partner_id || null) : null,
         delivery_charge: Math.max(0, Number(form.delivery_charge || 0)),
         free_delivery_threshold: Math.max(0, Number(form.free_delivery_threshold || 0)),
@@ -600,9 +642,9 @@ export default function AddProductDialog({
       ) : null}
       <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>{isEdit ? "Edit Product" : "Add New Product"}</DialogTitle>
+          <DialogTitle>{isEdit ? (isVegetableDialog ? "Edit Vegetable" : "Edit Product") : (isVegetableDialog ? "Add METHO Vegetable" : "Add New Product")}</DialogTitle>
           <DialogDescription>
-            {isEdit ? "Edit product তথ্য আপডেট করুন" : "নতুন product details দিয়ে save করুন"}
+            {isVegetableDialog ? "Vegetable rate, unit, stock এবং delivery details দিন" : (isEdit ? "Edit product তথ্য আপডেট করুন" : "নতুন product details দিয়ে save করুন")}
           </DialogDescription>
         </DialogHeader>
         {isEdit ? (
@@ -611,7 +653,7 @@ export default function AddProductDialog({
           </div>
         ) : null}
         <form onSubmit={save} className="space-y-4" data-testid="add-product-form">
-          {!isEdit ? (
+          {!isEdit && !isVegetableDialog ? (
             <div className="rounded-xl border border-amber-300 bg-amber-50 p-3" data-testid="bulk-product-import-panel">
               <p className="text-xs uppercase tracking-wider text-amber-900 font-semibold">METHO Bulk Product Import</p>
               <p className="text-[11px] text-amber-900/80 mt-1">JSON array paste করুন। Required: name, category, এবং price/rate/mrp যেকোনো একটি। Logic: rate = price ধরা হবে, mrp+discount থাকলে auto price হিসাব হবে। Optional: stock, description, image_url, gst_percent, product_type, partner_id, pricing_tiers.</p>
@@ -631,14 +673,14 @@ export default function AddProductDialog({
             </div>
           ) : null}
 
-          <div className="grid md:grid-cols-2 gap-3">
+          <div className={isVegetableDialog ? "grid md:grid-cols-3 gap-3" : "grid md:grid-cols-2 gap-3"}>
             <div>
               <Label>Product Name *</Label>
               <Input
                 required
                 value={form.name}
                 onChange={setF("name")}
-                placeholder="e.g., METHO Organic Turmeric"
+                placeholder={isVegetableDialog ? "e.g., Cauliflower or Potato" : "e.g., METHO Organic Turmeric"}
                 data-testid="new-product-name-input"
                 className="mt-1.5"
               />
@@ -651,7 +693,18 @@ export default function AddProductDialog({
                   {categories.map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)}
                 </SelectContent>
               </Select>
-              <div className="mt-2 flex gap-2">
+              {isVegetableDialog ? <div className="mt-2 flex gap-2">
+                <Input
+                  value={newCategory}
+                  onChange={(e) => setNewCategory(e.target.value)}
+                  placeholder="নিজের category"
+                  data-testid="new-vegetable-category-input"
+                />
+                <Button type="button" onClick={addVegetableCategory} disabled={savingCategory} variant="outline" className="shrink-0 rounded-full" data-testid="add-vegetable-category-button">
+                  {savingCategory ? "Adding..." : "Add"}
+                </Button>
+              </div> : null}
+              {!isVegetableDialog ? <div className="mt-2 flex gap-2">
                 <Input
                   value={newCategory}
                   onChange={(e) => setNewCategory(e.target.value)}
@@ -668,8 +721,8 @@ export default function AddProductDialog({
                 >
                   {savingCategory ? "Adding..." : "Add Category"}
                 </Button>
-              </div>
-              <div className="mt-3 space-y-2 rounded-xl border border-border bg-slate-50 p-3" data-testid="category-manager">
+              </div> : null}
+              {!isVegetableDialog ? <div className="mt-3 space-y-2 rounded-xl border border-border bg-slate-50 p-3" data-testid="category-manager">
                 <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">Manage Categories</p>
                 {categories.map((category, index) => (
                   <div key={category} className="flex items-center gap-2">
@@ -748,8 +801,22 @@ export default function AddProductDialog({
                     )}
                   </div>
                 ))}
-              </div>
+              </div> : null}
             </div>
+            {isVegetableDialog ? (
+              <div className="rounded-xl border border-emerald-200 bg-emerald-50/60 p-3">
+                <Label>Vegetable Sales Unit</Label>
+                <Select value={form.unit_type} onValueChange={(unit_type) => setForm({ ...form, unit_type })}>
+                  <SelectTrigger className="mt-1.5" data-testid="vegetable-unit-type-select"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="kg">Kilogram (100g minimum)</SelectItem>
+                    <SelectItem value="gram">Gram (100g minimum)</SelectItem>
+                    <SelectItem value="piece">Piece (e.g. cauliflower)</SelectItem>
+                  </SelectContent>
+                </Select>
+                <p className="mt-2 text-[11px] text-emerald-900">{form.unit_type === "piece" ? "1, 2, 3 piece করে order হবে." : `Rate প্রতি ${form.unit_type}; minimum order 100g.`}</p>
+              </div>
+            ) : null}
           </div>
 
           <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
@@ -775,23 +842,6 @@ export default function AddProductDialog({
             </div>
           </div>
 
-          {form.product_type === "metho_vegetable" ? (
-            <div className="rounded-xl border border-emerald-200 bg-emerald-50/60 p-4">
-              <Label>Vegetable Sales Unit</Label>
-              <Select value={form.unit_type} onValueChange={(unit_type) => setForm({ ...form, unit_type })}>
-                <SelectTrigger className="mt-1.5 max-w-sm" data-testid="vegetable-unit-type-select"><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="kg">Kilogram (cart starts at 100g)</SelectItem>
-                  <SelectItem value="gram">Gram (cart starts at 100g)</SelectItem>
-                  <SelectItem value="piece">Piece (e.g. cauliflower)</SelectItem>
-                </SelectContent>
-              </Select>
-              <p className="mt-2 text-[11px] text-emerald-900">
-                {form.unit_type === "piece" ? "Customer can order 1, 2, 3 pieces." : `Rate is per ${form.unit_type}; customer quantity starts at ${form.unit_type === "kg" ? "0.1 kg (100g)" : "100g"}.`}
-              </p>
-            </div>
-          ) : null}
-
           {(form.product_type === "metho" || form.product_type === "metho_vegetable") && (
             <div>
               <Label>GST % (METHO / METHO Vegetable product)</Label>
@@ -809,7 +859,7 @@ export default function AddProductDialog({
             </div>
           )}
 
-          {(form.product_type === "metho" || form.product_type === "metho_vegetable" || form.product_type === "metho_service" || form.product_type === "associate_partner") && (
+          {!isVegetableDialog && (form.product_type === "metho" || form.product_type === "metho_vegetable" || form.product_type === "metho_service" || form.product_type === "associate_partner") && (
             <div>
               <Label>Pack / Tier Pricing (qty=price)</Label>
               <Input
@@ -825,7 +875,11 @@ export default function AddProductDialog({
             </div>
           )}
 
-          <div>
+          {isVegetableDialog ? (
+            <div className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-950">
+              Product Type: <span className="font-semibold">METHO Vegetable</span>
+            </div>
+          ) : <div>
             <Label>Product Type</Label>
             <Select value={form.product_type} onValueChange={(v) => setForm({ ...form, product_type: v, partner_id: v === "associate_partner" ? form.partner_id : "", service_booking_enabled: v === "metho_service", service_template_key: v === "metho_service" ? "tourism_booking" : "" })}>
               <SelectTrigger className="mt-1.5" data-testid="new-product-type-select"><SelectValue /></SelectTrigger>
@@ -866,7 +920,7 @@ export default function AddProductDialog({
                 })()}
               </div>
             )}
-          </div>
+          </div>}
 
           {form.product_type !== "associate_partner" && (
             <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-4 space-y-3">

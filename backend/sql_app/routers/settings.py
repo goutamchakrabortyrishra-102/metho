@@ -97,6 +97,14 @@ DEFAULT_SETTINGS = {
         "Nutrition",
         "Utilities",
     ],
+    "vegetable_categories": [
+        "Leafy Vegetables",
+        "Root Vegetables",
+        "Fruit Vegetables",
+        "Cruciferous Vegetables",
+        "Herbs & Greens",
+        "Other Vegetables",
+    ],
     "category_delivery_rules": {},
     "partner_registration_custom_options": {
         "service_sectors": [],

@@ -1,9 +1,10 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { Link, useParams, useSearchParams } from "react-router-dom";
 import { toast } from "sonner";
-import { ArrowLeft, Download, Loader2, UserPlus } from "lucide-react";
+import { ArrowLeft, Download, Loader2, UserPlus, Printer, MessageCircle } from "lucide-react";
 import api from "@/services/api";
 import { Button } from "@/components/ui/button";
+import { openWhatsAppShare } from "@/lib/utils";
 
 const inr = (v) => `₹${Number(v || 0).toLocaleString("en-IN", { maximumFractionDigits: 2 })}`;
 
@@ -88,6 +89,43 @@ export default function CustomerInvoicePage() {
     }
   };
 
+  const shareInvoiceOnWhatsApp = async () => {
+    if (!orderId || !token || !invoice) return;
+    try {
+      const { data } = await api.get(`/customer/mobile-access/orders/${orderId}/invoice/pdf`, {
+        params: { token },
+        responseType: "blob",
+      });
+      const fileName = `${invoice.invoice_no || `INV-${orderId}`}.pdf`;
+      const pdfBlob = data instanceof Blob ? data : new Blob([data], { type: "application/pdf" });
+      const file = new File([pdfBlob], fileName, { type: "application/pdf" });
+      const invoiceUrl = `${window.location.origin}/customer-invoice/${orderId}?token=${encodeURIComponent(token)}`;
+
+      if (navigator.share && navigator.canShare && navigator.canShare({ files: [file] })) {
+        await navigator.share({
+          title: `Invoice ${invoice.invoice_no}`,
+          text: `Invoice ${invoice.invoice_no} from METHO. ${invoiceUrl}`,
+          files: [file],
+        });
+        toast.success("Invoice PDF shared");
+        return;
+      }
+
+      const objectUrl = URL.createObjectURL(pdfBlob);
+      const anchor = document.createElement("a");
+      anchor.href = objectUrl;
+      anchor.download = fileName;
+      document.body.appendChild(anchor);
+      anchor.click();
+      anchor.remove();
+      window.setTimeout(() => URL.revokeObjectURL(objectUrl), 1000);
+      openWhatsAppShare({ text: `Invoice ${invoice.invoice_no}: ${invoiceUrl}\nPDF downloaded. Please attach it in WhatsApp.` });
+      toast.success("PDF downloaded and WhatsApp opened");
+    } catch (err) {
+      toast.error(err?.response?.data?.detail || "WhatsApp share failed");
+    }
+  };
+
   return (
     <div className="min-h-screen bg-slate-100 py-6">
       <div className="max-w-4xl mx-auto px-4 space-y-4">
@@ -95,7 +133,7 @@ export default function CustomerInvoicePage() {
           <Link to="/customer-orders" className="inline-flex items-center gap-2 text-emerald-900 hover:underline font-semibold text-sm">
             <ArrowLeft className="w-4 h-4" /> Back to Customer Orders
           </Link>
-          <div className="flex gap-2">
+          <div className="flex flex-wrap gap-2 print:hidden">
             <Button
               type="button"
               variant="outline"
@@ -105,6 +143,26 @@ export default function CustomerInvoicePage() {
               data-testid="customer-invoice-download-pdf"
             >
               {downloading ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Download className="w-4 h-4 mr-2" />} Download PDF
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={shareInvoiceOnWhatsApp}
+              disabled={!invoice}
+              className="rounded-full border-green-700 text-green-800 hover:bg-green-50"
+              data-testid="customer-invoice-share-whatsapp"
+            >
+              <MessageCircle className="w-4 h-4 mr-2" /> Share on WhatsApp
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => window.print()}
+              disabled={!invoice}
+              className="rounded-full border-emerald-800 text-emerald-900 hover:bg-emerald-50"
+              data-testid="customer-invoice-print"
+            >
+              <Printer className="w-4 h-4 mr-2" /> Print / Save PDF
             </Button>
             <Link to={registerLink}>
               <Button type="button" className="rounded-full bg-amber-400 hover:bg-amber-500 text-emerald-950" data-testid="customer-invoice-add-member">
