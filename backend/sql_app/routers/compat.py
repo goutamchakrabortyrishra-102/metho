@@ -8397,8 +8397,9 @@ def settings_update(payload: dict, db: Session = Depends(get_db), current_user=D
             "first_partner_order_cashback_max",
             "metho_delivery_smart_cycle_percent",
             "metho_delivery_reward_pool_percent",
+            "metho_rider_share_percent",
         ]
-        for key in split_keys + ["smart_cycle_bonus_percent", "metho_commission_percent", "leader_match_percent", "first_partner_order_cashback_percent", "metho_delivery_smart_cycle_percent", "metho_delivery_reward_pool_percent"]:
+        for key in split_keys + ["smart_cycle_bonus_percent", "metho_commission_percent", "leader_match_percent", "first_partner_order_cashback_percent", "metho_delivery_smart_cycle_percent", "metho_delivery_reward_pool_percent", "metho_rider_share_percent"]:
             if payload.get(key) is not None:
                 value = float(payload.get(key) or 0)
                 if value < 0 or value > 100:

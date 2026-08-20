@@ -133,6 +133,7 @@ export default function LoginPage({ adminOnly = false }) {
       if (nextUrl) nav(nextUrl);
       else if (isAdminUser) nav("/app");
       else if (result?.role === "partner") nav("/partner");
+      else if (result?.role === "rider") nav("/rider");
       else if (ownerRoles.includes(result?.role)) nav("/app/metho-store-owner");
       else nav("/app");
     } catch (err) {

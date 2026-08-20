@@ -171,6 +171,8 @@ def _login_user(payload: LoginRequest, db: Session, admin_mode: bool = False) ->
     if not admin_mode and is_admin:
         raise HTTPException(status_code=403, detail="Admin users must sign in from hidden admin login")
     if not admin_mode and not bool(user.is_active):
+        if str(user.role or "").lower() == "rider":
+            raise HTTPException(status_code=403, detail="Your rider registration is awaiting admin approval.")
         if str(user.role or "").lower() == "partner":
             raise HTTPException(status_code=403, detail="Your partner registration is awaiting admin approval.")
         raise HTTPException(status_code=403, detail="Your membership is pending payment verification.")

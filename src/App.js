@@ -34,6 +34,9 @@ const loadAuditLogPage = () => import("@/pages/dashboard/AuditLogPage");
 const loadSystemHealthPage = () => import("@/pages/dashboard/SystemHealthPage");
 const loadOwnerGuidePage = () => import("@/pages/dashboard/OwnerGuidePage");
 const loadPartnerRegisterPage = () => import("@/pages/PartnerRegisterPage");
+const loadRiderRegisterPage = () => import("@/pages/RiderRegisterPage");
+const loadRiderDashboardPage = () => import("@/pages/RiderDashboardPage");
+const loadMethoMovePage = () => import("@/pages/MethoMovePage");
 const loadWithdrawalsPage = () => import("@/pages/dashboard/WithdrawalsPage");
 const loadLeaderboardPage = () => import("@/pages/dashboard/LeaderboardPage");
 const loadInvoicePage = () => import("@/pages/InvoicePage");
@@ -95,6 +98,9 @@ const AuditLogPage = lazy(loadAuditLogPage);
 const SystemHealthPage = lazy(loadSystemHealthPage);
 const OwnerGuidePage = lazy(loadOwnerGuidePage);
 const PartnerRegisterPage = lazy(loadPartnerRegisterPage);
+const RiderRegisterPage = lazy(loadRiderRegisterPage);
+const RiderDashboardPage = lazy(loadRiderDashboardPage);
+const MethoMovePage = lazy(loadMethoMovePage);
 const WithdrawalsPage = lazy(loadWithdrawalsPage);
 const LeaderboardPage = lazy(loadLeaderboardPage);
 const InvoicePage = lazy(loadInvoicePage);
@@ -304,6 +310,7 @@ function App() {
             <Routes>
               <Route path="/" element={<LandingPage />} />
               <Route path="/shop" element={<ShopPage />} />
+              <Route path="/metho-move" element={<MethoMovePage />} />
               <Route path="/install" element={<InstallPage />} />
               <Route path="/download" element={<DownloadAppPage />} />
               <Route path="/customer-orders" element={<CustomerOrdersAccessPage />} />
@@ -322,6 +329,8 @@ function App() {
               <Route path="/metho-store" element={<MethoStorePage />} />
               <Route path="/settings" element={<SettingsPage />} />
               <Route path="/partner-register" element={<PartnerRegisterPage />} />
+              <Route path="/rider-register" element={<RiderRegisterPage />} />
+              <Route path="/rider" element={<PrivateRoute><RiderDashboardPage /></PrivateRoute>} />
               <Route path="/partner-shop/:partnerCode" element={<PartnerShopPage />} />
               <Route path="/gallery/:partnerCode" element={<PartnerGalleryPage />} />
               <Route path="/guide-track/:guideId" element={<GuideTrackerPage />} />

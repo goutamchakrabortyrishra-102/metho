@@ -11,7 +11,7 @@ import time
 
 from .database import Base, SessionLocal, engine
 from .models import AssociatePartner, PartnerProduct, User
-from .routers import auth, checkout, commerce, compat, company_inventory, directory, health, partner_public, settings
+from .routers import auth, checkout, commerce, compat, company_inventory, directory, direct_booking, health, partner_public, rider, settings
 from .security import hash_password
 
 logger = logging.getLogger(__name__)
@@ -469,6 +469,8 @@ app.include_router(company_inventory.router)
 app.include_router(settings.router)
 app.include_router(directory.router)
 app.include_router(partner_public.router)
+app.include_router(rider.router)
+app.include_router(direct_booking.router)
 app.include_router(checkout.router)
 app.include_router(compat.router)
 

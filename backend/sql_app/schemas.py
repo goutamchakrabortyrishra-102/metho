@@ -14,6 +14,15 @@ class LoginRequest(BaseModel):
     password: str
 
 
+class RiderRegisterRequest(BaseModel):
+    name: str
+    phone: str
+    password: str
+    vehicle_type: str
+    vehicle_number: str
+    whatsapp: str = ""
+
+
 class ProductCreate(BaseModel):
     name: str
     category: str
