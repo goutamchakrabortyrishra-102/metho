@@ -155,6 +155,7 @@ export default function UpiPaymentDialog({
   const lastMemberLookupRef = useRef("");
   const [travelTermsAccepted, setTravelTermsAccepted] = useState(false);
   const codEnabled = paymentConfig ? paymentConfig.cod_enabled !== false : true;
+  const showCodInRazorpayLayout = Boolean(paymentConfig?.vegetable_checkout && codEnabled);
   const normalizedPayerPhone = String(payerPhone || "").replace(/\D/g, "");
   const normalizedUserPhone = String(user?.phone || "").replace(/\D/g, "");
   const resolvedPayerName = String(payerName || "").trim() || String(user?.name || "").trim();
@@ -918,10 +919,28 @@ export default function UpiPaymentDialog({
           ) : (
             <div className="space-y-3">
               <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">
-                {razorpayEnabled
-                  ? "Manual UPI proof flow is hidden by admin. Use Razorpay below if it is enabled."
+                {paymentMode === "cod"
+                  ? "Cash on Delivery selected. Fill your delivery details and place the order below."
+                  : razorpayEnabled
+                  ? "Manual UPI proof flow is hidden by admin. Choose Razorpay or Cash on Delivery below."
                   : "Razorpay is disabled in this checkout flow. Partner payments require the UPI/QR proof flow to stay active."}
               </div>
+
+              {!existingOrderId && showCodInRazorpayLayout ? (
+                <div>
+                  <Label htmlFor="payment-mode-razorpay">Payment Option</Label>
+                  <select
+                    id="payment-mode-razorpay"
+                    value={paymentMode === "cod" ? "cod" : "razorpay"}
+                    onChange={(e) => setPaymentMode(e.target.value === "cod" ? "cod" : "upi")}
+                    className="mt-1.5 h-11 w-full rounded-md border border-input bg-white px-3 text-slate-900"
+                    data-testid="razorpay-payment-mode-select"
+                  >
+                    <option value="razorpay">Pay Online with Razorpay</option>
+                    <option value="cod">Cash on Delivery (COD)</option>
+                  </select>
+                </div>
+              ) : null}
 
               {!existingOrderId && canUseMemberLookup ? (
                 <div>
@@ -1036,6 +1055,16 @@ export default function UpiPaymentDialog({
                   data-testid="razorpay-submit-button"
                 >
                   {submitting ? "Opening Razorpay..." : `Pay Now with Razorpay · ₹${checkoutTotal.toLocaleString("en-IN")}`}
+                </Button>
+              ) : null}
+              {!manualUpiEnabled && showCodInRazorpayLayout && paymentMode === "cod" ? (
+                <Button
+                  type="submit"
+                  disabled={submitting || uploading}
+                  className="w-full h-12 bg-emerald-900 hover:bg-emerald-950 text-white rounded-full font-semibold"
+                  data-testid="cod-submit-button"
+                >
+                  {submitting ? "Placing COD Order..." : `Place COD Order · ₹${checkoutTotal.toLocaleString("en-IN")}`}
                 </Button>
               ) : null}
               {manualUpiEnabled ? (

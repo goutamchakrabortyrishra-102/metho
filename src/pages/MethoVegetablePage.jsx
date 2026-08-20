@@ -340,6 +340,7 @@ export default function MethoVegetablePage() {
 
   // Vegetable checkout only supports Razorpay (online) and Cash on Delivery — no manual UPI proof flow.
   const vegetablePaymentConfig = {
+    vegetable_checkout: true,
     cod_enabled: true,
     manual_upi_enabled: false,
     razorpay_enabled: true,
