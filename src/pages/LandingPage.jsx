@@ -421,6 +421,9 @@ const Hero = () => {
           subtotal: Number((price * (Number(qty) || 0)).toFixed(2)),
           image_url: product?.image_url || "",
           category: product?.category || "",
+          delivery_category: product?.category || "",
+          delivery_charge: Number(product?.delivery_charge || 0),
+          free_delivery_threshold: Number(product?.free_delivery_threshold || 0),
         };
       })
       .filter(Boolean);
@@ -682,7 +685,7 @@ const Hero = () => {
       </div>
 
       {/* Rendered outside the backdrop-blur product panel so `fixed` positions relative to the viewport, not the panel */}
-      {cartItemCount > 0 ? (
+      {cartItemCount > 0 && !checkoutOpen ? (
         <div className="fixed bottom-4 md:bottom-auto md:top-[14.5rem] left-1/2 z-[60] w-[min(680px,calc(100vw-1.5rem))] -translate-x-1/2 flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-emerald-900/20 bg-emerald-950 px-4 py-3 text-white shadow-lg" data-testid="hero-best-products-cart-summary-top">
           <p className="text-sm font-semibold">
             Cart: {cartItemCount} item(s){cartSubtotal > 0 ? ` · ₹${cartSubtotal.toLocaleString("en-IN")}` : ""}
@@ -816,7 +819,7 @@ const Hero = () => {
           ))}
         </div>
 
-        {cartItemCount > 0 ? (
+        {cartItemCount > 0 && !checkoutOpen ? (
           <div className="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-emerald-900/15 bg-emerald-50/70 px-4 py-3" data-testid="hero-best-products-cart-summary">
             <p className="text-sm font-semibold text-emerald-950">
               {cartItemCount} item(s) selected{cartSubtotal > 0 ? ` · ₹${cartSubtotal.toLocaleString("en-IN")}` : ""}

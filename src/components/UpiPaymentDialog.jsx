@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import { toast } from "sonner";
 import { Upload, Loader2, QrCode, Copy, CheckCircle2, ShoppingCart } from "lucide-react";
@@ -426,6 +426,23 @@ export default function UpiPaymentDialog({
     }
   };
 
+  const cartDeliveryTotal = useMemo(() => {
+    if (existingOrderId || !Array.isArray(items)) return 0;
+    const groups = new Map();
+    items.forEach((item) => {
+      const key = String(item?.delivery_category || item?.category || "General").trim().toLowerCase() || "general";
+      const group = groups.get(key) || { subtotal: 0, charge: 0, threshold: 0 };
+      group.subtotal += Number(item?.subtotal || 0);
+      group.charge = Math.max(group.charge, Number(item?.delivery_charge || 0));
+      group.threshold = Math.max(group.threshold, Number(item?.free_delivery_threshold || 0));
+      groups.set(key, group);
+    });
+    return Math.max(...Array.from(groups.values()).map((group) => (
+      group.threshold > 0 && group.subtotal >= group.threshold ? 0 : Math.round(Math.max(0, group.charge))
+    )), 0);
+  }, [existingOrderId, items]);
+  const checkoutTotal = Number(total || 0) + cartDeliveryTotal;
+
   const submitRazorpay = async () => {
     if (existingOrderId) {
       toast.error("Razorpay flow supports new checkout only");
@@ -568,7 +585,7 @@ export default function UpiPaymentDialog({
   const upiId = paymentConfig?.upi_id || settings?.upi_id || "methopvtltd@paytm";
   const payeeName = paymentConfig?.payee_name || settings?.upi_payee_name || "METHOO STORE";
   const qrUrl = paymentConfig?.qr_url || settings?.upi_qr_url;
-  const fallbackQrValue = buildUpiPaymentUri(upiId, payeeName, total);
+  const fallbackQrValue = buildUpiPaymentUri(upiId, payeeName, checkoutTotal);
   const payLabel = paymentConfig?.label || "UPI Payment";
   const manualUpiEnabled = forceManualUpiFlow || (paymentConfig ? paymentConfig.manual_upi_enabled !== false : !!settings?.manual_upi_enabled);
   const razorpayEnabled = paymentConfig
@@ -583,7 +600,7 @@ export default function UpiPaymentDialog({
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <QrCode className="w-5 h-5 text-emerald-700" />
-            {payLabel} · ₹{total.toLocaleString("en-IN")}
+            {payLabel} · ₹{checkoutTotal.toLocaleString("en-IN")}
           </DialogTitle>
           <DialogDescription>
             {razorpayEnabled
@@ -662,7 +679,8 @@ export default function UpiPaymentDialog({
               <div className="space-y-4">
                 <div className="rounded-xl bg-gradient-to-br from-emerald-950 to-emerald-800 text-white p-5">
                   <p className="text-[10px] uppercase tracking-[0.2em] text-amber-400 font-bold">Step 1 · Pay via any UPI app</p>
-                  <p className="text-2xl font-display font-black mt-2">₹{total.toLocaleString("en-IN")}</p>
+                  {cartDeliveryTotal > 0 ? <p className="text-xs text-slate-600 mt-2">Delivery charge: ₹{cartDeliveryTotal.toLocaleString("en-IN")}</p> : null}
+                  <p className="text-2xl font-display font-black mt-2">₹{checkoutTotal.toLocaleString("en-IN")}</p>
                   <p className="text-xs text-emerald-100/80 mt-1">GPay, PhonePe, Paytm, BHIM — all are supported</p>
 
                   <div className="mt-4 space-y-3">
@@ -1014,7 +1032,7 @@ export default function UpiPaymentDialog({
                   className="w-full h-12 bg-blue-700 hover:bg-blue-800 text-white rounded-full font-semibold"
                   data-testid="razorpay-submit-button"
                 >
-                  {submitting ? "Opening Razorpay..." : `Pay Now with Razorpay · ₹${total.toLocaleString("en-IN")}`}
+                  {submitting ? "Opening Razorpay..." : `Pay Now with Razorpay · ₹${checkoutTotal.toLocaleString("en-IN")}`}
                 </Button>
               ) : null}
               {manualUpiEnabled ? (
@@ -1028,8 +1046,8 @@ export default function UpiPaymentDialog({
                     {submitting
                       ? "Submitting..."
                       : (paymentMode === "cod"
-                        ? `Place COD Order · ₹${total.toLocaleString("en-IN")}`
-                        : `Submit UPI Proof · ₹${total.toLocaleString("en-IN")}`)}
+                        ? `Place COD Order · ₹${checkoutTotal.toLocaleString("en-IN")}`
+                        : `Submit UPI Proof · ₹${checkoutTotal.toLocaleString("en-IN")}`)}
                   </Button>
                   {razorpayEnabled ? (
                     <p className="text-[11px] text-slate-600 text-center">Razorpay online payment enabled. You can still use manual UPI proof flow below.</p>
