@@ -5633,6 +5633,7 @@ def create_transport_booking(payload: dict, request: Request, db: Session = Depe
     travel_end = str((payload or {}).get("travel_end") or "").strip()
     fare_preset_id = str((payload or {}).get("fare_preset_id") or "").strip()
     estimated_fare_raw = (payload or {}).get("estimated_fare")
+    estimated_distance_km_raw = (payload or {}).get("estimated_distance_km")
 
     if not partner_code:
         raise HTTPException(status_code=400, detail="partner_code is required")
@@ -5677,10 +5678,18 @@ def create_transport_booking(payload: dict, request: Request, db: Session = Depe
 
     fare_quote = round(max(1.0, float(service.price or 0)), 2)
     try:
+        estimated_distance_km = max(0.0, float(estimated_distance_km_raw or 0))
+    except Exception:
+        estimated_distance_km = 0.0
+    transport_rates = load_settings(db).get("metho_transport_rates") or {}
+    vehicle_rate = float(transport_rates.get(vehicle_type) or 0) if isinstance(transport_rates, dict) else 0
+    if estimated_distance_km > 0 and vehicle_rate > 0:
+        fare_quote = round(max(1.0, estimated_distance_km * vehicle_rate), 2)
+    try:
         estimated_fare = round(max(1.0, float(estimated_fare_raw or 0)), 2)
     except Exception:
         estimated_fare = 0
-    if estimated_fare > 0:
+    if estimated_fare > 0 and not (estimated_distance_km > 0 and vehicle_rate > 0):
         fare_quote = estimated_fare
     selected_preset = None
     if fare_preset_id:

@@ -100,7 +100,9 @@ const haversineKm = (lat1, lon1, lat2, lon2) => {
   const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
   return earthRadiusKm * c;
 };
-const getTransportRatePerKm = (service) => {
+const getTransportRatePerKm = (service, rates, vehicleType) => {
+  const configuredRate = Number(rates?.[vehicleType] || 0);
+  if (Number.isFinite(configuredRate) && configuredRate > 0) return configuredRate;
   const candidates = [
     service?.transport_rate_per_km,
     service?.rate_per_km,
@@ -135,7 +137,7 @@ const geocodeAddress = async (address) => {
     return null;
   }
 };
-const estimateTransportFareFromRoute = async (pickup, destination, service) => {
+const estimateTransportFareFromRoute = async (pickup, destination, service, rates, vehicleType) => {
   const origin = String(pickup || "").trim();
   const dest = String(destination || "").trim();
   if (!origin || !dest) return null;
@@ -149,7 +151,7 @@ const estimateTransportFareFromRoute = async (pickup, destination, service) => {
       : [];
     const distanceKm = routeDistances.length ? Math.max(...routeDistances) : haversineKm(originCoords.lat, originCoords.lon, destCoords.lat, destCoords.lon);
     if (!Number.isFinite(distanceKm) || distanceKm <= 0) return null;
-    const ratePerKm = getTransportRatePerKm(service);
+    const ratePerKm = getTransportRatePerKm(service, rates, vehicleType);
     const amount = Math.max(1, Math.round(distanceKm * ratePerKm));
     return {
       amount,
@@ -460,6 +462,8 @@ export default function PartnerShopPage() {
   const [doorstepSearch, setDoorstepSearch] = useState("");
   const [serviceSearch, setServiceSearch] = useState("");
   const [transportService, setTransportService] = useState(null);
+  const [transportVehicleType, setTransportVehicleType] = useState("bike");
+  const [transportRates, setTransportRates] = useState({ bike: 12, e_rickshaw: 16, auto_rickshaw: 20 });
   const [transportBookingMode, setTransportBookingMode] = useState("route");
   const [transportBusy, setTransportBusy] = useState(false);
   const [transportBooking, setTransportBooking] = useState(null);
@@ -486,6 +490,12 @@ export default function PartnerShopPage() {
       .then(r => setData(normalizePartnerPayload(r.data)))
       .catch(e => setErr(e?.response?.data?.detail || "Shop not found"));
   }, [partnerCode]);
+
+  useEffect(() => {
+    api.get("/settings/public").then((response) => {
+      if (response.data?.metho_transport_rates) setTransportRates((current) => ({ ...current, ...response.data.metho_transport_rates }));
+    }).catch(() => {});
+  }, []);
 
   useEffect(() => {
     api.get(`/partner/public-payment-profile/${partnerCode}`)
@@ -738,7 +748,7 @@ export default function PartnerShopPage() {
     setTransportFareEstimateLoading(true);
 
     let cancelled = false;
-    void estimateTransportFareFromRoute(pickup, destination, transportService)
+    void estimateTransportFareFromRoute(pickup, destination, transportService, transportRates, transportVehicleType)
       .then((estimate) => {
         if (cancelled || requestId !== transportEstimateRequestRef.current) return;
         setTransportFareEstimate(estimate || null);
@@ -757,7 +767,7 @@ export default function PartnerShopPage() {
     return () => {
       cancelled = true;
     };
-  }, [selectedFarePresetId, selectedTransportPreset, transportForm.destination, transportForm.pickup, transportService]);
+  }, [selectedFarePresetId, selectedTransportPreset, transportForm.destination, transportForm.pickup, transportRates, transportService, transportVehicleType]);
 
   useEffect(() => {
     const ref = String(guestMemberRef || "").trim();
@@ -1019,7 +1029,7 @@ export default function PartnerShopPage() {
       const { data } = await api.post("/transport/bookings", {
         partner_code: partnerCode,
         service_product_id: bookingService.id,
-        vehicle_type: String(bookingService?.service_template_key || "cab").includes("bike") ? "bike_rental" : String(bookingService?.service_template_key || "cab").includes("car") ? "car_rental" : "cab",
+        vehicle_type: transportVehicleType,
         customer_name: transportForm.customer_name,
         customer_phone: transportForm.customer_phone,
         pickup: derivedPickup,
@@ -1595,7 +1605,12 @@ export default function PartnerShopPage() {
               {!transportBooking ? (
                 <div className="mt-5 space-y-3">
                   <div>
-                    <p className="text-[10px] uppercase tracking-widest text-slate-500 font-bold mb-2">1 · Choose your ride</p>
+                    <p className="text-[10px] uppercase tracking-widest text-slate-500 font-bold mb-2">1 · Choose vehicle</p>
+                    <select value={transportVehicleType} onChange={(event) => setTransportVehicleType(event.target.value)} className="mb-3 h-10 w-full rounded-md border border-input bg-white px-3 text-sm" data-testid="transport-vehicle-type">
+                      <option value="bike">Bike</option>
+                      <option value="e_rickshaw">E-rickshaw</option>
+                      <option value="auto_rickshaw">Auto-rickshaw</option>
+                    </select>
                     <div className="rounded-2xl border border-slate-200 bg-white p-2 shadow-sm">
                       <Input
                         value={transportServiceSearch}

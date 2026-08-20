@@ -55,6 +55,7 @@ DEFAULT_SETTINGS = {
     "metho_commission_percent": 10,
     "metho_delivery_smart_cycle_percent": 0,
     "metho_delivery_reward_pool_percent": 0,
+    "metho_transport_rates": {"bike": 12, "e_rickshaw": 16, "auto_rickshaw": 20},
     "min_withdrawal": 100,
     "withdrawal_tds_percent": 5,
     "withdrawal_admin_charge_percent": 3,
