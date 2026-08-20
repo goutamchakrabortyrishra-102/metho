@@ -255,6 +255,7 @@ export default function TourismControlCenterPage() {
         <p className="mt-1 text-sm text-muted-foreground font-body">Bookings, payment verification, traveller contact, consent audit, and supplier-ready operational queue.</p>
       </div>
       <div className="flex gap-2">
+        <a href="/app/active-tracking?sector=tourism" className="inline-flex items-center rounded-full border border-sky-300 px-4 text-sm font-semibold text-sky-900">Active Tour Guides</a>
         <Button onClick={() => setOfferOpen(true)} className="rounded-full bg-emerald-800 hover:bg-emerald-900"><ImagePlus className="mr-2 h-4 w-4" />Create Travel Offer</Button>
         <Button variant="outline" className="rounded-full" onClick={load} disabled={loading}><RefreshCw className={`mr-2 h-4 w-4 ${loading ? "animate-spin" : ""}`} />Refresh</Button>
       </div>

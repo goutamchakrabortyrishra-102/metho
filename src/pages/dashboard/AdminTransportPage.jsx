@@ -98,6 +98,7 @@ export default function AdminTransportPage() {
         >
           <RefreshCw className={`w-4 h-4 mr-1 ${loading ? "animate-spin" : ""}`} /> Refresh
         </Button>
+        <a href="/app/active-tracking?sector=transport" className="inline-flex h-10 items-center rounded-full border border-sky-300 px-4 text-sm font-semibold text-sky-900">Active Drivers / Live Tracking</a>
       </div>
 
       <div className="rounded-lg border border-slate-200 bg-slate-50 px-4 py-2 text-xs text-slate-600">

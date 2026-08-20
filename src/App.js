@@ -63,6 +63,7 @@ const loadPrivacyPolicyPage = () => import("@/pages/PrivacyPolicyPage");
 const loadTravelBookingTermsPage = () => import("@/pages/TravelBookingTermsPage");
 const loadTourismControlCenterPage = () => import("@/pages/dashboard/TourismControlCenterPage");
 const loadGuideTrackerPage = () => import("@/pages/GuideTrackerPage");
+const loadActiveTrackingPage = () => import("@/pages/dashboard/ActiveTrackingPage");
 
 const LandingPage = lazy(loadLandingPage);
 const LoginPage = lazy(loadLoginPage);
@@ -121,6 +122,7 @@ const PrivacyPolicyPage = lazy(loadPrivacyPolicyPage);
 const TravelBookingTermsPage = lazy(loadTravelBookingTermsPage);
 const TourismControlCenterPage = lazy(loadTourismControlCenterPage);
 const GuideTrackerPage = lazy(loadGuideTrackerPage);
+const ActiveTrackingPage = lazy(loadActiveTrackingPage);
 
 const prefetchedChunks = new Set();
 const prefetchChunk = (loader) => {
@@ -362,6 +364,7 @@ function App() {
                 <Route path="property-buy-sell" element={<AdminRoute><AdminPropertyBuySellPage /></AdminRoute>} />
                 <Route path="service-sectors" element={<AdminRoute><AdminServiceSectorsPage /></AdminRoute>} />
                 <Route path="driver-registry" element={<DriverRegistryPage />} />
+                <Route path="active-tracking" element={<AdminRoute><ActiveTrackingPage /></AdminRoute>} />
                 <Route path="leaderboard" element={<LeaderboardPage />} />
               </Route>
               <Route

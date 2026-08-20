@@ -1,6 +1,6 @@
 import React, { useState } from "react";
 import { Outlet, NavLink, useLocation, useNavigate } from "react-router-dom";
-import { LayoutDashboard, Wallet, Users, Network, Package, ShoppingCart, TrendingUp, User, LogOut, Menu, X, Search, Settings, Sparkles, BadgeIndianRupee, Calculator, Shield, Store, Compass, Trophy, Send, CheckCircle2, Upload, Bot, ClipboardList, Activity, Warehouse, BookOpenCheck, CarTaxiFront, UtensilsCrossed, Building2, BriefcaseBusiness, Trash2, Boxes, Plane } from "lucide-react";
+import { LayoutDashboard, Wallet, Users, Network, Package, ShoppingCart, TrendingUp, User, LogOut, Menu, X, Search, Settings, Sparkles, BadgeIndianRupee, Calculator, Shield, Store, Compass, Trophy, Send, CheckCircle2, Upload, Bot, ClipboardList, Activity, Warehouse, BookOpenCheck, CarTaxiFront, UtensilsCrossed, Building2, BriefcaseBusiness, Trash2, Boxes, Plane, MapPin } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { Logo } from "@/components/Logo";
 import { Button } from "@/components/ui/button";
@@ -31,6 +31,7 @@ const links = [
   { to: "/app/accounts", icon: Calculator, label: "Accounts", testId: "nav-accounts", adminOnly: true },
   { to: "/app/withdrawals", icon: Send, label: "Withdrawals", testId: "nav-withdrawals", adminOnly: true },
   { to: "/app/transport-bookings", icon: CarTaxiFront, label: "Transport Bookings", testId: "nav-transport-bookings", adminOnly: true },
+  { to: "/app/active-tracking?sector=transport", icon: MapPin, label: "Active Tracking", testId: "nav-active-tracking", adminOnly: true },
   { to: "/app/stay-dining-bookings", icon: UtensilsCrossed, label: "Stay & Dining Bookings", testId: "nav-stay-dining-bookings", adminOnly: true },
   { to: "/app/tourism-control", icon: Plane, label: "Tourism Control Center", testId: "nav-tourism-control", adminOnly: true },
   { to: "/app/property-buy-sell", icon: Building2, label: "Property Buy & Sell", testId: "nav-property-buy-sell", adminOnly: true },
