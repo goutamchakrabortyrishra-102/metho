@@ -53,6 +53,7 @@ def booking_payload(member_ref=""):
 
 def test_amount_uses_current_transport_rate():
     assert calculate_direct_amount("auto_rickshaw", {"metho_transport_rates": {"auto_rickshaw": 20}}, 3) == 60
+    assert calculate_direct_amount("ebike", {"metho_transport_rates": {"bike": 12}}, 3) == 36
 
 
 def test_razorpay_signature_and_amount_are_verified(monkeypatch):

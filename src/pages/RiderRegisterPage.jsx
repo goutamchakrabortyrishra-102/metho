@@ -40,7 +40,7 @@ export default function RiderRegisterPage() {
           <div><Label htmlFor="rider-phone">Phone</Label><Input id="rider-phone" name="phone" required className="mt-1.5" /></div>
           <div><Label htmlFor="rider-password">Password</Label><Input id="rider-password" name="password" type="password" minLength={6} required className="mt-1.5" /></div>
           <div><Label htmlFor="rider-whatsapp">WhatsApp</Label><Input id="rider-whatsapp" name="whatsapp" className="mt-1.5" /></div>
-          <div><Label htmlFor="rider-vehicle-type">Vehicle type</Label><Input id="rider-vehicle-type" name="vehicle_type" required placeholder="Bike, auto, car" className="mt-1.5" /></div>
+          <div><Label htmlFor="rider-vehicle-type">METHO service category</Label><select id="rider-vehicle-type" name="vehicle_type" required defaultValue="ebike" className="mt-1.5 h-10 w-full rounded-md border border-input bg-white px-3 text-sm"><option value="ebike">E-bike</option><option value="e_rickshaw">E-rickshaw</option><option value="auto_rickshaw">Auto-rickshaw</option><option value="delivery">METHO Delivery</option></select></div>
           <div><Label htmlFor="rider-vehicle-number">Vehicle number</Label><Input id="rider-vehicle-number" name="vehicle_number" required className="mt-1.5" /></div>
         </div>
         <Button type="submit" disabled={loading} className="w-full h-11 bg-emerald-900 hover:bg-emerald-950 text-white rounded-full">

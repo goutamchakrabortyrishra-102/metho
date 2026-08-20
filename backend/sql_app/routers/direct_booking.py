@@ -19,7 +19,7 @@ router = APIRouter(prefix="/api", tags=["metho-direct-bookings"])
 BOOKINGS_KEY = "metho_direct_bookings"
 EARNINGS_KEY = "metho_direct_earnings"
 REWARDS_KEY = "metho_direct_rewards"
-VEHICLE_TYPES = {"bike", "e_rickshaw", "auto_rickshaw", "delivery"}
+VEHICLE_TYPES = {"bike", "ebike", "e_rickshaw", "auto_rickshaw", "delivery"}
 
 
 def _json_list(db: Session, key: str) -> list[dict]:
@@ -49,7 +49,7 @@ def calculate_direct_amount(service_type: str, settings: dict, distance_km: floa
         raise HTTPException(status_code=400, detail="Unsupported METHO Move service type")
     distance = max(1.0, float(distance_km or 1))
     rates = settings.get("metho_transport_rates") or {}
-    rate = float(rates.get(vehicle) or 0)
+    rate = float(rates.get("bike" if vehicle == "ebike" else vehicle) or 0)
     if rate <= 0:
         raise HTTPException(status_code=400, detail="METHO transport rate is not configured")
     return round(rate * distance, 2)
