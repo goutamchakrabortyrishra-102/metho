@@ -42,7 +42,7 @@ export default function RiderRegisterPage() {
           <div><Label htmlFor="rider-phone">Phone</Label><Input id="rider-phone" name="phone" required className="mt-1.5" /></div>
           <div><Label htmlFor="rider-email">Email</Label><Input id="rider-email" name="email" type="email" required className="mt-1.5" /></div>
           <div><Label htmlFor="rider-password">Password</Label><Input id="rider-password" name="password" type="password" minLength={6} required className="mt-1.5" /></div>
-          <div><Label htmlFor="rider-whatsapp">WhatsApp</Label><Input id="rider-whatsapp" name="whatsapp" className="mt-1.5" /></div>
+          <div><Label htmlFor="rider-whatsapp">WhatsApp</Label><Input id="rider-whatsapp" name="whatsapp" required className="mt-1.5" /></div>
           <div><Label htmlFor="rider-vehicle-type">METHO service category</Label><select id="rider-vehicle-type" name="vehicle_type" required defaultValue="ebike" className="mt-1.5 h-10 w-full rounded-md border border-input bg-white px-3 text-sm"><option value="ebike">E-bike</option><option value="e_rickshaw">E-rickshaw</option><option value="auto_rickshaw">Auto-rickshaw</option><option value="delivery">METHO Delivery</option></select></div>
           <div><Label htmlFor="rider-vehicle-number">Vehicle number</Label><Input id="rider-vehicle-number" name="vehicle_number" required className="mt-1.5" /></div>
           <div className="sm:col-span-2"><Label htmlFor="rider-address">Address</Label><Input id="rider-address" name="address" required className="mt-1.5" /></div>
@@ -50,8 +50,8 @@ export default function RiderRegisterPage() {
           <div><Label htmlFor="rider-district">District</Label><Input id="rider-district" name="district" className="mt-1.5" /></div>
           <div><Label htmlFor="rider-state">State</Label><Input id="rider-state" name="state" required className="mt-1.5" /></div>
           <div><Label htmlFor="rider-pincode">Pincode</Label><Input id="rider-pincode" name="pincode" inputMode="numeric" required className="mt-1.5" /></div>
-          <div><Label htmlFor="rider-pan">PAN</Label><Input id="rider-pan" name="pan_no" className="mt-1.5 uppercase" /></div>
-          <div><Label htmlFor="rider-aadhaar">Aadhaar</Label><Input id="rider-aadhaar" name="aadhaar_no" inputMode="numeric" className="mt-1.5" /></div>
+          <div><Label htmlFor="rider-pan">PAN</Label><Input id="rider-pan" name="pan_no" required className="mt-1.5 uppercase" /></div>
+          <div><Label htmlFor="rider-aadhaar">Aadhaar</Label><Input id="rider-aadhaar" name="aadhaar_no" required minLength={12} maxLength={12} inputMode="numeric" className="mt-1.5" /></div>
           <div><Label htmlFor="rider-emergency-name">Emergency contact name</Label><Input id="rider-emergency-name" name="emergency_contact_name" className="mt-1.5" /></div>
           <div><Label htmlFor="rider-emergency-phone">Emergency contact phone</Label><Input id="rider-emergency-phone" name="emergency_contact_phone" className="mt-1.5" /></div>
           <div><Label htmlFor="rider-bank-holder">Bank account holder</Label><Input id="rider-bank-holder" name="bank_account_holder" className="mt-1.5" /></div>

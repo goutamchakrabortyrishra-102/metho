@@ -81,10 +81,17 @@ def _owned_rider(current_user: User, user_id: str) -> User:
 def rider_register(payload: RiderRegisterRequest, db: Session = Depends(get_db)):
     phone = str(payload.phone or "").strip()
     email = str(payload.email or "").strip().lower()
+    aadhaar = "".join(ch for ch in payload.aadhaar_no if ch.isdigit())
     if len(str(payload.password or "")) < 6:
         raise HTTPException(status_code=400, detail="Password must be at least 6 characters")
     if not payload.agreed_to_terms:
         raise HTTPException(status_code=400, detail="Please accept the Rider Terms & Conditions")
+    if not payload.name.strip() or not payload.address.strip() or not payload.pan_no.strip() or not aadhaar or not phone or not payload.whatsapp.strip():
+        raise HTTPException(status_code=400, detail="Name, address, PAN, Aadhaar, mobile and WhatsApp are required")
+    if len(aadhaar) != 12:
+        raise HTTPException(status_code=400, detail="Aadhaar must contain 12 digits")
+    if len("".join(ch for ch in phone if ch.isdigit())) < 10:
+        raise HTTPException(status_code=400, detail="Enter a valid mobile number")
     if email and db.query(User).filter(User.email == email).first():
         raise HTTPException(status_code=409, detail="Email already registered")
     if db.query(User).filter(User.phone == phone).first():
@@ -112,7 +119,7 @@ def rider_register(payload: RiderRegisterRequest, db: Session = Depends(get_db))
         "state": payload.state.strip(),
         "pincode": payload.pincode.strip(),
         "pan_no": payload.pan_no.strip().upper(),
-        "aadhaar_no": "".join(ch for ch in payload.aadhaar_no if ch.isdigit()),
+        "aadhaar_no": aadhaar,
         "emergency_contact_name": payload.emergency_contact_name.strip(),
         "emergency_contact_phone": payload.emergency_contact_phone.strip(),
         "bank_account_holder": payload.bank_account_holder.strip(),

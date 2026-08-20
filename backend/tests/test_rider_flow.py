@@ -33,7 +33,7 @@ def test_rider_registration_stores_profile_and_starts_pending():
     try:
         result = rider_register(RiderRegisterRequest(
             name="Rider One", phone="9000000001", password="secret1",
-            vehicle_type="Bike", vehicle_number="WB01A1234", whatsapp="9000000001", agreed_to_terms=True,
+            vehicle_type="Bike", vehicle_number="WB01A1234", whatsapp="9000000001", address="Road 1", pan_no="ABCDE1234D", aadhaar_no="123456789011", agreed_to_terms=True,
         ), db)
         rider = db.query(User).filter(User.id == result["rider"]["id"]).one()
         assert rider.role == "rider"
@@ -49,7 +49,7 @@ def test_rider_approval_allows_existing_login_and_pending_message_before_approva
     try:
         result = rider_register(RiderRegisterRequest(
             name="Rider Two", phone="9000000002", password="secret1",
-            vehicle_type="Auto", vehicle_number="WB02B2345", agreed_to_terms=True,
+            vehicle_type="Auto", vehicle_number="WB02B2345", agreed_to_terms=True, whatsapp="9000000002", address="Road 2", pan_no="ABCDE1234F", aadhaar_no="123456789012",
         ), db)
         rider_id = result["rider"]["id"]
         rider = db.query(User).filter(User.id == rider_id).one()
@@ -69,7 +69,7 @@ def test_rider_admin_list_and_profile_endpoints_enforce_ownership():
     try:
         result = rider_register(RiderRegisterRequest(
             name="Rider Three", phone="9000000003", password="secret1",
-            vehicle_type="Car", vehicle_number="WB03C3456", agreed_to_terms=True,
+            vehicle_type="Car", vehicle_number="WB03C3456", agreed_to_terms=True, whatsapp="9000000003", address="Road 3", pan_no="ABCDE1234G", aadhaar_no="123456789013",
         ), db)
         rider = db.query(User).filter(User.id == result["rider"]["id"]).one()
         admin = SimpleNamespace(role="super_admin", id="admin")
