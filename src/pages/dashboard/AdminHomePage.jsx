@@ -14,6 +14,7 @@ const sections = [
   { to: "/admin/accounts", icon: RefreshCw, title: "Accounts", text: "Track admin finance summary after fresh-start resets." },
   { to: "/admin/withdrawals", icon: Send, title: "Withdrawals", text: "Approve or reject withdrawal requests from the admin side only." },
   { to: "/admin/transport-bookings", icon: CarTaxiFront, title: "Transport Bookings", text: "View all ride bookings with pickup, destination, status, and fare. 3 trips per page." },
+  { to: "/admin/driver-registry", icon: CarTaxiFront, title: "Driver & Vehicle Registry", text: "Approve drivers, delivery agents, vehicles, and active GPS eligibility." },
   { to: "/admin/stay-dining-bookings", icon: UtensilsCrossed, title: "Stay & Dining Bookings", text: "View only stay and dining sector bookings. 3 bookings per page." },
   { to: "/admin/mps-claims", icon: Shield, title: "MPS Claims", text: "Keep MPS claim reviews separate from the member tree." },
   { to: "/admin/audit-log", icon: ClipboardList, title: "Audit Log", text: "Review admin actions and system-side changes in one place." },

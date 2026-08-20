@@ -47,6 +47,12 @@ const routeMapsUrl = (pickup, destination) => {
   if (!dest) return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(origin)}`;
   return `https://www.google.com/maps/dir/?api=1&origin=${encodeURIComponent(origin)}&destination=${encodeURIComponent(dest)}&travelmode=driving`;
 };
+const liveLocationUrl = (location) => {
+  const latitude = Number(location?.latitude);
+  const longitude = Number(location?.longitude);
+  if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) return "";
+  return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(`${latitude},${longitude}`)}`;
+};
 const isTransportServiceListing = (item) => {
   return isTransportServiceLike(item);
 };
@@ -362,7 +368,10 @@ export default function PartnerDashboardPage() {
   const [savingPartnerUpi, setSavingPartnerUpi] = useState(false);
   const [sendingInvoiceOrderId, setSendingInvoiceOrderId] = useState("");
   const [transportData, setTransportData] = useState({ items: [], wallet: { balance: 0 } });
+  const [deliveryData, setDeliveryData] = useState({ items: [], wallet: { balance: 0 } });
+  const [driverRegistry, setDriverRegistry] = useState([]);
   const [loadingTransport, setLoadingTransport] = useState(false);
+  const [locationSharing, setLocationSharing] = useState(null);
   const [fareDrafts, setFareDrafts] = useState({});
   const [txnDrafts, setTxnDrafts] = useState({});
   const [transportStatusFilter, setTransportStatusFilter] = useState("all");
@@ -453,6 +462,8 @@ export default function PartnerDashboardPage() {
   const visibleTransportTrips = transportStatusFilter === "all"
     ? sortedTransportTrips
     : sortedTransportTrips.filter((trip) => String(trip?.status || "booked") === transportStatusFilter);
+  const approvedTransportDrivers = driverRegistry.filter((driver) => driver.approval_status === "approved" && driver.active && driver.service_sector === "transport");
+  const approvedDeliveryDrivers = driverRegistry.filter((driver) => driver.approval_status === "approved" && driver.active && driver.service_sector === "delivery");
 
   const loadAll = () => {
     api.get("/partner/summary").then((r) => {
@@ -490,6 +501,59 @@ export default function PartnerDashboardPage() {
         items: Array.isArray(next.items) ? next.items : [],
       });
     }).catch(() => setTransportData({ items: [], wallet: { balance: 0 } })).finally(() => setLoadingTransport(false));
+    api.get("/partner/delivery/bookings").then((r) => {
+      const next = r?.data && typeof r.data === "object" ? r.data : {};
+      setDeliveryData({
+        ...next,
+        wallet: (next.wallet && typeof next.wallet === "object") ? next.wallet : { balance: 0 },
+        items: Array.isArray(next.items) ? next.items : [],
+      });
+    }).catch(() => setDeliveryData({ items: [], wallet: { balance: 0 } }));
+    api.get("/partner/drivers").then((r) => setDriverRegistry(Array.isArray(r?.data) ? r.data : [])).catch(() => setDriverRegistry([]));
+  };
+
+  useEffect(() => {
+    if (!locationSharing) return undefined;
+    if (!navigator.geolocation) {
+      toast.error("এই browser-এ GPS location support নেই");
+      setLocationSharing(null);
+      return undefined;
+    }
+    const { kind, tripId } = locationSharing;
+    const endpoint = `/partner/${kind}/bookings/${tripId}/location`;
+    const watchId = navigator.geolocation.watchPosition(
+      (position) => {
+        api.post(endpoint, {
+          latitude: position.coords.latitude,
+          longitude: position.coords.longitude,
+          accuracy_m: position.coords.accuracy,
+        }).catch(() => {});
+      },
+      () => toast.error("GPS permission দিন, তাহলে live location share হবে"),
+      { enableHighAccuracy: true, maximumAge: 5000, timeout: 15000 }
+    );
+    return () => navigator.geolocation.clearWatch(watchId);
+  }, [locationSharing]);
+
+  const toggleLocationSharing = (kind, tripId) => {
+    if (locationSharing?.tripId === tripId && locationSharing?.kind === kind) {
+      setLocationSharing(null);
+      toast.success("Live location sharing বন্ধ হয়েছে");
+      return;
+    }
+    setLocationSharing({ kind, tripId });
+    toast.success("Live location sharing শুরু হয়েছে");
+  };
+
+  const assignDriver = async (kind, tripId, driverId) => {
+    if (!driverId) return;
+    try {
+      await api.post(`/partner/${kind}/bookings/${tripId}/assign-driver`, { driver_id: driverId });
+      toast.success("Driver assigned to booking");
+      loadAll();
+    } catch (err) {
+      toast.error(err?.response?.data?.detail || "Driver assignment failed");
+    }
   };
 
   const updateTripFare = async (tripId) => {
@@ -2191,6 +2255,7 @@ export default function PartnerDashboardPage() {
                 <h3 className="font-display font-black text-emerald-950 text-xl mt-1 inline-flex items-center gap-2">Courier / Logistics / Delivery Partner Control Room</h3>
                 <p className="text-xs text-slate-600 mt-1">Courier, cargo, parcel, and delivery partner listings আলাদা panel-এ manage করুন।</p>
               </div>
+              <Link to="/app/driver-registry" className="text-xs font-semibold text-cyan-800 underline">Manage delivery agents</Link>
               <div className="rounded-lg border border-cyan-200 bg-cyan-50 px-3 py-2 text-xs text-cyan-900 inline-flex items-center gap-2">
                 <Wallet className="w-4 h-4" /> Listings: {deliveryItems.length}
               </div>
@@ -2250,6 +2315,46 @@ export default function PartnerDashboardPage() {
                             />
                             <Button size="sm" variant="outline" className="rounded-full border-red-300 text-red-700 hover:bg-red-50 h-7 px-2 text-[11px]" onClick={() => deleteProduct(p.id)} data-testid={`del-my-delivery-${p.id}`}>Delete</Button>
                           </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              <div className="rounded-xl border border-sky-200 bg-white p-4 xl:col-span-2" data-testid="partner-delivery-tracking-panel">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <div>
+                    <p className="text-[10px] uppercase tracking-widest text-sky-700 font-semibold">Active Delivery Tracking</p>
+                    <h4 className="font-display font-bold text-emerald-950 text-base mt-1">Courier movement and last GPS update</h4>
+                  </div>
+                  <span className="text-xs text-slate-500">{deliveryData.items.length} delivery bookings</span>
+                </div>
+                {deliveryData.items.length === 0 ? (
+                  <p className="text-sm text-slate-500 mt-3">No delivery bookings yet.</p>
+                ) : (
+                  <div className="mt-3 grid gap-3 md:grid-cols-2">
+                    {deliveryData.items.filter((trip) => !["delivered", "completed", "cancelled", "returned", "failed_delivery"].includes(String(trip.status || "").toLowerCase())).map((trip) => (
+                      <div key={trip.id} className="rounded-lg border border-slate-200 bg-slate-50 p-3">
+                        <div className="flex items-start justify-between gap-2">
+                          <div>
+                            <p className="font-mono text-[11px] text-cyan-800">{trip.trip_code || trip.id}</p>
+                            <p className="font-semibold text-emerald-950 mt-1">{trip.service_name || "Delivery Booking"}</p>
+                            <p className="text-xs text-slate-600 mt-1">{trip.pickup || "Pickup"} → {trip.destination || "Destination"}</p>
+                          </div>
+                          <span className="rounded-full border border-cyan-200 bg-cyan-50 px-2 py-1 text-[10px] font-bold uppercase text-cyan-800">{trip.status || "booked"}</span>
+                        </div>
+                        <div className="mt-2 flex flex-wrap items-center gap-2">
+                          {!["delivered", "completed", "cancelled", "returned", "failed_delivery"].includes(String(trip.status || "").toLowerCase()) ? (
+                            <select value={trip.driver_id || ""} onChange={(e) => assignDriver("delivery", trip.id, e.target.value)} className="h-9 min-w-[190px] rounded-md border border-cyan-200 bg-white px-2 text-xs">
+                              <option value="">{trip.driver?.name ? `Assigned: ${trip.driver.name}` : "Assign delivery agent"}</option>
+                              {approvedDeliveryDrivers.map((driver) => <option key={driver.id} value={driver.id}>{driver.name} · {driver.vehicle_number || driver.vehicle_type || "Agent"}</option>)}
+                            </select>
+                          ) : null}
+                          <Button type="button" size="sm" variant="outline" className="rounded-full border-cyan-300 text-cyan-900" onClick={() => toggleLocationSharing("delivery", trip.id)}>
+                            {locationSharing?.tripId === trip.id ? "Stop sharing" : "Share my GPS"}
+                          </Button>
+                          {trip.live_location ? <a href={liveLocationUrl(trip.live_location)} target="_blank" rel="noreferrer" className="text-[11px] text-cyan-800 underline">Open last location</a> : null}
                         </div>
                       </div>
                     ))}
@@ -2389,6 +2494,7 @@ export default function PartnerDashboardPage() {
                 <h3 className="font-display font-black text-emerald-950 text-xl mt-1 inline-flex items-center gap-2"><CarTaxiFront className="w-5 h-5" /> Cab / Car Rental / Bike Rental Control Room</h3>
                 <p className="text-xs text-slate-600 mt-1">Transport listing, fare lock, reserve check, and trip lifecycle execution - all in one professional panel.</p>
               </div>
+              <Link to="/app/driver-registry" className="text-xs font-semibold text-sky-800 underline">Manage drivers & vehicles</Link>
               <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900 inline-flex items-center gap-2">
                 <Wallet className="w-4 h-4" /> Wallet Balance: {inr(transportData?.wallet?.balance || 0)}
               </div>
@@ -2585,6 +2691,16 @@ export default function PartnerDashboardPage() {
                           >
                             <ExternalLink className="w-3 h-3" /> Open route in Google Maps
                           </button>
+                          {status !== "completed" && status !== "paid" && status !== "rejected" ? (
+                            <select
+                              value={trip.driver_id || ""}
+                              onChange={(e) => assignDriver("transport", trip.id, e.target.value)}
+                              className="mt-2 h-9 w-full rounded-md border border-sky-200 bg-white px-2 text-xs"
+                            >
+                              <option value="">{trip.driver?.name ? `Assigned: ${trip.driver.name}` : "Assign approved driver"}</option>
+                              {approvedTransportDrivers.map((driver) => <option key={driver.id} value={driver.id}>{driver.name} · {driver.vehicle_number || driver.vehicle_type || "Vehicle"}</option>)}
+                            </select>
+                          ) : null}
                         </div>
                         <div className="text-right shrink-0">
                           <span className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full border text-xs font-semibold ${statusMeta.tone}`}>
@@ -2645,6 +2761,19 @@ export default function PartnerDashboardPage() {
                           <Button className="rounded-full bg-emerald-900 hover:bg-emerald-950 text-white" onClick={() => completeTrip(trip.id)}>
                             <CheckCircle2 className="w-4 h-4 mr-1" /> Complete Trip (Show QR)
                           </Button>
+                          <div className="mt-2 rounded-lg border border-sky-200 bg-sky-50 p-3">
+                            <div className="flex flex-wrap items-center justify-between gap-2">
+                              <p className="text-xs font-semibold text-sky-900">Live location sharing</p>
+                              <Button type="button" size="sm" variant="outline" className="rounded-full border-sky-300 text-sky-900" onClick={() => toggleLocationSharing("transport", trip.id)}>
+                                {locationSharing?.tripId === trip.id ? "Stop sharing" : "Share my GPS"}
+                              </Button>
+                            </div>
+                            {trip.live_location ? (
+                              <a href={liveLocationUrl(trip.live_location)} target="_blank" rel="noreferrer" className="text-[11px] text-sky-800 underline mt-1 inline-block">
+                                Last update: {new Date(trip.live_location.updated_at).toLocaleTimeString()} · Open location
+                              </a>
+                            ) : <p className="text-[11px] text-slate-600 mt-1">GPS share শুরু করলে admin এই trip-এর সর্বশেষ location দেখতে পাবেন।</p>}
+                          </div>
                         </div>
                       ) : null}
 

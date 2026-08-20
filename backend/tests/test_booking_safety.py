@@ -10,7 +10,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from sql_app.database import Base
 from sql_app.models import AssociatePartner, AppSetting, PartnerProduct, PublicOrder
-from sql_app.routers.compat import _load_partner_wallet, _save_delivery_trip, _save_partner_wallet, _save_transport_trip, _schedule_overlaps, partner_delivery_confirm_booking, partner_delivery_update_status
+from sql_app.routers.compat import _auto_approve_pending_orders_for_partner, _load_partner_wallet, _load_transport_trip, _save_delivery_trip, _save_partner_wallet, _save_transport_trip, _schedule_overlaps, partner_delivery_confirm_booking, partner_delivery_update_status
 
 
 def make_session():
@@ -75,6 +75,28 @@ def test_delivery_confirmation_wallet_insufficient_then_recharge_and_retry():
         confirmed = partner_delivery_confirm_booking("DEL-WALLET-CONFIRM", db, identity)
         assert confirmed["booking"]["status"] == "confirmed"
         assert _load_partner_wallet(db, partner.id)["balance"] == 0
+    finally:
+        db.close()
+
+
+def test_wallet_credit_auto_confirms_linked_transport_trip(monkeypatch):
+    db = make_session()
+    try:
+        partner = AssociatePartner(partner_code="MTH-AUTO-TRIP", business_name="Auto Trip Partner", email="auto-trip@example.com", commission_percent=10, active=True)
+        db.add(partner)
+        db.flush()
+        product = PartnerProduct(partner_id=partner.id, name="Cab Service", category="Transport", price=100, stock=0, active=True, approval_status="approved")
+        db.add(product)
+        db.flush()
+        order = PublicOrder(status="pending_approval", total_amount=100, items_json='[{"product_id":"%s","product_type":"associate_partner","listing_type":"service","is_service":true}]' % product.id)
+        db.add(order)
+        db.commit()
+        _save_transport_trip(db, {"id": "TRIP-AUTO", "partner_id": partner.id, "order_id": order.id, "status": "booked", "fare_final": 100})
+        monkeypatch.setattr("sql_app.routers.compat.admin_approve_order", lambda **kwargs: {"rewards_earned": {}, "commission_split": {}})
+        result = _auto_approve_pending_orders_for_partner(db, partner.id, "test wallet credit")
+        assert result["approved"] == 1
+        assert result["approved_trip_ids"] == ["TRIP-AUTO"]
+        assert _load_transport_trip(db, "TRIP-AUTO")["status"] == "confirmed"
     finally:
         db.close()
 

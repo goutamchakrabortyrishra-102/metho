@@ -16,6 +16,12 @@ const STATUS_COLORS = {
   paid: "bg-green-100 text-green-800 border-green-200",
   rejected: "bg-red-100 text-red-800 border-red-200",
 };
+const liveLocationUrl = (location) => {
+  const latitude = Number(location?.latitude);
+  const longitude = Number(location?.longitude);
+  if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) return "";
+  return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(`${latitude},${longitude}`)}`;
+};
 
 export default function AdminTransportPage() {
   const { user } = useAuth();
@@ -25,6 +31,7 @@ export default function AdminTransportPage() {
   const [total, setTotal] = useState(0);
   const [offset, setOffset] = useState(0);
   const [loading, setLoading] = useState(false);
+  const [drivers, setDrivers] = useState([]);
 
   const load = useCallback(async (nextOffset) => {
     setLoading(true);
@@ -35,6 +42,8 @@ export default function AdminTransportPage() {
       setTotal(data.total ?? 0);
       setOffset(nextOffset);
       setItems(data.items ?? []);
+      const driverResponse = await api.get("/admin/drivers");
+      setDrivers(Array.isArray(driverResponse.data) ? driverResponse.data.filter((driver) => driver.approval_status === "approved" && driver.active && driver.service_sector === "transport") : []);
     } catch (err) {
       toast.error(err?.response?.data?.detail || "Failed to load transport bookings");
     } finally {
@@ -42,9 +51,26 @@ export default function AdminTransportPage() {
     }
   }, []);
 
+  const assignDriver = async (tripId, driverId) => {
+    if (!driverId) return;
+    try {
+      await api.post(`/admin/transport/bookings/${tripId}/assign-driver`, { driver_id: driverId });
+      toast.success("Driver assigned");
+      load(offset);
+    } catch (err) {
+      toast.error(err?.response?.data?.detail || "Driver assignment failed");
+    }
+  };
+
   useEffect(() => {
     if (isAdmin) load(0);
   }, [isAdmin, load]);
+
+  useEffect(() => {
+    if (!isAdmin) return undefined;
+    const intervalId = window.setInterval(() => load(offset), 10000);
+    return () => window.clearInterval(intervalId);
+  }, [isAdmin, load, offset]);
 
   if (!isAdmin) return <Navigate to="/app" replace />;
 
@@ -116,6 +142,17 @@ export default function AdminTransportPage() {
                     ) : null}
                     {trip.notes ? (
                       <p className="text-xs text-slate-500 italic">Note: {trip.notes}</p>
+                    ) : null}
+                    {trip.live_location ? (
+                      <a href={liveLocationUrl(trip.live_location)} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 text-xs font-semibold text-sky-700 hover:text-sky-900 mt-1">
+                        <MapPin className="w-3 h-3" /> Last GPS: {new Date(trip.live_location.updated_at).toLocaleString()} · Open location
+                      </a>
+                    ) : null}
+                    {!["completed", "paid", "rejected"].includes(String(trip.status || "").toLowerCase()) ? (
+                      <select value={trip.driver_id || ""} onChange={(e) => assignDriver(trip.id, e.target.value)} className="mt-2 h-9 w-full max-w-xs rounded-md border border-sky-200 bg-white px-2 text-xs">
+                        <option value="">{trip.driver?.name ? `Assigned: ${trip.driver.name}` : "Assign approved driver"}</option>
+                        {drivers.map((driver) => <option key={driver.id} value={driver.id}>{driver.name} · {driver.vehicle_number || driver.vehicle_type || "Vehicle"}</option>)}
+                      </select>
                     ) : null}
                   </div>
                   <div className="text-right space-y-1">

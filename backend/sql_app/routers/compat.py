@@ -1207,6 +1207,18 @@ def _purge_partner_related_records(db: Session, partner: AssociatePartner) -> No
         if transport_keys_to_delete:
             db.query(AppSetting).filter(AppSetting.key.in_(transport_keys_to_delete)).delete(synchronize_session=False)
 
+        driver_rows = db.query(AppSetting).filter(AppSetting.key.like("partner_driver:%")).all()
+        driver_keys_to_delete = []
+        for row in driver_rows:
+            try:
+                doc = json.loads(row.value_json or "{}")
+            except Exception:
+                continue
+            if str(doc.get("partner_id") or "") == partner_id:
+                driver_keys_to_delete.append(row.key)
+        if driver_keys_to_delete:
+            db.query(AppSetting).filter(AppSetting.key.in_(driver_keys_to_delete)).delete(synchronize_session=False)
+
     if login_id:
         db.query(User).filter(User.email == login_id, User.role == "partner").delete(synchronize_session=False)
 
@@ -1240,6 +1252,68 @@ def _transport_trip_key(trip_id: str) -> str:
 
 def _delivery_trip_key(trip_id: str) -> str:
     return f"delivery_trip:{trip_id}"
+
+
+def _driver_key(driver_id: str) -> str:
+    return f"partner_driver:{driver_id}"
+
+
+def _load_driver(db: Session, driver_id: str) -> dict | None:
+    row = db.query(AppSetting).filter(AppSetting.key == _driver_key(driver_id)).first()
+    if not row:
+        return None
+    try:
+        payload = json.loads(row.value_json or "{}")
+    except Exception:
+        payload = {}
+    return payload if isinstance(payload, dict) else None
+
+
+def _save_driver(db: Session, driver: dict) -> dict:
+    driver_id = str(driver.get("id") or "").strip()
+    if not driver_id:
+        raise HTTPException(status_code=400, detail="Driver id missing")
+    driver["updated_at"] = now_iso()
+    row = db.query(AppSetting).filter(AppSetting.key == _driver_key(driver_id)).first()
+    payload = json.dumps(driver)
+    if row:
+        row.value_json = payload
+        row.updated_at = datetime.now(timezone.utc)
+    else:
+        db.add(AppSetting(key=_driver_key(driver_id), value_json=payload, updated_at=datetime.now(timezone.utc)))
+    db.commit()
+    return driver
+
+
+def _list_drivers(db: Session, partner_id: str | None = None, include_unapproved: bool = False) -> list[dict]:
+    rows = db.query(AppSetting).filter(AppSetting.key.like("partner_driver:%")).order_by(AppSetting.updated_at.desc()).all()
+    result = []
+    for row in rows:
+        try:
+            driver = json.loads(row.value_json or "{}")
+        except Exception:
+            continue
+        if not isinstance(driver, dict):
+            continue
+        if partner_id and str(driver.get("partner_id") or "") != str(partner_id):
+            continue
+        if not include_unapproved and str(driver.get("approval_status") or "pending") != "approved":
+            continue
+        result.append(driver)
+    return result
+
+
+def _driver_snapshot(driver: dict) -> dict:
+    return {
+        "id": str(driver.get("id") or ""),
+        "name": str(driver.get("name") or "Driver").strip(),
+        "phone": "".join(ch for ch in str(driver.get("phone") or "") if ch.isdigit()),
+        "whatsapp": "".join(ch for ch in str(driver.get("whatsapp") or driver.get("phone") or "") if ch.isdigit()),
+        "vehicle_number": str(driver.get("vehicle_number") or "").strip(),
+        "vehicle_type": str(driver.get("vehicle_type") or "").strip(),
+        "service_sector": str(driver.get("service_sector") or "transport").strip().lower(),
+        "live_location": driver.get("live_location") if isinstance(driver.get("live_location"), dict) else None,
+    }
 
 
 def _property_enquiry_key(enquiry_id: str) -> str:
@@ -1741,6 +1815,23 @@ def _list_delivery_trips(db: Session, partner_id: str | None = None, limit: int 
         if len(out) >= max(1, int(limit)):
             break
     return out
+
+
+def _update_trip_location(db: Session, trip: dict, payload: dict | None) -> dict:
+    try:
+        latitude = round(float((payload or {}).get("latitude")), 7)
+        longitude = round(float((payload or {}).get("longitude")), 7)
+    except (TypeError, ValueError):
+        raise HTTPException(status_code=400, detail="Valid latitude and longitude are required")
+    if not -90 <= latitude <= 90 or not -180 <= longitude <= 180:
+        raise HTTPException(status_code=400, detail="Location coordinates are out of range")
+    trip["live_location"] = {
+        "latitude": latitude,
+        "longitude": longitude,
+        "accuracy_m": round(max(0.0, float((payload or {}).get("accuracy_m") or 0)), 1),
+        "updated_at": now_iso(),
+    }
+    return trip
 
 
 def _parse_schedule(value: str | None):
@@ -3184,6 +3275,7 @@ def _auto_approve_pending_orders_for_partner(db: Session, partner_id: str, sourc
 
     attempted = 0
     approved_ids: list[str] = []
+    approved_trip_ids: list[str] = []
     skipped: list[dict] = []
     note = source_note.strip() or "partner wallet credit"
 
@@ -3213,6 +3305,22 @@ def _auto_approve_pending_orders_for_partner(db: Session, partner_id: str, sourc
                 current_user=SimpleNamespace(role="super_admin"),
             )
             approved_ids.append(str(row.id))
+            for trip in _list_transport_trips(db, partner_id=pid, limit=100000):
+                if str(trip.get("order_id") or "") != str(row.id) or str(trip.get("status") or "") != "booked":
+                    continue
+                trip["status"] = "confirmed"
+                trip["confirmed_at"] = now_iso()
+                trip["order_status"] = "paid"
+                _save_transport_trip(db, trip)
+                approved_trip_ids.append(str(trip.get("id") or ""))
+            for trip in _list_delivery_trips(db, partner_id=pid, limit=100000):
+                if str(trip.get("order_id") or "") != str(row.id) or str(trip.get("status") or "") != "booked":
+                    continue
+                trip["status"] = "confirmed"
+                trip["confirmed_at"] = now_iso()
+                trip["order_status"] = "paid"
+                _save_delivery_trip(db, trip)
+                approved_trip_ids.append(str(trip.get("id") or ""))
         except HTTPException as exc:
             skipped.append({"order_id": str(row.id), "reason": str(exc.detail or "approval blocked")})
         except Exception:
@@ -3222,6 +3330,7 @@ def _auto_approve_pending_orders_for_partner(db: Session, partner_id: str, sourc
         "attempted": attempted,
         "approved": len(approved_ids),
         "approved_order_ids": approved_ids,
+        "approved_trip_ids": approved_trip_ids,
         "skipped": skipped[:20],
     }
 
@@ -5598,9 +5707,15 @@ def get_transport_booking(trip_id: str, request: Request, customer_phone: str | 
 
     partner = db.query(AssociatePartner).filter(AssociatePartner.id == str(trip.get("partner_id") or "")).first()
     payment_profile = _transport_partner_payment_profile(db, partner, request) if partner else {"upi_id": "", "payee_name": "", "qr_url": ""}
+    customer_trip = dict(trip)
+    customer_trip["partner_name"] = str(getattr(partner, "business_name", "") or trip.get("business_name") or "Partner").strip()
+    customer_trip["partner_phone"] = "".join(ch for ch in str(getattr(partner, "phone", "") or "").strip() if ch.isdigit())
+    customer_trip["partner_whatsapp"] = "".join(ch for ch in str(getattr(partner, "whatsapp_no", "") or getattr(partner, "phone", "") or "").strip() if ch.isdigit())
+    assigned_driver = _load_driver(db, str(trip.get("driver_id") or "")) if trip.get("driver_id") else None
+    customer_trip["driver"] = _driver_snapshot(assigned_driver) if assigned_driver else trip.get("driver")
     return {
         "ok": True,
-        "booking": trip,
+        "booking": customer_trip,
         "payment_profile": payment_profile if str(trip.get("status") or "") in {"completed", "paid"} else {"upi_id": "", "payee_name": "", "qr_url": ""},
     }
 
@@ -5796,9 +5911,15 @@ def get_delivery_booking(trip_id: str, request: Request, customer_phone: str | N
 
     partner = db.query(AssociatePartner).filter(AssociatePartner.id == str(trip.get("partner_id") or "")).first()
     payment_profile = _transport_partner_payment_profile(db, partner, request) if partner else {"upi_id": "", "payee_name": "", "qr_url": ""}
+    customer_trip = dict(trip)
+    customer_trip["partner_name"] = str(getattr(partner, "business_name", "") or trip.get("business_name") or "Partner").strip()
+    customer_trip["partner_phone"] = "".join(ch for ch in str(getattr(partner, "phone", "") or "").strip() if ch.isdigit())
+    customer_trip["partner_whatsapp"] = "".join(ch for ch in str(getattr(partner, "whatsapp_no", "") or getattr(partner, "phone", "") or "").strip() if ch.isdigit())
+    assigned_driver = _load_driver(db, str(trip.get("driver_id") or "")) if trip.get("driver_id") else None
+    customer_trip["driver"] = _driver_snapshot(assigned_driver) if assigned_driver else trip.get("driver")
     return {
         "ok": True,
-        "booking": trip,
+        "booking": customer_trip,
         "payment_profile": payment_profile if str(trip.get("status") or "") in {"completed", "paid"} else {"upi_id": "", "payee_name": "", "qr_url": ""},
     }
 
@@ -6009,6 +6130,166 @@ def partner_delivery_update_status(trip_id: str, payload: dict, db: Session = De
     return {"ok": True, "booking": _save_delivery_trip(db, trip)}
 
 
+def _partner_update_live_location(trip_id: str, payload: dict, db: Session, current_user, loader, saver, active_statuses: set[str]):
+    if getattr(current_user, "role", "") != "partner":
+        raise HTTPException(status_code=403, detail="Partner access only")
+    partner = _resolve_partner_for_user(db, current_user)
+    trip = loader(db, trip_id)
+    if not partner or not trip or str(trip.get("partner_id") or "") != str(partner.id):
+        raise HTTPException(status_code=404, detail="Booking not found")
+    if str(trip.get("status") or "").lower() not in active_statuses:
+        raise HTTPException(status_code=400, detail="Location sharing is available only for an active booking")
+    updated = _update_trip_location(db, trip, payload)
+    driver_id = str(updated.get("driver_id") or "").strip()
+    if driver_id:
+        driver = _load_driver(db, driver_id)
+        if driver and str(driver.get("partner_id") or "") == str(partner.id):
+            driver["live_location"] = updated.get("live_location")
+            _save_driver(db, driver)
+    return {"ok": True, "booking": saver(db, updated)}
+
+
+def _assign_driver_to_trip(trip_id: str, payload: dict, db: Session, current_user, loader, saver, sector: str) -> dict:
+    role = getattr(current_user, "role", "")
+    if role not in {"partner", "super_admin", "company_admin", "admin"}:
+        raise HTTPException(status_code=403, detail="Authorized operator access only")
+    trip = loader(db, trip_id)
+    if not trip:
+        raise HTTPException(status_code=404, detail="Booking not found")
+    partner = _resolve_partner_for_user(db, current_user) if role == "partner" else None
+    if partner and str(trip.get("partner_id") or "") != str(partner.id):
+        raise HTTPException(status_code=403, detail="Not your booking")
+    driver_id = str((payload or {}).get("driver_id") or "").strip()
+    driver = _load_driver(db, driver_id)
+    if not driver or str(driver.get("approval_status") or "") != "approved" or driver.get("active") is False:
+        raise HTTPException(status_code=400, detail="Approved active driver is required")
+    if str(driver.get("partner_id") or "") != str(trip.get("partner_id") or ""):
+        raise HTTPException(status_code=403, detail="Driver belongs to another partner")
+    driver_sector = str(driver.get("service_sector") or "transport").strip().lower()
+    if driver_sector != sector:
+        raise HTTPException(status_code=400, detail="Driver sector does not match this booking")
+    trip["driver_id"] = driver_id
+    trip["driver"] = _driver_snapshot(driver)
+    return {"ok": True, "booking": saver(db, trip)}
+
+
+@router.get("/partner/drivers")
+def partner_drivers(db: Session = Depends(get_db), current_user=Depends(get_current_user)):
+    if getattr(current_user, "role", "") != "partner":
+        raise HTTPException(status_code=403, detail="Partner access only")
+    partner = _resolve_partner_for_user(db, current_user)
+    if not partner:
+        raise HTTPException(status_code=404, detail="Partner profile not found")
+    return _list_drivers(db, partner_id=partner.id, include_unapproved=True)
+
+
+@router.post("/partner/drivers")
+def partner_create_driver(payload: dict, db: Session = Depends(get_db), current_user=Depends(get_current_user)):
+    if getattr(current_user, "role", "") != "partner":
+        raise HTTPException(status_code=403, detail="Partner access only")
+    partner = _resolve_partner_for_user(db, current_user)
+    if not partner:
+        raise HTTPException(status_code=404, detail="Partner profile not found")
+    name = str((payload or {}).get("name") or "").strip()
+    phone = "".join(ch for ch in str((payload or {}).get("phone") or "") if ch.isdigit())
+    sector = str((payload or {}).get("service_sector") or "transport").strip().lower()
+    if not name or not phone or sector not in {"transport", "delivery"}:
+        raise HTTPException(status_code=400, detail="Name, phone, and valid service sector are required")
+    driver = {
+        "id": str(uuid.uuid4()),
+        "partner_id": str(partner.id),
+        "partner_code": str(partner.partner_code or ""),
+        "business_name": str(partner.business_name or ""),
+        "name": name,
+        "phone": phone,
+        "whatsapp": "".join(ch for ch in str((payload or {}).get("whatsapp") or phone) if ch.isdigit()),
+        "vehicle_number": str((payload or {}).get("vehicle_number") or "").strip(),
+        "vehicle_type": str((payload or {}).get("vehicle_type") or "").strip(),
+        "service_sector": sector,
+        "approval_status": "pending",
+        "active": False,
+        "live_location": None,
+        "created_at": now_iso(),
+    }
+    return {"ok": True, "driver": _save_driver(db, driver)}
+
+
+@router.patch("/partner/drivers/{driver_id}")
+def partner_update_driver(driver_id: str, payload: dict, db: Session = Depends(get_db), current_user=Depends(get_current_user)):
+    if getattr(current_user, "role", "") != "partner":
+        raise HTTPException(status_code=403, detail="Partner access only")
+    partner = _resolve_partner_for_user(db, current_user)
+    driver = _load_driver(db, driver_id)
+    if not partner or not driver or str(driver.get("partner_id") or "") != str(partner.id):
+        raise HTTPException(status_code=404, detail="Driver not found")
+    for key in ("name", "vehicle_number", "vehicle_type"):
+        if (payload or {}).get(key) is not None:
+            driver[key] = str(payload.get(key) or "").strip()
+    if (payload or {}).get("phone") is not None:
+        driver["phone"] = "".join(ch for ch in str(payload.get("phone") or "") if ch.isdigit())
+    if (payload or {}).get("whatsapp") is not None:
+        driver["whatsapp"] = "".join(ch for ch in str(payload.get("whatsapp") or "") if ch.isdigit())
+    if (payload or {}).get("active") is not None and str(driver.get("approval_status")) == "approved":
+        driver["active"] = bool(payload.get("active"))
+    return {"ok": True, "driver": _save_driver(db, driver)}
+
+
+@router.get("/admin/drivers")
+def admin_drivers(db: Session = Depends(get_db), current_user=Depends(get_current_user)):
+    if getattr(current_user, "role", "") not in {"super_admin", "company_admin", "admin"}:
+        raise HTTPException(status_code=403, detail="Admin access only")
+    return _list_drivers(db, include_unapproved=True)
+
+
+@router.post("/admin/drivers/{driver_id}/review")
+def admin_review_driver(driver_id: str, payload: dict, db: Session = Depends(get_db), current_user=Depends(get_current_user)):
+    if getattr(current_user, "role", "") not in {"super_admin", "company_admin", "admin"}:
+        raise HTTPException(status_code=403, detail="Admin access only")
+    driver = _load_driver(db, driver_id)
+    if not driver:
+        raise HTTPException(status_code=404, detail="Driver not found")
+    status = str((payload or {}).get("approval_status") or "").strip().lower()
+    if status not in {"approved", "rejected"}:
+        raise HTTPException(status_code=400, detail="Approval status must be approved or rejected")
+    driver["approval_status"] = status
+    driver["active"] = status == "approved" and bool(payload.get("active", True))
+    driver["review_note"] = str((payload or {}).get("review_note") or "").strip()
+    return {"ok": True, "driver": _save_driver(db, driver)}
+
+
+@router.post("/partner/transport/bookings/{trip_id}/assign-driver")
+def partner_assign_transport_driver(trip_id: str, payload: dict, db: Session = Depends(get_db), current_user=Depends(get_current_user)):
+    return _assign_driver_to_trip(trip_id, payload, db, current_user, _load_transport_trip, _save_transport_trip, "transport")
+
+
+@router.post("/partner/delivery/bookings/{trip_id}/assign-driver")
+def partner_assign_delivery_driver(trip_id: str, payload: dict, db: Session = Depends(get_db), current_user=Depends(get_current_user)):
+    return _assign_driver_to_trip(trip_id, payload, db, current_user, _load_delivery_trip, _save_delivery_trip, "delivery")
+
+
+@router.post("/admin/transport/bookings/{trip_id}/assign-driver")
+def admin_assign_transport_driver(trip_id: str, payload: dict, db: Session = Depends(get_db), current_user=Depends(get_current_user)):
+    return _assign_driver_to_trip(trip_id, payload, db, current_user, _load_transport_trip, _save_transport_trip, "transport")
+
+
+@router.post("/admin/delivery/bookings/{trip_id}/assign-driver")
+def admin_assign_delivery_driver(trip_id: str, payload: dict, db: Session = Depends(get_db), current_user=Depends(get_current_user)):
+    return _assign_driver_to_trip(trip_id, payload, db, current_user, _load_delivery_trip, _save_delivery_trip, "delivery")
+
+
+@router.post("/partner/transport/bookings/{trip_id}/location")
+def partner_transport_update_location(trip_id: str, payload: dict, db: Session = Depends(get_db), current_user=Depends(get_current_user)):
+    return _partner_update_live_location(trip_id, payload, db, current_user, _load_transport_trip, _save_transport_trip, {"on_trip"})
+
+
+@router.post("/partner/delivery/bookings/{trip_id}/location")
+def partner_delivery_update_location(trip_id: str, payload: dict, db: Session = Depends(get_db), current_user=Depends(get_current_user)):
+    return _partner_update_live_location(
+        trip_id, payload, db, current_user, _load_delivery_trip, _save_delivery_trip,
+        {"confirmed", "pickup_assigned", "picked_up", "in_transit", "out_for_delivery"},
+    )
+
+
 @router.get("/admin/transport/bookings")
 def admin_transport_bookings(
     offset: int = Query(default=0, ge=0),
@@ -6022,6 +6303,20 @@ def admin_transport_bookings(
     total = len(all_trips)
     page_items = all_trips[offset: offset + limit]
     return {"total": total, "offset": offset, "limit": limit, "items": page_items}
+
+
+@router.get("/admin/delivery/bookings")
+def admin_delivery_bookings(
+    offset: int = Query(default=0, ge=0),
+    limit: int = Query(default=3, ge=1, le=100),
+    db: Session = Depends(get_db),
+    current_user=Depends(get_current_user),
+):
+    if getattr(current_user, "role", "") not in {"super_admin", "company_admin", "admin"}:
+        raise HTTPException(status_code=403, detail="Admin access only")
+    all_trips = _list_delivery_trips(db, limit=100000)
+    total = len(all_trips)
+    return {"total": total, "offset": offset, "limit": limit, "items": all_trips[offset: offset + limit]}
 
 
 @router.get("/admin/stay-dining/bookings")

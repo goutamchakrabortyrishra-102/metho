@@ -51,6 +51,18 @@ const routeMapsUrl = (pickup, destination) => {
   if (!dest) return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(origin)}`;
   return `https://www.google.com/maps/dir/?api=1&origin=${encodeURIComponent(origin)}&destination=${encodeURIComponent(dest)}&travelmode=driving`;
 };
+const liveLocationUrl = (location) => {
+  const latitude = Number(location?.latitude);
+  const longitude = Number(location?.longitude);
+  if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) return "";
+  return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(`${latitude},${longitude}`)}`;
+};
+const bookingWhatsAppUrl = (booking) => {
+  const number = String(booking?.driver?.whatsapp || booking?.driver?.phone || booking?.partner_whatsapp || booking?.partner_phone || "").replace(/\D/g, "");
+  if (!number) return "";
+  const message = `Hello ${booking?.partner_name || "Partner"}, I am contacting you about booking ${booking?.trip_code || booking?.id || ""}.`;
+  return `https://wa.me/${number}?text=${encodeURIComponent(message)}`;
+};
 const locationDirectionsUrl = (location) => {
   const destination = String(location || "").trim();
   return destination ? `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(destination)}&travelmode=driving` : "";
@@ -1046,6 +1058,23 @@ export default function PartnerShopPage() {
     }
   };
 
+  useEffect(() => {
+    const activeStatuses = new Set(["confirmed", "on_trip"]);
+    if (!transportBooking?.id || !activeStatuses.has(String(transportBooking.status || "").toLowerCase())) return undefined;
+    const intervalId = window.setInterval(async () => {
+      try {
+        const phone = String(transportForm?.customer_phone || transportBooking?.customer_phone || "").trim();
+        const { data } = await api.get(`/transport/bookings/${transportBooking.id}`, {
+          params: !user ? { customer_phone: phone } : undefined,
+        });
+        setTransportBooking(data?.booking || null);
+      } catch {
+        // Keep the last known booking state while the customer is offline.
+      }
+    }, 10000);
+    return () => window.clearInterval(intervalId);
+  }, [transportBooking?.id, transportBooking?.status, transportBooking?.customer_phone, transportForm?.customer_phone, user]);
+
   const closePreview = () => setPreviewItem(null);
 
   if (err) return (
@@ -1683,6 +1712,17 @@ export default function PartnerShopPage() {
                     <p className="text-xs text-slate-700">Final Fare: {Number(transportBooking.fare_final || 0) > 0 ? `₹${transportBooking.fare_final}` : "Partner will set after review"}</p>
                     <p className="text-xs text-slate-700">Route: {transportBooking.pickup}{" -> "}{transportBooking.destination}</p>
                     {transportBooking?.response_note ? <p className="text-xs text-slate-700">Partner Note: {transportBooking.response_note}</p> : null}
+                    {(transportBooking?.driver?.live_location || transportBooking?.live_location) ? (
+                      <div className="mt-3 rounded-lg border border-sky-200 bg-sky-50 p-3">
+                        <p className="text-xs font-semibold text-sky-900">Assigned driver: {transportBooking?.driver?.name || "Active driver"}</p>
+                        <p className="text-[11px] text-slate-600 mt-1">Updated {new Date((transportBooking.driver?.live_location || transportBooking.live_location).updated_at).toLocaleTimeString()}</p>
+                        <div className="mt-2 flex flex-wrap gap-2">
+                          <a href={liveLocationUrl(transportBooking.driver?.live_location || transportBooking.live_location)} target="_blank" rel="noreferrer" className="inline-flex items-center rounded-full border border-sky-300 px-3 py-1.5 text-xs font-semibold text-sky-900">Open live location</a>
+                          {(transportBooking.driver?.phone || transportBooking.partner_phone) ? <a href={`tel:${transportBooking.driver?.phone || transportBooking.partner_phone}`} className="inline-flex items-center rounded-full border border-emerald-300 px-3 py-1.5 text-xs font-semibold text-emerald-900">Call driver</a> : null}
+                          {bookingWhatsAppUrl(transportBooking) ? <a href={bookingWhatsAppUrl(transportBooking)} target="_blank" rel="noreferrer" className="inline-flex items-center rounded-full bg-emerald-700 px-3 py-1.5 text-xs font-semibold text-white">WhatsApp driver</a> : null}
+                        </div>
+                      </div>
+                    ) : null}
                     <button
                       type="button"
                       className="text-xs text-emerald-800 underline mt-1"

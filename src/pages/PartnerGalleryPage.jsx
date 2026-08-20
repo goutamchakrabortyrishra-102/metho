@@ -36,6 +36,18 @@ const ownerChatUrl = (partner) => {
   const n = cleanPhone(partner?.whatsapp_no || partner?.phone);
   return n ? `https://wa.me/${n}?text=${encodeURIComponent(`Hi ${partner?.business_name || "Owner"}, I found your shop on METHOO STORE`)}` : "";
 };
+const liveLocationUrl = (location) => {
+  const latitude = Number(location?.latitude);
+  const longitude = Number(location?.longitude);
+  if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) return "";
+  return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(`${latitude},${longitude}`)}`;
+};
+const bookingWhatsAppUrl = (booking) => {
+  const number = cleanPhone(booking?.driver?.whatsapp || booking?.driver?.phone || booking?.partner_whatsapp || booking?.partner_phone);
+  if (!number) return "";
+  const message = `Hello ${booking?.partner_name || "Partner"}, I am contacting you about delivery ${booking?.trip_code || booking?.id || ""}.`;
+  return `https://wa.me/${number}?text=${encodeURIComponent(message)}`;
+};
 
 const isLikelyAssetRef = (value) => {
   const s = String(value || "").trim();
@@ -1092,6 +1104,23 @@ export default function PartnerGalleryPage() {
     }
   };
 
+  useEffect(() => {
+    const activeStatuses = new Set(["confirmed", "pickup_assigned", "picked_up", "in_transit", "out_for_delivery"]);
+    if (!deliveryBooking?.id || !activeStatuses.has(String(deliveryBooking.status || "").toLowerCase())) return undefined;
+    const intervalId = window.setInterval(async () => {
+      try {
+        const phone = String(deliveryBookingForm?.customer_phone || deliveryBooking?.customer_phone || "").trim();
+        const { data } = await api.get(`/delivery/bookings/${deliveryBooking.id}`, {
+          params: !user ? { customer_phone: phone } : undefined,
+        });
+        setDeliveryBooking(data?.booking || null);
+      } catch {
+        // Keep the last known delivery state while the customer is offline.
+      }
+    }, 10000);
+    return () => window.clearInterval(intervalId);
+  }, [deliveryBooking?.id, deliveryBooking?.status, deliveryBooking?.customer_phone, deliveryBookingForm?.customer_phone, user]);
+
   const shareWhatsApp = () => {
     if (!partner) return;
     const productLines = visibleProducts.slice(0, 8).map(p =>
@@ -1726,6 +1755,17 @@ export default function PartnerGalleryPage() {
                 <p className="text-xs text-slate-700">Quoted Fare: ₹{Number(deliveryBooking.fare_quote || 0).toLocaleString("en-IN")}</p>
                 <p className="text-xs text-slate-700">Final Fare: {Number(deliveryBooking.fare_final || 0) > 0 ? `₹${Number(deliveryBooking.fare_final).toLocaleString("en-IN")}` : "Partner will confirm the final fare"}</p>
                 <p className="text-xs text-slate-700">Route: {deliveryBooking.pickup} → {deliveryBooking.destination}</p>
+                {(deliveryBooking?.driver?.live_location || deliveryBooking?.live_location) ? (
+                  <div className="mt-3 rounded-lg border border-sky-200 bg-sky-50 p-3">
+                    <p className="text-xs font-semibold text-sky-900">Assigned delivery agent: {deliveryBooking?.driver?.name || "Active agent"}</p>
+                    <p className="text-[11px] text-slate-600 mt-1">Updated {new Date((deliveryBooking.driver?.live_location || deliveryBooking.live_location).updated_at).toLocaleTimeString()}</p>
+                    <div className="mt-2 flex flex-wrap gap-2">
+                      <a href={liveLocationUrl(deliveryBooking.driver?.live_location || deliveryBooking.live_location)} target="_blank" rel="noreferrer" className="inline-flex items-center rounded-full border border-sky-300 px-3 py-1.5 text-xs font-semibold text-sky-900">Open live location</a>
+                      {(deliveryBooking.driver?.phone || deliveryBooking.partner_phone) ? <a href={`tel:${deliveryBooking.driver?.phone || deliveryBooking.partner_phone}`} className="inline-flex items-center rounded-full border border-emerald-300 px-3 py-1.5 text-xs font-semibold text-emerald-900">Call agent</a> : null}
+                      {bookingWhatsAppUrl(deliveryBooking) ? <a href={bookingWhatsAppUrl(deliveryBooking)} target="_blank" rel="noreferrer" className="inline-flex items-center rounded-full bg-emerald-700 px-3 py-1.5 text-xs font-semibold text-white">WhatsApp agent</a> : null}
+                    </div>
+                  </div>
+                ) : null}
               </div>
             ) : null}
 

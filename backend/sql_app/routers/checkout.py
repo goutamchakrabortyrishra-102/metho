@@ -999,6 +999,8 @@ def get_public_file(path: str, request: Request):
 
 @router.post("/orders")
 def create_public_order(payload: dict, db: Session = Depends(get_db), authorization: str | None = Header(None)):
+    from .compat import _load_partner_checkout_pref
+
     items = payload.get("items") or []
     if not isinstance(items, list) or len(items) == 0:
         raise HTTPException(status_code=400, detail="Order items are required")
