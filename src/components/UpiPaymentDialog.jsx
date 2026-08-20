@@ -632,7 +632,9 @@ export default function UpiPaymentDialog({
               </Button>
             </div>
             <div className="grid gap-2 max-h-48 overflow-y-auto pr-1">
-              {items.map((item) => (
+              {items.map((item, index) => {
+                const itemDeliveryTotal = Number(item.delivery_total || 0) || (index === 0 ? cartDeliveryTotal : 0);
+                return (
                 <div key={item.id} className="flex items-center gap-3 rounded-lg bg-white border border-emerald-100 p-2">
                   <div className="w-12 h-12 rounded-md bg-slate-100 overflow-hidden shrink-0 border border-slate-200">
                     {item.image_url ? (
@@ -643,7 +645,7 @@ export default function UpiPaymentDialog({
                   </div>
                   <div className="min-w-0 flex-1">
                     <p className="font-semibold text-emerald-950 truncate text-sm">{item.name}</p>
-                    <p className="text-[11px] text-slate-500 truncate">Qty {item.quantity_label || item.quantity} · ₹{Number(item.subtotal || 0).toLocaleString("en-IN")}{Number(item.delivery_total || 0) > 0 ? ` · Delivery ₹${Number(item.delivery_total).toLocaleString("en-IN")}` : " · Free Delivery"}</p>
+                    <p className="text-[11px] text-slate-500 truncate">Qty {item.quantity_label || item.quantity} · ₹{Number(item.subtotal || 0).toLocaleString("en-IN")}{itemDeliveryTotal > 0 ? ` · Delivery ₹${itemDeliveryTotal.toLocaleString("en-IN")}` : " · Free Delivery"}</p>
                   </div>
                   {onItemQtyChange ? (
                     <div className="flex items-center gap-1 shrink-0">
@@ -667,7 +669,8 @@ export default function UpiPaymentDialog({
                     </div>
                   ) : null}
                 </div>
-              ))}
+                );
+              })}
             </div>
           </div>
         )}
