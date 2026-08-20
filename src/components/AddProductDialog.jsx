@@ -479,6 +479,9 @@ export default function AddProductDialog({
         youtube_url: form.youtube_url || "",
         product_type: form.product_type,
         partner_id: form.product_type === "associate_partner" ? (form.partner_id || null) : null,
+        commission_percent: toNumberOrNull(form.commission_percent),
+        delivery_charge: Number(form.delivery_charge || 0),
+        free_delivery_threshold: Number(form.free_delivery_threshold || 0),
       };
       let data;
       if (isEdit) {
