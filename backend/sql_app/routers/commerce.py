@@ -289,6 +289,7 @@ def _compact_public_image_url(value: str) -> str:
 @router.get("/products")
 def list_products(limit: int | None = None, authorization: str | None = Header(default=None), db: Session = Depends(get_db)):
     products = db.query(Product).order_by(Product.created_at.desc()).all()
+    settings = load_settings(db)
     meta_rows = db.query(ProductMeta).all()
     meta_map = {m.product_id: m for m in meta_rows}
     pricing_tier_map = _get_pricing_tier_map(db)
