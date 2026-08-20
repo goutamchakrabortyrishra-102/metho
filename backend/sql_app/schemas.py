@@ -21,6 +21,23 @@ class RiderRegisterRequest(BaseModel):
     vehicle_type: str
     vehicle_number: str
     whatsapp: str = ""
+    email: str = ""
+    dob: str = ""
+    address: str = ""
+    city: str = ""
+    district: str = ""
+    state: str = ""
+    pincode: str = ""
+    pan_no: str = ""
+    aadhaar_no: str = ""
+    emergency_contact_name: str = ""
+    emergency_contact_phone: str = ""
+    bank_account_holder: str = ""
+    bank_name: str = ""
+    bank_account_number: str = ""
+    bank_ifsc: str = ""
+    upi_id: str = ""
+    agreed_to_terms: bool = False
 
 
 class ProductCreate(BaseModel):

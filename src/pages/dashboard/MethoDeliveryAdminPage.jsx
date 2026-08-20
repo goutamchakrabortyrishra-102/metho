@@ -48,6 +48,30 @@ export default function MethoDeliveryAdminPage() {
     }
   };
 
+  const refreshRiders = async () => {
+    const { data } = await api.get("/admin/riders");
+    setRiders(data?.riders || []);
+  };
+
+  const riderAction = async (rider, action) => {
+    try {
+      if (action === "delete" && !window.confirm(`Delete rider ${rider.name}?`)) return;
+      if (action === "edit") {
+        const name = window.prompt("Rider name", rider.name);
+        if (!name) return;
+        await api.patch(`/admin/riders/${rider.id}`, { name });
+      } else if (action === "delete") {
+        await api.delete(`/admin/riders/${rider.id}`);
+      } else {
+        await api.post(`/admin/riders/${rider.id}/${action}`);
+      }
+      await refreshRiders();
+      toast.success(`Rider ${action} completed`);
+    } catch (error) {
+      toast.error(error?.response?.data?.detail || `Rider ${action} failed`);
+    }
+  };
+
   return <div className="space-y-6">
     <section className="rounded-xl border border-amber-200 bg-amber-50 p-5" data-testid="metho-delivery-reward-settings">
       <div>
@@ -66,6 +90,7 @@ export default function MethoDeliveryAdminPage() {
         <Button type="submit" className="rounded-full bg-emerald-900 hover:bg-emerald-950" disabled={loading || saving}><Save className="w-4 h-4 mr-2" /> {saving ? "Saving..." : "Save delivery settings"}</Button>
       </form>
     </section>
+    <section className="rounded-xl border border-sky-200 bg-sky-50 p-5"><h2 className="font-display font-bold text-lg text-emerald-950">METHO Rider Management</h2><div className="mt-4 grid gap-3">{riders.length ? riders.map((rider) => <div key={rider.id} className="rounded-lg border border-sky-200 bg-white p-3"><div className="flex flex-wrap items-start justify-between gap-3"><div><p className="font-semibold text-emerald-950">{rider.name}</p><p className="text-xs text-slate-600">{rider.email} · {rider.phone} · {rider.vehicle_type} · {rider.vehicle_number}</p><p className="text-xs text-slate-500">{rider.address || ""} {rider.city || ""} {rider.state || ""} {rider.pincode || ""} · {rider.approval_status || "pending"} · {rider.is_active ? "active" : "inactive"}</p></div><div className="flex flex-wrap gap-2"><Button size="sm" variant="outline" onClick={() => riderAction(rider, "edit")}>Edit</Button>{rider.is_active ? <Button size="sm" variant="outline" onClick={() => riderAction(rider, "deactivate")}>Deactivate</Button> : <Button size="sm" onClick={() => riderAction(rider, "activate")}>Activate</Button>}<Button size="sm" variant="outline" className="text-rose-700" onClick={() => riderAction(rider, "delete")}>Delete</Button></div></div>{rider.approval_status === "pending" ? <div className="mt-2 flex gap-2"><Button size="sm" onClick={() => riderAction(rider, "approve")}>Approve</Button><Button size="sm" variant="outline" onClick={() => riderAction(rider, "reject")}>Reject</Button></div> : null}</div>) : <p className="text-sm text-slate-500">No riders registered yet.</p>}</div></section>
     <section className="rounded-xl border border-emerald-200 bg-white p-5"><div className="flex items-center justify-between gap-3"><h2 className="font-display font-bold text-lg text-emerald-950">Direct METHO Move bookings</h2><span className="text-sm text-slate-500">{bookings.length} total</span></div><div className="mt-4 grid gap-3">{bookings.length ? bookings.map((booking) => <div key={booking.id} className="rounded-lg border p-4"><div className="flex flex-wrap items-center justify-between gap-3"><div><p className="font-semibold text-emerald-950">{booking.service_type} · ₹{booking.amount} · {booking.status}</p><p className="text-sm text-slate-600">{booking.pickup} → {booking.destination}</p><p className="text-xs text-slate-500">{booking.customer_name} · {booking.customer_phone}</p></div><select value={booking.rider_id || ""} onChange={async (event) => { if (!event.target.value) return; await api.post(`/admin/metho-move/bookings/${booking.id}/assign`, { rider_id: event.target.value }); toast.success("Rider assigned"); window.location.reload(); }} className="h-9 rounded-md border px-2 text-xs"><option value="">Assign online rider</option>{riders.filter((rider) => rider.approval_status === "approved" && rider.is_active && rider.availability === "online").map((rider) => <option key={rider.id} value={rider.id}>{rider.name} · {rider.availability}</option>)}</select></div></div>) : <p className="text-sm text-slate-500">No direct bookings yet.</p>}</div></section>
     <section className="rounded-xl border border-amber-200 bg-amber-50 p-5"><h2 className="font-display font-bold text-lg text-emerald-950">Rider earnings and payouts</h2><div className="mt-4 grid gap-2">{earnings.length ? earnings.map((earning) => <div key={earning.id} className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-amber-200 bg-white p-3 text-sm"><span>{earning.rider_id} · ₹{earning.amount} · {earning.status}</span>{earning.status !== "paid" ? <Button size="sm" onClick={async () => { await api.post(`/admin/metho-move/earnings/${earning.id}/pay`); toast.success("Payout marked paid"); window.location.reload(); }}>Mark paid</Button> : null}</div>) : <p className="text-sm text-slate-500">No rider earnings yet.</p>}</div></section>
     <AdminServiceSectorsPage deliveryVertical="metho_delivery" methoDeliveryOnly />

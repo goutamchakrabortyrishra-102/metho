@@ -80,14 +80,19 @@ def _owned_rider(current_user: User, user_id: str) -> User:
 @router.post("/rider/register")
 def rider_register(payload: RiderRegisterRequest, db: Session = Depends(get_db)):
     phone = str(payload.phone or "").strip()
+    email = str(payload.email or "").strip().lower()
     if len(str(payload.password or "")) < 6:
         raise HTTPException(status_code=400, detail="Password must be at least 6 characters")
+    if not payload.agreed_to_terms:
+        raise HTTPException(status_code=400, detail="Please accept the Rider Terms & Conditions")
+    if email and db.query(User).filter(User.email == email).first():
+        raise HTTPException(status_code=409, detail="Email already registered")
     if db.query(User).filter(User.phone == phone).first():
         raise HTTPException(status_code=409, detail="Phone already registered")
 
     user = User(
         name=payload.name.strip(),
-        email=f"rider.{phone}@metho.local",
+        email=email or f"rider.{phone}@metho.local",
         phone=phone,
         password=hash_password(payload.password),
         role="rider",
@@ -99,6 +104,23 @@ def rider_register(payload: RiderRegisterRequest, db: Session = Depends(get_db))
         "vehicle_type": payload.vehicle_type.strip(),
         "vehicle_number": payload.vehicle_number.strip(),
         "whatsapp": payload.whatsapp.strip(),
+        "email": email,
+        "dob": payload.dob.strip(),
+        "address": payload.address.strip(),
+        "city": payload.city.strip(),
+        "district": payload.district.strip(),
+        "state": payload.state.strip(),
+        "pincode": payload.pincode.strip(),
+        "pan_no": payload.pan_no.strip().upper(),
+        "aadhaar_no": "".join(ch for ch in payload.aadhaar_no if ch.isdigit()),
+        "emergency_contact_name": payload.emergency_contact_name.strip(),
+        "emergency_contact_phone": payload.emergency_contact_phone.strip(),
+        "bank_account_holder": payload.bank_account_holder.strip(),
+        "bank_name": payload.bank_name.strip(),
+        "bank_account_number": payload.bank_account_number.strip(),
+        "bank_ifsc": payload.bank_ifsc.strip().upper(),
+        "upi_id": payload.upi_id.strip(),
+        "terms_accepted_at": datetime.now(timezone.utc).isoformat(),
         "approval_status": "pending",
         "availability": "offline",
         "registered_at": datetime.now(timezone.utc).isoformat(),
@@ -138,6 +160,43 @@ def admin_reject_rider(user_id: str, db: Session = Depends(get_db), current_user
 @router.post("/admin/riders/{user_id}/activate")
 def admin_activate_rider(user_id: str, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     return _set_rider_status(user_id, "approved", True, db, current_user)
+
+
+@router.patch("/admin/riders/{user_id}")
+def admin_update_rider(user_id: str, payload: dict, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    _require_admin(current_user)
+    rider = _rider_user(db, user_id)
+    profile = _profile(db, rider.id)
+    if payload.get("name") is not None:
+        rider.name = str(payload.get("name") or "").strip() or rider.name
+    if payload.get("phone") is not None:
+        phone = str(payload.get("phone") or "").strip()
+        duplicate = db.query(User).filter(User.phone == phone, User.id != rider.id).first()
+        if duplicate:
+            raise HTTPException(status_code=409, detail="Phone already registered")
+        rider.phone = phone
+    editable = {"vehicle_type", "vehicle_number", "whatsapp", "email", "dob", "address", "city", "district", "state", "pincode", "pan_no", "aadhaar_no", "emergency_contact_name", "emergency_contact_phone", "bank_account_holder", "bank_name", "bank_account_number", "bank_ifsc", "upi_id"}
+    for key in editable:
+        if payload.get(key) is not None:
+            profile[key] = str(payload.get(key) or "").strip()
+    _save_profile(db, rider.id, profile)
+    db.commit()
+    return {"rider": _rider_response(rider, profile)}
+
+
+@router.post("/admin/riders/{user_id}/deactivate")
+def admin_deactivate_rider(user_id: str, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    return _set_rider_status(user_id, "approved", False, db, current_user)
+
+
+@router.delete("/admin/riders/{user_id}")
+def admin_delete_rider(user_id: str, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    _require_admin(current_user)
+    rider = _rider_user(db, user_id)
+    db.query(AppSetting).filter(AppSetting.key == rider_profile_key(rider.id)).delete(synchronize_session=False)
+    db.delete(rider)
+    db.commit()
+    return {"ok": True, "deleted_id": user_id}
 
 
 @router.get("/rider/me")
