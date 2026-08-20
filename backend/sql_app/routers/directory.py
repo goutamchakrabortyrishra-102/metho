@@ -11,6 +11,25 @@ from ..models import AppSetting, AssociatePartner, PartnerProduct
 from ..storage import UPLOADED_OBJECTS_DIR
 
 
+def _partner_delivery_rules(db: Session, partner_id: str) -> dict:
+    row = db.query(AppSetting).filter(AppSetting.key == f"partner_checkout_pref:{partner_id}").first()
+    if not row:
+        return {}
+    try:
+        payload = json.loads(row.value_json or "{}")
+    except Exception:
+        return {}
+    return payload.get("category_delivery_rules") if isinstance(payload, dict) and isinstance(payload.get("category_delivery_rules"), dict) else {}
+
+
+def _partner_category_delivery_rule(rules: dict, category: str) -> dict:
+    key = str(category or "").strip().lower()
+    for name, rule in (rules or {}).items():
+        if str(name or "").strip().lower() == key and isinstance(rule, dict):
+            return {"delivery_charge": max(0.0, float(rule.get("delivery_charge") or 0)), "free_delivery_threshold": max(0.0, float(rule.get("free_delivery_threshold") or 0))}
+    return {"delivery_charge": 0.0, "free_delivery_threshold": 0.0}
+
+
 def _search_tokens(value: str | None) -> list[str]:
     return [token for token in str(value or "").lower().replace(",", " ").split() if token]
 
@@ -554,6 +573,7 @@ def partner_public_page(partner_code: str, db: Session = Depends(get_db)):
     )
     unit_map = _load_partner_product_units(db)
     meta_map = _load_partner_product_meta(db)
+    partner_delivery_rules = _partner_delivery_rules(db, partner.id)
     products = [
         product for product in products
         if str(_service_meta_for_product(meta_map, product.id).get("property_status") or "AVAILABLE").upper()
@@ -581,6 +601,7 @@ def partner_public_page(partner_code: str, db: Session = Depends(get_db)):
                 "partner_id": p.partner_id,
                 **_unit_info_for_product(unit_map, p.id),
                 **_service_meta_for_product(meta_map, p.id),
+                **_partner_category_delivery_rule(partner_delivery_rules, p.category),
             }
             for p in products
         ],

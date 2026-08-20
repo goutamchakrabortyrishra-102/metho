@@ -889,6 +889,7 @@ export default function SettingsPage() {
 
   const buildSettingsPayload = (source) => ({
     smart_cycle_bonus_percent: Number(source.smart_cycle_bonus_percent),
+    category_delivery_rules: source.category_delivery_rules && typeof source.category_delivery_rules === "object" ? source.category_delivery_rules : {},
     metho_commission_percent: Number(source.metho_commission_percent),
     franchise_reward_percent: Number(source.franchise_reward_percent) || 0,
     leader_match_percent: Number(source.leader_match_percent),
@@ -1205,6 +1206,31 @@ export default function SettingsPage() {
               suffix="%"
               hint="Platform maintenance ও future development-এর জন্য।"
             />
+          </Section>
+
+          <Section
+            title="Category-wise Delivery Rules"
+            subtitle="প্রতিটি category-এর delivery charge ও free-delivery limit আলাদা করে set করুন।"
+            icon={SettingsIcon}
+            badge="Admin-defined"
+          >
+            <div className="md:col-span-2 rounded-lg border border-sky-200 bg-sky-50 p-3">
+              <Label>Category Delivery Rules (JSON)</Label>
+              <Textarea
+                value={JSON.stringify(form.category_delivery_rules || {}, null, 2)}
+                onChange={(e) => {
+                  try {
+                    const next = JSON.parse(e.target.value || "{}");
+                    if (next && typeof next === "object" && !Array.isArray(next)) setF("category_delivery_rules")(next);
+                  } catch { /* keep the last valid rule map while typing */ }
+                }}
+                rows={8}
+                className="mt-1.5 bg-white font-mono text-xs"
+                data-testid="settings-category-delivery-rules"
+              />
+              <p className="mt-2 text-[11px] text-sky-900">Example: {`{"Food Supply":{"delivery_charge":60,"free_delivery_threshold":500},"Grocery":{"delivery_charge":80,"free_delivery_threshold":2000}}`}</p>
+              <p className="mt-1 text-[11px] text-slate-600">Product/partner listing-এ custom charge দিলে সেটি category rule-এর আগে কাজ করবে। Smart Cycle commission-এ delivery charge ধরা হবে না।</p>
+            </div>
           </Section>
 
           <Section title="Wallet ও Withdrawal" subtitle="Member cash-out এর নিয়ম" icon={SettingsIcon}>

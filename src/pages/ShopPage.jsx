@@ -311,9 +311,17 @@ export default function ShopPage() {
   );
 
   const merchandiseSubtotal = items.reduce((sum, i) => sum + i.subtotal, 0);
-  const cartDeliveryCharge = Math.max(0, ...items.map((item) => Number(item.delivery_charge || 0)));
-  const freeDeliveryThreshold = Math.max(0, ...items.map((item) => Number(item.free_delivery_threshold || 0)));
-  const cartDeliveryTotal = freeDeliveryThreshold > 0 && merchandiseSubtotal >= freeDeliveryThreshold ? 0 : cartDeliveryCharge;
+  const deliveryGroups = items.reduce((groups, item) => {
+    const key = String(item.category || "General").trim().toLowerCase();
+    const group = groups[key] || { subtotal: 0, charge: 0, threshold: 0 };
+    group.subtotal += item.subtotal;
+    group.charge = Math.max(group.charge, Number(item.delivery_charge || 0));
+    group.threshold = Math.max(group.threshold, Number(item.free_delivery_threshold || 0));
+    groups[key] = group;
+    return groups;
+  }, {});
+  const deliveryByCategory = Object.fromEntries(Object.entries(deliveryGroups).map(([key, group]) => [key, group.threshold > 0 && group.subtotal >= group.threshold ? 0 : group.charge]));
+  const cartDeliveryTotal = Math.max(0, ...Object.values(deliveryByCategory));
   const checkoutItems = items.map((item, index) => ({ ...item, delivery_total: index === 0 ? cartDeliveryTotal : 0 }));
   const total = merchandiseSubtotal + cartDeliveryTotal;
 

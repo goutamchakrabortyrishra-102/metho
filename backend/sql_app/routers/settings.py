@@ -93,6 +93,7 @@ DEFAULT_SETTINGS = {
         "Nutrition",
         "Utilities",
     ],
+    "category_delivery_rules": {},
     "partner_registration_custom_options": {
         "service_sectors": [],
         "shop_sectors": [],

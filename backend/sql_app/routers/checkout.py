@@ -463,6 +463,32 @@ def _load_partner_product_meta(db: Session) -> dict[str, dict]:
     return payload if isinstance(payload, dict) else {}
 
 
+def _category_delivery_rule(settings: dict, category: str) -> dict:
+    rules = settings.get("category_delivery_rules") if isinstance(settings, dict) else {}
+    if not isinstance(rules, dict):
+        return {"delivery_charge": 0.0, "free_delivery_threshold": 0.0}
+    key = str(category or "").strip().lower()
+    for name, rule in rules.items():
+        if str(name or "").strip().lower() != key or not isinstance(rule, dict):
+            continue
+        return {
+            "delivery_charge": max(0.0, float(rule.get("delivery_charge") or 0)),
+            "free_delivery_threshold": max(0.0, float(rule.get("free_delivery_threshold") or 0)),
+        }
+    return {"delivery_charge": 0.0, "free_delivery_threshold": 0.0}
+
+
+def _partner_category_delivery_rule(checkout_pref: dict, category: str) -> dict:
+    rules = (checkout_pref or {}).get("category_delivery_rules")
+    if not isinstance(rules, dict):
+        return {"delivery_charge": 0.0, "free_delivery_threshold": 0.0}
+    key = str(category or "").strip().lower()
+    for name, rule in rules.items():
+        if str(name or "").strip().lower() == key and isinstance(rule, dict):
+            return {"delivery_charge": max(0.0, float(rule.get("delivery_charge") or 0)), "free_delivery_threshold": max(0.0, float(rule.get("free_delivery_threshold") or 0))}
+    return {"delivery_charge": 0.0, "free_delivery_threshold": 0.0}
+
+
 def _save_partner_product_meta(db: Session, mapping: dict[str, dict]) -> None:
     row = db.query(AppSetting).filter(AppSetting.key == PARTNER_PRODUCT_META_KEY).first()
     if not row:
@@ -982,6 +1008,7 @@ def create_public_order(payload: dict, db: Session = Depends(get_db), authorizat
     settings = load_settings(db)
     partner_unit_map = _load_partner_product_units(db)
     partner_meta_map = _load_partner_product_meta(db)
+    partner_pref_cache = {}
     pricing_tier_map = settings.get("product_pricing_tiers") if isinstance(settings.get("product_pricing_tiers"), dict) else {}
     enable_partner_slab_pricing = bool(settings.get("enable_partner_slab_pricing", False))
     customer_user_id = ""
@@ -1041,6 +1068,8 @@ def create_public_order(payload: dict, db: Session = Depends(get_db), authorizat
         if product_type == "associate_partner":
             unit_info = _partner_unit_info(partner_unit_map, product.id)
             listing_meta = _partner_product_meta(partner_meta_map, product.id)
+            partner_id = str(getattr(product, "partner_id", "") or "")
+            partner_pref_cache[partner_id] = partner_pref_cache.get(partner_id) or _load_partner_checkout_pref(db, partner_id)
             gst_percent = float(listing_meta.get("gst_percent") or 0)
         elif product_type == "metho_service":
             listing_meta = {
@@ -1088,8 +1117,11 @@ def create_public_order(payload: dict, db: Session = Depends(get_db), authorizat
             # Round final GST-inclusive price to nearest whole rupee
             line_total = float(round_half_up_to_whole_rupee(line_total))
 
-        delivery_charge = max(0.0, float(global_service_meta.get("delivery_charge") or 0) if product_type in {"metho", "metho_service"} else float(listing_meta.get("delivery_charge") or 0))
-        delivery_threshold = max(0.0, float(global_service_meta.get("free_delivery_threshold") or 0) if product_type in {"metho", "metho_service"} else float(listing_meta.get("free_delivery_threshold") or 0))
+        product_delivery_charge = max(0.0, float(global_service_meta.get("delivery_charge") or 0) if product_type in {"metho", "metho_service"} else float(listing_meta.get("delivery_charge") or 0))
+        product_delivery_threshold = max(0.0, float(global_service_meta.get("free_delivery_threshold") or 0) if product_type in {"metho", "metho_service"} else float(listing_meta.get("free_delivery_threshold") or 0))
+        category_rule = _partner_category_delivery_rule(partner_pref_cache.get(str(getattr(product, "partner_id", "") or "")), str(getattr(product, "category", "") or "")) if product_type == "associate_partner" else _category_delivery_rule(settings, str(getattr(product, "category", "") or ""))
+        delivery_charge = product_delivery_charge or category_rule["delivery_charge"]
+        delivery_threshold = product_delivery_threshold or category_rule["free_delivery_threshold"]
         total = round(total + float(round_half_up_to_whole_rupee(line_total)), 2)
 
         normalized_items.append(
@@ -1124,8 +1156,7 @@ def create_public_order(payload: dict, db: Session = Depends(get_db), authorizat
                 "service_template_key": str(listing_meta["service_template_key"] if product_type == "metho_service" else (item.get("service_template_key") or listing_meta["service_template_key"])).strip(),
                 "booking_available_from": str(global_service_meta.get("booking_available_from") or "") if product_type in {"metho", "metho_service"} else "",
                 "booking_available_until": str(global_service_meta.get("booking_available_until") or "") if product_type in {"metho", "metho_service"} else "",
-                    "delivery_charge": max(0.0, float(global_service_meta.get("delivery_charge") if product_type in {"metho", "metho_service"} else listing_meta.get("delivery_charge") or 0)),
-                    "free_delivery_threshold": max(0.0, float(global_service_meta.get("free_delivery_threshold") if product_type in {"metho", "metho_service"} else listing_meta.get("free_delivery_threshold") or 0)),
+                "delivery_category": str(getattr(product, "category", "") or "").strip(),
                 "pricing_unit": str(listing_meta.get("pricing_unit") or "PER_ITEM"),
                 "availability": str(listing_meta.get("availability") or ""),
             }
@@ -1135,12 +1166,23 @@ def create_public_order(payload: dict, db: Session = Depends(get_db), authorizat
         raise HTTPException(status_code=400, detail="No valid products found in order")
 
     merchandise_total = round(sum(float(item.get("subtotal") or 0) for item in normalized_items), 2)
-    delivery_items = [item for item in normalized_items if float(item.get("delivery_charge") or 0) > 0]
-    cart_delivery_charge = max((float(item.get("delivery_charge") or 0) for item in delivery_items), default=0.0)
-    free_delivery_threshold = max((float(item.get("free_delivery_threshold") or 0) for item in delivery_items), default=0.0)
-    cart_delivery_total = 0.0 if free_delivery_threshold > 0 and merchandise_total >= free_delivery_threshold else float(round_half_up_to_whole_rupee(cart_delivery_charge))
-    if normalized_items:
-        normalized_items[0]["delivery_total"] = cart_delivery_total
+    delivery_groups = {}
+    for item in normalized_items:
+        key = str(item.get("delivery_category") or item.get("category") or "General").strip().lower() or "general"
+        group = delivery_groups.setdefault(key, {"subtotal": 0.0, "charge": 0.0, "threshold": 0.0, "first": item})
+        group["subtotal"] += float(item.get("subtotal") or 0)
+        group["charge"] = max(group["charge"], float(item.get("delivery_charge") or 0))
+        group["threshold"] = max(group["threshold"], float(item.get("free_delivery_threshold") or 0))
+    applicable_charges = []
+    for group in delivery_groups.values():
+        charge = 0.0 if group["threshold"] > 0 and group["subtotal"] >= group["threshold"] else float(round_half_up_to_whole_rupee(group["charge"]))
+        group["applicable_charge"] = charge
+        if charge > 0:
+            applicable_charges.append(charge)
+    cart_delivery_total = max(applicable_charges, default=0.0)
+    first_delivery_group = next((group for group in delivery_groups.values() if group.get("applicable_charge", 0) == cart_delivery_total), None)
+    if first_delivery_group:
+        first_delivery_group["first"]["delivery_total"] = cart_delivery_total
     total = round(merchandise_total + cart_delivery_total, 2)
 
     member_ref = str(payload.get("member_code") or payload.get("member_id") or "").strip()

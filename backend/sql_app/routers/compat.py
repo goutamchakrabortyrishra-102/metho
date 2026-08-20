@@ -943,6 +943,21 @@ def _partner_checkout_pref_key(partner_id: str) -> str:
     return f"partner_checkout_pref:{partner_id}"
 
 
+def _normalize_category_delivery_rules(value) -> dict:
+    if not isinstance(value, dict):
+        return {}
+    normalized = {}
+    for category, rule in value.items():
+        name = str(category or "").strip()
+        if not name or not isinstance(rule, dict):
+            continue
+        normalized[name] = {
+            "delivery_charge": max(0.0, float(rule.get("delivery_charge") or 0)),
+            "free_delivery_threshold": max(0.0, float(rule.get("free_delivery_threshold") or 0)),
+        }
+    return normalized
+
+
 def _partner_offer_popup_key(partner_id: str) -> str:
     return f"partner_offer_popup:{partner_id}"
 
@@ -1057,6 +1072,7 @@ def _load_partner_checkout_pref(db: Session, partner_id: str) -> dict:
         "delivery_pincode": "",
         "delivery_radius_km": 0,
         "slot_suggestion_interval_minutes": 30,
+        "category_delivery_rules": {},
     }
     key = _partner_checkout_pref_key(partner_id)
     row = db.query(AppSetting).filter(AppSetting.key == key).first()
@@ -1074,6 +1090,7 @@ def _load_partner_checkout_pref(db: Session, partner_id: str) -> dict:
             "delivery_pincode": str(payload.get("delivery_pincode") or "").strip(),
             "delivery_radius_km": max(0, int(payload.get("delivery_radius_km") or 0)),
             "slot_suggestion_interval_minutes": max(5, min(180, int(payload.get("slot_suggestion_interval_minutes") or 30))),
+            "category_delivery_rules": _normalize_category_delivery_rules(payload.get("category_delivery_rules")),
         }
     except Exception:
         return defaults
@@ -1090,6 +1107,7 @@ def _save_partner_checkout_pref(db: Session, partner_id: str, payload: dict | No
         "delivery_pincode": str(incoming.get("delivery_pincode") if incoming.get("delivery_pincode") is not None else current.get("delivery_pincode", "")).strip(),
         "delivery_radius_km": max(0, int(incoming.get("delivery_radius_km") if incoming.get("delivery_radius_km") is not None else current.get("delivery_radius_km", 0))),
         "slot_suggestion_interval_minutes": max(5, min(180, int(incoming.get("slot_suggestion_interval_minutes") if incoming.get("slot_suggestion_interval_minutes") is not None else current.get("slot_suggestion_interval_minutes", 30)))),
+        "category_delivery_rules": _normalize_category_delivery_rules(incoming.get("category_delivery_rules") if incoming.get("category_delivery_rules") is not None else current.get("category_delivery_rules", {})),
     }
     key = _partner_checkout_pref_key(partner_id)
     row = db.query(AppSetting).filter(AppSetting.key == key).first()
@@ -5232,6 +5250,7 @@ def partner_payment_profile(request: Request, db: Session = Depends(get_db), cur
         "delivery_pincode": str(checkout_pref.get("delivery_pincode") or "").strip(),
         "delivery_radius_km": max(0, int(checkout_pref.get("delivery_radius_km") or 0)),
         "slot_suggestion_interval_minutes": max(5, min(180, int(checkout_pref.get("slot_suggestion_interval_minutes") or 30))),
+        "category_delivery_rules": _normalize_category_delivery_rules(checkout_pref.get("category_delivery_rules")),
         "offer_popup": offer_popup,
         "business_youtube_url": business_youtube_url,
         "business_facebook_url": business_facebook_url,
@@ -5304,6 +5323,7 @@ def partner_payment_profile_update(payload: dict, db: Session = Depends(get_db),
         "delivery_pincode": str(saved_pref.get("delivery_pincode") or "").strip(),
         "delivery_radius_km": max(0, int(saved_pref.get("delivery_radius_km") or 0)),
         "slot_suggestion_interval_minutes": max(5, min(180, int(saved_pref.get("slot_suggestion_interval_minutes") or 30))),
+        "category_delivery_rules": _normalize_category_delivery_rules(saved_pref.get("category_delivery_rules")),
         "offer_popup": saved_offer,
         "business_youtube_url": saved_business_youtube_url,
         "business_facebook_url": saved_business_facebook_url,

@@ -40,6 +40,20 @@ def _load_product_service_meta(db: Session, product_id: str) -> dict:
     return value if isinstance(value, dict) else {}
 
 
+def _category_delivery_rule(settings: dict, category: str) -> dict:
+    rules = settings.get("category_delivery_rules") if isinstance(settings, dict) else {}
+    if not isinstance(rules, dict):
+        return {"delivery_charge": 0.0, "free_delivery_threshold": 0.0}
+    category_key = str(category or "").strip().lower()
+    for name, rule in rules.items():
+        if str(name or "").strip().lower() == category_key and isinstance(rule, dict):
+            return {
+                "delivery_charge": max(0.0, float(rule.get("delivery_charge") or 0)),
+                "free_delivery_threshold": max(0.0, float(rule.get("free_delivery_threshold") or 0)),
+            }
+    return {"delivery_charge": 0.0, "free_delivery_threshold": 0.0}
+
+
 def _validate_booking_window(payload: ProductCreate) -> tuple[str, str]:
     if str(payload.product_type or "").strip().lower() != "metho_service" or not bool(payload.service_booking_enabled):
         return "", ""
@@ -236,6 +250,7 @@ def _get_product_youtube_map(db: Session) -> dict:
 
 def _set_product_youtube_url(db: Session, product_id: str, youtube_url: str) -> str:
     youtube_map = _get_product_youtube_map(db)
+    settings = load_settings(db)
     normalized = str(youtube_url or "").strip()
     product_key = str(product_id)
     setting_key = _product_youtube_key(product_key)
@@ -292,6 +307,7 @@ def list_products(limit: int | None = None, authorization: str | None = Header(d
         gst_percent = float(m.gst_percent if m else 0)
         price = float(p.price)
         service_meta = _load_product_service_meta(db, p.id)
+        category_rule = _category_delivery_rule(settings, p.category)
         if price <= 0:
             price = round(mrp * (1 - (discount_percent / 100)), 2)
         out.append(
@@ -316,8 +332,8 @@ def list_products(limit: int | None = None, authorization: str | None = Header(d
                 "service_booking_enabled": bool(service_meta.get("service_booking_enabled")),
                 "service_template_key": str(service_meta.get("service_template_key") or ""),
                 "commission_percent": service_meta.get("commission_percent"),
-                "delivery_charge": max(0.0, float(service_meta.get("delivery_charge") or 0)),
-                "free_delivery_threshold": max(0.0, float(service_meta.get("free_delivery_threshold") or 0)),
+                "delivery_charge": max(0.0, float(service_meta.get("delivery_charge") or 0)) or category_rule["delivery_charge"],
+                "free_delivery_threshold": max(0.0, float(service_meta.get("free_delivery_threshold") or 0)) or category_rule["free_delivery_threshold"],
                 "booking_available_from": str(service_meta.get("booking_available_from") or "").strip(),
                 "booking_available_until": str(service_meta.get("booking_available_until") or "").strip(),
             }

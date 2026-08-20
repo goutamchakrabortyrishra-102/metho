@@ -353,6 +353,7 @@ export default function PartnerDashboardPage() {
     citiesByStateDistrict: {},
   });
   const [partnerCodEnabled, setPartnerCodEnabled] = useState(true);
+  const [partnerCategoryDeliveryRules, setPartnerCategoryDeliveryRules] = useState({});
   const [offerPopupEnabled, setOfferPopupEnabled] = useState(false);
   const [offerPopupTitle, setOfferPopupTitle] = useState("");
   const [offerPopupMessage, setOfferPopupMessage] = useState("");
@@ -753,6 +754,7 @@ export default function PartnerDashboardPage() {
     setPartnerDeliveryRadiusKm(String(paymentProfile?.delivery_radius_km ?? 0));
     setPartnerSlotSuggestionIntervalMinutes(String(paymentProfile?.slot_suggestion_interval_minutes ?? 30));
     setPartnerCodEnabled(paymentProfile?.cod_enabled !== false);
+    setPartnerCategoryDeliveryRules(paymentProfile?.category_delivery_rules || {});
     setOfferPopupEnabled(paymentProfile?.offer_popup?.enabled === true);
     setOfferPopupTitle(String(paymentProfile?.offer_popup?.title || ""));
     setOfferPopupMessage(String(paymentProfile?.offer_popup?.message || ""));
@@ -1067,6 +1069,7 @@ export default function PartnerDashboardPage() {
         delivery_pincode: String(partnerDeliveryPincode || "").trim(),
         delivery_radius_km: Math.max(0, Number(partnerDeliveryRadiusKm || 0)),
         slot_suggestion_interval_minutes: Math.max(5, Math.min(180, Number(partnerSlotSuggestionIntervalMinutes || 30))),
+        category_delivery_rules: partnerCategoryDeliveryRules && typeof partnerCategoryDeliveryRules === "object" ? partnerCategoryDeliveryRules : {},
         offer_popup: {
           enabled: !!offerPopupEnabled,
           title: String(offerPopupTitle || "").trim(),
@@ -2256,6 +2259,11 @@ export default function PartnerDashboardPage() {
 
               <div className="rounded-xl border border-cyan-200 bg-white p-4 space-y-3">
                 <p className="text-[10px] uppercase tracking-widest text-cyan-800 font-semibold">Delivery Coverage Settings</p>
+                <div>
+                  <Label>Partner Category Delivery Rules (JSON)</Label>
+                  <Textarea value={JSON.stringify(partnerCategoryDeliveryRules || {}, null, 2)} onChange={(e) => { try { const next = JSON.parse(e.target.value || "{}"); if (next && typeof next === "object" && !Array.isArray(next)) setPartnerCategoryDeliveryRules(next); } catch { /* keep last valid rules */ } }} rows={7} className="mt-1.5 bg-white font-mono text-xs" placeholder='{"Food Supply":{"delivery_charge":60,"free_delivery_threshold":500}}' data-testid="partner-category-delivery-rules" />
+                  <p className="text-[11px] text-slate-500 mt-1">এই Partner-এর category rule product-level override-এর fallback হিসেবে কাজ করবে।</p>
+                </div>
                 <div className="grid grid-cols-1 gap-2">
                   <div>
                     <Label htmlFor="delivery-state-select">State</Label>
