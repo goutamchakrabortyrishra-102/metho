@@ -16,7 +16,7 @@ const sections = [
   { to: "/admin/transport-bookings", icon: CarTaxiFront, title: "Transport Bookings", text: "View all ride bookings with pickup, destination, status, and fare. 3 trips per page." },
   { to: "/admin/driver-registry", icon: CarTaxiFront, title: "Driver & Vehicle Registry", text: "Approve drivers, delivery agents, vehicles, and active GPS eligibility." },
   { to: "/admin/active-tracking?sector=transport", icon: CarTaxiFront, title: "Active Tracking", text: "Switch between transport, delivery, and tour guide live tracking tabs." },
-  { to: "/admin/service-sectors", icon: BriefcaseBusiness, title: "Courier / Logistics", text: "Manage delivery partners, pending orders, agents, assignment, and live tracking." },
+  { to: "/app/metho-delivery", icon: BriefcaseBusiness, title: "METHO Delivery", text: "Control METHO delivery partners, paid bookings, agents, assignment, and live tracking." },
   { to: "/admin/creative-media", icon: ClipboardList, title: "Creative & Media", text: "Manage creative, music, poetry, dance, recording, and media partners separately." },
   { to: "/admin/stay-dining-bookings", icon: UtensilsCrossed, title: "Stay & Dining Bookings", text: "View only stay and dining sector bookings. 3 bookings per page." },
   { to: "/admin/mps-claims", icon: Shield, title: "MPS Claims", text: "Keep MPS claim reviews separate from the member tree." },

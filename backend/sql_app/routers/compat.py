@@ -5972,6 +5972,7 @@ def create_delivery_booking(payload: dict, request: Request, db: Session = Depen
 
     trip = {
         "id": trip_id,
+        "delivery_vertical": "metho_delivery",
         "trip_code": f"DLV-{trip_id[:8].upper()}",
         "partner_id": partner.id,
         "partner_code": partner.partner_code,
@@ -6432,12 +6433,16 @@ def admin_transport_bookings(
 def admin_delivery_bookings(
     offset: int = Query(default=0, ge=0),
     limit: int = Query(default=3, ge=1, le=100),
+    vertical: str | None = Query(default=None),
     db: Session = Depends(get_db),
     current_user=Depends(get_current_user),
 ):
     if getattr(current_user, "role", "") not in {"super_admin", "company_admin", "admin"}:
         raise HTTPException(status_code=403, detail="Admin access only")
     all_trips = _list_delivery_trips(db, limit=100000)
+    if vertical:
+        requested_vertical = str(vertical).strip().lower()
+        all_trips = [trip for trip in all_trips if str(trip.get("delivery_vertical") or "").strip().lower() == requested_vertical]
     total = len(all_trips)
     return {"total": total, "offset": offset, "limit": limit, "items": all_trips[offset: offset + limit]}
 
@@ -8381,8 +8386,10 @@ def settings_update(payload: dict, db: Session = Depends(get_db), current_user=D
             "mps_benefit_duration_months",
             "first_partner_order_cashback_percent",
             "first_partner_order_cashback_max",
+            "metho_delivery_smart_cycle_percent",
+            "metho_delivery_reward_pool_percent",
         ]
-        for key in split_keys + ["smart_cycle_bonus_percent", "metho_commission_percent", "leader_match_percent", "first_partner_order_cashback_percent"]:
+        for key in split_keys + ["smart_cycle_bonus_percent", "metho_commission_percent", "leader_match_percent", "first_partner_order_cashback_percent", "metho_delivery_smart_cycle_percent", "metho_delivery_reward_pool_percent"]:
             if payload.get(key) is not None:
                 value = float(payload.get(key) or 0)
                 if value < 0 or value > 100:

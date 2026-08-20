@@ -53,6 +53,8 @@ DEFAULT_SETTINGS = {
     "cycle_target_bv": 10000,
     "cycle_reward_text": "10% Smart Cycle Bonus",
     "metho_commission_percent": 10,
+    "metho_delivery_smart_cycle_percent": 0,
+    "metho_delivery_reward_pool_percent": 0,
     "min_withdrawal": 100,
     "withdrawal_tds_percent": 5,
     "withdrawal_admin_charge_percent": 3,

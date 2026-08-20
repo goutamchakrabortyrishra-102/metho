@@ -35,7 +35,7 @@ const links = [
   { to: "/app/stay-dining-bookings", icon: UtensilsCrossed, label: "Stay & Dining Bookings", testId: "nav-stay-dining-bookings", adminOnly: true },
   { to: "/app/tourism-control", icon: Plane, label: "Tourism Control Center", testId: "nav-tourism-control", adminOnly: true },
   { to: "/app/property-buy-sell", icon: Building2, label: "Property Buy & Sell", testId: "nav-property-buy-sell", adminOnly: true },
-  { to: "/app/service-sectors", icon: BriefcaseBusiness, label: "Courier / Logistics", testId: "nav-service-sectors", adminOnly: true },
+  { to: "/app/metho-delivery", icon: BriefcaseBusiness, label: "METHO Delivery", testId: "nav-metho-delivery", adminOnly: true },
   { to: "/app/creative-media", icon: BriefcaseBusiness, label: "Creative & Media", testId: "nav-creative-media", adminOnly: true },
   { to: "/app/settlement", icon: Calculator, label: "Settlement", testId: "nav-settlement", adminOnly: true },
   { to: "/app/mps-claims", icon: Shield, label: "MPS Claims", testId: "nav-mps-claims", adminOnly: true },
