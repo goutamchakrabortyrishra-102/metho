@@ -62,6 +62,7 @@ const loadCustomerInvoicePage = () => import("@/pages/CustomerInvoicePage");
 const loadPrivacyPolicyPage = () => import("@/pages/PrivacyPolicyPage");
 const loadTravelBookingTermsPage = () => import("@/pages/TravelBookingTermsPage");
 const loadTourismControlCenterPage = () => import("@/pages/dashboard/TourismControlCenterPage");
+const loadGuideTrackerPage = () => import("@/pages/GuideTrackerPage");
 
 const LandingPage = lazy(loadLandingPage);
 const LoginPage = lazy(loadLoginPage);
@@ -119,6 +120,7 @@ const CustomerInvoicePage = lazy(loadCustomerInvoicePage);
 const PrivacyPolicyPage = lazy(loadPrivacyPolicyPage);
 const TravelBookingTermsPage = lazy(loadTravelBookingTermsPage);
 const TourismControlCenterPage = lazy(loadTourismControlCenterPage);
+const GuideTrackerPage = lazy(loadGuideTrackerPage);
 
 const prefetchedChunks = new Set();
 const prefetchChunk = (loader) => {
@@ -316,6 +318,7 @@ function App() {
               <Route path="/partner-register" element={<PartnerRegisterPage />} />
               <Route path="/partner-shop/:partnerCode" element={<PartnerShopPage />} />
               <Route path="/gallery/:partnerCode" element={<PartnerGalleryPage />} />
+              <Route path="/guide-track/:guideId" element={<GuideTrackerPage />} />
               <Route path="/partner-payout" element={<PrivateRoute><PartnerPayoutStatementPage /></PrivateRoute>} />
               <Route path="/partner-reports" element={<PrivateRoute><PartnerReportsPage /></PrivateRoute>} />
               <Route path="/partner-inventory" element={<PrivateRoute><RouteErrorBoundary><PartnerInventoryPage /></RouteErrorBoundary></PrivateRoute>} />

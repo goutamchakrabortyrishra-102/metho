@@ -24,6 +24,9 @@ export default function TourismControlCenterPage() {
   const { user } = useAuth();
   const isAdmin = user && ["super_admin", "company_admin", "admin"].includes(user.role);
   const [data, setData] = useState({ summary: {}, items: [] });
+  const [guides, setGuides] = useState([]);
+  const [guideForm, setGuideForm] = useState({ name: "", phone: "", whatsapp: "" });
+  const [trackingPath, setTrackingPath] = useState("");
   const [loading, setLoading] = useState(true);
   const [busyId, setBusyId] = useState("");
   const [query, setQuery] = useState("");
@@ -54,6 +57,8 @@ export default function TourismControlCenterPage() {
     try {
       const { data: response } = await api.get("/admin/tourism/bookings");
       setData({ summary: response?.summary || {}, items: Array.isArray(response?.items) ? response.items : [] });
+      const guideResponse = await api.get("/admin/tourism/guides");
+      setGuides(Array.isArray(guideResponse.data) ? guideResponse.data : []);
     } catch (err) {
       toast.error(err?.response?.data?.detail || "Tourism bookings could not be loaded");
     } finally {
@@ -98,6 +103,40 @@ export default function TourismControlCenterPage() {
     } catch (err) {
       toast.error(err?.response?.data?.detail || "Approval failed");
     } finally { setBusyId(""); }
+  };
+
+  const createGuide = async (event) => {
+    event.preventDefault();
+    try {
+      const { data: response } = await api.post("/admin/tourism/guides", guideForm);
+      setGuideForm({ name: "", phone: "", whatsapp: "" });
+      setTrackingPath(response?.tracking_path || "");
+      toast.success("Guide added. Share the private tracking link with the guide.");
+      load();
+    } catch (err) {
+      toast.error(err?.response?.data?.detail || "Guide could not be added");
+    }
+  };
+
+  const assignGuide = async (bookingId, guideId) => {
+    if (!guideId) return;
+    try {
+      await api.post(`/admin/tourism/bookings/${bookingId}/assign-guide`, { guide_id: guideId });
+      toast.success("Guide assigned to trip");
+      load();
+    } catch (err) {
+      toast.error(err?.response?.data?.detail || "Guide assignment failed");
+    }
+  };
+
+  const toggleGuide = async (guide) => {
+    try {
+      await api.post(`/admin/drivers/${guide.id}/review`, { approval_status: "approved", active: !guide.active });
+      toast.success(guide.active ? "Guide deactivated" : "Guide activated");
+      load();
+    } catch (err) {
+      toast.error(err?.response?.data?.detail || "Guide status update failed");
+    }
   };
 
   const reject = async () => {
@@ -236,6 +275,13 @@ export default function TourismControlCenterPage() {
       </div>
     </section>
 
+    <section className="rounded-xl border border-emerald-200 bg-white p-5" data-testid="tourism-guide-registry">
+      <div className="flex flex-wrap items-start justify-between gap-3"><div><p className="text-[10px] uppercase tracking-widest text-emerald-700 font-semibold">Trip Guide Registry</p><h2 className="mt-1 font-display text-xl font-black text-emerald-950">Add guide mobile and live tracking</h2><p className="mt-1 text-xs text-slate-600">Create a guide, assign the guide to a trip, then share the private link so the guide can start GPS tracking from mobile.</p></div><span className="rounded-full bg-emerald-50 px-3 py-1 text-xs font-semibold text-emerald-800">{guides.length} guide(s)</span></div>
+      <form onSubmit={createGuide} className="mt-4 grid gap-3 md:grid-cols-4"><Input required value={guideForm.name} onChange={(e) => setGuideForm((p) => ({ ...p, name: e.target.value }))} placeholder="Guide name" /><Input required value={guideForm.phone} onChange={(e) => setGuideForm((p) => ({ ...p, phone: e.target.value }))} placeholder="Mobile number" /><Input value={guideForm.whatsapp} onChange={(e) => setGuideForm((p) => ({ ...p, whatsapp: e.target.value }))} placeholder="WhatsApp (optional)" /><Button type="submit" className="rounded-full bg-emerald-800 hover:bg-emerald-900">Add Guide</Button></form>
+      {trackingPath ? <div className="mt-3 rounded-lg border border-amber-200 bg-amber-50 p-3 text-xs text-amber-950">Private guide link: <span className="font-mono break-all">{window.location.origin}{trackingPath}</span><button type="button" className="ml-2 underline font-semibold" onClick={() => { navigator.clipboard?.writeText(`${window.location.origin}${trackingPath}`); toast.success("Guide link copied"); }}>Copy</button></div> : null}
+      {guides.length ? <div className="mt-4 grid gap-2 md:grid-cols-2">{guides.map((guide) => <div key={guide.id} className="rounded-lg border border-slate-200 bg-slate-50 p-3"><div className="flex items-center justify-between gap-2"><p className="font-semibold text-emerald-950">{guide.name}</p><span className="rounded-full bg-emerald-100 px-2 py-1 text-[10px] font-bold uppercase text-emerald-800">{guide.active ? "Active" : "Inactive"}</span></div><p className="text-xs text-slate-600 mt-1">{guide.phone}{guide.live_location ? ` · GPS ${new Date(guide.live_location.updated_at).toLocaleTimeString()}` : " · GPS not shared"}</p><Button type="button" size="sm" variant="outline" className="mt-2 rounded-full" onClick={() => toggleGuide(guide)}>{guide.active ? "Set Inactive" : "Set Active"}</Button></div>)}</div> : null}
+    </section>
+
     <section className="rounded-xl border border-emerald-200 bg-white p-5 shadow-sm" data-testid="tourism-booking-media">
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div className="flex gap-3">
@@ -272,6 +318,7 @@ export default function TourismControlCenterPage() {
           <InfoBlock title="Compliance Audit" icon={ShieldCheck}><p className={`text-sm font-semibold ${booking.terms_accepted ? "text-emerald-800" : "text-red-700"}`}>{booking.terms_accepted ? "Travel terms accepted" : "Terms acceptance missing"}</p><p className="mt-1 text-xs text-slate-500">{booking.terms_accepted_at ? new Date(booking.terms_accepted_at).toLocaleString("en-IN") : "No acceptance timestamp"}{booking.terms_version ? ` · v${booking.terms_version}` : ""}</p></InfoBlock>
         </div>
         <div className="mt-4 flex flex-wrap justify-end gap-2">
+          <select value={booking.guide?.guide_id || ""} onChange={(e) => assignGuide(booking.id, e.target.value)} className="h-9 rounded-md border border-sky-200 bg-white px-2 text-xs"><option value="">{booking.guide?.name ? `Guide: ${booking.guide.name}` : "Assign trip guide"}</option>{guides.filter((guide) => guide.active).map((guide) => <option key={guide.id} value={guide.id}>{guide.name} · {guide.phone}</option>)}</select>
           {booking.payment_screenshot_url ? <a href={booking.payment_screenshot_url} target="_blank" rel="noreferrer"><Button size="sm" variant="outline" className="rounded-full">Payment Proof <ExternalLink className="ml-1 h-3.5 w-3.5" /></Button></a> : null}
           {booking.status === "pending_approval" ? <><Button size="sm" disabled={busyId === booking.id} onClick={() => approve(booking)} className="rounded-full bg-emerald-800 hover:bg-emerald-900"><CheckCircle2 className="mr-1 h-3.5 w-3.5" />Approve Payment</Button><Button size="sm" variant="outline" disabled={busyId === booking.id} onClick={() => setRejectTarget(booking)} className="rounded-full border-red-200 text-red-700 hover:bg-red-50"><XCircle className="mr-1 h-3.5 w-3.5" />Reject</Button></> : null}
         </div>

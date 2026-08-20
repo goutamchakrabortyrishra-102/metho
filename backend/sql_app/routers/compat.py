@@ -431,13 +431,14 @@ def _find_public_order_ids_by_phone(db: Session, phone: str, scan_limit: int = 5
     return out
 
 
-def _serialize_public_order_list_row(row: PublicOrder) -> dict:
+def _serialize_public_order_list_row(row: PublicOrder, db: Session | None = None) -> dict:
     try:
         items = json.loads(row.items_json or "[]")
     except Exception:
         items = []
     metho_amount = sum(float(i.get("subtotal") or 0) for i in items if _is_metho_qualified_item(i))
     associate_amount = sum(float(i.get("subtotal") or 0) for i in items if not _is_metho_qualified_item(i))
+    tourism_guide = _load_tourism_guide_assignment(db, row.id) if db and any(str(i.get("service_template_key") or "").lower() == "tourism_booking" for i in items) else {}
     return {
         "id": row.id,
         "order_no": f"ORD-{row.id[:8].upper()}",
@@ -463,6 +464,7 @@ def _serialize_public_order_list_row(row: PublicOrder) -> dict:
         "metho_amount": round(metho_amount, 2),
         "associate_amount": round(associate_amount, 2),
         "rejection_reason": "",
+        "tourism_guide": tourism_guide or None,
     }
 
 
@@ -1314,6 +1316,26 @@ def _driver_snapshot(driver: dict) -> dict:
         "service_sector": str(driver.get("service_sector") or "transport").strip().lower(),
         "live_location": driver.get("live_location") if isinstance(driver.get("live_location"), dict) else None,
     }
+
+
+def _tourism_guide_key(order_id: str) -> str:
+    return f"tourism_guide:{order_id}"
+
+
+def _load_tourism_guide_assignment(db: Session, order_id: str) -> dict:
+    return _load_json_setting(db, _tourism_guide_key(order_id), {})
+
+
+def _save_tourism_guide_assignment(db: Session, order_id: str, guide: dict) -> dict:
+    row = db.query(AppSetting).filter(AppSetting.key == _tourism_guide_key(order_id)).first()
+    payload = json.dumps(guide)
+    if row:
+        row.value_json = payload
+        row.updated_at = datetime.now(timezone.utc)
+    else:
+        db.add(AppSetting(key=_tourism_guide_key(order_id), value_json=payload, updated_at=datetime.now(timezone.utc)))
+    db.commit()
+    return guide
 
 
 def _property_enquiry_key(enquiry_id: str) -> str:
@@ -4088,7 +4110,7 @@ def list_orders(db: Session = Depends(get_db), current_user=Depends(get_current_
         q = q.filter(PublicOrder.customer_user_id == current_user.id)
     rows = q.order_by(PublicOrder.created_at.desc()).limit(300).all()
 
-    out = [_serialize_public_order_list_row(r) for r in rows]
+    out = [_serialize_public_order_list_row(r, db) for r in rows]
     return out
 
 
@@ -4239,7 +4261,7 @@ def customer_mobile_access_orders(token: str = Query("", min_length=10), db: Ses
         .limit(200)
         .all()
     )
-    return [_serialize_public_order_list_row(r) for r in rows]
+    return [_serialize_public_order_list_row(r, db) for r in rows]
 
 
 @router.get("/offline-billing/member/{member_ref}")
@@ -4873,6 +4895,7 @@ def admin_tourism_bookings(db: Session = Depends(get_db), current_user=Depends(g
             continue
         acceptance = _load_json_setting(db, f"tourism_terms_acceptance:{row.id}", {})
         customer = _order_member(db, row)
+        guide_assignment = _load_tourism_guide_assignment(db, row.id)
         bookings.append({
             "id": row.id,
             "order_no": f"ORD-{row.id[:8].upper()}",
@@ -4889,6 +4912,7 @@ def admin_tourism_bookings(db: Session = Depends(get_db), current_user=Depends(g
             "terms_accepted": bool(acceptance),
             "terms_accepted_at": str(acceptance.get("accepted_at") or ""),
             "terms_version": str(acceptance.get("policy_version") or ""),
+            "guide": guide_assignment or None,
             "items": [{
                 "product_id": item.get("product_id"),
                 "name": item.get("name") or "Tourism service",
@@ -4905,6 +4929,78 @@ def admin_tourism_bookings(db: Session = Depends(get_db), current_user=Depends(g
         "gross_value": round(sum(float(row["total_amount"]) for row in bookings), 2),
     }
     return {"summary": summary, "items": bookings}
+
+
+@router.get("/admin/tourism/guides")
+def admin_tourism_guides(db: Session = Depends(get_db), current_user=Depends(get_current_user)):
+    _require_admin_user(current_user)
+    return _list_drivers(db, partner_id="admin", include_unapproved=True)
+
+
+@router.post("/admin/tourism/guides")
+def admin_create_tourism_guide(payload: dict, db: Session = Depends(get_db), current_user=Depends(get_current_user)):
+    _require_admin_user(current_user)
+    name = str((payload or {}).get("name") or "").strip()
+    phone = "".join(ch for ch in str((payload or {}).get("phone") or "") if ch.isdigit())
+    if not name or not phone:
+        raise HTTPException(status_code=400, detail="Guide name and mobile number are required")
+    guide = {
+        "id": str(uuid.uuid4()),
+        "partner_id": "admin",
+        "partner_code": "METHO-TOURISM",
+        "business_name": "METHO Tour & Travels",
+        "name": name,
+        "phone": phone,
+        "whatsapp": "".join(ch for ch in str((payload or {}).get("whatsapp") or phone) if ch.isdigit()),
+        "vehicle_number": "",
+        "vehicle_type": "Tour Guide",
+        "service_sector": "tourism",
+        "approval_status": "approved",
+        "active": True,
+        "tracking_token": secrets.token_urlsafe(32),
+        "live_location": None,
+        "created_at": now_iso(),
+    }
+    saved = _save_driver(db, guide)
+    return {"ok": True, "guide": saved, "tracking_path": f"/guide-track/{saved['id']}?token={saved['tracking_token']}"}
+
+
+@router.post("/admin/tourism/bookings/{booking_id}/assign-guide")
+def admin_assign_tourism_guide(booking_id: str, payload: dict, db: Session = Depends(get_db), current_user=Depends(get_current_user)):
+    _require_admin_user(current_user)
+    row = db.query(PublicOrder).filter(PublicOrder.id == booking_id).first()
+    if not row:
+        raise HTTPException(status_code=404, detail="Tourism booking not found")
+    guide = _load_driver(db, str((payload or {}).get("guide_id") or ""))
+    if not guide or guide.get("service_sector") != "tourism" or guide.get("active") is not True:
+        raise HTTPException(status_code=400, detail="Active tourism guide is required")
+    assignment = _driver_snapshot(guide)
+    assignment["guide_id"] = guide["id"]
+    assignment["tracking_token"] = ""
+    return {"ok": True, "guide": _save_tourism_guide_assignment(db, booking_id, assignment)}
+
+
+@router.post("/tourism/guides/{guide_id}/location")
+def tourism_guide_update_location(guide_id: str, payload: dict, db: Session = Depends(get_db)):
+    guide = _load_driver(db, guide_id)
+    if not guide or guide.get("service_sector") != "tourism" or guide.get("active") is not True:
+        raise HTTPException(status_code=404, detail="Guide not found")
+    token = str((payload or {}).get("token") or "").strip()
+    if not token or not secrets.compare_digest(token, str(guide.get("tracking_token") or "")):
+        raise HTTPException(status_code=403, detail="Invalid guide tracking token")
+    updated = _update_trip_location(db, guide, payload)
+    guide["live_location"] = updated["live_location"]
+    _save_driver(db, guide)
+    rows = db.query(AppSetting).filter(AppSetting.key.like("tourism_guide:%")).all()
+    for row in rows:
+        try:
+            assignment = json.loads(row.value_json or "{}")
+        except Exception:
+            continue
+        if str(assignment.get("guide_id") or "") == str(guide_id):
+            assignment["live_location"] = guide["live_location"]
+            _save_tourism_guide_assignment(db, row.key.split(":", 1)[1], assignment)
+    return {"ok": True, "live_location": guide["live_location"]}
 
 
 @router.get("/admin/tourism/booking-images")

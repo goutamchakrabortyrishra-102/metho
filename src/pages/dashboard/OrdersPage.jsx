@@ -19,6 +19,17 @@ const STATUS = {
   delivered: { c: "bg-emerald-100 text-emerald-800", t: "Delivered" },
   cancelled: { c: "bg-red-100 text-red-800", t: "Cancelled" },
 };
+const liveLocationUrl = (location) => {
+  const latitude = Number(location?.latitude);
+  const longitude = Number(location?.longitude);
+  if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) return "";
+  return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(`${latitude},${longitude}`)}`;
+};
+const guideWhatsAppUrl = (guide, orderNo) => {
+  const number = String(guide?.whatsapp || guide?.phone || "").replace(/\D/g, "");
+  if (!number) return "";
+  return `https://wa.me/${number}?text=${encodeURIComponent(`Hello ${guide?.name || "Guide"}, I am contacting you about ${orderNo}.`)}`;
+};
 
 export default function OrdersPage() {
   const { user } = useAuth();
@@ -32,6 +43,11 @@ export default function OrdersPage() {
 
   const load = () => api.get("/orders").then(r => setOrders(r.data));
   useEffect(() => { load(); }, []);
+  useEffect(() => {
+    if (!orders.some((order) => order.tourism_guide?.live_location)) return undefined;
+    const intervalId = window.setInterval(load, 10000);
+    return () => window.clearInterval(intervalId);
+  }, [orders]);
 
   const downloadBulkZip = async () => {
     setBusy(true);
@@ -127,6 +143,18 @@ export default function OrdersPage() {
                 <span>METHO ₹{o.metho_amount?.toLocaleString("en-IN") || 0} · Partner ₹{o.associate_amount?.toLocaleString("en-IN") || 0}</span>
                 <span>Ship to: {o.shipping_address}</span>
               </div>
+
+              {o.tourism_guide ? (
+                <div className="mt-3 rounded-lg border border-sky-200 bg-sky-50 p-3">
+                  <p className="text-xs font-semibold text-sky-900">Tour guide: {o.tourism_guide.name || "Assigned guide"}</p>
+                  <p className="text-[11px] text-slate-600 mt-1">{o.tourism_guide.phone || "Mobile not available"}</p>
+                  <div className="mt-2 flex flex-wrap gap-2">
+                    {o.tourism_guide.live_location ? <a href={liveLocationUrl(o.tourism_guide.live_location)} target="_blank" rel="noreferrer" className="rounded-full border border-sky-300 px-3 py-1.5 text-xs font-semibold text-sky-900">Open live location</a> : <span className="text-[11px] text-slate-500">Guide GPS is not sharing yet.</span>}
+                    {o.tourism_guide.phone ? <a href={`tel:${o.tourism_guide.phone}`} className="rounded-full border border-emerald-300 px-3 py-1.5 text-xs font-semibold text-emerald-900">Call guide</a> : null}
+                    {guideWhatsAppUrl(o.tourism_guide, o.order_no) ? <a href={guideWhatsAppUrl(o.tourism_guide, o.order_no)} target="_blank" rel="noreferrer" className="rounded-full bg-emerald-700 px-3 py-1.5 text-xs font-semibold text-white">WhatsApp guide</a> : null}
+                  </div>
+                </div>
+              ) : null}
 
               {o.txn_id && (
                 <div className="mt-2 text-xs text-muted-foreground font-body">
