@@ -73,8 +73,8 @@ export default function DriverRegistryPage() {
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
           <p className="text-xs uppercase tracking-[0.2em] text-emerald-800 font-semibold">{isAdmin ? "Admin" : "Partner"}</p>
-          <h1 className="font-display font-black text-3xl text-emerald-950 mt-1 flex items-center gap-2"><CarTaxiFront className="w-8 h-8" /> Driver & Vehicle Registry</h1>
-          <p className="text-sm text-slate-600 mt-1">Approved active drivers can be assigned to transport and delivery bookings.</p>
+          <h1 className="font-display font-black text-3xl text-emerald-950 mt-1 flex items-center gap-2"><CarTaxiFront className="w-8 h-8" /> Drivers, Vehicles &amp; Delivery Agents</h1>
+          <p className="text-sm text-slate-600 mt-1">Manage transport drivers and delivery agents together. Approved active records can be assigned to the correct booking sector.</p>
         </div>
         <Button variant="outline" className="rounded-full" onClick={load} disabled={loading}><RefreshCw className={`w-4 h-4 mr-2 ${loading ? "animate-spin" : ""}`} /> Refresh</Button>
       </div>

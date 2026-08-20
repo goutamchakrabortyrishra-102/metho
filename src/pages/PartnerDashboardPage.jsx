@@ -2255,7 +2255,7 @@ export default function PartnerDashboardPage() {
                 <h3 className="font-display font-black text-emerald-950 text-xl mt-1 inline-flex items-center gap-2">Courier / Logistics / Delivery Partner Control Room</h3>
                 <p className="text-xs text-slate-600 mt-1">Courier, cargo, parcel, and delivery partner listings আলাদা panel-এ manage করুন।</p>
               </div>
-              <Link to="/app/driver-registry" className="text-xs font-semibold text-cyan-800 underline">Manage delivery agents</Link>
+              <Link to="/app/driver-registry" className="text-xs font-semibold text-cyan-800 underline">Manage drivers, vehicles &amp; delivery agents</Link>
               <div className="rounded-lg border border-cyan-200 bg-cyan-50 px-3 py-2 text-xs text-cyan-900 inline-flex items-center gap-2">
                 <Wallet className="w-4 h-4" /> Listings: {deliveryItems.length}
               </div>
@@ -2494,7 +2494,7 @@ export default function PartnerDashboardPage() {
                 <h3 className="font-display font-black text-emerald-950 text-xl mt-1 inline-flex items-center gap-2"><CarTaxiFront className="w-5 h-5" /> Cab / Car Rental / Bike Rental Control Room</h3>
                 <p className="text-xs text-slate-600 mt-1">Transport listing, fare lock, reserve check, and trip lifecycle execution - all in one professional panel.</p>
               </div>
-              <Link to="/app/driver-registry" className="text-xs font-semibold text-sky-800 underline">Manage drivers & vehicles</Link>
+              <Link to="/app/driver-registry" className="text-xs font-semibold text-sky-800 underline">Manage drivers, vehicles &amp; delivery agents</Link>
               <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900 inline-flex items-center gap-2">
                 <Wallet className="w-4 h-4" /> Wallet Balance: {inr(transportData?.wallet?.balance || 0)}
               </div>
