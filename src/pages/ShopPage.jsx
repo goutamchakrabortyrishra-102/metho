@@ -256,7 +256,7 @@ export default function ShopPage() {
 
   const methoProducts = useMemo(() => {
     return (products || []).filter((p) => {
-      const typeOk = ["metho", "metho_service"].includes(String(p?.product_type || "metho").toLowerCase());
+      const typeOk = String(p?.product_type || "metho").toLowerCase() === "metho";
       const hiddenRaw = p?.hidden;
       const isHidden = hiddenRaw === true || String(hiddenRaw).toLowerCase() === "true" || String(hiddenRaw) === "1";
       return typeOk && !isHidden;
