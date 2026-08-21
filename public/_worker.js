@@ -16,7 +16,11 @@ export default {
 
     // 1) Try exact asset/path first.
     const exact = await env.ASSETS.fetch(request).catch(() => null);
-    if (exact && exact.status !== 404) return exact;
+    if (exact && exact.status !== 404) {
+      const contentType = String(exact.headers.get("content-type") || "").toLowerCase();
+      const isHtmlFallback = isAssetPath(url.pathname) && contentType.includes("text/html");
+      if (!isHtmlFallback) return exact;
+    }
 
     // 2) For asset requests, also try build-prefixed locations.
     if (isAssetPath(url.pathname)) {
