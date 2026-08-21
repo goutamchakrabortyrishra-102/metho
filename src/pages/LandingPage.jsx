@@ -540,9 +540,10 @@ const Hero = () => {
                 <img src={resolveAssetUrl(settings?.landing_metho_delivery_banner_image_url || NETWORK_IMG)} alt="METHO public booking" className="h-full min-h-[96px] w-full object-cover" loading="lazy" />
                 <div className="p-3 sm:p-4">
                   <p className="text-[10px] uppercase tracking-widest text-emerald-700 font-bold">METHO Public Booking</p>
-                  <div className="mt-2 grid gap-2 sm:grid-cols-2">
+                  <div className="mt-2 grid gap-2 sm:grid-cols-3">
                     <Link to="/metho-move" className="flex items-center justify-between gap-2 rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2 hover:bg-emerald-100" data-testid="landing-metho-move-cta"><span><span className="block text-sm font-black text-emerald-950">METHO Move</span><span className="block text-[11px] text-slate-600">Mobility booking</span></span><ArrowRight className="h-4 w-4 text-emerald-800" /></Link>
                     <Link to="/metho-move?service=delivery" className="flex items-center justify-between gap-2 rounded-xl border border-cyan-200 bg-cyan-50 px-3 py-2 hover:bg-cyan-100" data-testid="landing-metho-delivery-cta"><span><span className="block text-sm font-black text-emerald-950">METHO Delivery</span><span className="block text-[11px] text-slate-600">Parcel / delivery booking</span></span><ArrowRight className="h-4 w-4 text-cyan-800" /></Link>
+                    <Link to="/shop?q=travel" className="flex items-center justify-between gap-2 rounded-xl border border-sky-200 bg-sky-50 px-3 py-2 hover:bg-sky-100" data-testid="landing-tour-travel-cta"><span><span className="block text-sm font-black text-emerald-950">Tour &amp; Travel</span><span className="block text-[11px] text-slate-600">Travel booking</span></span><ArrowRight className="h-4 w-4 text-sky-800" /></Link>
                   </div>
                 </div>
               </div>
