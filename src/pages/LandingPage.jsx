@@ -139,9 +139,32 @@ const DEFAULT_POLICY = {
 let landingProductsPromise = null;
 
 const LANDING_CART_STORAGE_KEY = "metho_shared_cart_v1";
+const LANDING_VEGETABLE_CART_STORAGE_KEY = "metho_landing_vegetable_cart_v1";
 const getProductStock = (product) => {
   const stock = Number(product?.stock);
   return Number.isFinite(stock) ? Math.max(0, stock) : null;
+};
+const getVegetableUnit = (product) => {
+  const unit = String(product?.unit_type || "piece").trim().toLowerCase();
+  return ["kg", "gram", "piece"].includes(unit) ? unit : "piece";
+};
+const getVegetableMeasureOptions = (product) => {
+  const unit = getVegetableUnit(product);
+  return unit === "kg" ? ["kg", "gram"] : unit === "gram" ? ["gram", "kg"] : ["piece"];
+};
+const getVegetableStep = (product, measureUnit) => {
+  const unit = getVegetableUnit(product);
+  if (unit === "piece") return 1;
+  if (unit === "kg") return measureUnit === "gram" ? 0.1 : 0.1;
+  return measureUnit === "kg" ? 1000 : 100;
+};
+const formatVegetableQuantity = (quantity, product, measureUnit) => {
+  const unit = getVegetableUnit(product);
+  const converted = unit === "kg" && measureUnit === "gram" ? quantity * 1000
+    : unit === "gram" && measureUnit === "kg" ? quantity / 1000
+      : quantity;
+  const value = Number.isInteger(converted) ? String(converted) : String(Number(converted.toFixed(3)));
+  return `${value} ${measureUnit}`;
 };
 const getCustomerUnitPrice = (product) => {
   const productType = String(product?.product_type || "metho").toLowerCase();
@@ -301,6 +324,8 @@ const Hero = () => {
   const [bestProducts, setBestProducts] = useState([]);
   const [bestProductsLoading, setBestProductsLoading] = useState(true);
   const [cartQty, setCartQty] = useState({});
+  const [vegetableCartQty, setVegetableCartQty] = useState({});
+  const [vegetableUnits, setVegetableUnits] = useState({});
   const [checkoutOpen, setCheckoutOpen] = useState(false);
   const [guestMemberRef, setGuestMemberRef] = useState("");
   const cartHydratedRef = useRef(false);
@@ -361,6 +386,9 @@ const Hero = () => {
       const raw = localStorage.getItem(LANDING_CART_STORAGE_KEY);
       const parsed = raw ? JSON.parse(raw) : null;
       if (parsed && typeof parsed === "object") setCartQty(parsed);
+      const vegetableRaw = localStorage.getItem(LANDING_VEGETABLE_CART_STORAGE_KEY);
+      const vegetableParsed = vegetableRaw ? JSON.parse(vegetableRaw) : null;
+      if (vegetableParsed && typeof vegetableParsed === "object") setVegetableCartQty(vegetableParsed);
     } catch {}
   }, []);
 
@@ -374,6 +402,16 @@ const Hero = () => {
     } catch {}
   }, [cartQty]);
 
+  useEffect(() => {
+    try {
+      if (Object.keys(vegetableCartQty).length > 0) {
+        localStorage.setItem(LANDING_VEGETABLE_CART_STORAGE_KEY, JSON.stringify(vegetableCartQty));
+      } else {
+        localStorage.removeItem(LANDING_VEGETABLE_CART_STORAGE_KEY);
+      }
+    } catch {}
+  }, [vegetableCartQty]);
+
   const adjustCartQty = (product, delta) => {
     const id = String(product?.id || "");
     if (!id) return;
@@ -383,6 +421,25 @@ const Hero = () => {
       let next = current + delta;
       if (stock !== null) next = Math.min(next, stock);
       next = Math.max(0, next);
+      if (next === current) return prev;
+      const copy = { ...prev };
+      if (next <= 0) delete copy[id];
+      else copy[id] = next;
+      return copy;
+    });
+  };
+
+  const adjustVegetableCartQty = (product, delta) => {
+    const id = String(product?.id || "");
+    if (!id) return;
+    setVegetableCartQty((prev) => {
+      const stock = getProductStock(product);
+      const unit = vegetableUnits[id] || getVegetableMeasureOptions(product)[0];
+      const step = getVegetableStep(product, unit);
+      const current = Number(prev[id] || 0);
+      let next = current + (delta > 0 ? step : -step);
+      if (stock !== null) next = Math.min(next, stock);
+      next = Math.max(0, Number(next.toFixed(3)));
       if (next === current) return prev;
       const copy = { ...prev };
       if (next <= 0) delete copy[id];
@@ -411,22 +468,28 @@ const Hero = () => {
   }, [bestProducts, settings?.product_categories]);
 
   const cartItemCount = useMemo(
-    () => Object.values(cartQty).reduce((sum, qty) => sum + (Number(qty) || 0), 0),
-    [cartQty]
+    () => Object.values(cartQty).reduce((sum, qty) => sum + (Number(qty) || 0), 0)
+      + Object.values(vegetableCartQty).reduce((sum, qty) => sum + (Number(qty) || 0), 0),
+    [cartQty, vegetableCartQty]
   );
 
   const cartSubtotal = useMemo(() => {
     const byId = new Map(bestProducts.map((product) => [String(product?.id || ""), product]));
-    return Object.entries(cartQty).reduce((sum, [id, qty]) => {
+    const productTotal = Object.entries(cartQty).reduce((sum, [id, qty]) => {
       const product = byId.get(id);
       const price = getCustomerUnitPrice(product);
       return sum + price * (Number(qty) || 0);
     }, 0);
-  }, [cartQty, bestProducts]);
+    const vegetableTotal = Object.entries(vegetableCartQty).reduce((sum, [id, qty]) => {
+      const product = byId.get(id);
+      return sum + getCustomerUnitPrice(product) * (Number(qty) || 0);
+    }, 0);
+    return productTotal + vegetableTotal;
+  }, [cartQty, vegetableCartQty, bestProducts]);
 
   const checkoutItems = useMemo(() => {
     const byId = new Map(bestProducts.map((product) => [String(product?.id || ""), product]));
-    return Object.entries(cartQty)
+    const regularItems = Object.entries(cartQty)
       .filter(([, qty]) => Number(qty) > 0)
       .map(([id, qty]) => {
         const product = byId.get(id);
@@ -448,7 +511,36 @@ const Hero = () => {
         };
       })
       .filter(Boolean);
-  }, [cartQty, bestProducts]);
+    const vegetableItems = Object.entries(vegetableCartQty)
+      .filter(([, qty]) => Number(qty) > 0)
+      .map(([id, qty]) => {
+        const product = byId.get(id);
+        if (!product) return null;
+        const price = getCustomerUnitPrice(product);
+        const unit = vegetableUnits[id] || getVegetableMeasureOptions(product)[0];
+        return {
+          id,
+          name: product?.name,
+          price,
+          quantity: Number(qty) || 0,
+          subtotal: Number((price * (Number(qty) || 0)).toFixed(2)),
+          image_url: product?.image_url || "",
+          category: product?.category || "",
+          delivery_category: product?.category || "",
+          product_type: "metho_vegetable",
+          unit_type: getVegetableUnit(product),
+          unit_label: unit,
+          quantity_step: getVegetableStep(product, unit),
+          is_service: false,
+          listing_type: "product",
+          item_kind: "product",
+          delivery_charge: Number(product?.delivery_charge || 0),
+          free_delivery_threshold: Number(product?.free_delivery_threshold || 0),
+        };
+      })
+      .filter(Boolean);
+    return [...regularItems, ...vegetableItems];
+  }, [cartQty, vegetableCartQty, vegetableUnits, bestProducts]);
 
   const checkoutTotal = useMemo(
     () => checkoutItems.reduce((sum, item) => sum + Number(item.subtotal || 0), 0),
@@ -458,6 +550,10 @@ const Hero = () => {
   const adjustCheckoutItemQty = (item, delta) => {
     const product = bestProducts.find((p) => String(p?.id || "") === String(item?.id || ""));
     if (!product) return;
+    if (String(product?.product_type || "").toLowerCase() === "metho_vegetable") {
+      adjustVegetableCartQty(product, delta);
+      return;
+    }
     adjustCartQty(product, delta);
   };
 
@@ -758,7 +854,10 @@ const Hero = () => {
               >
                 {group.items.map((p, i) => {
                   const id = String(p?.id || "");
-                  const qty = cartQty[id] || 0;
+                  const isVegetable = String(p?.product_type || "").toLowerCase() === "metho_vegetable";
+                  const qty = isVegetable ? (vegetableCartQty[id] || 0) : (cartQty[id] || 0);
+                  const vegetableMeasureOptions = isVegetable ? getVegetableMeasureOptions(p) : [];
+                  const selectedVegetableUnit = vegetableUnits[id] || vegetableMeasureOptions[0];
                   const outOfStock = id ? getProductStock(p) <= 0 : false;
                   const videoUrl = getProductVideoUrl(p);
                   return (
@@ -792,22 +891,32 @@ const Hero = () => {
                           <span className="text-[10px] px-2 py-0.5 rounded-full font-semibold bg-amber-100 text-amber-900">{String(p?.product_type || "metho").toLowerCase() === "metho_vegetable" ? "VEGETABLE" : "METHO"}</span>
                         </div>
                         <div className="mt-3">
+                          {isVegetable && vegetableMeasureOptions.length > 1 ? (
+                            <select
+                              value={selectedVegetableUnit}
+                              onChange={(event) => setVegetableUnits((current) => ({ ...current, [id]: event.target.value }))}
+                              className="mb-2 h-8 w-full rounded-md border border-emerald-200 bg-white px-2 text-xs font-semibold text-emerald-950"
+                              data-testid={`landing-vegetable-unit-${id || i}`}
+                            >
+                              {vegetableMeasureOptions.map((unit) => <option key={unit} value={unit}>{unit}</option>)}
+                            </select>
+                          ) : null}
                           {outOfStock ? (
                             <Button disabled size="sm" className="w-full rounded-full text-xs">Out of Stock</Button>
                           ) : qty > 0 ? (
                             <div className="flex items-center justify-between bg-emerald-50 rounded-full px-2 py-1" data-testid={`hero-best-product-stepper-${id || i}`}>
                               <button
                                 type="button"
-                                onClick={() => adjustCartQty(p, -1)}
+                                onClick={() => (isVegetable ? adjustVegetableCartQty(p, -1) : adjustCartQty(p, -1))}
                                 className="w-7 h-7 rounded-full bg-white hover:bg-emerald-100 flex items-center justify-center text-emerald-950 font-bold"
                                 data-testid={`hero-best-product-dec-${id || i}`}
                               >
                                 −
                               </button>
-                              <span className="text-sm font-bold text-emerald-950" data-testid={`hero-best-product-qty-${id || i}`}>{qty}</span>
+                              <span className="text-sm font-bold text-emerald-950" data-testid={`hero-best-product-qty-${id || i}`}>{isVegetable ? formatVegetableQuantity(qty, p, selectedVegetableUnit) : qty}</span>
                               <button
                                 type="button"
-                                onClick={() => adjustCartQty(p, 1)}
+                                onClick={() => (isVegetable ? adjustVegetableCartQty(p, 1) : adjustCartQty(p, 1))}
                                 className="w-7 h-7 rounded-full bg-white hover:bg-emerald-100 flex items-center justify-center text-emerald-950 font-bold"
                                 data-testid={`hero-best-product-inc-${id || i}`}
                               >
@@ -818,7 +927,7 @@ const Hero = () => {
                             <Button
                               size="sm"
                               className="w-full bg-emerald-900 hover:bg-emerald-950 rounded-full text-xs"
-                              onClick={() => (id ? adjustCartQty(p, 1) : nav("/shop"))}
+                              onClick={() => (id ? (isVegetable ? adjustVegetableCartQty(p, 1) : adjustCartQty(p, 1)) : nav("/shop"))}
                               data-testid={`hero-best-product-add-${id || i}`}
                             >
                               Add to Cart
@@ -883,6 +992,7 @@ const Hero = () => {
         onOrderPlaced={() => {
           setCheckoutOpen(false);
           setCartQty({});
+          setVegetableCartQty({});
           setGuestMemberRef("");
         }}
       />
