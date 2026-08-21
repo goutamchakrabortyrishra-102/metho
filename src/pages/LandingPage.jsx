@@ -623,18 +623,6 @@ const Hero = () => {
                         testId: "landing-quick-partner-registration",
                       },
                       {
-                        title: "View All Products",
-                        href: "/shop",
-                        icon: Store,
-                        testId: "landing-quick-view-all-products",
-                      },
-                      {
-                        title: "Tour & Travel",
-                        href: "/shop?q=travel",
-                        icon: Plane,
-                        testId: "landing-quick-tour-travel",
-                      },
-                      {
                         title: "View All Partners/Services",
                         href: "/directory",
                         icon: Globe,
@@ -1862,7 +1850,6 @@ export default function LandingPage() {
       <ReferralEntryStrip />
       <Hero />
       <AssociatePartnerFinder />
-      <Products />
       <Features />
       <BusinessPlan />
       <TopLeaders />
