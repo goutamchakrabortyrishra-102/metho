@@ -1359,6 +1359,22 @@ def create_public_order(payload: dict, db: Session = Depends(get_db), authorizat
         _save_tourism_terms_acceptance(db, row.id, customer_name, customer_phone_digits)
         db.commit()
 
+    vegetable_cod_order = payment_method == "cod" and bool(normalized_items) and all(
+        str(item.get("product_type") or "").strip().lower() == "metho_vegetable"
+        for item in normalized_items
+    )
+    if vegetable_cod_order:
+        from .compat import admin_approve_order, _invoice_payload
+
+        admin_approve_order(
+            order_id=row.id,
+            payload={"note": "Auto-approved for METHO Vegetable COD order"},
+            db=db,
+            current_user=SimpleNamespace(role="super_admin"),
+        )
+        _invoice_payload(db, row.id, SimpleNamespace(role="super_admin", id="VEGETABLE_COD"))
+        db.refresh(row)
+
     partner_whatsapp_urls = []
     partner_ids_seen = set()
     for item in normalized_items:
