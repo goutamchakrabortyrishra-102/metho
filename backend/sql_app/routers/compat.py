@@ -4720,12 +4720,12 @@ def _invoice_payload(db: Session, order_id: str, current_user: User):
 
     buyer_name = str(row.payer_name or "").strip() or "Guest Customer"
     buyer_email = ""
-    buyer_phone = ""
+    buyer_phone = _load_order_contact_phone_for_order(db, row.id)
     buyer_member_code = ""
     if buyer_is_member_identity:
         buyer_name = str(buyer.name or buyer_name).strip() or buyer_name
         buyer_email = str(buyer.email or "").strip()
-        buyer_phone = str(buyer.phone or "").strip()
+        buyer_phone = str(buyer.phone or buyer_phone or "").strip()
         buyer_member_code = member_code_for_user(buyer.id)
     else:
         ref_text = str(row.member_ref or "").strip().upper()

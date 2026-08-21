@@ -252,11 +252,12 @@ export default function InvoicePage() {
         {/* Buyer info */}
         <div className="grid grid-cols-2 gap-6 px-8 py-5 border-b border-slate-200">
           <div>
-            <p className="text-[10px] uppercase tracking-widest text-slate-500 font-bold">Bill To / Ship To</p>
+            <p className="text-[10px] uppercase tracking-widest text-slate-500 font-bold">Customer / Delivery</p>
             <p className="font-display font-bold text-emerald-950 mt-1">{inv.buyer.name}</p>
-            <p className="text-xs text-slate-600 font-body mt-0.5">{inv.buyer.email}{inv.buyer.phone ? ` · ${inv.buyer.phone}` : ""}</p>
-            <p className="text-xs text-slate-600 font-body mt-1">Member Code: <span className="font-mono font-semibold">{inv.buyer.member_code}</span></p>
-            <p className="text-xs text-slate-700 font-body mt-2 whitespace-pre-line">{inv.buyer.shipping_address}</p>
+            {inv.buyer.email ? <p className="text-xs text-slate-600 font-body mt-0.5">Email: {inv.buyer.email}</p> : null}
+            <p className="text-xs text-slate-600 font-body mt-0.5">Delivery Contact: <span className="font-semibold">{inv.buyer.phone || "Not provided"}</span></p>
+            <p className="text-xs text-slate-600 font-body mt-1">Member Code: <span className="font-mono font-semibold">{inv.buyer.member_code || "-"}</span></p>
+            <p className="text-xs text-slate-700 font-body mt-2 whitespace-pre-line"><span className="font-semibold">Delivery Address:</span> {inv.buyer.shipping_address || "Not provided"}</p>
           </div>
           <div>
             <p className="text-[10px] uppercase tracking-widest text-slate-500 font-bold">Payment</p>
