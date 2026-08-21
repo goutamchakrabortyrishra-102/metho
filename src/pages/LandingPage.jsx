@@ -198,7 +198,7 @@ const fetchPublicStartupProducts = async (limit = 48) => {
     }
   }
   if (lastError) throw lastError;
-  return [];
+  throw new Error("products fetch returned no rows");
 };
 
 const loadLandingProducts = async () => {
@@ -318,18 +318,26 @@ const Hero = () => {
 
   useEffect(() => {
     let active = true;
-    loadLandingProducts()
-      .then((rows) => {
-        if (!active) return;
-        const visibleProducts = rows.filter(isVisibleMethoProduct);
-        setBestProducts(visibleProducts);
-      })
-      .catch(() => {
-        if (active) setBestProducts([]);
-      });
+    let attempts = 0;
+    let retryTimer = null;
+    const load = () => {
+      attempts += 1;
+      loadLandingProducts()
+        .then((rows) => {
+          if (!active) return;
+          const visibleProducts = rows.filter(isVisibleMethoProduct);
+          setBestProducts(visibleProducts);
+        })
+        .catch(() => {
+          if (!active || attempts >= 3) return;
+          retryTimer = window.setTimeout(load, 1200);
+        });
+    };
+    load();
 
     return () => {
       active = false;
+      if (retryTimer) window.clearTimeout(retryTimer);
     };
   }, []);
 
