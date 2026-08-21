@@ -4600,7 +4600,11 @@ def _invoice_payload(db: Session, order_id: str, current_user: User):
     if cached_invoice_row:
         try:
             cached_invoice = json.loads(cached_invoice_row.value_json or "{}")
-            if isinstance(cached_invoice, dict) and cached_invoice.get("order_id") == row.id:
+            if (
+                isinstance(cached_invoice, dict)
+                and cached_invoice.get("order_id") == row.id
+                and cached_invoice.get("invoice_schema_version") == 2
+            ):
                 _record_invoice_once(db, cached_invoice)
                 return cached_invoice
         except Exception:
@@ -4649,15 +4653,30 @@ def _invoice_payload(db: Session, order_id: str, current_user: User):
             }
         )
 
-    seller_name = settings.get("site_title", "METHO AAY-UPAY")
-    seller_address = settings.get("company_address", "India")
+    item_types = {str(item.get("product_type") or "metho").strip().lower() for item in items}
+    service_keys = {str(item.get("service_template_key") or "").strip().lower() for item in items}
+    service_text = " ".join(
+        f"{item.get('name') or ''} {item.get('category') or ''}" for item in items
+    ).lower()
+    if "tourism_booking" in service_keys:
+        seller_name = "Tour & Travels"
+    elif service_keys.intersection(TRANSPORT_SERVICE_TEMPLATE_KEYS | DELIVERY_SERVICE_TEMPLATE_KEYS) or any(
+        word in service_text for word in ("transport", "ride", "cab", "car rental", "bike rental", "delivery", "courier")
+    ):
+        seller_name = "METHO Move"
+    elif item_types and item_types.issubset({"metho_vegetable"}):
+        seller_name = "METHO Vegetable"
+    else:
+        seller_name = "METHO Store"
+
+    seller_address = "Dakshin Para, Morepukur, Rishra, Hooghly, West Bengal - 712250"
     seller_gst = settings.get("company_gst_no", "N/A")
     seller_pan = settings.get("company_pan", "N/A")
     seller_state = settings.get("company_state", "West Bengal")
     seller_state_code = settings.get("company_state_code", "19")
-    seller_email = settings.get("company_email", "admin@metho.com")
+    seller_email = "methopvtltd@gmail.com"
     seller_upi = settings.get("upi_id", "methopvtltd@paytm")
-    seller_phone = ""
+    seller_phone = "7003805387"
 
     associate_partner_product_ids = [
         str(item.get("product_id") or "").strip()
@@ -4714,6 +4733,7 @@ def _invoice_payload(db: Session, order_id: str, current_user: User):
             buyer_member_code = ref_text
 
     invoice = {
+        "invoice_schema_version": 2,
         "order_id": row.id,
         "order_no": f"ORD-{row.id[:8].upper()}",
         "invoice_no": f"INV-{row.id[:8].upper()}",
