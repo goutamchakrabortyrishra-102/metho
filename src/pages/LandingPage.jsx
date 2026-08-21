@@ -985,6 +985,13 @@ const Hero = () => {
         onOpenChange={setCheckoutOpen}
         items={checkoutItems}
         total={checkoutTotal}
+        paymentConfig={{
+          vegetable_checkout: Object.keys(vegetableCartQty).length > 0,
+          cod_enabled: true,
+          manual_upi_enabled: false,
+          razorpay_enabled: true,
+          label: "METHO Product Payment",
+        }}
         isGuest={!user}
         memberRef={guestMemberRef}
         onMemberRefChange={setGuestMemberRef}
