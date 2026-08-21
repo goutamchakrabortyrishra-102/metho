@@ -180,22 +180,25 @@ const useSectionActivation = (rootMargin = "240px 0px") => {
 
 const fetchPublicStartupProducts = async (limit = 48) => {
   const safeLimit = Math.max(1, Math.min(Number(limit) || 48, 48));
+  const refresh = Date.now();
   const candidates = [
-    `/products/public?limit=${safeLimit}`,
-    `/products?limit=${safeLimit}&compact=1`,
-    `/products?limit=${safeLimit}`,
-    "/products",
+    `/products/public?limit=${safeLimit}&refresh=${refresh}`,
+    `/products?limit=${safeLimit}&compact=1&refresh=${refresh}`,
+    `/products?limit=${safeLimit}&refresh=${refresh}`,
+    `/products?refresh=${refresh}`,
   ];
   let lastError = null;
   for (const path of candidates) {
     try {
       const r = await api.get(path);
-      return normalizeCollection(r.data);
+      const rows = normalizeCollection(r.data);
+      if (rows.length > 0) return rows;
     } catch (err) {
       lastError = err;
     }
   }
-  throw lastError || new Error("products fetch failed");
+  if (lastError) throw lastError;
+  return [];
 };
 
 const loadLandingProducts = async () => {
