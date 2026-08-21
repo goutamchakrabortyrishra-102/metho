@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from "react";
 import { toast } from "sonner";
-import { ShoppingCart, Plus, Minus, Trash2, Upload, Pencil, FileDown, ArrowUp, ArrowDown, Eye, EyeOff, RefreshCw } from "lucide-react";
+import { ShoppingCart, Plus, Minus, Trash2, Upload, Pencil, FileDown, FileText, Printer, ArrowUp, ArrowDown, Eye, EyeOff, RefreshCw } from "lucide-react";
 import { Link, useSearchParams } from "react-router-dom";
 import api from "@/services/api";
 import { useAuth } from "@/contexts/AuthContext";
@@ -555,6 +555,20 @@ export default function ProductsPage() {
                     Inventory
                   </Button>
                 </Link>
+              ) : null}
+              {isVegetableAdmin ? (
+                <>
+                  <Link to="/app/orders?scope=vegetable">
+                    <Button variant="outline" className="rounded-full border-sky-300 text-sky-900 hover:bg-sky-50" data-testid="open-vegetable-orders">
+                      <FileText className="w-4 h-4 mr-2" /> Customer Orders &amp; Invoice
+                    </Button>
+                  </Link>
+                  <Link to="/app/orders?scope=vegetable">
+                    <Button variant="outline" className="rounded-full border-amber-300 text-amber-900 hover:bg-amber-50" data-testid="open-vegetable-daily-order-sheet">
+                      <Printer className="w-4 h-4 mr-2" /> Daily Order Sheet
+                    </Button>
+                  </Link>
+                </>
               ) : null}
               <Button
                 onClick={() => window.open("/shop?view=gallery&autoPdf=1", "_blank")}

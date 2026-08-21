@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useSearchParams } from "react-router-dom";
 import { toast } from "sonner";
 import api from "@/services/api";
 import { Package, RotateCcw, AlertCircle, FileText, FileArchive, Printer } from "lucide-react";
@@ -40,6 +40,7 @@ const formatOrderItemQuantity = (item) => {
 
 export default function OrdersPage() {
   const { user } = useAuth();
+  const [searchParams] = useSearchParams();
   const isAdmin = user && (user.role === "super_admin" || user.role === "company_admin");
   const [orders, setOrders] = useState([]);
   const [resubmit, setResubmit] = useState(null); // order object
@@ -53,6 +54,9 @@ export default function OrdersPage() {
   };
   const [sheetDate, setSheetDate] = useState(toLocalDateInput(now));
   const [sheetBusy, setSheetBusy] = useState(false);
+  const vegetableScope = searchParams.get("scope") === "vegetable";
+  const isVegetableOrder = (order) => Array.isArray(order?.items)
+    && order.items.some((item) => String(item?.product_type || "").trim().toLowerCase() === "metho_vegetable");
 
   const load = () => api.get("/orders").then(r => setOrders(r.data));
   useEffect(() => { load(); }, []);
@@ -85,7 +89,7 @@ export default function OrdersPage() {
   };
 
   const printDailyOrderSheet = async () => {
-    const dayOrders = orders.filter((o) => toLocalDateInput(new Date(o.created_at)) === sheetDate);
+    const dayOrders = orders.filter((o) => (!vegetableScope || isVegetableOrder(o)) && toLocalDateInput(new Date(o.created_at)) === sheetDate);
     if (dayOrders.length === 0) {
       toast.error("No orders found for the selected date");
       return;
@@ -169,7 +173,7 @@ export default function OrdersPage() {
       <div className="flex flex-wrap justify-between gap-4 items-end">
         <div>
           <p className="text-xs uppercase tracking-[0.2em] text-emerald-800 font-semibold">Orders</p>
-          <h1 className="font-display font-black text-3xl md:text-4xl text-emerald-950 tracking-tight mt-1">Order History</h1>
+          <h1 className="font-display font-black text-3xl md:text-4xl text-emerald-950 tracking-tight mt-1">{vegetableScope ? "Vegetable Customer Orders" : "Order History"}</h1>
           <p className="text-sm text-muted-foreground font-body mt-1">
             View the status of UPI orders here. If an order is rejected, the payment can be submitted again.
           </p>
@@ -202,13 +206,13 @@ export default function OrdersPage() {
       </div>
 
       <div className="space-y-4">
-        {orders.length === 0 && (
+        {orders.filter((order) => !vegetableScope || isVegetableOrder(order)).length === 0 && (
           <div className="bg-white rounded-xl border border-border p-10 text-center">
             <Package className="w-10 h-10 text-slate-400 mx-auto" />
             <p className="mt-4 text-muted-foreground font-body">No orders yet. Head to Products to place your first order!</p>
           </div>
         )}
-        {orders.map((o, i) => {
+        {orders.filter((order) => !vegetableScope || isVegetableOrder(order)).map((o, i) => {
           const st = STATUS[o.status] || STATUS.pending;
           return (
             <div key={o.id} className="bg-white rounded-xl border border-border p-5" data-testid={`order-${i}`}>
