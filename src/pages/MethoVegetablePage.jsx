@@ -17,6 +17,16 @@ const VEGETABLE_PRODUCT_TYPE = "metho_vegetable";
 // Separate cart key so this page never shares/mixes cart state with the METHO product shop.
 const VEGETABLE_CART_STORAGE_KEY = "metho_vegetable_cart_v1";
 
+const readStoredVegetableCart = () => {
+  try {
+    const raw = localStorage.getItem(VEGETABLE_CART_STORAGE_KEY);
+    const parsed = raw ? JSON.parse(raw) : {};
+    return parsed && typeof parsed === "object" ? parsed : {};
+  } catch {
+    return {};
+  }
+};
+
 const normalizeCollection = (value) => {
   if (Array.isArray(value)) return value;
   if (Array.isArray(value?.items)) return value.items;
@@ -189,7 +199,7 @@ export default function MethoVegetablePage() {
   const [products, setProducts] = useState([]);
   const [query, setQuery] = useState(searchParams.get("q") || "");
   const [loadError, setLoadError] = useState("");
-  const [cart, setCart] = useState(readCart);
+  const [cart, setCart] = useState(readStoredVegetableCart);
   const [previewProduct, setPreviewProduct] = useState(null);
   const [checkoutOpen, setCheckoutOpen] = useState(false);
   const [guestMemberRef, setGuestMemberRef] = useState("");
@@ -553,7 +563,7 @@ export default function MethoVegetablePage() {
         open={checkoutOpen}
         onOpenChange={setCheckoutOpen}
         items={checkoutItems}
-        total={total}
+        total={merchandiseSubtotal}
         isGuest={!user}
         memberRef={guestMemberRef}
         onMemberRefChange={setGuestMemberRef}

@@ -442,6 +442,8 @@ def _serialize_public_order_list_row(row: PublicOrder, db: Session | None = None
     metho_amount = sum(float(i.get("subtotal") or 0) for i in items if _is_metho_qualified_item(i))
     associate_amount = sum(float(i.get("subtotal") or 0) for i in items if not _is_metho_qualified_item(i))
     tourism_guide = _load_tourism_guide_assignment(db, row.id) if db and any(str(i.get("service_template_key") or "").lower() == "tourism_booking" for i in items) else {}
+    contact_phone = _load_order_contact_phone_for_order(db, row.id) if db else ""
+    buyer = db.query(User).filter(User.id == row.customer_user_id).first() if db and row.customer_user_id else None
     return {
         "id": row.id,
         "order_no": f"ORD-{row.id[:8].upper()}",
@@ -451,6 +453,9 @@ def _serialize_public_order_list_row(row: PublicOrder, db: Session | None = None
         "txn_id": row.txn_id,
         "payment_screenshot_url": row.payment_screenshot_url,
         "payer_name": row.payer_name,
+        "customer_name": row.payer_name or (buyer.name if buyer else ""),
+        "customer_phone": contact_phone or (buyer.phone if buyer else ""),
+        "member_code": member_code_for_user(buyer.id) if buyer and str(buyer.role or "").lower() == "member" else row.member_ref,
         "items": [
             {
                 "product_id": i.get("product_id"),
@@ -460,6 +465,8 @@ def _serialize_public_order_list_row(row: PublicOrder, db: Session | None = None
                 "price": float(i.get("price") or 0),
                 "subtotal": float(i.get("subtotal") or 0),
                 "product_type": i.get("product_type") or "metho",
+                "unit_type": i.get("unit_type") or "piece",
+                "unit_label": i.get("unit_label") or i.get("unit_type") or "piece",
             }
             for i in items
         ],

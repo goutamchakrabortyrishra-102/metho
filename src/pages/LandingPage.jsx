@@ -139,7 +139,8 @@ const DEFAULT_POLICY = {
 let landingProductsPromise = null;
 
 const LANDING_CART_STORAGE_KEY = "metho_shared_cart_v1";
-const LANDING_VEGETABLE_CART_STORAGE_KEY = "metho_landing_vegetable_cart_v1";
+const LANDING_VEGETABLE_CART_STORAGE_KEY = "metho_vegetable_cart_v1";
+const LEGACY_LANDING_VEGETABLE_CART_STORAGE_KEY = "metho_landing_vegetable_cart_v1";
 const getProductStock = (product) => {
   const stock = Number(product?.stock);
   return Number.isFinite(stock) ? Math.max(0, stock) : null;
@@ -387,8 +388,12 @@ const Hero = () => {
       const parsed = raw ? JSON.parse(raw) : null;
       if (parsed && typeof parsed === "object") setCartQty(parsed);
       const vegetableRaw = localStorage.getItem(LANDING_VEGETABLE_CART_STORAGE_KEY);
-      const vegetableParsed = vegetableRaw ? JSON.parse(vegetableRaw) : null;
+      const legacyVegetableRaw = localStorage.getItem(LEGACY_LANDING_VEGETABLE_CART_STORAGE_KEY);
+      const vegetableParsed = vegetableRaw
+        ? JSON.parse(vegetableRaw)
+        : (legacyVegetableRaw ? JSON.parse(legacyVegetableRaw) : null);
       if (vegetableParsed && typeof vegetableParsed === "object") setVegetableCartQty(vegetableParsed);
+      if (!vegetableRaw && legacyVegetableRaw) localStorage.removeItem(LEGACY_LANDING_VEGETABLE_CART_STORAGE_KEY);
     } catch {}
   }, []);
 

@@ -115,7 +115,7 @@ export default function OrdersPage() {
 
       y = 30;
       dayOrders.forEach((order, idx) => {
-        if (y > 265) {
+        if (y > 255) {
           doc.addPage();
           y = 14;
         }
@@ -128,14 +128,17 @@ export default function OrdersPage() {
         doc.setFont("helvetica", "normal");
         doc.setTextColor(71, 85, 105);
         doc.text(`${new Date(order.created_at).toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit" })} · ${String(order.status || "").replace(/_/g, " ")}`, 10, y + 11);
+        doc.text(`Customer: ${String(order.customer_name || order.payer_name || order.buyer_name || "Guest Customer").slice(0, 48)}`, 10, y + 16);
+        doc.text(`Mobile: ${String(order.customer_phone || order.phone || order.buyer_phone || "Not provided").slice(0, 24)} · Member: ${String(order.member_code || order.member_ref || "-").slice(0, 20)}`, 10, y + 21);
         doc.setFont("helvetica", "bold");
         doc.setTextColor(5, 46, 22);
         doc.text(`₹${Number(order.total_amount || 0).toLocaleString("en-IN")}`, W - 10, y + 6, { align: "right" });
         doc.setFont("helvetica", "normal");
         doc.setTextColor(71, 85, 105);
-        doc.text(`Ship to: ${String(order.shipping_address || "-").slice(0, 60)}`, W - 10, y + 11, { align: "right" });
+        doc.text(`Payment: ${String(order.payment_method || "-").toUpperCase()}`, W - 10, y + 16, { align: "right" });
+        doc.text(`Deliver to: ${String(order.shipping_address || "-").slice(0, 58)}`, W - 10, y + 21, { align: "right" });
 
-        let itemY = y + 16;
+        let itemY = y + 26;
         doc.setFontSize(8);
         (order.items || []).forEach((item) => {
           if (itemY > 280) {
