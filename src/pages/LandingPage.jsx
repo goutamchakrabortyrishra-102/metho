@@ -300,6 +300,7 @@ const Hero = () => {
   const nav = useNavigate();
   const [shopSearch, setShopSearch] = useState("");
   const [bestProducts, setBestProducts] = useState([]);
+  const [bestProductsLoading, setBestProductsLoading] = useState(true);
   const [cartQty, setCartQty] = useState({});
   const [checkoutOpen, setCheckoutOpen] = useState(false);
   const [guestMemberRef, setGuestMemberRef] = useState("");
@@ -327,11 +328,15 @@ const Hero = () => {
           if (!active) return;
           const visibleProducts = rows.filter(isVisibleMethoProduct);
           setBestProducts(visibleProducts);
+          setBestProductsLoading(false);
         })
         .catch(() => {
-          if (!active || attempts >= 3) return;
+            if (!active || attempts >= 3) return;
           retryTimer = window.setTimeout(load, 1200);
-        });
+          })
+          .finally(() => {
+            if (active && attempts >= 3) setBestProductsLoading(false);
+          });
     };
     load();
 
@@ -732,7 +737,7 @@ const Hero = () => {
         <div className="flex items-center justify-between gap-3 mb-4">
           <div>
             <p className="text-[10px] uppercase tracking-[0.24em] text-emerald-800 font-semibold">METHO Best Products</p>
-            <h3 className="font-display font-black text-xl md:text-2xl text-emerald-950">{hasBestProducts ? "Top product images from admin uploads" : "Live products will appear here after upload"}</h3>
+            <h3 className="font-display font-black text-xl md:text-2xl text-emerald-950">{hasBestProducts ? "Top product images from admin uploads" : bestProductsLoading ? "Loading METHO products" : "No live METHO products found"}</h3>
           </div>
           <Link to="/shop" data-testid="hero-best-products-view-all" className="hidden md:inline-flex">
             <Button variant="outline" className="rounded-full border-emerald-900/20 hover:bg-emerald-50 hover:text-emerald-900">
@@ -751,7 +756,11 @@ const Hero = () => {
         </div>
 
         <div className="space-y-6">
-          {(hasBestProducts ? groupedBestProducts : [{ category: "METHO Products", items: Array.from({ length: LANDING_TOP_PRODUCTS_LIMIT }) }]).map((group) => (
+          {bestProductsLoading ? (
+            <div className="rounded-xl border border-dashed border-emerald-200 bg-white/70 p-6 text-center text-sm text-slate-500">
+              Loading live METHO products...
+            </div>
+          ) : hasBestProducts ? groupedBestProducts.map((group) => (
             <div key={group.category}>
               <p className="text-[11px] font-bold uppercase tracking-wider text-emerald-800 mb-2">{group.category}</p>
               <div
@@ -844,7 +853,11 @@ const Hero = () => {
                 })}
               </div>
             </div>
-          ))}
+          )) : (
+            <div className="rounded-xl border border-dashed border-emerald-200 bg-white/70 p-6 text-center text-sm text-slate-500">
+              No live METHO products are available right now.
+            </div>
+          )}
         </div>
 
         {cartItemCount > 0 && !checkoutOpen ? (
