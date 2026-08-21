@@ -158,14 +158,17 @@ export default function ProductsPage() {
   }, [settings?.landing_top_product_ids]);
 
   useEffect(() => {
-    const productCategories = [...new Set(products.map((p) => p.category).filter(Boolean))];
+    const productCategories = [...new Set(products
+      .filter((product) => isVegetableAdmin || String(product?.product_type || "").toLowerCase() !== "metho_vegetable")
+      .map((p) => p.category)
+      .filter(Boolean))];
     const configuredCategories = normalizeCategories(settings?.product_categories);
     const nextCategories = [
       ...configuredCategories.filter((category) => productCategories.includes(category)),
       ...productCategories.filter((category) => !configuredCategories.includes(category)).sort((a, b) => a.localeCompare(b)),
     ];
     setCategoryOrder(nextCategories);
-  }, [products, settings?.product_categories]);
+  }, [products, settings?.product_categories, isVegetableAdmin]);
 
   const saveLandingTopProductIds = async (nextIds) => {
     setSavingTopProducts(true);
@@ -328,7 +331,7 @@ export default function ProductsPage() {
 
   const scopedProducts = visibleProductType
     ? products.filter((product) => String(product?.product_type || "").toLowerCase() === visibleProductType)
-    : products;
+    : products.filter((product) => String(product?.product_type || "").toLowerCase() !== "metho_vegetable");
   const categories = categoryOrder.filter((category) => scopedProducts.some((product) => product.category === category));
   const productsById = new Map(scopedProducts.map((item) => [String(item?.id || ""), item]));
   const selectedTopProducts = landingTopProductIds

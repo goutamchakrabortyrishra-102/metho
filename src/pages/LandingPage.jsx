@@ -139,7 +139,10 @@ const DEFAULT_POLICY = {
 let landingProductsPromise = null;
 
 const LANDING_CART_STORAGE_KEY = "metho_shared_cart_v1";
-const getProductStock = (product) => Math.max(0, Number(product?.stock ?? 0));
+const getProductStock = (product) => {
+  const stock = Number(product?.stock);
+  return Number.isFinite(stock) ? Math.max(0, stock) : null;
+};
 const getCustomerUnitPrice = (product) => {
   const productType = String(product?.product_type || "metho").toLowerCase();
   const gstPercent = productType === "metho" ? Number(product?.gst_percent || 0) : 0;
@@ -363,7 +366,7 @@ const Hero = () => {
       const stock = getProductStock(product);
       const current = prev[id] || 0;
       let next = current + delta;
-      if (stock > 0) next = Math.min(next, stock);
+      if (stock !== null) next = Math.min(next, stock);
       next = Math.max(0, next);
       if (next === current) return prev;
       const copy = { ...prev };
