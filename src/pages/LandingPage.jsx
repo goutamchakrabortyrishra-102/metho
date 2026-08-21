@@ -633,7 +633,7 @@ const Hero = () => {
             </div>
             <div className="mt-4 overflow-hidden rounded-2xl border border-emerald-200/70 bg-white shadow-sm" data-testid="landing-public-booking-banner">
               <div className="grid min-h-[96px] grid-cols-[112px_1fr] sm:grid-cols-[150px_1fr]">
-                <img src={resolveAssetUrl(settings?.landing_metho_delivery_banner_image_url || NETWORK_IMG)} alt="METHO public booking" className="h-full min-h-[96px] w-full object-cover" loading="lazy" />
+                <img src={settings?.landing_tourism_banner_image_url_full || resolveAssetUrl(settings?.landing_tourism_banner_image_url) || NETWORK_IMG} alt="METHO Tour & Travels" className="h-full min-h-[96px] w-full object-cover" loading="lazy" />
                 <div className="p-3 sm:p-4">
                   <p className="text-[10px] uppercase tracking-widest text-emerald-700 font-bold">METHO Public Booking</p>
                   <div className="mt-2 grid gap-2 sm:grid-cols-3">
