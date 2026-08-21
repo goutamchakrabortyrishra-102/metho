@@ -353,11 +353,18 @@ export default function InvoicePage() {
         {/* Footer */}
         <div className="px-8 py-5 border-t border-slate-200 bg-slate-50/70 text-xs text-slate-600">
           <p className="whitespace-pre-line italic">{inv.notes}</p>
+          <p className="mt-4 text-center font-semibold text-emerald-900">Powered By Metho Logistics Private Limited</p>
           <div className="grid grid-cols-2 gap-6 mt-4">
             <div>
               <p className="font-semibold text-emerald-950">Payment Details</p>
-              <p>UPI: <span className="font-mono">{inv.seller.upi_id}</span></p>
-              <p>Payee: {inv.seller.name}</p>
+              {String(inv.payment?.method || "").toLowerCase() === "cod" ? (
+                <p>Cash on Delivery</p>
+              ) : (
+                <>
+                  <p>UPI: <span className="font-mono">{inv.seller.upi_id}</span></p>
+                  <p>Payee: {inv.seller.name}</p>
+                </>
+              )}
               {inv.seller.phone ? <p>Contact: {inv.seller.phone}</p> : null}
             </div>
             <div className="text-right">

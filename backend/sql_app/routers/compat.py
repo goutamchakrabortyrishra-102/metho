@@ -4808,6 +4808,11 @@ def order_invoice_pdf(order_id: str, db: Session = Depends(get_db), current_user
             y = h - 50
         c.drawString(40, y, f"{idx}. {item['product_name']} x{item['quantity']} [{item['product_type']}]  INR {item['subtotal']:.2f}")
         y -= 14
+    if y < 70:
+        c.showPage()
+        y = h - 50
+    c.setFont("Helvetica-Bold", 10)
+    c.drawString(40, y, "Powered By Metho Logistics Private Limited")
     c.showPage()
     c.save()
     pdf = buff.getvalue()
