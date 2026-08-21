@@ -1071,12 +1071,12 @@ const Features = () => {
     <section ref={sectionRef} id="features" className="py-24 bg-[linear-gradient(180deg,#ffffff_0%,#f4faf7_100%)]">
       <div className="max-w-7xl mx-auto px-6">
         <div className="max-w-3xl">
-          <p className="text-xs uppercase tracking-[0.25em] text-emerald-800 font-semibold">METHO Store &amp; Travel</p>
+          <p className="text-xs uppercase tracking-[0.25em] text-emerald-800 font-semibold">METHO Store</p>
           <h2 className="mt-3 font-display font-black text-4xl md:text-5xl tracking-tight text-emerald-950">
-            Shop locally. Plan your next trip.
-            <span className="text-amber-500 italic"> Live listings, one destination.</span>
+            Shop locally.
+            <span className="text-amber-500 italic"> Live store listings.</span>
           </h2>
-          <p className="mt-4 text-slate-600 font-body">Store listings and travel services are managed separately by admin and appear here automatically when available.</p>
+          <p className="mt-4 text-slate-600 font-body">METHO Store listings are managed by admin and appear here automatically when available.</p>
         </div>
         <div className="mt-10 grid gap-5 xl:grid-cols-1">
         <div className="rounded-3xl border border-emerald-900/10 bg-white/90 p-4 md:p-5 shadow-sm">
