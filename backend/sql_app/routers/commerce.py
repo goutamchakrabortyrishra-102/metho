@@ -393,7 +393,7 @@ def list_products(limit: int | None = None, authorization: str | None = Header(d
             }
         )
     if not is_authenticated:
-        public_limit = max(1, min(int(limit) if limit is not None else 200, 500))
+        public_limit = max(1, min(int(limit), 500)) if limit is not None else len(out)
         compacted = []
         for item in out[:public_limit]:
             next_item = dict(item)
@@ -413,8 +413,8 @@ def list_products(limit: int | None = None, authorization: str | None = Header(d
 
 
 @router.get("/products/public")
-def list_public_products(limit: int = 120, db: Session = Depends(get_db)):
-    safe_limit = max(1, min(int(limit), 500))
+def list_public_products(limit: int | None = None, db: Session = Depends(get_db)):
+    safe_limit = max(1, min(int(limit), 500)) if limit is not None else None
     rows = list_products(limit=safe_limit, db=db)
     for item in rows:
         item.pop("purchase_cost", None)
