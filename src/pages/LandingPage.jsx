@@ -733,11 +733,11 @@ const Hero = () => {
         </div>
       ) : null}
 
-      <div id="products" className="mt-12 rounded-[2rem] border border-emerald-900/12 bg-[linear-gradient(180deg,rgba(255,255,255,0.98)_0%,rgba(240,251,246,0.95)_100%)] backdrop-blur p-4 md:p-6 shadow-[0_20px_44px_rgba(15,23,42,0.1)]" data-testid="hero-best-products-grid">
+      <div id="products" className="mt-12 rounded-[2rem] border border-emerald-900/12 bg-[linear-gradient(180deg,rgba(255,255,255,0.98)_0%,rgba(240,251,246,0.95)_100%)] backdrop-blur p-4 md:p-6 shadow-[0_20px_44px_rgba(15,23,42,0.1)]" data-testid="hero-products-grid">
         <div className="flex items-center justify-between gap-3 mb-4">
           <div>
-            <p className="text-[10px] uppercase tracking-[0.24em] text-emerald-800 font-semibold">METHO Best Products</p>
-            <h3 className="font-display font-black text-xl md:text-2xl text-emerald-950">{hasBestProducts ? "Top product images from admin uploads" : bestProductsLoading ? "Loading METHO products" : "No live METHO products found"}</h3>
+            <p className="text-[10px] uppercase tracking-[0.24em] text-emerald-800 font-semibold">METHO Products</p>
+            <h3 className="font-display font-black text-xl md:text-2xl text-emerald-950">{hasBestProducts ? "All METHO products by category" : bestProductsLoading ? "Loading METHO products" : "No live METHO products found"}</h3>
           </div>
           <Link to="/shop" data-testid="hero-best-products-view-all" className="hidden md:inline-flex">
             <Button variant="outline" className="rounded-full border-emerald-900/20 hover:bg-emerald-50 hover:text-emerald-900">
