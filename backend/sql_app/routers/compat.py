@@ -64,6 +64,77 @@ def draw_multilingual_pdf_text(pdf, x, y, value, size=10, bold=False):
                 current_x += pdfmetrics.stringWidth(segment, font, size)
             segment_start = index
 
+
+def _draw_invoice_pdf(inv: dict) -> bytes:
+    buff = BytesIO()
+    pdf = canvas.Canvas(buff, pagesize=A4)
+    width, height = A4
+    left = 30
+    right = width - 30
+    y = height - 34
+
+    pdf.setStrokeColorRGB(0, 0, 0)
+    pdf.setFillColorRGB(0, 0, 0)
+    pdf.setLineWidth(1.2)
+    pdf.line(left, y - 8, right, y - 8)
+    draw_multilingual_pdf_text(pdf, left, y, inv.get("seller", {}).get("name"), 17, bold=True)
+    draw_multilingual_pdf_text(pdf, left, y - 16, inv.get("seller", {}).get("address"), 8)
+    draw_multilingual_pdf_text(pdf, left, y - 28, f"GSTIN: {inv.get('seller', {}).get('gst_no', '-')}  PAN: {inv.get('seller', {}).get('pan', '-')}" , 8)
+    draw_multilingual_pdf_text(pdf, left, y - 40, f"Email: {inv.get('seller', {}).get('email', '-')}  Phone: {inv.get('seller', {}).get('phone', '-')}", 8)
+    draw_multilingual_pdf_text(pdf, right - 112, y, "TAX INVOICE", 12, bold=True)
+    draw_multilingual_pdf_text(pdf, right - 112, y - 18, f"Invoice No: {inv.get('invoice_no', '-')}", 8)
+    draw_multilingual_pdf_text(pdf, right - 112, y - 30, f"Order No: {inv.get('order_no', '-')}", 8)
+    draw_multilingual_pdf_text(pdf, right - 112, y - 42, f"Date: {str(inv.get('invoice_date', ''))[:10]}", 8)
+
+    y -= 62
+    pdf.setLineWidth(0.6)
+    pdf.rect(left, y - 48, right - left, 48)
+    draw_multilingual_pdf_text(pdf, left + 8, y - 13, "CUSTOMER / DELIVERY", 8, bold=True)
+    draw_multilingual_pdf_text(pdf, left + 8, y - 26, f"Name: {inv.get('buyer', {}).get('name', '-')}", 9)
+    draw_multilingual_pdf_text(pdf, left + 8, y - 38, f"Mobile: {inv.get('buyer', {}).get('phone', '-') }  Member: {inv.get('buyer', {}).get('member_code', '-')}", 8)
+    draw_multilingual_pdf_text(pdf, left + 250, y - 13, "DELIVERY ADDRESS", 8, bold=True)
+    draw_multilingual_pdf_text(pdf, left + 250, y - 28, inv.get('buyer', {}).get('shipping_address') or "Not provided", 8)
+    draw_multilingual_pdf_text(pdf, left + 250, y - 40, f"Payment: {str(inv.get('payment', {}).get('method') or '-').upper()}", 8)
+
+    y -= 62
+    table_top = y
+    row_height = 20
+    columns = [left, left + 24, left + 282, left + 345, left + 405, left + 475, right]
+    pdf.setFillColorRGB(0, 0, 0)
+    pdf.rect(left, table_top - row_height, right - left, row_height, fill=1, stroke=1)
+    pdf.setFillColorRGB(1, 1, 1)
+    headers = ["#", "ITEM", "QTY", "RATE", "GST", "TOTAL"]
+    for index, header in enumerate(headers):
+        draw_multilingual_pdf_text(pdf, columns[index] + 5, table_top - 14, header, 8, bold=True)
+    pdf.setFillColorRGB(0, 0, 0)
+    items = inv.get("items") or []
+    for index, item in enumerate(items, start=1):
+        row_y = table_top - row_height * (index + 1)
+        pdf.rect(left, row_y, right - left, row_height, fill=0, stroke=1)
+        values = [
+            str(index),
+            f"{item.get('product_name', 'Product')} [{item.get('product_type', 'metho')}]",
+            str(item.get("quantity", 1)),
+            f"INR {float(item.get('price') or 0):.2f}",
+            f"INR {float(item.get('cgst') or 0) + float(item.get('sgst') or 0):.2f}",
+            f"INR {float(item.get('subtotal') or 0):.2f}",
+        ]
+        for col, value in enumerate(values):
+            draw_multilingual_pdf_text(pdf, columns[col] + 5, row_y + 6, value[:42], 7 if col == 1 else 8)
+
+    summary_y = table_top - row_height * (len(items) + 2) - 12
+    pdf.line(left, summary_y + 8, right, summary_y + 8)
+    draw_multilingual_pdf_text(pdf, right - 190, summary_y - 5, f"Subtotal: INR {float(inv.get('grand_total', 0) - inv.get('delivery_charge', 0)):.2f}", 9)
+    draw_multilingual_pdf_text(pdf, right - 190, summary_y - 19, f"CGST: INR {float(inv.get('total_cgst') or 0):.2f}  SGST: INR {float(inv.get('total_sgst') or 0):.2f}", 9)
+    draw_multilingual_pdf_text(pdf, right - 190, summary_y - 33, f"Delivery Charge: INR {float(inv.get('delivery_charge') or 0):.2f}", 9)
+    draw_multilingual_pdf_text(pdf, right - 190, summary_y - 50, f"GRAND TOTAL: INR {float(inv.get('grand_total') or 0):.2f}", 11, bold=True)
+    draw_multilingual_pdf_text(pdf, left, summary_y - 5, "Amount payable", 8, bold=True)
+    draw_multilingual_pdf_text(pdf, left, summary_y - 19, "Please retain this invoice for your records.", 8)
+    draw_multilingual_pdf_text(pdf, left, 34, "Powered By Metho Logistics Private Limited", 9, bold=True)
+    pdf.line(left, 46, right, 46)
+    pdf.save()
+    return buff.getvalue()
+
 PRODUCT_UPLOAD_DIR = UPLOADED_OBJECTS_DIR / "product_images"
 PRODUCT_UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
 UPI_QR_UPLOAD_DIR = UPLOADED_OBJECTS_DIR / "payment_screenshots"
@@ -4832,42 +4903,7 @@ def order_invoice_json(order_id: str, db: Session = Depends(get_db), current_use
 @router.get("/orders/{order_id}/invoice/pdf")
 def order_invoice_pdf(order_id: str, db: Session = Depends(get_db), current_user=Depends(get_current_user)):
     inv = _invoice_payload(db, order_id, current_user)
-    buff = BytesIO()
-    c = canvas.Canvas(buff, pagesize=A4)
-    w, h = A4
-    y = h - 50
-    draw_multilingual_pdf_text(c, 40, y, inv["seller"]["name"], 16, bold=True)
-    y -= 22
-    draw_multilingual_pdf_text(c, 40, y, inv["seller"]["address"][:100])
-    y -= 14
-    draw_multilingual_pdf_text(c, 40, y, f"GSTIN: {inv['seller']['gst_no']}  PAN: {inv['seller']['pan']}  Email: {inv['seller']['email']}  Phone: {inv['seller']['phone']}")
-    y -= 18
-    draw_multilingual_pdf_text(c, 40, y, f"Invoice: {inv['invoice_no']}  Order: {inv['order_no']}")
-    y -= 16
-    draw_multilingual_pdf_text(c, 40, y, f"Customer: {inv['buyer']['name']}  Mobile: {inv['buyer']['phone'] or '-'}  Member: {inv['buyer']['member_code'] or '-'}")
-    y -= 16
-    draw_multilingual_pdf_text(c, 40, y, f"Delivery address: {inv['buyer']['shipping_address'] or '-'}"[:110])
-    y -= 16
-    draw_multilingual_pdf_text(c, 40, y, f"Payment: {str(inv['payment']['method'] or '-').upper()}  Total: INR {inv['grand_total']:.2f}  GST: {(inv['total_cgst'] + inv['total_sgst']):.2f}")
-    y -= 24
-    for idx, item in enumerate(inv["items"], start=1):
-        if y < 70:
-            c.showPage()
-            y = h - 50
-        draw_multilingual_pdf_text(c, 40, y, f"{idx}. {item['product_name']} x{item['quantity']} [{item['product_type']}]  INR {item['subtotal']:.2f}")
-        y -= 14
-    draw_multilingual_pdf_text(c, 40, y, f"Delivery charge: INR {inv['delivery_charge']:.2f}")
-    y -= 14
-    draw_multilingual_pdf_text(c, 40, y, f"Grand total: INR {inv['grand_total']:.2f}")
-    y -= 18
-    if y < 70:
-        c.showPage()
-        y = h - 50
-    draw_multilingual_pdf_text(c, 40, y, "Powered By Metho Logistics Private Limited", 10, bold=True)
-    c.showPage()
-    c.save()
-    pdf = buff.getvalue()
-    return Response(content=pdf, media_type="application/pdf")
+    return Response(content=_draw_invoice_pdf(inv), media_type="application/pdf")
 
 
 @router.get("/customer/mobile-access/orders/{order_id}/invoice")
@@ -4890,35 +4926,7 @@ def customer_order_invoice_pdf(order_id: str, token: str = Query("", min_length=
     row = _ensure_customer_order_access(db, order_id, phone)
     pseudo_user = SimpleNamespace(role="member", id=str(row.customer_user_id or ""))
     inv = _invoice_payload(db, row.id, pseudo_user)
-    buff = BytesIO()
-    c = canvas.Canvas(buff, pagesize=A4)
-    w, h = A4
-    y = h - 50
-    draw_multilingual_pdf_text(c, 40, y, inv["seller"]["name"], 16, bold=True)
-    y -= 22
-    draw_multilingual_pdf_text(c, 40, y, f"Invoice: {inv['invoice_no']}  Order: {inv['order_no']}")
-    y -= 16
-    draw_multilingual_pdf_text(c, 40, y, f"Customer: {inv['buyer']['name']}  Mobile: {inv['buyer']['phone'] or '-'}  Member: {inv['buyer']['member_code'] or '-'}")
-    y -= 16
-    draw_multilingual_pdf_text(c, 40, y, f"Delivery address: {inv['buyer']['shipping_address'] or '-'}"[:110])
-    y -= 16
-    draw_multilingual_pdf_text(c, 40, y, f"Payment: {str(inv['payment']['method'] or '-').upper()}  Total: INR {inv['grand_total']:.2f}  GST: {(inv['total_cgst'] + inv['total_sgst']):.2f}")
-    y -= 24
-    for idx, item in enumerate(inv["items"], start=1):
-        if y < 70:
-            c.showPage()
-            y = h - 50
-        draw_multilingual_pdf_text(c, 40, y, f"{idx}. {item['product_name']} x{item['quantity']} [{item['product_type']}]  INR {item['subtotal']:.2f}")
-        y -= 14
-    draw_multilingual_pdf_text(c, 40, y, f"Delivery charge: INR {inv['delivery_charge']:.2f}")
-    y -= 14
-    draw_multilingual_pdf_text(c, 40, y, f"Grand total: INR {inv['grand_total']:.2f}")
-    y -= 18
-    draw_multilingual_pdf_text(c, 40, y, "Powered By Metho Logistics Private Limited", 10, bold=True)
-    c.showPage()
-    c.save()
-    pdf = buff.getvalue()
-    return Response(content=pdf, media_type="application/pdf")
+    return Response(content=_draw_invoice_pdf(inv), media_type="application/pdf")
 
 
 @router.get("/admin/invoices/bulk-zip")
