@@ -1,10 +1,9 @@
 import React, { useEffect, useState } from "react";
 import { useParams, Link, useSearchParams } from "react-router-dom";
-import { Printer, ArrowLeft, FileText, FileJson, ShieldCheck, Loader2, QrCode, MessageCircle } from "lucide-react";
+import { Printer, ArrowLeft, FileText, MessageCircle } from "lucide-react";
 import api from "@/services/api";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
-import { useAuth } from "@/contexts/AuthContext";
 import { openWhatsAppShare } from "@/lib/utils";
 
 const inr = (v) => (Number(v) || 0).toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -35,11 +34,8 @@ export default function InvoicePage() {
   const BACKEND = String(api?.defaults?.baseURL || "").replace(/\/?api\/?$/, "");
   const { orderId } = useParams();
   const [searchParams] = useSearchParams();
-  const { user } = useAuth();
-  const isAdmin = user && (user.role === "super_admin" || user.role === "company_admin");
   const [inv, setInv] = useState(null);
   const [err, setErr] = useState(null);
-  const [submittingIrn, setSubmittingIrn] = useState(false);
 
   useEffect(() => {
     api.get(`/orders/${orderId}/invoice`).then(r => setInv(r.data)).catch(e => setErr(e?.response?.data?.detail || "Failed to load invoice"));
@@ -53,18 +49,6 @@ export default function InvoicePage() {
     }, 350);
     return () => clearTimeout(timer);
   }, [inv, searchParams]);
-
-  const submitEinvoice = async () => {
-    setSubmittingIrn(true);
-    try {
-      const { data } = await api.post(`/admin/orders/${orderId}/einvoice/submit`);
-      const ei = data.einvoice || {};
-      setInv({ ...inv, einvoice: ei });
-      toast.success(data.already_submitted ? "Already submitted" : `IRN generated: ${ei.irn?.slice(0, 12)}…`);
-    } catch (e) {
-      toast.error(e?.response?.data?.detail || "E-Invoice submission failed");
-    } finally { setSubmittingIrn(false); }
-  };
 
   const shareInvoicePdfOnWhatsApp = async () => {
     try {
@@ -130,24 +114,6 @@ export default function InvoicePage() {
             variant="outline"
             onClick={async () => {
               try {
-                const { data } = await api.get(`/orders/${orderId}/invoice.json`);
-                const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
-                const a = document.createElement("a");
-                a.href = URL.createObjectURL(blob);
-                a.download = `${inv.invoice_no}_einvoice.json`;
-                document.body.appendChild(a); a.click(); a.remove();
-                toast.success("E-invoice JSON downloaded");
-              } catch { toast.error("Download failed"); }
-            }}
-            className="rounded-full border-emerald-800 text-emerald-900 hover:bg-emerald-50"
-            data-testid="download-einvoice-json"
-          >
-            <FileJson className="w-4 h-4 mr-2" /> E-invoice JSON
-          </Button>
-          <Button
-            variant="outline"
-            onClick={async () => {
-              try {
                 const token = localStorage.getItem("metho_token");
                 const res = await fetch(`${BACKEND}/api/orders/${orderId}/invoice/pdf`, { headers: { Authorization: `Bearer ${token}` } });
                 if (!res.ok) throw new Error();
@@ -178,45 +144,6 @@ export default function InvoicePage() {
         </div>
       </div>
 
-      {/* E-Invoice / IRN Banner */}
-      {inv.einvoice?.irn ? (
-        <div className="max-w-4xl mx-auto px-4 mb-4 print:hidden">
-          <div className="rounded-xl border-2 border-emerald-500 bg-gradient-to-r from-emerald-50 to-white p-4 flex flex-wrap items-center gap-4" data-testid="einvoice-banner">
-            <div className="w-12 h-12 rounded-full bg-emerald-600 text-white flex items-center justify-center shrink-0">
-              <ShieldCheck className="w-6 h-6" />
-            </div>
-            <div className="flex-1 min-w-0">
-              <p className="text-[10px] uppercase tracking-widest text-emerald-800 font-bold">
-                GSTN E-Invoice · {inv.einvoice.provider === "mock" ? "Mock/Sandbox" : "Live"}
-              </p>
-              <p className="font-mono text-xs text-emerald-950 truncate" data-testid="einvoice-irn">
-                IRN: <span className="font-bold">{inv.einvoice.irn}</span>
-              </p>
-              <p className="text-xs text-slate-600">
-                Ack No: <span className="font-mono font-semibold">{inv.einvoice.ack_no}</span>
-                {inv.einvoice.ack_dt && <> · Ack Dt: <span className="font-mono">{new Date(inv.einvoice.ack_dt).toLocaleString()}</span></>}
-              </p>
-            </div>
-            {inv.einvoice.signed_qr_png && (
-              <img src={inv.einvoice.signed_qr_png} alt="Signed QR" className="w-24 h-24 rounded-md border border-emerald-300 bg-white p-1" data-testid="einvoice-qr" />
-            )}
-          </div>
-        </div>
-      ) : isAdmin ? (
-        <div className="max-w-4xl mx-auto px-4 mb-4 print:hidden">
-          <div className="rounded-xl border-2 border-dashed border-amber-400 bg-amber-50/50 p-4 flex flex-wrap items-center gap-3">
-            <QrCode className="w-8 h-8 text-amber-700 shrink-0" />
-            <div className="flex-1 min-w-0">
-              <p className="font-display font-bold text-emerald-950 text-sm">E-Invoice not yet submitted</p>
-              <p className="text-xs text-slate-600">Generate the IRN and signed QR. First configure the provider in Settings → E-Invoice.</p>
-            </div>
-            <Button onClick={submitEinvoice} disabled={submittingIrn} className="bg-emerald-900 hover:bg-emerald-950 text-white rounded-full" data-testid="submit-einvoice-btn">
-              {submittingIrn ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" /> Submitting...</> : <><ShieldCheck className="w-4 h-4 mr-2" /> Submit to GSTN</>}
-            </Button>
-          </div>
-        </div>
-      ) : null}
-
       {/* Printable page */}
       <div className="max-w-4xl mx-auto bg-white shadow-lg print:shadow-none border border-slate-200 print:border-0 invoice-a4" id="invoice-print">
         {/* Header */}
@@ -236,16 +163,6 @@ export default function InvoicePage() {
             <p className="text-sm font-semibold text-emerald-950">{new Date(inv.invoice_date).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" })}</p>
             <p className="mt-2 text-xs text-slate-500 uppercase tracking-wider font-semibold">Order Ref</p>
             <p className="font-mono text-xs text-emerald-800">{inv.order_no}</p>
-            {inv.einvoice?.irn && (
-              <div className="mt-3 border-t border-slate-200 pt-2 flex items-start gap-2 justify-end">
-                {inv.einvoice.signed_qr_png && <img src={inv.einvoice.signed_qr_png} alt="IRN QR" className="w-16 h-16 bg-white border border-slate-200 p-0.5 rounded" />}
-                <div className="text-left">
-                  <p className="text-[9px] uppercase tracking-widest text-emerald-800 font-bold">GSTN E-Invoice</p>
-                  <p className="text-[9px] font-mono text-slate-700 break-all max-w-[140px]">IRN: {inv.einvoice.irn.slice(0, 30)}…</p>
-                  <p className="text-[9px] font-mono text-slate-700">Ack: {inv.einvoice.ack_no}</p>
-                </div>
-              </div>
-            )}
           </div>
         </div>
 
