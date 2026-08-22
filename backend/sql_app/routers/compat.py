@@ -19,6 +19,8 @@ from fastapi import APIRouter, Depends, File, HTTPException, Query, Request, Upl
 from fastapi.responses import Response
 from reportlab.lib.pagesizes import A4
 from reportlab.pdfgen import canvas
+from reportlab.pdfbase import pdfmetrics
+from reportlab.pdfbase.ttfonts import TTFont
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
@@ -30,6 +32,37 @@ from .auth import ADMIN_LOGIN_ID, get_current_user, get_current_user_optional
 from .settings import load_settings, save_settings
 
 router = APIRouter(prefix="/api", tags=["compat"])
+
+PDF_FONT_DIR = Path(__file__).resolve().parents[2] / "assets"
+try:
+    pdfmetrics.registerFont(TTFont("MethoBengali", str(PDF_FONT_DIR / "NotoSansBengali.ttf")))
+    pdfmetrics.registerFont(TTFont("MethoDevanagari", str(PDF_FONT_DIR / "NotoSansDevanagari.ttf")))
+    MULTILINGUAL_PDF_FONTS = True
+except Exception:
+    MULTILINGUAL_PDF_FONTS = False
+
+
+def draw_multilingual_pdf_text(pdf, x, y, value, size=10, bold=False):
+    text = str(value or "")
+    if not MULTILINGUAL_PDF_FONTS:
+        pdf.setFont("Helvetica-Bold" if bold else "Helvetica", size)
+        pdf.drawString(x, y, text.encode("ascii", "ignore").decode("ascii"))
+        return
+    segment_start = 0
+    current_x = x
+    for index in range(len(text) + 1):
+        char = text[index] if index < len(text) else ""
+        script = "bengali" if "\u0980" <= char <= "\u09ff" else "devanagari" if "\u0900" <= char <= "\u097f" else "latin"
+        next_char = text[segment_start] if segment_start < index else char
+        next_script = "bengali" if "\u0980" <= next_char <= "\u09ff" else "devanagari" if "\u0900" <= next_char <= "\u097f" else "latin"
+        if script != next_script or index == len(text):
+            segment = text[segment_start:index]
+            if segment:
+                font = "MethoBengali" if next_script == "bengali" else "MethoDevanagari" if next_script == "devanagari" else ("Helvetica-Bold" if bold else "Helvetica")
+                pdf.setFont(font, size)
+                pdf.drawString(current_x, y, segment)
+                current_x += pdfmetrics.stringWidth(segment, font, size)
+            segment_start = index
 
 PRODUCT_UPLOAD_DIR = UPLOADED_OBJECTS_DIR / "product_images"
 PRODUCT_UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
@@ -4803,37 +4836,34 @@ def order_invoice_pdf(order_id: str, db: Session = Depends(get_db), current_user
     c = canvas.Canvas(buff, pagesize=A4)
     w, h = A4
     y = h - 50
-    c.setFont("Helvetica-Bold", 16)
-    c.drawString(40, y, inv["seller"]["name"])
+    draw_multilingual_pdf_text(c, 40, y, inv["seller"]["name"], 16, bold=True)
     y -= 22
-    c.setFont("Helvetica", 10)
-    c.drawString(40, y, inv["seller"]["address"][:100])
+    draw_multilingual_pdf_text(c, 40, y, inv["seller"]["address"][:100])
     y -= 14
-    c.drawString(40, y, f"GSTIN: {inv['seller']['gst_no']}  PAN: {inv['seller']['pan']}  Email: {inv['seller']['email']}  Phone: {inv['seller']['phone']}")
+    draw_multilingual_pdf_text(c, 40, y, f"GSTIN: {inv['seller']['gst_no']}  PAN: {inv['seller']['pan']}  Email: {inv['seller']['email']}  Phone: {inv['seller']['phone']}")
     y -= 18
-    c.drawString(40, y, f"Invoice: {inv['invoice_no']}  Order: {inv['order_no']}")
+    draw_multilingual_pdf_text(c, 40, y, f"Invoice: {inv['invoice_no']}  Order: {inv['order_no']}")
     y -= 16
-    c.drawString(40, y, f"Customer: {inv['buyer']['name']}  Mobile: {inv['buyer']['phone'] or '-'}  Member: {inv['buyer']['member_code'] or '-'}")
+    draw_multilingual_pdf_text(c, 40, y, f"Customer: {inv['buyer']['name']}  Mobile: {inv['buyer']['phone'] or '-'}  Member: {inv['buyer']['member_code'] or '-'}")
     y -= 16
-    c.drawString(40, y, f"Delivery address: {inv['buyer']['shipping_address'] or '-'}"[:110])
+    draw_multilingual_pdf_text(c, 40, y, f"Delivery address: {inv['buyer']['shipping_address'] or '-'}"[:110])
     y -= 16
-    c.drawString(40, y, f"Payment: {str(inv['payment']['method'] or '-').upper()}  Total: INR {inv['grand_total']:.2f}  GST: {(inv['total_cgst'] + inv['total_sgst']):.2f}")
+    draw_multilingual_pdf_text(c, 40, y, f"Payment: {str(inv['payment']['method'] or '-').upper()}  Total: INR {inv['grand_total']:.2f}  GST: {(inv['total_cgst'] + inv['total_sgst']):.2f}")
     y -= 24
     for idx, item in enumerate(inv["items"], start=1):
         if y < 70:
             c.showPage()
             y = h - 50
-        c.drawString(40, y, f"{idx}. {item['product_name']} x{item['quantity']} [{item['product_type']}]  INR {item['subtotal']:.2f}")
+        draw_multilingual_pdf_text(c, 40, y, f"{idx}. {item['product_name']} x{item['quantity']} [{item['product_type']}]  INR {item['subtotal']:.2f}")
         y -= 14
-    c.drawString(40, y, f"Delivery charge: INR {inv['delivery_charge']:.2f}")
+    draw_multilingual_pdf_text(c, 40, y, f"Delivery charge: INR {inv['delivery_charge']:.2f}")
     y -= 14
-    c.drawString(40, y, f"Grand total: INR {inv['grand_total']:.2f}")
+    draw_multilingual_pdf_text(c, 40, y, f"Grand total: INR {inv['grand_total']:.2f}")
     y -= 18
     if y < 70:
         c.showPage()
         y = h - 50
-    c.setFont("Helvetica-Bold", 10)
-    c.drawString(40, y, "Powered By Metho Logistics Private Limited")
+    draw_multilingual_pdf_text(c, 40, y, "Powered By Metho Logistics Private Limited", 10, bold=True)
     c.showPage()
     c.save()
     pdf = buff.getvalue()
@@ -4860,27 +4890,31 @@ def customer_order_invoice_pdf(order_id: str, token: str = Query("", min_length=
     row = _ensure_customer_order_access(db, order_id, phone)
     pseudo_user = SimpleNamespace(role="member", id=str(row.customer_user_id or ""))
     inv = _invoice_payload(db, row.id, pseudo_user)
-
     buff = BytesIO()
     c = canvas.Canvas(buff, pagesize=A4)
     w, h = A4
     y = h - 50
-    c.setFont("Helvetica-Bold", 16)
-    c.drawString(40, y, inv["seller"]["name"])
+    draw_multilingual_pdf_text(c, 40, y, inv["seller"]["name"], 16, bold=True)
     y -= 22
-    c.setFont("Helvetica", 10)
-    c.drawString(40, y, f"Invoice: {inv['invoice_no']}  Order: {inv['order_no']}")
+    draw_multilingual_pdf_text(c, 40, y, f"Invoice: {inv['invoice_no']}  Order: {inv['order_no']}")
     y -= 16
-    c.drawString(40, y, f"Buyer: {inv['buyer']['name']}  Member: {inv['buyer']['member_code'] or '-'}")
+    draw_multilingual_pdf_text(c, 40, y, f"Customer: {inv['buyer']['name']}  Mobile: {inv['buyer']['phone'] or '-'}  Member: {inv['buyer']['member_code'] or '-'}")
     y -= 16
-    c.drawString(40, y, f"Total: INR {inv['grand_total']:.2f}  (Taxable: {inv['subtotal_pre_tax']:.2f}, GST: {(inv['total_cgst'] + inv['total_sgst']):.2f})")
+    draw_multilingual_pdf_text(c, 40, y, f"Delivery address: {inv['buyer']['shipping_address'] or '-'}"[:110])
+    y -= 16
+    draw_multilingual_pdf_text(c, 40, y, f"Payment: {str(inv['payment']['method'] or '-').upper()}  Total: INR {inv['grand_total']:.2f}  GST: {(inv['total_cgst'] + inv['total_sgst']):.2f}")
     y -= 24
     for idx, item in enumerate(inv["items"], start=1):
         if y < 70:
             c.showPage()
             y = h - 50
-        c.drawString(40, y, f"{idx}. {item['product_name']} x{item['quantity']} [{item['product_type']}]  INR {item['subtotal']:.2f}")
+        draw_multilingual_pdf_text(c, 40, y, f"{idx}. {item['product_name']} x{item['quantity']} [{item['product_type']}]  INR {item['subtotal']:.2f}")
         y -= 14
+    draw_multilingual_pdf_text(c, 40, y, f"Delivery charge: INR {inv['delivery_charge']:.2f}")
+    y -= 14
+    draw_multilingual_pdf_text(c, 40, y, f"Grand total: INR {inv['grand_total']:.2f}")
+    y -= 18
+    draw_multilingual_pdf_text(c, 40, y, "Powered By Metho Logistics Private Limited", 10, bold=True)
     c.showPage()
     c.save()
     pdf = buff.getvalue()
