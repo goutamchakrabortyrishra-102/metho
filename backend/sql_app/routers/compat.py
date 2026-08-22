@@ -65,73 +65,145 @@ def draw_multilingual_pdf_text(pdf, x, y, value, size=10, bold=False):
             segment_start = index
 
 
+def _inr(value):
+    return f"₹{float(value or 0):,.2f}"
+
+
+def _amount_in_words(value):
+    amount = int(round(float(value or 0)))
+    if amount == 0:
+        return "Zero Rupees Only"
+
+    one = [
+        "", "One", "Two", "Three", "Four", "Five", "Six", "Seven", "Eight", "Nine",
+        "Ten", "Eleven", "Twelve", "Thirteen", "Fourteen", "Fifteen", "Sixteen", "Seventeen",
+        "Eighteen", "Nineteen"
+    ]
+    ten = ["", "", "Twenty", "Thirty", "Forty", "Fifty", "Sixty", "Seventy", "Eighty", "Ninety"]
+
+    def two_words(num):
+        if num < 20:
+            return one[num]
+        return ten[num // 10] + (" " + one[num % 10] if num % 10 else "")
+
+    def chunk_words(num):
+        if num == 0:
+            return ""
+        if num < 100:
+            return two_words(num)
+        if num < 1000:
+            hundreds = num // 100
+            rem = num % 100
+            return (one[hundreds] + " Hundred") + (" " + two_words(rem) if rem else "")
+        return ""
+
+    crore = amount // 10000000
+    lakh = (amount % 10000000) // 100000
+    thousand = (amount % 100000) // 1000
+    remainder = amount % 1000
+
+    parts = []
+    if crore:
+        parts.append(chunk_words(crore) + " Crore")
+    if lakh:
+        parts.append(chunk_words(lakh) + " Lakh")
+    if thousand:
+        parts.append(chunk_words(thousand) + " Thousand")
+    if remainder:
+        parts.append(chunk_words(remainder))
+
+    return (" ".join(p for p in parts if p) or "Zero") + " Rupees Only"
+
+
 def _draw_invoice_pdf(inv: dict) -> bytes:
     buff = BytesIO()
     pdf = canvas.Canvas(buff, pagesize=A4)
     width, height = A4
-    left = 30
-    right = width - 30
-    y = height - 34
+    left = 40
+    right = width - 40
+    y = height - 32
 
-    pdf.setStrokeColorRGB(0, 0, 0)
-    pdf.setFillColorRGB(0, 0, 0)
+    seller = inv.get("seller") or {}
+    buyer = inv.get("buyer") or {}
+    payment = inv.get("payment") or {}
+    items = inv.get("items") or []
+
+    pdf.setStrokeColorRGB(0.15, 0.15, 0.15)
+    pdf.setFillColorRGB(0.1, 0.1, 0.1)
     pdf.setLineWidth(1.2)
     pdf.line(left, y - 8, right, y - 8)
-    draw_multilingual_pdf_text(pdf, left, y, inv.get("seller", {}).get("name"), 17, bold=True)
-    draw_multilingual_pdf_text(pdf, left, y - 16, inv.get("seller", {}).get("address"), 8)
-    draw_multilingual_pdf_text(pdf, left, y - 28, f"GSTIN: {inv.get('seller', {}).get('gst_no', '-')}  PAN: {inv.get('seller', {}).get('pan', '-')}" , 8)
-    draw_multilingual_pdf_text(pdf, left, y - 40, f"Email: {inv.get('seller', {}).get('email', '-')}  Phone: {inv.get('seller', {}).get('phone', '-')}", 8)
-    draw_multilingual_pdf_text(pdf, right - 112, y, "TAX INVOICE", 12, bold=True)
-    draw_multilingual_pdf_text(pdf, right - 112, y - 18, f"Invoice No: {inv.get('invoice_no', '-')}", 8)
-    draw_multilingual_pdf_text(pdf, right - 112, y - 30, f"Order No: {inv.get('order_no', '-')}", 8)
-    draw_multilingual_pdf_text(pdf, right - 112, y - 42, f"Date: {str(inv.get('invoice_date', ''))[:10]}", 8)
 
-    y -= 62
-    pdf.setLineWidth(0.6)
-    pdf.rect(left, y - 48, right - left, 48)
-    draw_multilingual_pdf_text(pdf, left + 8, y - 13, "CUSTOMER / DELIVERY", 8, bold=True)
-    draw_multilingual_pdf_text(pdf, left + 8, y - 26, f"Name: {inv.get('buyer', {}).get('name', '-')}", 9)
-    draw_multilingual_pdf_text(pdf, left + 8, y - 38, f"Mobile: {inv.get('buyer', {}).get('phone', '-') }  Member: {inv.get('buyer', {}).get('member_code', '-')}", 8)
-    draw_multilingual_pdf_text(pdf, left + 250, y - 13, "DELIVERY ADDRESS", 8, bold=True)
-    draw_multilingual_pdf_text(pdf, left + 250, y - 28, inv.get('buyer', {}).get('shipping_address') or "Not provided", 8)
-    draw_multilingual_pdf_text(pdf, left + 250, y - 40, f"Payment: {str(inv.get('payment', {}).get('method') or '-').upper()}", 8)
+    draw_multilingual_pdf_text(pdf, left, y, str(seller.get("name") or "METHO Vegetable"), 18, bold=True)
+    draw_multilingual_pdf_text(pdf, left, y - 18, str(seller.get("address") or ""), 8)
+    draw_multilingual_pdf_text(pdf, left, y - 31, f"GSTIN: {seller.get('gst_no', '-')}  PAN: {seller.get('pan', '-')}", 8)
+    draw_multilingual_pdf_text(pdf, left, y - 43, f"Email: {seller.get('email', '-')}  Phone: {seller.get('phone', '-')}", 8)
 
-    y -= 62
+    draw_multilingual_pdf_text(pdf, right - 140, y, "TAX INVOICE", 12, bold=True)
+    draw_multilingual_pdf_text(pdf, right - 140, y - 18, f"Invoice No: {inv.get('invoice_no', '-')}", 8)
+    draw_multilingual_pdf_text(pdf, right - 140, y - 30, f"Order Ref: {inv.get('order_no', '-')}", 8)
+    draw_multilingual_pdf_text(pdf, right - 140, y - 42, f"Date: {str(inv.get('invoice_date', ''))[:10]}", 8)
+
+    y -= 66
+    pdf.setLineWidth(0.7)
+    pdf.rect(left, y - 52, right - left, 58, stroke=1, fill=0)
+
+    draw_multilingual_pdf_text(pdf, left + 8, y - 14, "CUSTOMER / DELIVERY", 8, bold=True)
+    draw_multilingual_pdf_text(pdf, left + 8, y - 28, f"Name: {buyer.get('name', '-')}", 9)
+    draw_multilingual_pdf_text(pdf, left + 8, y - 40, f"Mobile: {buyer.get('phone', '-')}  Member: {buyer.get('member_code', '-')}", 8)
+    draw_multilingual_pdf_text(pdf, left + 250, y - 14, "PAYMENT", 8, bold=True)
+    draw_multilingual_pdf_text(pdf, left + 250, y - 28, f"Method: {str(payment.get('method') or '-').upper()}", 8)
+    draw_multilingual_pdf_text(pdf, left + 250, y - 40, f"Txn ID: {payment.get('txn_id') or '-'}", 8)
+    draw_multilingual_pdf_text(pdf, left + 8, y - 52, f"Delivery Address: {buyer.get('shipping_address') or 'Not provided'}", 8)
+
+    y -= 70
     table_top = y
-    row_height = 20
-    columns = [left, left + 24, left + 282, left + 345, left + 405, left + 475, right]
-    pdf.setFillColorRGB(0, 0, 0)
-    pdf.rect(left, table_top - row_height, right - left, row_height, fill=1, stroke=1)
+    row_height = 24
+    header_height = 20
+    start_x = [left, left + 30, left + 280, left + 346, left + 405, left + 470, left + 535]
+
+    pdf.setFillColorRGB(0.09, 0.47, 0.38)
+    pdf.rect(left, table_top - header_height, right - left, header_height, fill=1, stroke=1)
     pdf.setFillColorRGB(1, 1, 1)
-    headers = ["#", "ITEM", "QTY", "RATE", "GST", "TOTAL"]
-    for index, header in enumerate(headers):
-        draw_multilingual_pdf_text(pdf, columns[index] + 5, table_top - 14, header, 8, bold=True)
+    headers = ["#", "ITEM", "HSN/SAC", "QTY", "RATE (₹)", "PRE-TAX (₹)", "CGST", "SGST", "TOTAL (₹)"]
+    for idx, header in enumerate(headers):
+        x = start_x[idx] if idx < len(start_x) else left + 520
+        if idx >= 6:
+            x = left + 468 + (idx - 6) * 52
+        draw_multilingual_pdf_text(pdf, x + 4, table_top - 14, header, 7, bold=True)
+
     pdf.setFillColorRGB(0, 0, 0)
-    items = inv.get("items") or []
     for index, item in enumerate(items, start=1):
-        row_y = table_top - row_height * (index + 1)
+        row_y = table_top - header_height - (index * row_height)
         pdf.rect(left, row_y, right - left, row_height, fill=0, stroke=1)
         values = [
             str(index),
-            f"{item.get('product_name', 'Product')} [{item.get('product_type', 'metho')}]",
+            str(item.get("product_name", "Item")),
+            str(item.get("hsn_sac", "-")),
             str(item.get("quantity", 1)),
-            f"INR {float(item.get('price') or 0):.2f}",
-            f"INR {float(item.get('cgst') or 0) + float(item.get('sgst') or 0):.2f}",
-            f"INR {float(item.get('subtotal') or 0):.2f}",
+            _inr(item.get("price") or 0),
+            _inr(item.get("pre_tax") or 0),
+            _inr(item.get("cgst") or 0),
+            _inr(item.get("sgst") or 0),
+            _inr(item.get("subtotal") or 0),
         ]
-        for col, value in enumerate(values):
-            draw_multilingual_pdf_text(pdf, columns[col] + 5, row_y + 6, value[:42], 7 if col == 1 else 8)
+        for col_idx, value in enumerate(values):
+            x = start_x[col_idx] if col_idx < len(start_x) else left + 520
+            if col_idx >= 6:
+                x = left + 468 + (col_idx - 6) * 52
+            draw_multilingual_pdf_text(pdf, x + 4, row_y + 8, value[:28], 7)
 
-    summary_y = table_top - row_height * (len(items) + 2) - 12
-    pdf.line(left, summary_y + 8, right, summary_y + 8)
-    draw_multilingual_pdf_text(pdf, right - 190, summary_y - 5, f"Subtotal: INR {float(inv.get('grand_total', 0) - inv.get('delivery_charge', 0)):.2f}", 9)
-    draw_multilingual_pdf_text(pdf, right - 190, summary_y - 19, f"CGST: INR {float(inv.get('total_cgst') or 0):.2f}  SGST: INR {float(inv.get('total_sgst') or 0):.2f}", 9)
-    draw_multilingual_pdf_text(pdf, right - 190, summary_y - 33, f"Delivery Charge: INR {float(inv.get('delivery_charge') or 0):.2f}", 9)
-    draw_multilingual_pdf_text(pdf, right - 190, summary_y - 50, f"GRAND TOTAL: INR {float(inv.get('grand_total') or 0):.2f}", 11, bold=True)
-    draw_multilingual_pdf_text(pdf, left, summary_y - 5, "Amount payable", 8, bold=True)
-    draw_multilingual_pdf_text(pdf, left, summary_y - 19, "Please retain this invoice for your records.", 8)
-    draw_multilingual_pdf_text(pdf, left, 34, "Powered By Metho Logistics Private Limited", 9, bold=True)
-    pdf.line(left, 46, right, 46)
+    summary_y = table_top - header_height - (max(len(items), 1) * row_height) - 24
+    pdf.line(left, summary_y + 10, right, summary_y + 10)
+    draw_multilingual_pdf_text(pdf, left, summary_y - 10, "Amount in Words", 8, bold=True)
+    draw_multilingual_pdf_text(pdf, left, summary_y - 24, _amount_in_words(inv.get("grand_total") or 0), 12, bold=True)
+
+    draw_multilingual_pdf_text(pdf, right - 100, summary_y - 12, f"Delivery Charge {_inr(inv.get('delivery_charge') or 0)}", 9)
+    draw_multilingual_pdf_text(pdf, right - 100, summary_y - 28, f"Taxable Value: {_inr(inv.get('subtotal_pre_tax') or 0)}", 9)
+    draw_multilingual_pdf_text(pdf, right - 100, summary_y - 44, f"CGST: {_inr(inv.get('total_cgst') or 0)}", 9)
+    draw_multilingual_pdf_text(pdf, right - 100, summary_y - 60, f"SGST: {_inr(inv.get('total_sgst') or 0)}", 9)
+    draw_multilingual_pdf_text(pdf, right - 100, summary_y - 80, f"Grand Total {_inr(inv.get('grand_total') or 0)}", 11, bold=True)
+
+    draw_multilingual_pdf_text(pdf, left, 36, "Powered By Metho Logistics Private Limited", 9, bold=True)
     pdf.save()
     return buff.getvalue()
 
