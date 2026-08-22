@@ -157,7 +157,7 @@ const loadShopStartupProducts = async (limit = 240) => {
 
 const LANDING_CART_STORAGE_KEY = "metho_shared_cart_v1";
 
-export default function ShopPage() {
+export default function ShopPage({ travelOnly = false }) {
   const { user } = useAuth();
   const { settings } = useSettings();
   const placeholder = settings?.product_placeholder_image_url_full || "";
@@ -170,6 +170,7 @@ export default function ShopPage() {
   const [checkoutOpen, setCheckoutOpen] = useState(false);
   const [guestMemberRef, setGuestMemberRef] = useState("");
   const isGalleryView = searchParams.get("view") === "gallery";
+  const isTravelBookingView = travelOnly || searchParams.get("travel") === "1";
   const autoPdfTriggered = useRef(false);
   const sharedCartHydratedRef = useRef(false);
   const allowPdfDownload = ["partner", "admin", "super_admin", "company_admin"].includes(String(user?.role || "").toLowerCase());
@@ -256,12 +257,14 @@ export default function ShopPage() {
 
   const methoProducts = useMemo(() => {
     return (products || []).filter((p) => {
-      const typeOk = String(p?.product_type || "metho").toLowerCase() === "metho";
+      const type = String(p?.product_type || "metho").toLowerCase();
+      const isTourismService = type === "metho_service" && Boolean(p?.is_service) && String(p?.service_template_key || "").toLowerCase() === "tourism_booking";
+      const typeOk = isTravelBookingView ? isTourismService : type === "metho";
       const hiddenRaw = p?.hidden;
       const isHidden = hiddenRaw === true || String(hiddenRaw).toLowerCase() === "true" || String(hiddenRaw) === "1";
       return typeOk && !isHidden;
     });
-  }, [products]);
+  }, [products, isTravelBookingView]);
 
   const visibleProducts = useMemo(() => {
     const q = String(query || "").trim().toLowerCase();
@@ -422,21 +425,21 @@ export default function ShopPage() {
       </header>
 
       <div className="max-w-7xl mx-auto px-6 py-12">
-        <p className="text-xs uppercase tracking-[0.25em] text-emerald-800 font-semibold">Shop</p>
-        <h1 className="mt-2 font-display font-black text-4xl md:text-5xl tracking-tight text-emerald-950">Shop &amp; Travel</h1>
+        <p className="text-xs uppercase tracking-[0.25em] text-emerald-800 font-semibold">{isTravelBookingView ? "METHO Tour & Travels" : "Shop"}</p>
+        <h1 className="mt-2 font-display font-black text-4xl md:text-5xl tracking-tight text-emerald-950">{isTravelBookingView ? "Plan the journey. Book with confidence." : "Shop & Travel"}</h1>
         <p className="text-slate-600 font-body mt-2 max-w-2xl">
-          Shop METHO essentials and reserve curated travel services in one secure checkout.
+          {isTravelBookingView ? "Choose a verified travel package, request your preferred date, and complete your booking securely. Members can enter their ID at checkout to load their details and retain Smart Cycle attribution." : "Shop METHO essentials and reserve curated travel services in one secure checkout."}
         </p>
         <div className="mt-4 flex flex-wrap items-center gap-2">
-          <Button
+          {!isTravelBookingView ? <Button
             variant="outline"
             className="rounded-full border-emerald-300 text-emerald-900 hover:bg-emerald-50"
             onClick={() => setSearchParams(isGalleryView ? {} : { view: "gallery" })}
             data-testid="shop-toggle-gallery-view"
           >
             <Images className="w-4 h-4 mr-2" /> {isGalleryView ? "Back to Shop View" : "View Gallery"}
-          </Button>
-          {allowPdfDownload ? (
+          </Button> : null}
+          {allowPdfDownload && !isTravelBookingView ? (
             <Button
               variant="outline"
               className="rounded-full border-emerald-300 text-emerald-900 hover:bg-emerald-50"
@@ -459,7 +462,7 @@ export default function ShopPage() {
                   runSearch();
                 }
               }}
-              placeholder="Search products, stays, and travel services"
+              placeholder={isTravelBookingView ? "Search destinations and travel packages" : "Search products, stays, and travel services"}
               className="h-11 pl-9 rounded-full"
               data-testid="shop-search-input"
             />
