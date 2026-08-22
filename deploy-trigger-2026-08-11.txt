@@ -1,1 +1,1 @@
-﻿deploy-trigger-2026-08-22-customer-move-terms-consent
+﻿deploy-trigger-2026-08-22-member-terms-consent
