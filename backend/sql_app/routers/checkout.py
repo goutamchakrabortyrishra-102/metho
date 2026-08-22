@@ -1127,29 +1127,34 @@ def create_public_order(payload: dict, db: Session = Depends(get_db), authorizat
         if product_type in METHO_GLOBAL_PRODUCT_TYPES or (product_type == "associate_partner" and gst_percent > 0):
             gst_amount = round(base_subtotal * (max(0.0, gst_percent) / 100.0), 2)
             line_total = round(base_subtotal + gst_amount, 2)
-            # Round final GST-inclusive price to nearest whole rupee
-            line_total = float(round_half_up_to_whole_rupee(line_total))
+            # Keep decimal precision for weighted vegetable quantities so product amount never collapses to 0
+            # for valid paid quantities like 0.1kg. Whole-rupee rounding remains for other products.
+            is_weighted_vegetable = product_type == "metho_vegetable" and unit_info["unit_type"] != "piece"
+            if not is_weighted_vegetable:
+                line_total = float(round_half_up_to_whole_rupee(line_total))
 
         product_delivery_charge = max(0.0, float(global_service_meta.get("delivery_charge") or 0) if product_type in METHO_GLOBAL_PRODUCT_TYPES else float(listing_meta.get("delivery_charge") or 0))
         product_delivery_threshold = max(0.0, float(global_service_meta.get("free_delivery_threshold") or 0) if product_type in METHO_GLOBAL_PRODUCT_TYPES else float(listing_meta.get("free_delivery_threshold") or 0))
         category_rule = _partner_category_delivery_rule(partner_pref_cache.get(str(getattr(product, "partner_id", "") or "")), str(getattr(product, "category", "") or "")) if product_type == "associate_partner" else _category_delivery_rule(settings, str(getattr(product, "category", "") or ""))
         delivery_charge = product_delivery_charge or category_rule["delivery_charge"]
         delivery_threshold = product_delivery_threshold or category_rule["free_delivery_threshold"]
-        total = round(total + float(round_half_up_to_whole_rupee(line_total)), 2)
+        line_total_for_storage = round(float(line_total), 2)
+        total = round(total + line_total_for_storage, 2)
+        qty_for_rate = float(qty) if float(qty) > 0 else 1.0
 
         normalized_items.append(
             {
                 "product_id": product.id,
                 "name": product.name,
-                "price": round(float(line_total) / max(1, qty), 2),
-                "unit_base_price": round(base_subtotal / max(1, qty), 2),
+            "price": round(line_total_for_storage / qty_for_rate, 2),
+            "unit_base_price": round(base_subtotal / qty_for_rate, 2),
                 "mrp": mrp if mrp > 0 else float(product.price),
                 "discount_percent": discount_percent,
                 "gst_percent": gst_percent,
                 "gst_amount": gst_amount,
                 "pre_tax": pre_tax,
                 "quantity": qty,
-                "subtotal": float(round_half_up_to_whole_rupee(line_total)),
+            "subtotal": line_total_for_storage,
                 "delivery_charge": delivery_charge,
                 "delivery_total": 0.0,
                 "free_delivery_threshold": delivery_threshold,
