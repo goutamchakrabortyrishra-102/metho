@@ -4773,6 +4773,7 @@ def _invoice_payload(db: Session, order_id: str, current_user: User):
         "total_cgst": round(total_cgst, 2),
         "total_sgst": round(total_sgst, 2),
         "grand_total": round(grand_total, 2),
+        "delivery_charge": round(max(0.0, float(row.total_amount or 0) - grand_total), 2),
         "notes": settings.get("invoice_terms") or settings.get("rules_and_conditions", ""),
         "einvoice": {},
     }
@@ -4803,11 +4804,17 @@ def order_invoice_pdf(order_id: str, db: Session = Depends(get_db), current_user
     c.drawString(40, y, inv["seller"]["name"])
     y -= 22
     c.setFont("Helvetica", 10)
+    c.drawString(40, y, inv["seller"]["address"][:100])
+    y -= 14
+    c.drawString(40, y, f"GSTIN: {inv['seller']['gst_no']}  PAN: {inv['seller']['pan']}  Email: {inv['seller']['email']}  Phone: {inv['seller']['phone']}")
+    y -= 18
     c.drawString(40, y, f"Invoice: {inv['invoice_no']}  Order: {inv['order_no']}")
     y -= 16
-    c.drawString(40, y, f"Buyer: {inv['buyer']['name']}  Member: {inv['buyer']['member_code'] or '-'}")
+    c.drawString(40, y, f"Customer: {inv['buyer']['name']}  Mobile: {inv['buyer']['phone'] or '-'}  Member: {inv['buyer']['member_code'] or '-'}")
     y -= 16
-    c.drawString(40, y, f"Total: INR {inv['grand_total']:.2f}  (Taxable: {inv['subtotal_pre_tax']:.2f}, GST: {(inv['total_cgst'] + inv['total_sgst']):.2f})")
+    c.drawString(40, y, f"Delivery address: {inv['buyer']['shipping_address'] or '-'}"[:110])
+    y -= 16
+    c.drawString(40, y, f"Payment: {str(inv['payment']['method'] or '-').upper()}  Total: INR {inv['grand_total']:.2f}  GST: {(inv['total_cgst'] + inv['total_sgst']):.2f}")
     y -= 24
     for idx, item in enumerate(inv["items"], start=1):
         if y < 70:
@@ -4815,6 +4822,10 @@ def order_invoice_pdf(order_id: str, db: Session = Depends(get_db), current_user
             y = h - 50
         c.drawString(40, y, f"{idx}. {item['product_name']} x{item['quantity']} [{item['product_type']}]  INR {item['subtotal']:.2f}")
         y -= 14
+    c.drawString(40, y, f"Delivery charge: INR {inv['delivery_charge']:.2f}")
+    y -= 14
+    c.drawString(40, y, f"Grand total: INR {inv['grand_total']:.2f}")
+    y -= 18
     if y < 70:
         c.showPage()
         y = h - 50

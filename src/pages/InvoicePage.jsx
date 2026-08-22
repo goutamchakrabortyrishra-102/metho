@@ -119,7 +119,7 @@ export default function InvoicePage() {
     invoiceItems.some((it) => String(it?.service_invoice_mode || "").trim().toLowerCase() === "summary_total");
 
   return (
-    <div className="min-h-screen bg-slate-100 py-6 print:bg-white print:py-0" data-testid="invoice-page">
+    <div className="min-h-screen bg-slate-100 py-4 print:bg-white print:py-0" data-testid="invoice-page">
       {/* Top action bar — hidden in print */}
       <div className="max-w-4xl mx-auto px-4 flex items-center justify-between mb-4 print:hidden">
         <Link to="/app/orders" className="inline-flex items-center gap-2 text-emerald-900 hover:underline font-semibold text-sm">
@@ -218,9 +218,9 @@ export default function InvoicePage() {
       ) : null}
 
       {/* Printable page */}
-      <div className="max-w-4xl mx-auto bg-white shadow-lg print:shadow-none border border-slate-200 print:border-0" id="invoice-print">
+      <div className="max-w-4xl mx-auto bg-white shadow-lg print:shadow-none border border-slate-200 print:border-0 invoice-a4" id="invoice-print">
         {/* Header */}
-        <div className="border-b-4 border-emerald-900 px-8 py-6 flex items-start justify-between bg-gradient-to-br from-emerald-50/40 to-white">
+        <div className="border-b-2 border-black px-6 py-4 flex items-start justify-between bg-white">
           <div>
             <p className="text-[10px] uppercase tracking-[0.25em] text-amber-600 font-bold">Tax Invoice</p>
             <h1 className="font-display font-black text-3xl text-emerald-950 mt-1">{inv.seller.name}</h1>
@@ -250,7 +250,7 @@ export default function InvoicePage() {
         </div>
 
         {/* Buyer info */}
-        <div className="grid grid-cols-2 gap-6 px-8 py-5 border-b border-slate-200">
+        <div className="grid grid-cols-2 gap-6 px-6 py-3 border-b border-black">
           <div>
             <p className="text-[10px] uppercase tracking-widest text-slate-500 font-bold">Customer / Delivery</p>
             <p className="font-display font-bold text-emerald-950 mt-1">{inv.buyer.name}</p>
@@ -340,6 +340,7 @@ export default function InvoicePage() {
           {/* Totals summary block */}
           <div className="mt-4 flex justify-end">
             <div className="w-full max-w-xs space-y-1 text-sm">
+              <div className="flex justify-between"><span className="text-slate-600">Delivery Charge</span><span className="font-mono">₹{inr(inv.delivery_charge)}</span></div>
               {!summaryServiceInvoice ? <div className="flex justify-between"><span className="text-slate-600">Taxable Value:</span><span className="font-mono font-semibold">₹{inr(inv.subtotal_pre_tax)}</span></div> : null}
               {!summaryServiceInvoice ? <div className="flex justify-between"><span className="text-slate-600">CGST:</span><span className="font-mono">₹{inr(inv.total_cgst)}</span></div> : null}
               {!summaryServiceInvoice ? <div className="flex justify-between"><span className="text-slate-600">SGST:</span><span className="font-mono">₹{inr(inv.total_sgst)}</span></div> : null}
@@ -352,7 +353,7 @@ export default function InvoicePage() {
         </div>
 
         {/* Footer */}
-        <div className="px-8 py-5 border-t border-slate-200 bg-slate-50/70 text-xs text-slate-600">
+        <div className="px-6 py-3 border-t border-black bg-white text-xs text-slate-600">
           <p className="whitespace-pre-line italic">{inv.notes}</p>
           <p className="mt-4 text-center font-semibold text-emerald-900">Powered By Metho Logistics Private Limited</p>
           <div className="grid grid-cols-2 gap-6 mt-4">
@@ -378,9 +379,19 @@ export default function InvoicePage() {
 
       <style>{`
         @media print {
-          @page { size: A4; margin: 12mm; }
+          @page { size: A4; margin: 8mm; }
           body { background: white !important; }
-          #invoice-print { box-shadow: none !important; border: none !important; }
+          #invoice-print { box-shadow: none !important; border: none !important; max-width: none !important; font-size: 10px !important; }
+          #invoice-print h1 { font-size: 22px !important; }
+          #invoice-print .px-8 { padding-left: 4mm !important; padding-right: 4mm !important; }
+          #invoice-print .py-6 { padding-top: 3mm !important; padding-bottom: 3mm !important; }
+          #invoice-print .py-5 { padding-top: 2.5mm !important; padding-bottom: 2.5mm !important; }
+          #invoice-print .mt-4 { margin-top: 2mm !important; }
+          #invoice-print .mb-8 { margin-bottom: 4mm !important; }
+          #invoice-print table { font-size: 9px !important; }
+          #invoice-print th, #invoice-print td { padding-top: 1.5mm !important; padding-bottom: 1.5mm !important; }
+          #invoice-print { color: #000 !important; }
+          #invoice-print * { border-color: #000 !important; box-shadow: none !important; }
         }
       `}</style>
     </div>
