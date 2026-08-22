@@ -4610,7 +4610,7 @@ def _invoice_payload(db: Session, order_id: str, current_user: User):
             if (
                 isinstance(cached_invoice, dict)
                 and cached_invoice.get("order_id") == row.id
-                and cached_invoice.get("invoice_schema_version") == 4
+                and cached_invoice.get("invoice_schema_version") == 5
             ):
                 _record_invoice_once(db, cached_invoice)
                 return cached_invoice
@@ -4743,7 +4743,7 @@ def _invoice_payload(db: Session, order_id: str, current_user: User):
     item_delivery_total = round(sum(max(0.0, float(item.get("delivery_total") or 0)) for item in items), 2)
     delivery_charge = max(item_delivery_total, round(max(0.0, float(row.total_amount or 0) - merchandise_total), 2))
     invoice = {
-        "invoice_schema_version": 4,
+        "invoice_schema_version": 5,
         "order_id": row.id,
         "order_no": f"ORD-{row.id[:8].upper()}",
         "invoice_no": f"INV-{row.id[:8].upper()}",

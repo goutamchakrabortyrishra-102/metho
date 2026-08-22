@@ -577,6 +577,9 @@ export default function MethoVegetablePage() {
         onOrderPlaced={() => {
           setCheckoutOpen(false);
           setCart({});
+          try {
+            localStorage.removeItem(VEGETABLE_CART_STORAGE_KEY);
+          } catch {}
           setGuestMemberRef("");
         }}
       />
