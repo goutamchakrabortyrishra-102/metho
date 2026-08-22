@@ -8,6 +8,29 @@ import { openWhatsAppShare } from "@/lib/utils";
 
 const inr = (v) => `₹${Number(v || 0).toLocaleString("en-IN", { maximumFractionDigits: 2 })}`;
 
+const words = (n) => {
+  if (n == null) return "";
+  const one = ["", "One", "Two", "Three", "Four", "Five", "Six", "Seven", "Eight", "Nine", "Ten", "Eleven", "Twelve", "Thirteen", "Fourteen", "Fifteen", "Sixteen", "Seventeen", "Eighteen", "Nineteen"];
+  const ten = ["", "", "Twenty", "Thirty", "Forty", "Fifty", "Sixty", "Seventy", "Eighty", "Ninety"];
+  const two = (num) => num < 20 ? one[num] : ten[Math.floor(num / 10)] + (num % 10 ? " " + one[num % 10] : "");
+  const chunk = (num) => {
+    if (num === 0) return "";
+    if (num < 100) return two(num);
+    return one[Math.floor(num / 100)] + " Hundred" + (num % 100 ? " " + two(num % 100) : "");
+  };
+  const int = Math.floor(n);
+  const crore = Math.floor(int / 10000000);
+  const lakh = Math.floor((int % 10000000) / 100000);
+  const thousand = Math.floor((int % 100000) / 1000);
+  const remainder = int % 1000;
+  let out = [];
+  if (crore) out.push(chunk(crore) + " Crore");
+  if (lakh) out.push(chunk(lakh) + " Lakh");
+  if (thousand) out.push(chunk(thousand) + " Thousand");
+  if (remainder) out.push(chunk(remainder));
+  return (out.join(" ") || "Zero") + " Rupees Only";
+};
+
 const normalizePhone = (raw) => {
   const digits = String(raw || "").replace(/\D/g, "");
   if (digits.length === 11 && digits.startsWith("0")) return digits.slice(1);
@@ -54,6 +77,15 @@ export default function CustomerInvoicePage() {
     };
   }, [orderId, token]);
 
+  useEffect(() => {
+    if (!invoice) return;
+    if (searchParams.get("print") !== "1") return;
+    const timer = setTimeout(() => {
+      window.print();
+    }, 350);
+    return () => clearTimeout(timer);
+  }, [invoice, searchParams]);
+
   const registerLink = useMemo(() => {
     const name = String(invoice?.buyer?.name || "").trim();
     const phone = normalizePhone(invoice?.buyer?.phone || "");
@@ -65,25 +97,13 @@ export default function CustomerInvoicePage() {
   }, [invoice?.buyer?.name, invoice?.buyer?.phone]);
 
   const downloadPdf = async () => {
-    if (!orderId || !token) return;
+    if (!invoice) return;
     setDownloading(true);
     try {
-      const { data } = await api.get(`/customer/mobile-access/orders/${orderId}/invoice/pdf`, {
-        params: { token },
-        responseType: "blob",
-      });
-      const fileName = `${invoice?.invoice_no || `INV-${orderId}`}.pdf`;
-      const objectUrl = URL.createObjectURL(data instanceof Blob ? data : new Blob([data], { type: "application/pdf" }));
-      const a = document.createElement("a");
-      a.href = objectUrl;
-      a.download = fileName;
-      document.body.appendChild(a);
-      a.click();
-      a.remove();
-      setTimeout(() => URL.revokeObjectURL(objectUrl), 1000);
-      toast.success("Invoice PDF downloaded");
+      window.print();
+      toast.success("Print dialog opened. Choose Save as PDF to download the invoice.");
     } catch (err) {
-      toast.error(err?.response?.data?.detail || "PDF download failed");
+      toast.error("Print dialog failed");
     } finally {
       setDownloading(false);
     }
@@ -157,7 +177,10 @@ export default function CustomerInvoicePage() {
             <Button
               type="button"
               variant="outline"
-              onClick={() => window.print()}
+              onClick={() => {
+                window.print();
+                toast.success("Print dialog opened. Choose Save as PDF to download the invoice.");
+              }}
               disabled={!invoice}
               className="rounded-full border-emerald-800 text-emerald-900 hover:bg-emerald-50"
               data-testid="customer-invoice-print"
@@ -185,89 +208,131 @@ export default function CustomerInvoicePage() {
           </div>
         ) : null}
 
-        {!loading && !error && invoice ? (
-          <div className="bg-white rounded-xl border border-border p-6" data-testid="customer-invoice-view">
-            <div className="flex flex-wrap justify-between gap-4 border-b border-border pb-4">
-              <div>
-                <p className="text-xs uppercase tracking-wider text-emerald-800 font-semibold">Invoice</p>
-                <h1 className="font-display font-black text-2xl text-emerald-950 mt-1">{invoice.invoice_no}</h1>
-                <p className="text-sm text-slate-600 mt-1">Order: {invoice.order_no}</p>
+        {!loading && !error && invoice ? (() => {
+          const invoiceItems = Array.isArray(invoice.items) ? invoice.items : [];
+          return (
+            <div className="max-w-4xl mx-auto bg-white shadow-lg print:shadow-none border border-slate-200 print:border-0 invoice-a4" id="customer-invoice-print" data-testid="customer-invoice-view">
+              <div className="border-b-2 border-black px-6 py-4 flex items-start justify-between bg-white">
+                <div>
+                  <p className="text-[10px] uppercase tracking-[0.25em] text-amber-600 font-bold">Tax Invoice</p>
+                  <h1 className="font-display font-black text-3xl text-emerald-950 mt-1">{invoice.seller?.name || "METHO Vegetable"}</h1>
+                  <p className="text-xs text-slate-600 font-body mt-1">{invoice.seller?.address || ""}</p>
+                  <p className="text-xs text-slate-600 font-body">GSTIN: <span className="font-mono font-semibold">{invoice.seller?.gst_no || "-"}</span> · PAN: <span className="font-mono">{invoice.seller?.pan || "-"}</span></p>
+                  <p className="text-xs text-slate-600 font-body">State: {invoice.seller?.state || "West Bengal"} ({invoice.seller?.state_code || "19"}) · Email: {invoice.seller?.email || "-"}{invoice.seller?.phone ? ` · Phone: ${invoice.seller.phone}` : ""}</p>
+                </div>
+                <div className="text-right">
+                  <div className="inline-flex items-center gap-1 text-emerald-900 font-bold text-lg font-display"><Printer className="w-5 h-5" /> INVOICE</div>
+                  <p className="mt-2 text-xs text-slate-500 uppercase tracking-wider font-semibold">Invoice No</p>
+                  <p className="font-mono font-bold text-emerald-950">{invoice.invoice_no}</p>
+                  <p className="mt-2 text-xs text-slate-500 uppercase tracking-wider font-semibold">Date</p>
+                  <p className="text-sm font-semibold text-emerald-950">{new Date(invoice.invoice_date).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" })}</p>
+                  <p className="mt-2 text-xs text-slate-500 uppercase tracking-wider font-semibold">Order Ref</p>
+                  <p className="font-mono text-xs text-emerald-800">{invoice.order_no}</p>
+                </div>
               </div>
-              <div className="text-right">
-                <p className="text-xs text-slate-500">Date</p>
-                <p className="text-sm font-semibold text-emerald-950">{new Date(invoice.invoice_date).toLocaleString()}</p>
-                <p className="text-xs text-slate-500 mt-2">Status</p>
-                <p className="text-sm font-semibold text-emerald-900 uppercase">{invoice.status}</p>
-              </div>
-            </div>
 
-            <div className="grid md:grid-cols-2 gap-4 mt-4">
-              <div className="rounded-lg border border-border p-3">
-                <p className="text-xs uppercase tracking-wider text-slate-500">Seller</p>
-                <p className="font-semibold text-emerald-950 mt-1">{invoice.seller?.name || "METHO AAY-UPAY"}</p>
-                <p className="text-sm text-slate-700 mt-1">{invoice.seller?.address || ""}</p>
-                <p className="text-xs text-slate-600 mt-1">GST: {invoice.seller?.gst_no || "-"}</p>
+              <div className="grid grid-cols-2 gap-6 px-6 py-3 border-b border-black">
+                <div>
+                  <p className="text-[10px] uppercase tracking-widest text-slate-500 font-bold">Customer / Delivery</p>
+                  <p className="font-display font-bold text-emerald-950 mt-1">{invoice.buyer?.name || "Customer"}</p>
+                  {invoice.buyer?.email ? <p className="text-xs text-slate-600 font-body mt-0.5">Email: {invoice.buyer.email}</p> : null}
+                  <p className="text-xs text-slate-600 font-body mt-0.5">Delivery Contact: <span className="font-semibold">{invoice.buyer?.phone || "Not provided"}</span></p>
+                  <p className="text-xs text-slate-600 font-body mt-1">Member Code: <span className="font-mono font-semibold">{invoice.buyer?.member_code || "-"}</span></p>
+                  <p className="text-xs text-slate-700 font-body mt-2 whitespace-pre-line"><span className="font-semibold">Delivery Address:</span> {invoice.buyer?.shipping_address || "Not provided"}</p>
+                </div>
+                <div>
+                  <p className="text-[10px] uppercase tracking-widest text-slate-500 font-bold">Payment</p>
+                  <p className="text-sm text-emerald-950 font-body mt-1">Method: <span className="font-semibold uppercase">{invoice.payment?.method || "—"}</span></p>
+                  {invoice.payment?.txn_id && <p className="text-xs text-slate-700 font-body">Txn ID: <span className="font-mono">{invoice.payment.txn_id}</span></p>}
+                  <p className="text-xs text-slate-600 font-body mt-2">Status: <span className={`font-bold uppercase text-[10px] px-2 py-0.5 rounded-full ${invoice.status === "paid" ? "bg-emerald-100 text-emerald-800" : "bg-amber-100 text-amber-800"}`}>{invoice.status}</span></p>
+                </div>
               </div>
-              <div className="rounded-lg border border-border p-3">
-                <p className="text-xs uppercase tracking-wider text-slate-500">Buyer</p>
-                <p className="font-semibold text-emerald-950 mt-1">{invoice.buyer?.name || "Customer"}</p>
-                <p className="text-sm text-slate-700 mt-1">Phone: {invoice.buyer?.phone || "-"}</p>
-                <p className="text-xs text-slate-600 mt-1">Member: {invoice.buyer?.member_code || "-"}</p>
-                <p className="text-xs text-slate-600 mt-1">Address: {invoice.buyer?.shipping_address || "-"}</p>
-              </div>
-            </div>
 
-            <div className="mt-5 overflow-x-auto">
-              <table className="min-w-full text-sm" data-testid="customer-invoice-items">
-                <thead>
-                  <tr className="text-left text-xs uppercase tracking-wider text-slate-500 border-b border-border">
-                    <th className="py-2 pr-3">Item</th>
-                    <th className="py-2 pr-3">Qty</th>
-                    <th className="py-2 pr-3">Rate</th>
-                    <th className="py-2 text-right">Subtotal</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {(invoice.items || []).map((item, idx) => (
-                    <tr key={`${item.product_code || item.product_name || "row"}-${idx}`} className="border-b border-border/60">
-                      <td className="py-2 pr-3 text-slate-700">{item.product_name || "Item"}</td>
-                      <td className="py-2 pr-3 text-slate-700">{item.quantity}</td>
-                      <td className="py-2 pr-3 text-slate-700">{inr(item.price)}</td>
-                      <td className="py-2 text-right font-semibold text-emerald-950">{inr(item.subtotal)}</td>
+              <div className="px-8 py-5">
+                <table className="w-full text-sm border-collapse">
+                  <thead>
+                    <tr className="bg-emerald-900 text-white">
+                      <th className="text-left px-3 py-2 font-semibold text-xs uppercase tracking-wider">#</th>
+                      <th className="text-left px-3 py-2 font-semibold text-xs uppercase tracking-wider">Item</th>
+                      <th className="text-center px-3 py-2 font-semibold text-xs uppercase tracking-wider">HSN/SAC</th>
+                      <th className="text-right px-3 py-2 font-semibold text-xs uppercase tracking-wider">Qty</th>
+                      <th className="text-right px-3 py-2 font-semibold text-xs uppercase tracking-wider">Rate (₹)</th>
+                      <th className="text-right px-3 py-2 font-semibold text-xs uppercase tracking-wider">Pre-Tax (₹)</th>
+                      <th className="text-right px-3 py-2 font-semibold text-xs uppercase tracking-wider">CGST</th>
+                      <th className="text-right px-3 py-2 font-semibold text-xs uppercase tracking-wider">SGST</th>
+                      <th className="text-right px-3 py-2 font-semibold text-xs uppercase tracking-wider">Total (₹)</th>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+                  </thead>
+                  <tbody>
+                    {invoiceItems.map((it, i) => (
+                      <tr key={i} className={i % 2 ? "bg-slate-50" : ""}>
+                        <td className="px-3 py-2 text-xs">{i + 1}</td>
+                        <td className="px-3 py-2"><p className="font-semibold text-emerald-950">{it.product_name}</p><p className="text-[10px] text-slate-500">{it.product_type}</p></td>
+                        <td className="text-center px-3 py-2 font-mono text-xs">{it.hsn_sac}</td>
+                        <td className="text-right px-3 py-2">{it.quantity}</td>
+                        <td className="text-right px-3 py-2">{inr(it.price)}</td>
+                        <td className="text-right px-3 py-2">{inr(it.pre_tax)}</td>
+                        <td className="text-right px-3 py-2 text-xs">{inr(it.cgst)}<br /><span className="text-[9px] text-slate-500">@{((it.gst_rate || 0) / 2).toFixed(1)}%</span></td>
+                        <td className="text-right px-3 py-2 text-xs">{inr(it.sgst)}<br /><span className="text-[9px] text-slate-500">@{((it.gst_rate || 0) / 2).toFixed(1)}%</span></td>
+                        <td className="text-right px-3 py-2 font-semibold">{inr(it.subtotal)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                  <tfoot>
+                    <tr className="border-t-2 border-emerald-900 font-bold">
+                      <td colSpan="5" className="px-3 py-2 text-right text-emerald-950">Sub-total</td>
+                      <td className="text-right px-3 py-2">{inr(invoice.subtotal_pre_tax)}</td>
+                      <td className="text-right px-3 py-2">{inr(invoice.total_cgst)}</td>
+                      <td className="text-right px-3 py-2">{inr(invoice.total_sgst)}</td>
+                      <td className="text-right px-3 py-2 text-emerald-950">{inr(invoice.grand_total)}</td>
+                    </tr>
+                  </tfoot>
+                </table>
 
-            <div className="mt-4 flex justify-end">
-              <div className="w-full max-w-xs space-y-1 text-sm">
-                <div className="flex justify-between text-slate-600">
-                  <span>Taxable</span>
-                  <span>{inr(invoice.subtotal_pre_tax)}</span>
+                <div className="mt-4 p-3 bg-amber-50 border-l-4 border-amber-500 rounded">
+                  <p className="text-[10px] uppercase tracking-widest text-amber-800 font-bold">Amount in Words</p>
+                  <p className="font-display font-bold text-emerald-950 mt-1">{words(invoice.grand_total)}</p>
                 </div>
-                <div className="flex justify-between text-slate-600">
-                  <span>CGST</span>
-                  <span>{inr(invoice.total_cgst)}</span>
-                </div>
-                <div className="flex justify-between text-slate-600">
-                  <span>SGST</span>
-                  <span>{inr(invoice.total_sgst)}</span>
-                </div>
-                <div className="flex justify-between font-black text-emerald-950 text-base border-t border-border pt-2">
-                  <span>Grand Total</span>
-                  <span>{inr(invoice.grand_total)}</span>
+
+                <div className="mt-4 flex justify-end">
+                  <div className="w-full max-w-xs space-y-1 text-sm">
+                    <div className="flex justify-between"><span className="text-slate-600">Delivery Charge</span><span className="font-mono">{inr(invoice.delivery_charge)}</span></div>
+                    <div className="flex justify-between"><span className="text-slate-600">Taxable Value:</span><span className="font-mono font-semibold">{inr(invoice.subtotal_pre_tax)}</span></div>
+                    <div className="flex justify-between"><span className="text-slate-600">CGST:</span><span className="font-mono">{inr(invoice.total_cgst)}</span></div>
+                    <div className="flex justify-between"><span className="text-slate-600">SGST:</span><span className="font-mono">{inr(invoice.total_sgst)}</span></div>
+                    <div className="flex justify-between pt-2 border-t-2 border-emerald-900 font-display font-black text-lg">
+                      <span className="text-emerald-950">Grand Total</span>
+                      <span className="text-emerald-800">{inr(invoice.grand_total)}</span>
+                    </div>
+                  </div>
                 </div>
               </div>
-            </div>
 
-            {invoice.notes ? (
-              <div className="mt-4 rounded-lg border border-border p-3 text-xs text-slate-600 whitespace-pre-line">
-                {invoice.notes}
+              <div className="px-6 py-3 border-t border-black bg-white text-xs text-slate-600">
+                <p className="whitespace-pre-line italic">{invoice.notes}</p>
+                <p className="mt-4 text-center font-semibold text-emerald-900">Powered By Metho Logistics Private Limited</p>
               </div>
-            ) : null}
-          </div>
-        ) : null}
+
+              <style>{`
+                @media print {
+                  @page { size: A4; margin: 8mm; }
+                  body { background: white !important; }
+                  #customer-invoice-print { box-shadow: none !important; border: none !important; max-width: none !important; font-size: 10px !important; }
+                  #customer-invoice-print h1 { font-size: 22px !important; }
+                  #customer-invoice-print .px-8 { padding-left: 4mm !important; padding-right: 4mm !important; }
+                  #customer-invoice-print .py-6 { padding-top: 3mm !important; padding-bottom: 3mm !important; }
+                  #customer-invoice-print .py-5 { padding-top: 2.5mm !important; padding-bottom: 2.5mm !important; }
+                  #customer-invoice-print .mt-4 { margin-top: 2mm !important; }
+                  #customer-invoice-print .mb-8 { margin-bottom: 4mm !important; }
+                  #customer-invoice-print table { font-size: 9px !important; }
+                  #customer-invoice-print th, #customer-invoice-print td { padding-top: 1.5mm !important; padding-bottom: 1.5mm !important; }
+                  #customer-invoice-print { color: #000 !important; }
+                  #customer-invoice-print, #customer-invoice-print * { border-color: #000 !important; box-shadow: none !important; background: #fff !important; color: #000 !important; }
+                }
+              `}</style>
+            </div>
+          );
+        })() : null}
       </div>
     </div>
   );
