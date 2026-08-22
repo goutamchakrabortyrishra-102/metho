@@ -1040,7 +1040,7 @@ export default function UpiPaymentDialog({
           {!existingOrderId && requiresTravelTerms ? (
             <label className="md:col-span-2 flex items-start gap-2 rounded-lg border border-sky-200 bg-sky-50 p-3 text-xs leading-5 text-sky-950" data-testid="travel-terms-consent">
               <input type="checkbox" checked={travelTermsAccepted} onChange={(e) => setTravelTermsAccepted(e.target.checked)} className="mt-1 h-4 w-4 shrink-0" data-testid="travel-terms-checkbox" />
-              <span>I have read and accept the <Link to="/travel-booking-terms" target="_blank" className="font-semibold underline">Travel Booking Terms</Link>, including traveller-document, cancellation, refund, supplier, and safety conditions.</span>
+              <span>I have read and accept the <Link to="/travel-booking-terms" target="_blank" className="font-semibold underline">Travel Booking Terms &amp; Conditions</Link>, including Indian law compliance and METHO&apos;s intermediary booking role.</span>
             </label>
           ) : null}
 
@@ -1049,7 +1049,7 @@ export default function UpiPaymentDialog({
               {razorpayEnabled && !forceManualUpiFlow ? (
                 <Button
                   type="button"
-                  disabled={submitting || uploading || paymentMode === "cod"}
+                  disabled={submitting || uploading || paymentMode === "cod" || (requiresTravelTerms && !travelTermsAccepted)}
                   onClick={submitRazorpay}
                   className="w-full h-12 bg-blue-700 hover:bg-blue-800 text-white rounded-full font-semibold"
                   data-testid="razorpay-submit-button"
@@ -1060,7 +1060,7 @@ export default function UpiPaymentDialog({
               {!manualUpiEnabled && showCodInRazorpayLayout && paymentMode === "cod" ? (
                 <Button
                   type="submit"
-                  disabled={submitting || uploading}
+                  disabled={submitting || uploading || (requiresTravelTerms && !travelTermsAccepted)}
                   className="w-full h-12 bg-emerald-900 hover:bg-emerald-950 text-white rounded-full font-semibold"
                   data-testid="cod-submit-button"
                 >
@@ -1071,7 +1071,7 @@ export default function UpiPaymentDialog({
                 <>
                   <Button
                     type="submit"
-                    disabled={submitting || uploading}
+                    disabled={submitting || uploading || (requiresTravelTerms && !travelTermsAccepted)}
                     className="w-full h-12 bg-emerald-900 hover:bg-emerald-950 text-white rounded-full font-semibold"
                     data-testid="upi-submit-button"
                   >
