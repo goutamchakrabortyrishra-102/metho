@@ -35,6 +35,7 @@ const loadSystemHealthPage = () => import("@/pages/dashboard/SystemHealthPage");
 const loadOwnerGuidePage = () => import("@/pages/dashboard/OwnerGuidePage");
 const loadPartnerRegisterPage = () => import("@/pages/PartnerRegisterPage");
 const loadRiderRegisterPage = () => import("@/pages/RiderRegisterPage");
+const loadRiderTermsPage = () => import("@/pages/RiderTermsPage");
 const loadRiderDashboardPage = () => import("@/pages/RiderDashboardPage");
 const loadMethoMovePage = () => import("@/pages/MethoMovePage");
 const loadWithdrawalsPage = () => import("@/pages/dashboard/WithdrawalsPage");
@@ -102,6 +103,7 @@ const SystemHealthPage = lazy(loadSystemHealthPage);
 const OwnerGuidePage = lazy(loadOwnerGuidePage);
 const PartnerRegisterPage = lazy(loadPartnerRegisterPage);
 const RiderRegisterPage = lazy(loadRiderRegisterPage);
+const RiderTermsPage = lazy(loadRiderTermsPage);
 const RiderDashboardPage = lazy(loadRiderDashboardPage);
 const MethoMovePage = lazy(loadMethoMovePage);
 const WithdrawalsPage = lazy(loadWithdrawalsPage);
@@ -338,6 +340,7 @@ function App() {
               <Route path="/settings" element={<SettingsPage />} />
               <Route path="/partner-register" element={<PartnerRegisterPage />} />
               <Route path="/rider-register" element={<RiderRegisterPage />} />
+              <Route path="/rider-terms" element={<RiderTermsPage />} />
               <Route path="/rider" element={<PrivateRoute><RiderDashboardPage /></PrivateRoute>} />
               <Route path="/partner-shop/:partnerCode" element={<PartnerShopPage />} />
               <Route path="/gallery/:partnerCode" element={<PartnerGalleryPage />} />

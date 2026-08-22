@@ -8,26 +8,17 @@ import { Label } from "@/components/ui/label";
 import { Logo } from "@/components/Logo";
 import api from "@/services/api";
 
-const PARTNER_TERMS = [
-  "1. The Partner shall be solely responsible for the quality, warranty, delivery, service standards, after-sales support, customer promises, and all business outcomes related to its products and services.",
-  "2. The Partner must ensure that every product, service, price, description, image, certificate, license, registration number, and supporting business document uploaded on this platform is genuine, accurate, complete, and legally valid.",
-  "3. The Partner must comply with all applicable Indian laws, rules, regulations, tax requirements, consumer protection obligations, licensing conditions, safety standards, and local authority requirements relevant to the Partner's business.",
-  "4. If any information or document is incorrect, incomplete, misleading, expired, forged, unauthorized, or otherwise invalid, the Partner alone shall be fully responsible for all losses, penalties, claims, disputes, liabilities, and legal consequences.",
-  "5. METHO acts only as an intermediary technology platform and administrative facilitator. METHO does not manufacture, own, inspect, certify, guarantee, endorse, or assume liability for the Partner's business, staff, products, services, or documents.",
-  "6. METHO does not independently verify every original document, license, certificate, or business claim submitted by the Partner. The Partner remains fully responsible for the authenticity, legality, and continuing validity of all submitted information and supporting documents.",
-  "7. By registering, the Partner confirms that all uploaded documents are original, lawful, and submitted with proper authority, and agrees to keep them updated whenever required.",
-  "8. Any breach of these Terms & Conditions may result in account suspension, listing removal, payment hold, settlement delay, or permanent termination, as determined by METHO or the competent authority.",
-  "9. Any dispute arising from the Partner's business operations shall be handled directly by the Partner, subject to applicable Indian law. METHO shall not be liable for such disputes except to the extent required by law.",
-].join("\n");
-
 export default function RiderRegisterPage() {
   const [loading, setLoading] = useState(false);
-  const [termsOpen, setTermsOpen] = useState(false);
   const [agreedToTerms, setAgreedToTerms] = useState(false);
   const nav = useNavigate();
 
   const submit = async (event) => {
     event.preventDefault();
+    if (!agreedToTerms) {
+      toast.error("Please read and accept the Rider Terms & Conditions before submitting");
+      return;
+    }
     setLoading(true);
     const form = new FormData(event.currentTarget);
     try {
@@ -73,11 +64,10 @@ export default function RiderRegisterPage() {
           <div><Label htmlFor="rider-upi">UPI ID</Label><Input id="rider-upi" name="upi_id" className="mt-1.5" /></div>
         </div>
         <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-4 text-sm text-slate-700">
-          <button type="button" onClick={() => setTermsOpen((current) => !current)} className="font-bold text-emerald-950">{termsOpen ? "Hide" : "Read"} Rider Terms &amp; Conditions</button>
-          {termsOpen ? <p className="mt-3 whitespace-pre-line leading-6">{PARTNER_TERMS}</p> : null}
-          <label className="mt-3 flex items-start gap-2"><input type="checkbox" checked={agreedToTerms} onChange={(event) => setAgreedToTerms(event.target.checked)} /> <span>I have read and agree to the Rider Terms &amp; Conditions.</span></label>
+          <Link to="/rider-terms" target="_blank" rel="noreferrer" className="font-bold text-emerald-950 underline" data-testid="rider-view-terms-link">View Rider Terms &amp; Conditions</Link>
+          <label className="mt-3 flex items-start gap-2"><input type="checkbox" checked={agreedToTerms} onChange={(event) => setAgreedToTerms(event.target.checked)} data-testid="rider-terms-checkbox" /> <span>I have read and agree to the Rider Terms &amp; Conditions.</span></label>
         </div>
-        <Button type="submit" disabled={loading || !agreedToTerms} className="w-full h-11 bg-emerald-900 hover:bg-emerald-950 text-white rounded-full">
+        <Button type="submit" disabled={loading || !agreedToTerms} className="w-full h-11 bg-emerald-900 hover:bg-emerald-950 text-white rounded-full" data-testid="rider-register-submit">
           {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <>Submit Registration <ArrowRight className="ml-2 w-4 h-4" /></>}
         </Button>
         <p className="text-center text-sm text-muted-foreground">Already approved? <Link to="/login?role=rider" className="font-semibold text-emerald-900">Rider Login</Link></p>
