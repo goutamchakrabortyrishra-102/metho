@@ -154,18 +154,6 @@ const inferRegistrationSelection = (form) => {
   };
 };
 
-const DEFAULT_TERMS = [
-  "1. The Partner shall be solely responsible for the quality, warranty, delivery, service standards, after-sales support, customer promises, and all business outcomes related to its products and services.",
-  "2. The Partner must ensure that every product, service, price, description, image, certificate, license, registration number, and supporting business document uploaded on this platform is genuine, accurate, complete, and legally valid.",
-  "3. The Partner must comply with all applicable Indian laws, rules, regulations, tax requirements, consumer protection obligations, licensing conditions, safety standards, and local authority requirements relevant to the Partner's business.",
-  "4. If any information or document is incorrect, incomplete, misleading, expired, forged, unauthorized, or otherwise invalid, the Partner alone shall be fully responsible for all losses, penalties, claims, disputes, liabilities, and legal consequences.",
-  "5. METHO acts only as an intermediary technology platform and administrative facilitator. METHO does not manufacture, own, inspect, certify, guarantee, endorse, or assume liability for the Partner's business, staff, products, services, or documents.",
-  "6. METHO does not independently verify every original document, license, certificate, or business claim submitted by the Partner. The Partner remains fully responsible for the authenticity, legality, and continuing validity of all submitted information and supporting documents.",
-  "7. By registering, the Partner confirms that all uploaded documents are original, lawful, and submitted with proper authority, and agrees to keep them updated whenever required.",
-  "8. Any breach of these Terms & Conditions may result in account suspension, listing removal, payment hold, settlement delay, or permanent termination, as determined by METHO or the competent authority.",
-  "9. Any dispute arising from the Partner's business operations shall be handled directly by the Partner, subject to applicable Indian law. METHO shall not be liable for such disputes except to the extent required by law.",
-].join("\n");
-
 const normalizeAddressForSearch = ({ address, city, district, state, pincode }) => {
   const base = String(address || "").trim();
   const tail = [city, district, state, pincode]
@@ -265,7 +253,6 @@ export default function PartnerRegisterPage() {
   const [districtOptions, setDistrictOptions] = useState([]);
   const lastLookupPinRef = useRef("");
   const [done, setDone] = useState(null);
-  const [termsOpen, setTermsOpen] = useState(false);
   const [agreedToTerms, setAgreedToTerms] = useState(false);
   const [registrationCustomOptions, setRegistrationCustomOptions] = useState(DEFAULT_REGISTRATION_CUSTOM_OPTIONS);
   const isShop = form.business_type === "Shop";
@@ -909,26 +896,9 @@ export default function PartnerRegisterPage() {
           </section>
 
           <section className="rounded-xl border border-emerald-200 bg-emerald-50/50 p-4 md:p-5" data-testid="partner-policy-section">
-            <button
-              type="button"
-              className="w-full flex items-center justify-between gap-3 text-left"
-              onClick={() => setTermsOpen((prev) => !prev)}
-              data-testid="read-terms-toggle"
-            >
-              <div>
-                <h2 className="font-display font-black text-lg text-emerald-950">Read Terms & Conditions</h2>
-                <p className="text-xs text-emerald-900/80 mt-1">Click to view full legal terms before submitting your partner application.</p>
-              </div>
-              <span className="text-xs font-semibold px-3 py-1 rounded-full border border-emerald-300 bg-white text-emerald-900">
-                {termsOpen ? "Hide" : "Open"}
-              </span>
-            </button>
-
-            {termsOpen ? (
-              <div className="mt-4 rounded-xl border border-emerald-200 bg-white p-4" data-testid="full-terms-content">
-                <p className="text-sm text-slate-700 whitespace-pre-line leading-6">{DEFAULT_TERMS}</p>
-              </div>
-            ) : null}
+            <h2 className="font-display font-black text-lg text-emerald-950">Partner Terms &amp; Conditions</h2>
+            <p className="text-xs text-emerald-900/80 mt-1">Please review and accept the full legal terms before submitting your partner application.</p>
+            <Link to="/partner-terms" target="_blank" rel="noreferrer" className="mt-3 inline-flex font-semibold text-emerald-950 underline" data-testid="partner-view-terms-link">View Partner Terms &amp; Conditions</Link>
 
             <label className="mt-4 flex items-start gap-2 text-sm text-slate-700" data-testid="agree-terms-box">
               <input
@@ -936,8 +906,9 @@ export default function PartnerRegisterPage() {
                 checked={agreedToTerms}
                 onChange={(e) => setAgreedToTerms(e.target.checked)}
                 className="mt-0.5"
+                data-testid="partner-terms-checkbox"
               />
-              <span>I have read and agree to the Terms & Conditions.</span>
+              <span>I have read and agree to the Partner Terms &amp; Conditions.</span>
             </label>
           </section>
 

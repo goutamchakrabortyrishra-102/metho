@@ -35,6 +35,7 @@ const loadAuditLogPage = () => import("@/pages/dashboard/AuditLogPage");
 const loadSystemHealthPage = () => import("@/pages/dashboard/SystemHealthPage");
 const loadOwnerGuidePage = () => import("@/pages/dashboard/OwnerGuidePage");
 const loadPartnerRegisterPage = () => import("@/pages/PartnerRegisterPage");
+const loadPartnerTermsPage = () => import("@/pages/PartnerTermsPage");
 const loadRiderRegisterPage = () => import("@/pages/RiderRegisterPage");
 const loadRiderTermsPage = () => import("@/pages/RiderTermsPage");
 const loadRiderDashboardPage = () => import("@/pages/RiderDashboardPage");
@@ -105,6 +106,7 @@ const AuditLogPage = lazy(loadAuditLogPage);
 const SystemHealthPage = lazy(loadSystemHealthPage);
 const OwnerGuidePage = lazy(loadOwnerGuidePage);
 const PartnerRegisterPage = lazy(loadPartnerRegisterPage);
+const PartnerTermsPage = lazy(loadPartnerTermsPage);
 const RiderRegisterPage = lazy(loadRiderRegisterPage);
 const RiderTermsPage = lazy(loadRiderTermsPage);
 const RiderDashboardPage = lazy(loadRiderDashboardPage);
@@ -345,6 +347,7 @@ function App() {
               <Route path="/metho-store" element={<MethoStorePage />} />
               <Route path="/settings" element={<SettingsPage />} />
               <Route path="/partner-register" element={<PartnerRegisterPage />} />
+              <Route path="/partner-terms" element={<PartnerTermsPage />} />
               <Route path="/rider-register" element={<RiderRegisterPage />} />
               <Route path="/rider-terms" element={<RiderTermsPage />} />
               <Route path="/rider" element={<PrivateRoute><RiderDashboardPage /></PrivateRoute>} />
