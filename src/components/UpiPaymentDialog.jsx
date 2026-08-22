@@ -1054,7 +1054,7 @@ export default function UpiPaymentDialog({
                   className="w-full h-12 bg-blue-700 hover:bg-blue-800 text-white rounded-full font-semibold"
                   data-testid="razorpay-submit-button"
                 >
-                  {submitting ? "Opening Razorpay..." : `Pay Now with Razorpay · ₹${checkoutTotal.toLocaleString("en-IN")}`}
+                  {submitting ? "Opening Razorpay..." : `Pay Now · ₹${checkoutTotal.toLocaleString("en-IN")}`}
                 </Button>
               ) : null}
               {!manualUpiEnabled && showCodInRazorpayLayout && paymentMode === "cod" ? (
