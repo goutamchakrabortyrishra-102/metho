@@ -192,16 +192,31 @@ def _draw_invoice_pdf(inv: dict) -> bytes:
                 x = left + 468 + (col_idx - 6) * 52
             draw_multilingual_pdf_text(pdf, x + 4, row_y + 8, value[:28], 7)
 
-    summary_y = table_top - header_height - (max(len(items), 1) * row_height) - 24
+    subtotal_row_y = table_top - header_height - (max(len(items), 1) * row_height) - 20
+    pdf.setFillColorRGB(0.96, 0.96, 0.96)
+    pdf.rect(left, subtotal_row_y - 18, right - left, 18, fill=1, stroke=1)
+    pdf.setFillColorRGB(0.1, 0.1, 0.1)
+    draw_multilingual_pdf_text(pdf, left + 370, subtotal_row_y - 12, "Sub-total", 9, bold=True)
+    draw_multilingual_pdf_text(pdf, right - 80, subtotal_row_y - 12, _inr(inv.get("subtotal_pre_tax") or 0), 9, bold=True)
+    draw_multilingual_pdf_text(pdf, right - 160, subtotal_row_y - 12, _inr(inv.get("total_cgst") or 0), 9, bold=True)
+    draw_multilingual_pdf_text(pdf, right - 240, subtotal_row_y - 12, _inr(inv.get("total_sgst") or 0), 9, bold=True)
+    draw_multilingual_pdf_text(pdf, right - 320, subtotal_row_y - 12, _inr(inv.get("grand_total") or 0), 9, bold=True)
+
+    summary_y = subtotal_row_y - 36
     pdf.line(left, summary_y + 10, right, summary_y + 10)
     draw_multilingual_pdf_text(pdf, left, summary_y - 10, "Amount in Words", 8, bold=True)
     draw_multilingual_pdf_text(pdf, left, summary_y - 24, _amount_in_words(inv.get("grand_total") or 0), 12, bold=True)
 
-    draw_multilingual_pdf_text(pdf, right - 100, summary_y - 12, f"Delivery Charge {_inr(inv.get('delivery_charge') or 0)}", 9)
-    draw_multilingual_pdf_text(pdf, right - 100, summary_y - 28, f"Taxable Value: {_inr(inv.get('subtotal_pre_tax') or 0)}", 9)
-    draw_multilingual_pdf_text(pdf, right - 100, summary_y - 44, f"CGST: {_inr(inv.get('total_cgst') or 0)}", 9)
-    draw_multilingual_pdf_text(pdf, right - 100, summary_y - 60, f"SGST: {_inr(inv.get('total_sgst') or 0)}", 9)
-    draw_multilingual_pdf_text(pdf, right - 100, summary_y - 80, f"Grand Total {_inr(inv.get('grand_total') or 0)}", 11, bold=True)
+    draw_multilingual_pdf_text(pdf, right - 110, summary_y - 10, f"Delivery Charge", 9)
+    draw_multilingual_pdf_text(pdf, right - 25, summary_y - 10, _inr(inv.get("delivery_charge") or 0), 9)
+    draw_multilingual_pdf_text(pdf, right - 110, summary_y - 26, "Taxable Value:", 9)
+    draw_multilingual_pdf_text(pdf, right - 25, summary_y - 26, _inr(inv.get("subtotal_pre_tax") or 0), 9)
+    draw_multilingual_pdf_text(pdf, right - 110, summary_y - 42, "CGST:", 9)
+    draw_multilingual_pdf_text(pdf, right - 25, summary_y - 42, _inr(inv.get("total_cgst") or 0), 9)
+    draw_multilingual_pdf_text(pdf, right - 110, summary_y - 58, "SGST:", 9)
+    draw_multilingual_pdf_text(pdf, right - 25, summary_y - 58, _inr(inv.get("total_sgst") or 0), 9)
+    draw_multilingual_pdf_text(pdf, right - 110, summary_y - 80, "Grand Total", 11, bold=True)
+    draw_multilingual_pdf_text(pdf, right - 25, summary_y - 80, _inr(inv.get("grand_total") or 0), 11, bold=True)
 
     draw_multilingual_pdf_text(pdf, left, 36, "Powered By Metho Logistics Private Limited", 9, bold=True)
     pdf.save()
