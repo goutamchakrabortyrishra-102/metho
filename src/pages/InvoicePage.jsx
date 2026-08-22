@@ -391,7 +391,9 @@ export default function InvoicePage() {
           #invoice-print table { font-size: 9px !important; }
           #invoice-print th, #invoice-print td { padding-top: 1.5mm !important; padding-bottom: 1.5mm !important; }
           #invoice-print { color: #000 !important; }
-          #invoice-print * { border-color: #000 !important; box-shadow: none !important; }
+          #invoice-print, #invoice-print * { border-color: #000 !important; box-shadow: none !important; background: #fff !important; color: #000 !important; }
+          #invoice-print svg { color: #000 !important; }
+          #invoice-print img { filter: grayscale(1) !important; }
         }
       `}</style>
     </div>

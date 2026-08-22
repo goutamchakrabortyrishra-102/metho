@@ -4610,7 +4610,7 @@ def _invoice_payload(db: Session, order_id: str, current_user: User):
             if (
                 isinstance(cached_invoice, dict)
                 and cached_invoice.get("order_id") == row.id
-                and cached_invoice.get("invoice_schema_version") == 2
+                and cached_invoice.get("invoice_schema_version") == 4
             ):
                 _record_invoice_once(db, cached_invoice)
                 return cached_invoice
@@ -4739,8 +4739,11 @@ def _invoice_payload(db: Session, order_id: str, current_user: User):
         if ref_text.startswith("MTH-"):
             buyer_member_code = ref_text
 
+    merchandise_total = round(grand_total, 2)
+    item_delivery_total = round(sum(max(0.0, float(item.get("delivery_total") or 0)) for item in items), 2)
+    delivery_charge = max(item_delivery_total, round(max(0.0, float(row.total_amount or 0) - merchandise_total), 2))
     invoice = {
-        "invoice_schema_version": 2,
+        "invoice_schema_version": 4,
         "order_id": row.id,
         "order_no": f"ORD-{row.id[:8].upper()}",
         "invoice_no": f"INV-{row.id[:8].upper()}",
@@ -4772,8 +4775,8 @@ def _invoice_payload(db: Session, order_id: str, current_user: User):
         "subtotal_pre_tax": round(subtotal_pre_tax, 2),
         "total_cgst": round(total_cgst, 2),
         "total_sgst": round(total_sgst, 2),
-        "grand_total": round(grand_total, 2),
-        "delivery_charge": round(max(0.0, float(row.total_amount or 0) - grand_total), 2),
+        "grand_total": round(merchandise_total + delivery_charge, 2),
+        "delivery_charge": delivery_charge,
         "notes": settings.get("invoice_terms") or settings.get("rules_and_conditions", ""),
         "einvoice": {},
     }
