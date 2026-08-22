@@ -9,13 +9,6 @@ import { useAuth } from "@/contexts/AuthContext";
 import { Logo } from "@/components/Logo";
 import api from "@/services/api";
 
-const DEFAULT_POLICY = {
-  rules_and_conditions:
-    "1. Bonuses, commissions, and rewards are processed only as per official system rules and eligibility criteria.\n" +
-    "2. Fake orders, document forgery, misuse, or any fraudulent activity may result in immediate account suspension or termination.\n" +
-    "3. The company may update policies, plans, and operational rules with notice through official channels.",
-};
-
 const DEFAULT_METHO_ADMIN_SPONSOR_ID = "MAU00001";
 
 const generateMemberId = () => {
@@ -42,7 +35,6 @@ export default function RegisterPage() {
   const [sponsorInfo, setSponsorInfo] = useState(null);
   const [signupBonus, setSignupBonus] = useState(0);
   const [smartCycleBonus, setSmartCycleBonus] = useState(10);
-  const [policy, setPolicy] = useState(DEFAULT_POLICY);
   const [agreedToTerms, setAgreedToTerms] = useState(false);
   const { register, login, logout } = useAuth();
   const nav = useNavigate();
@@ -53,9 +45,6 @@ export default function RegisterPage() {
       const s = r.data || {};
       setSignupBonus(Number(s.referral_signup_bonus) || 0);
       setSmartCycleBonus(Number(s.smart_cycle_bonus_percent) || 10);
-      setPolicy({
-        rules_and_conditions: (s.rules_and_conditions || "").trim() || DEFAULT_POLICY.rules_and_conditions,
-      });
     }).catch(() => {});
   }, []);
 
@@ -366,14 +355,11 @@ export default function RegisterPage() {
           </div>
 
           <section className="rounded-xl border border-emerald-200 bg-emerald-50/50 p-4" data-testid="member-terms-section">
-            <h3 className="font-display font-black text-lg text-emerald-950">Terms & Conditions</h3>
+            <h3 className="font-display font-black text-lg text-emerald-950">Member Terms &amp; Conditions</h3>
             <p className="text-xs text-emerald-900/80 mt-1">Please review and accept before creating your member account.</p>
 
             <div className="mt-4 space-y-3">
-              <div>
-                <p className="text-xs uppercase tracking-wider text-emerald-900 font-semibold">Terms & Conditions</p>
-                <p className="mt-1 text-sm text-slate-700 whitespace-pre-line">{policy.rules_and_conditions}</p>
-              </div>
+              <Link to="/member-terms" target="_blank" rel="noreferrer" className="font-semibold text-emerald-950 underline" data-testid="member-view-terms-link">View Member Terms &amp; Conditions</Link>
               <label className="flex items-start gap-2 text-sm text-slate-700 cursor-pointer" data-testid="register-terms-checkbox-wrap">
                 <input
                   type="checkbox"
@@ -382,7 +368,7 @@ export default function RegisterPage() {
                   onChange={(e) => setAgreedToTerms(e.target.checked)}
                   data-testid="register-terms-checkbox"
                 />
-                <span>I have read and agree to the Terms & Conditions.</span>
+                <span>I have read and agree to the Member Terms &amp; Conditions.</span>
               </label>
             </div>
           </section>

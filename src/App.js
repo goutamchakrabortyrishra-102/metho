@@ -9,6 +9,7 @@ import RouteErrorBoundary from "@/components/RouteErrorBoundary";
 const loadLandingPage = () => import("@/pages/LandingPage");
 const loadLoginPage = () => import("@/pages/LoginPage");
 const loadRegisterPage = () => import("@/pages/RegisterPage");
+const loadMemberTermsPage = () => import("@/pages/MemberTermsPage");
 const loadForgotPasswordPage = () => import("@/pages/ForgotPasswordPage");
 const loadResetPasswordPage = () => import("@/pages/ResetPasswordPage");
 const loadDashboardLayout = () => import("@/layouts/DashboardLayout");
@@ -78,6 +79,7 @@ const loadActiveTrackingPage = () => import("@/pages/dashboard/ActiveTrackingPag
 const LandingPage = lazy(loadLandingPage);
 const LoginPage = lazy(loadLoginPage);
 const RegisterPage = lazy(loadRegisterPage);
+const MemberTermsPage = lazy(loadMemberTermsPage);
 const ForgotPasswordPage = lazy(loadForgotPasswordPage);
 const ResetPasswordPage = lazy(loadResetPasswordPage);
 const DashboardLayout = lazy(loadDashboardLayout);
@@ -333,6 +335,7 @@ function App() {
               <Route path="/login" element={<LoginPage />} />
               <Route path="/admin-login" element={<LoginPage adminOnly />} />
               <Route path="/register" element={<RegisterPage />} />
+              <Route path="/member-terms" element={<MemberTermsPage />} />
               <Route path="/forgot-password" element={<ForgotPasswordPage />} />
               <Route path="/reset-password" element={<ResetPasswordPage />} />
               <Route path="/invoice/:orderId" element={<PrivateRoute><InvoicePage /></PrivateRoute>} />
