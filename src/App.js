@@ -38,6 +38,7 @@ const loadRiderRegisterPage = () => import("@/pages/RiderRegisterPage");
 const loadRiderTermsPage = () => import("@/pages/RiderTermsPage");
 const loadRiderDashboardPage = () => import("@/pages/RiderDashboardPage");
 const loadMethoMovePage = () => import("@/pages/MethoMovePage");
+const loadMethoMoveCustomerTermsPage = () => import("@/pages/MethoMoveCustomerTermsPage");
 const loadWithdrawalsPage = () => import("@/pages/dashboard/WithdrawalsPage");
 const loadLeaderboardPage = () => import("@/pages/dashboard/LeaderboardPage");
 const loadInvoicePage = () => import("@/pages/InvoicePage");
@@ -106,6 +107,7 @@ const RiderRegisterPage = lazy(loadRiderRegisterPage);
 const RiderTermsPage = lazy(loadRiderTermsPage);
 const RiderDashboardPage = lazy(loadRiderDashboardPage);
 const MethoMovePage = lazy(loadMethoMovePage);
+const MethoMoveCustomerTermsPage = lazy(loadMethoMoveCustomerTermsPage);
 const WithdrawalsPage = lazy(loadWithdrawalsPage);
 const LeaderboardPage = lazy(loadLeaderboardPage);
 const InvoicePage = lazy(loadInvoicePage);
@@ -321,6 +323,7 @@ function App() {
               <Route path="/tour-and-travel" element={<TourAndTravelPage />} />
               <Route path="/metho-vegetable" element={<MethoVegetablePage />} />
               <Route path="/metho-move" element={<MethoMovePage />} />
+              <Route path="/metho-move-terms" element={<MethoMoveCustomerTermsPage />} />
               <Route path="/install" element={<InstallPage />} />
               <Route path="/download" element={<DownloadAppPage />} />
               <Route path="/customer-orders" element={<CustomerOrdersAccessPage />} />
