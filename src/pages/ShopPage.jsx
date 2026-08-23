@@ -540,9 +540,9 @@ export default function ShopPage({ travelOnly = false }) {
                   <div>
                     <span className="font-display font-black text-xl text-emerald-950">₹{getMethoPriceDetails(p).price.toLocaleString("en-IN")}</span>
                     {getMethoPriceDetails(p).hasDiscount ? (
-                      <span className="mt-0.5 flex items-center gap-1.5">
-                        <span className="text-xs font-semibold text-slate-400 line-through">₹{getMethoPriceDetails(p).mrp.toLocaleString("en-IN")}</span>
-                        <span className="rounded-full bg-amber-100 px-1.5 py-0.5 text-[10px] font-bold text-amber-800">Save {getMethoPriceDetails(p).percent}%</span>
+                      <span className="mt-1 flex items-center gap-2">
+                        <span className="text-xs font-semibold text-slate-500">MRP <span className="line-through">₹{getMethoPriceDetails(p).mrp.toLocaleString("en-IN")}</span></span>
+                        <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-bold text-amber-900">{getMethoPriceDetails(p).percent}% OFF</span>
                       </span>
                     ) : null}
                   </div>

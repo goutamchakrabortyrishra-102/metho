@@ -462,9 +462,9 @@ export default function MethoVegetablePage() {
                     <div className="min-w-0">
                       <span className="font-display font-black text-xl text-emerald-950">₹{getCustomerUnitPrice(p).toLocaleString("en-IN")}{getUnitType(p) === "piece" ? "" : `/${getUnitType(p)}`}</span>
                       {discountInfo.hasDiscount ? (
-                        <span className="mt-0.5 flex flex-wrap items-center gap-1.5">
-                          <span className="text-xs font-semibold text-slate-400 line-through">₹{discountInfo.mrp.toLocaleString("en-IN")}{getUnitType(p) === "piece" ? "" : `/${getUnitType(p)}`}</span>
-                          <span className="rounded-full bg-amber-100 px-1.5 py-0.5 text-[10px] font-bold text-amber-800">Save {discountInfo.percent}%</span>
+                        <span className="mt-1 flex flex-wrap items-center gap-2">
+                          <span className="text-xs font-semibold text-slate-500">MRP <span className="line-through">₹{discountInfo.mrp.toLocaleString("en-IN")}{getUnitType(p) === "piece" ? "" : `/${getUnitType(p)}`}</span></span>
+                          <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-bold text-amber-900">{discountInfo.percent}% OFF</span>
                         </span>
                       ) : null}
                     </div>
