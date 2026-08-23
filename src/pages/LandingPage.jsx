@@ -378,18 +378,6 @@ const Hero = () => {
     nav(`/shop?q=${encodeURIComponent(q)}`);
   };
 
-  const addProductAndOpenShop = (product, isVegetable) => {
-    const id = String(product?.id || "");
-    if (!id) return;
-    const key = isVegetable ? LANDING_VEGETABLE_CART_STORAGE_KEY : LANDING_CART_STORAGE_KEY;
-    try {
-      const current = JSON.parse(localStorage.getItem(key) || "{}");
-      const next = { ...(current && typeof current === "object" ? current : {}), [id]: (Number(current?.[id]) || 0) + 1 };
-      localStorage.setItem(key, JSON.stringify(next));
-    } catch {}
-    nav(isVegetable ? "/metho-vegetable" : "/shop");
-  };
-
   const openMethoCheckout = () => {
     if (Object.keys(cartQty).length > 0) {
       nav("/shop");
@@ -915,7 +903,12 @@ const Hero = () => {
                             <>
                               <div>
                                 <span className="font-display font-black text-lg text-emerald-950">₹{getMethoPriceDetails(p).price.toLocaleString("en-IN")}</span>
-                                {getMethoPriceDetails(p).hasDiscount ? <span className="ml-1.5 text-[10px] font-semibold text-slate-400 line-through">₹{getMethoPriceDetails(p).mrp.toLocaleString("en-IN")}</span> : null}
+                                {getMethoPriceDetails(p).hasDiscount ? (
+                                  <span className="mt-0.5 flex items-center gap-1.5">
+                                    <span className="text-[10px] font-semibold text-slate-500">MRP <span className="line-through">₹{getMethoPriceDetails(p).mrp.toLocaleString("en-IN")}</span></span>
+                                    <span className="rounded-full bg-amber-100 px-1.5 py-0.5 text-[9px] font-bold text-amber-900">{getMethoPriceDetails(p).percent}% OFF</span>
+                                  </span>
+                                ) : null}
                               </div>
                               {Number(p?.gst_percent || 0) > 0 ? <span className="text-[10px] text-amber-700 font-semibold">GST {Number(p.gst_percent)}% Included</span> : null}
                             </>
@@ -959,10 +952,10 @@ const Hero = () => {
                             <Button
                               size="sm"
                               className="w-full bg-emerald-900 hover:bg-emerald-950 rounded-full text-xs"
-                              onClick={() => (id ? addProductAndOpenShop(p, isVegetable) : nav(isVegetable ? "/metho-vegetable" : "/shop"))}
+                              onClick={() => nav(isVegetable ? `/metho-vegetable?q=${encodeURIComponent(p?.name || "")}` : `/shop?q=${encodeURIComponent(p?.name || "")}`)}
                               data-testid={`hero-best-product-add-${id || i}`}
                             >
-                              Add to Cart
+                              Open Shop
                             </Button>
                           )}
                           {videoUrl ? (
@@ -1565,7 +1558,12 @@ const Products = () => {
                 <div className="mt-2 flex items-center justify-between">
                   <div>
                     <span className="font-display font-black text-base text-emerald-950">₹{getMethoPriceDetails(p).price.toLocaleString("en-IN")}</span>
-                    {getMethoPriceDetails(p).hasDiscount ? <span className="ml-1.5 text-[10px] font-semibold text-slate-400 line-through">₹{getMethoPriceDetails(p).mrp.toLocaleString("en-IN")}</span> : null}
+                    {getMethoPriceDetails(p).hasDiscount ? (
+                      <span className="mt-0.5 flex items-center gap-1.5">
+                        <span className="text-[10px] font-semibold text-slate-500">MRP <span className="line-through">₹{getMethoPriceDetails(p).mrp.toLocaleString("en-IN")}</span></span>
+                        <span className="rounded-full bg-amber-100 px-1.5 py-0.5 text-[9px] font-bold text-amber-900">{getMethoPriceDetails(p).percent}% OFF</span>
+                      </span>
+                    ) : null}
                   </div>
                   {p.product_type === "associate_partner" ? (
                     <span className="text-xs bg-slate-100 text-slate-700 px-2 py-0.5 rounded-full font-semibold">Partner</span>
