@@ -378,6 +378,26 @@ const Hero = () => {
     nav(`/shop?q=${encodeURIComponent(q)}`);
   };
 
+  const addProductAndOpenShop = (product, isVegetable) => {
+    const id = String(product?.id || "");
+    if (!id) return;
+    const key = isVegetable ? LANDING_VEGETABLE_CART_STORAGE_KEY : LANDING_CART_STORAGE_KEY;
+    try {
+      const current = JSON.parse(localStorage.getItem(key) || "{}");
+      const next = { ...(current && typeof current === "object" ? current : {}), [id]: (Number(current?.[id]) || 0) + 1 };
+      localStorage.setItem(key, JSON.stringify(next));
+    } catch {}
+    nav(isVegetable ? "/metho-vegetable" : "/shop");
+  };
+
+  const openMethoCheckout = () => {
+    if (Object.keys(cartQty).length > 0) {
+      nav("/shop");
+      return;
+    }
+    if (Object.keys(vegetableCartQty).length > 0) nav("/metho-vegetable");
+  };
+
   useEffect(() => {
     if (cartHydratedRef.current) return;
     cartHydratedRef.current = true;
@@ -818,7 +838,7 @@ const Hero = () => {
             Cart: {cartItemCount} item(s){cartSubtotal > 0 ? ` · ₹${cartSubtotal.toLocaleString("en-IN")}` : ""}
           </p>
           <Button
-            onClick={() => setCheckoutOpen(true)}
+            onClick={openMethoCheckout}
             className="bg-amber-400 hover:bg-amber-300 text-emerald-950 rounded-full px-5 font-bold"
             data-testid="hero-best-products-checkout-top"
           >
@@ -939,7 +959,7 @@ const Hero = () => {
                             <Button
                               size="sm"
                               className="w-full bg-emerald-900 hover:bg-emerald-950 rounded-full text-xs"
-                              onClick={() => (id ? (isVegetable ? adjustVegetableCartQty(p, 1) : adjustCartQty(p, 1)) : nav("/shop"))}
+                              onClick={() => (id ? addProductAndOpenShop(p, isVegetable) : nav(isVegetable ? "/metho-vegetable" : "/shop"))}
                               data-testid={`hero-best-product-add-${id || i}`}
                             >
                               Add to Cart
@@ -976,7 +996,7 @@ const Hero = () => {
               {cartItemCount} item(s) selected{cartSubtotal > 0 ? ` · ₹${cartSubtotal.toLocaleString("en-IN")}` : ""}
             </p>
             <Button
-              onClick={() => setCheckoutOpen(true)}
+              onClick={openMethoCheckout}
               className="bg-emerald-900 hover:bg-emerald-950 text-white rounded-full px-5"
               data-testid="hero-best-products-checkout"
             >

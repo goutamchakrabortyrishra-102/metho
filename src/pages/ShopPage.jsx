@@ -235,9 +235,16 @@ export default function ShopPage({ travelOnly = false }) {
           return next;
         });
       }
-      localStorage.removeItem(LANDING_CART_STORAGE_KEY);
     } catch {}
   }, [products]);
+
+  useEffect(() => {
+    if (!sharedCartHydratedRef.current) return;
+    try {
+      if (Object.keys(cart).length > 0) localStorage.setItem(LANDING_CART_STORAGE_KEY, JSON.stringify(cart));
+      else localStorage.removeItem(LANDING_CART_STORAGE_KEY);
+    } catch {}
+  }, [cart]);
 
   useEffect(() => {
     if (!products.length) return;
