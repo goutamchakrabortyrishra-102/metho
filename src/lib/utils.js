@@ -8,8 +8,18 @@ export function cn(...inputs) {
 export function getGstInclusivePrice(price, gstPercent) {
   const basePrice = Math.max(0, Number(price) || 0);
   const gstRate = Math.max(0, Number(gstPercent) || 0);
-  if (gstRate <= 0) return basePrice;
-  return Math.round(basePrice + (basePrice * gstRate / 100));
+  return Math.round(gstRate <= 0 ? basePrice : basePrice + (basePrice * gstRate / 100));
+}
+
+export function getMethoPriceDetails(product) {
+  const productType = String(product?.product_type || "metho").toLowerCase();
+  const gstPercent = ["metho", "metho_service", "metho_vegetable"].includes(productType)
+    ? Number(product?.gst_percent || 0)
+    : 0;
+  const price = getGstInclusivePrice(product?.price, gstPercent);
+  const mrp = getGstInclusivePrice(Number(product?.mrp || product?.price || 0), gstPercent);
+  const percent = Math.max(0, Number(product?.discount_percent || 0));
+  return { price, mrp, percent, hasDiscount: percent > 0 && mrp > price };
 }
 
 const normalizeBase = (url) => String(url || "").trim().replace(/\/+$/, "");

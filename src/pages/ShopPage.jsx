@@ -9,7 +9,7 @@ import { Input } from "@/components/ui/input";
 import UpiPaymentDialog from "@/components/UpiPaymentDialog";
 import { useAuth } from "@/contexts/AuthContext";
 import { useSettings } from "@/contexts/SettingsContext";
-import { getGstInclusivePrice, resolveAssetUrl, getAssetImageFallbackCandidates } from "@/lib/utils";
+import { getGstInclusivePrice, getMethoPriceDetails, resolveAssetUrl, getAssetImageFallbackCandidates } from "@/lib/utils";
 
 const normalizeYoutubeUrl = (value) => {
   const raw = String(value || "").trim();
@@ -120,9 +120,7 @@ const calcTieredSubtotal = (quantity, unitPrice, tiers) => {
 };
 
 const getCustomerUnitPrice = (product) => {
-  const productType = String(product?.product_type || "metho").toLowerCase();
-  const gstPercent = ["metho", "metho_service"].includes(productType) ? Number(product?.gst_percent || 0) : 0;
-  return getGstInclusivePrice(product?.price, gstPercent);
+  return getMethoPriceDetails(product).price;
 };
 
 const getCustomerPricingTiers = (product) => {
@@ -539,7 +537,15 @@ export default function ShopPage({ travelOnly = false }) {
                 {!isGalleryView && <p className="text-xs text-muted-foreground mt-1 line-clamp-3 font-body whitespace-pre-line">{p.description}</p>}
                 {isTourismService ? <div className="mt-3 flex items-center gap-3 text-[11px] font-semibold text-sky-800"><span className="inline-flex items-center gap-1"><CalendarDays className="w-3.5 h-3.5" /> Request date &amp; time</span><span className="inline-flex items-center gap-1"><MapPinned className="w-3.5 h-3.5" /> Booking support</span></div> : null}
                 <div className="mt-3 flex items-center justify-between">
-                  <span className="font-display font-black text-xl text-emerald-950">₹{getCustomerUnitPrice(p).toLocaleString("en-IN")}</span>
+                  <div>
+                    <span className="font-display font-black text-xl text-emerald-950">₹{getMethoPriceDetails(p).price.toLocaleString("en-IN")}</span>
+                    {getMethoPriceDetails(p).hasDiscount ? (
+                      <span className="mt-0.5 flex items-center gap-1.5">
+                        <span className="text-xs font-semibold text-slate-400 line-through">₹{getMethoPriceDetails(p).mrp.toLocaleString("en-IN")}</span>
+                        <span className="rounded-full bg-amber-100 px-1.5 py-0.5 text-[10px] font-bold text-amber-800">Save {getMethoPriceDetails(p).percent}%</span>
+                      </span>
+                    ) : null}
+                  </div>
                   {Number(p?.gst_percent || 0) > 0 ? <span className="text-[10px] text-amber-700 font-semibold">GST {Number(p.gst_percent)}% Included</span> : null}
                   <div className="flex items-center gap-1.5">
                     <span className={`text-xs px-2 py-0.5 rounded-full font-semibold ${isTourismService ? "bg-sky-100 text-sky-900" : "bg-amber-100 text-amber-900"}`}>{isTourismService ? "Bookable service" : "METHO"}</span>
@@ -630,7 +636,15 @@ export default function ShopPage({ travelOnly = false }) {
               <h3 className="font-display font-black text-emerald-950 text-xl mt-1">{previewProduct?.name || "Product"}</h3>
               {previewProduct?.description ? <p className="text-sm text-slate-600 mt-2 whitespace-pre-line">{previewProduct.description}</p> : <p className="text-sm text-slate-500 mt-2">No description provided.</p>}
               <div className="mt-3 flex items-center justify-between">
-                <span className="font-display font-black text-3xl text-emerald-950">₹{getCustomerUnitPrice(previewProduct).toLocaleString("en-IN")}</span>
+                <div>
+                  <span className="font-display font-black text-3xl text-emerald-950">₹{getMethoPriceDetails(previewProduct).price.toLocaleString("en-IN")}</span>
+                  {getMethoPriceDetails(previewProduct).hasDiscount ? (
+                    <span className="mt-1 flex items-center gap-2">
+                      <span className="text-sm font-semibold text-slate-400 line-through">₹{getMethoPriceDetails(previewProduct).mrp.toLocaleString("en-IN")}</span>
+                      <span className="rounded-full bg-amber-100 px-2 py-0.5 text-xs font-bold text-amber-800">{getMethoPriceDetails(previewProduct).percent}% OFF</span>
+                    </span>
+                  ) : null}
+                </div>
                 {Math.max(0, Number(previewProduct?.stock ?? 0)) <= 0 ? <span className="text-sm text-slate-500">Out of Stock</span> : null}
               </div>
               {getProductVideoUrl(previewProduct) ? (

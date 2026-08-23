@@ -10,7 +10,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import api from "@/services/api";
 import { methoStoreApi, normalizeCollection } from "@/services/methoStore";
 import { useSettings } from "@/contexts/SettingsContext";
-import { getGstInclusivePrice, resolveAssetUrl, getAssetImageFallbackCandidates } from "@/lib/utils";
+import { getMethoPriceDetails, resolveAssetUrl, getAssetImageFallbackCandidates } from "@/lib/utils";
 import { isCompletePincode, normalizePincode } from "@/lib/indiaLocation";
 import useDebouncedValue from "@/hooks/useDebouncedValue";
 
@@ -168,9 +168,7 @@ const formatVegetableQuantity = (quantity, product, measureUnit) => {
   return `${value} ${measureUnit}`;
 };
 const getCustomerUnitPrice = (product) => {
-  const productType = String(product?.product_type || "metho").toLowerCase();
-  const gstPercent = productType === "metho" ? Number(product?.gst_percent || 0) : 0;
-  return getGstInclusivePrice(product?.price, gstPercent);
+  return getMethoPriceDetails(product).price;
 };
 
 const useSectionActivation = (rootMargin = "240px 0px") => {
@@ -895,7 +893,10 @@ const Hero = () => {
                         <div className="mt-1.5 flex items-center justify-between">
                           {Number(p?.price) > 0 ? (
                             <>
-                              <span className="font-display font-black text-lg text-emerald-950">₹{getCustomerUnitPrice(p).toLocaleString("en-IN")}</span>
+                              <div>
+                                <span className="font-display font-black text-lg text-emerald-950">₹{getMethoPriceDetails(p).price.toLocaleString("en-IN")}</span>
+                                {getMethoPriceDetails(p).hasDiscount ? <span className="ml-1.5 text-[10px] font-semibold text-slate-400 line-through">₹{getMethoPriceDetails(p).mrp.toLocaleString("en-IN")}</span> : null}
+                              </div>
                               {Number(p?.gst_percent || 0) > 0 ? <span className="text-[10px] text-amber-700 font-semibold">GST {Number(p.gst_percent)}% Included</span> : null}
                             </>
                           ) : <span />}
@@ -1542,7 +1543,10 @@ const Products = () => {
                 <p className="text-[10px] uppercase tracking-wider text-emerald-800 font-semibold">{p.category}</p>
                 <h4 className="mt-1 font-display font-bold text-emerald-950 line-clamp-1">{p.name}</h4>
                 <div className="mt-2 flex items-center justify-between">
-                  <span className="font-display font-black text-base text-emerald-950">₹{getCustomerUnitPrice(p).toLocaleString("en-IN")}</span>
+                  <div>
+                    <span className="font-display font-black text-base text-emerald-950">₹{getMethoPriceDetails(p).price.toLocaleString("en-IN")}</span>
+                    {getMethoPriceDetails(p).hasDiscount ? <span className="ml-1.5 text-[10px] font-semibold text-slate-400 line-through">₹{getMethoPriceDetails(p).mrp.toLocaleString("en-IN")}</span> : null}
+                  </div>
                   {p.product_type === "associate_partner" ? (
                     <span className="text-xs bg-slate-100 text-slate-700 px-2 py-0.5 rounded-full font-semibold">Partner</span>
                   ) : (

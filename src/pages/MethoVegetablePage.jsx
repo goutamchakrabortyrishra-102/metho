@@ -9,7 +9,7 @@ import { Input } from "@/components/ui/input";
 import UpiPaymentDialog from "@/components/UpiPaymentDialog";
 import { useAuth } from "@/contexts/AuthContext";
 import { useSettings } from "@/contexts/SettingsContext";
-import { getGstInclusivePrice, resolveAssetUrl, getAssetImageFallbackCandidates } from "@/lib/utils";
+import { getMethoPriceDetails, getGstInclusivePrice, resolveAssetUrl, getAssetImageFallbackCandidates } from "@/lib/utils";
 
 const FALLBACK_IMAGE = "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 600 600'><rect width='600' height='600' fill='%23ecfdf5'/><text x='50%25' y='50%25' dominant-baseline='middle' text-anchor='middle' fill='%23166534' font-size='26' font-family='Arial, sans-serif'>METHO Vegetable</text></svg>";
 
@@ -145,15 +145,9 @@ const formatQuantity = (quantity, product) => {
   return label === "piece" ? `${text} pc` : `${text} ${label}`;
 };
 
-const getCustomerUnitPrice = (product) => getGstInclusivePrice(product?.price, Number(product?.gst_percent || 0));
+const getCustomerUnitPrice = (product) => getMethoPriceDetails(product).price;
 
-const getDiscountInfo = (product) => {
-  const gstPercent = Number(product?.gst_percent || 0);
-  const price = getCustomerUnitPrice(product);
-  const mrp = getGstInclusivePrice(Number(product?.mrp || 0), gstPercent);
-  const percent = Math.max(0, Number(product?.discount_percent || 0));
-  return { price, mrp, percent, hasDiscount: percent > 0 && mrp > price };
-};
+const getDiscountInfo = (product) => getMethoPriceDetails(product);
 
 const getCustomerPricingTiers = (product) => {
   const tiers = Array.isArray(product?.pricing_tiers) ? product.pricing_tiers : [];
