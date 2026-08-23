@@ -147,6 +147,14 @@ const formatQuantity = (quantity, product) => {
 
 const getCustomerUnitPrice = (product) => getGstInclusivePrice(product?.price, Number(product?.gst_percent || 0));
 
+const getDiscountInfo = (product) => {
+  const gstPercent = Number(product?.gst_percent || 0);
+  const price = getCustomerUnitPrice(product);
+  const mrp = getGstInclusivePrice(Number(product?.mrp || 0), gstPercent);
+  const percent = Math.max(0, Number(product?.discount_percent || 0));
+  return { price, mrp, percent, hasDiscount: percent > 0 && mrp > price };
+};
+
 const getCustomerPricingTiers = (product) => {
   const tiers = Array.isArray(product?.pricing_tiers) ? product.pricing_tiers : [];
   const gstPercent = Number(product?.gst_percent || 0);
@@ -416,6 +424,7 @@ export default function MethoVegetablePage() {
           {visibleProducts.map((p, i) => {
             const stock = getStock(p);
             const isOutOfStock = stock <= 0;
+            const discountInfo = getDiscountInfo(p);
             const rawImageRef = p?.image_url || p?.product_image_url || p?.image || p?.thumbnail_url || p?.thumb_url || "";
             const fallbackCandidates = getAssetImageFallbackCandidates(rawImageRef, [placeholder, FALLBACK_IMAGE]);
             return (
@@ -445,13 +454,26 @@ export default function MethoVegetablePage() {
                   <span className="absolute top-2 left-2 pointer-events-none text-[9px] font-bold uppercase tracking-widest px-2 py-1 rounded-full bg-emerald-600 text-white">
                     Vegetable
                   </span>
+                  {discountInfo.hasDiscount ? (
+                    <span className="absolute top-2 right-2 pointer-events-none rounded-full bg-amber-400 px-2 py-1 text-[10px] font-black text-emerald-950 shadow" data-testid={`vegetable-discount-badge-${i}`}>
+                      {discountInfo.percent}% OFF
+                    </span>
+                  ) : null}
                 </div>
                 <div className="p-4">
                   <p className="text-[10px] uppercase tracking-wider font-semibold text-emerald-800">{p.category}</p>
                   <h4 className="mt-1 font-display font-bold text-emerald-950 line-clamp-1">{p.name}</h4>
                   <p className="text-xs text-muted-foreground mt-1 line-clamp-2 font-body whitespace-pre-line">{p.description}</p>
-                  <div className="mt-3 flex items-center justify-between">
-                    <span className="font-display font-black text-xl text-emerald-950">₹{getCustomerUnitPrice(p).toLocaleString("en-IN")}{getUnitType(p) === "piece" ? "" : `/${getUnitType(p)}`}</span>
+                  <div className="mt-3 flex items-center justify-between gap-2">
+                    <div className="min-w-0">
+                      <span className="font-display font-black text-xl text-emerald-950">₹{getCustomerUnitPrice(p).toLocaleString("en-IN")}{getUnitType(p) === "piece" ? "" : `/${getUnitType(p)}`}</span>
+                      {discountInfo.hasDiscount ? (
+                        <span className="mt-0.5 flex flex-wrap items-center gap-1.5">
+                          <span className="text-xs font-semibold text-slate-400 line-through">₹{discountInfo.mrp.toLocaleString("en-IN")}{getUnitType(p) === "piece" ? "" : `/${getUnitType(p)}`}</span>
+                          <span className="rounded-full bg-amber-100 px-1.5 py-0.5 text-[10px] font-bold text-amber-800">Save {discountInfo.percent}%</span>
+                        </span>
+                      ) : null}
+                    </div>
                     {isOutOfStock ? (
                       <span className="text-[10px] px-2 py-0.5 rounded-full font-semibold bg-red-100 text-red-700">Out of Stock</span>
                     ) : null}
@@ -528,8 +550,16 @@ export default function MethoVegetablePage() {
               <p className="text-[10px] uppercase tracking-widest text-emerald-800 font-bold">{previewProduct?.category || "Vegetable"}</p>
               <h3 className="font-display font-black text-emerald-950 text-xl mt-1">{previewProduct?.name || "Vegetable"}</h3>
               {previewProduct?.description ? <p className="text-sm text-slate-600 mt-2 whitespace-pre-line">{previewProduct.description}</p> : <p className="text-sm text-slate-500 mt-2">No description provided.</p>}
-              <div className="mt-3 flex items-center justify-between">
-                <span className="font-display font-black text-3xl text-emerald-950">₹{getCustomerUnitPrice(previewProduct).toLocaleString("en-IN")}{getUnitType(previewProduct) === "piece" ? "" : `/${getUnitType(previewProduct)}`}</span>
+              <div className="mt-3 flex items-center justify-between gap-2">
+                <div>
+                  <span className="font-display font-black text-3xl text-emerald-950">₹{getCustomerUnitPrice(previewProduct).toLocaleString("en-IN")}{getUnitType(previewProduct) === "piece" ? "" : `/${getUnitType(previewProduct)}`}</span>
+                  {getDiscountInfo(previewProduct).hasDiscount ? (
+                    <span className="mt-1 flex items-center gap-2">
+                      <span className="text-sm font-semibold text-slate-400 line-through">₹{getDiscountInfo(previewProduct).mrp.toLocaleString("en-IN")}{getUnitType(previewProduct) === "piece" ? "" : `/${getUnitType(previewProduct)}`}</span>
+                      <span className="rounded-full bg-amber-100 px-2 py-0.5 text-xs font-bold text-amber-800">{getDiscountInfo(previewProduct).percent}% OFF</span>
+                    </span>
+                  ) : null}
+                </div>
                 {Math.max(0, Number(previewProduct?.stock ?? 0)) <= 0 ? <span className="text-sm text-slate-500">Out of Stock</span> : null}
               </div>
             </div>
