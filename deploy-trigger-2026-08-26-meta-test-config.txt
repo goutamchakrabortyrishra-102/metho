@@ -1,0 +1,7 @@
+Meta Lead Ads Test Configuration: Now makes actual Meta Graph API call
+- Fix Test Configuration button to verify credentials work with Meta API
+- Display Facebook page name on successful verification
+- Handle API errors gracefully with clear error messages
+- All backend tests pass (12/12)
+- Frontend build succeeds
+- Commit: 1052d1b
