@@ -6,6 +6,26 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from .database import Base
 
+CRM_STAGE_NEW = "NEW"
+CRM_STAGE_CONTACTED = "CONTACTED"
+CRM_STAGE_INTERESTED = "INTERESTED"
+CRM_STAGE_QUALIFIED = "QUALIFIED"
+CRM_STAGE_APPLICATION = "APPLICATION"
+CRM_STAGE_APPROVED = "APPROVED"
+CRM_STAGE_CONVERTED = "CONVERTED"
+CRM_STAGE_LOST = "LOST"
+
+CRM_ALLOWED_STAGES = {
+    CRM_STAGE_NEW,
+    CRM_STAGE_CONTACTED,
+    CRM_STAGE_INTERESTED,
+    CRM_STAGE_QUALIFIED,
+    CRM_STAGE_APPLICATION,
+    CRM_STAGE_APPROVED,
+    CRM_STAGE_CONVERTED,
+    CRM_STAGE_LOST,
+}
+
 
 def now_utc():
     return datetime.now(timezone.utc)
@@ -216,3 +236,93 @@ class UserReferral(Base):
     sponsor_user_id: Mapped[str] = mapped_column(String(36), ForeignKey("users.id"), nullable=False, index=True)
     sponsor_code: Mapped[str] = mapped_column(String(30), nullable=False, default="")
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now_utc)
+
+
+class CRMLead(Base):
+    __tablename__ = "crm_leads"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
+    lead_id: Mapped[str] = mapped_column(String(80), nullable=False, unique=True, index=True, default=lambda: f"CRM-{uuid.uuid4().hex[:8].upper()}")
+    business_name: Mapped[str] = mapped_column(String(255), nullable=False, default="")
+    business_type: Mapped[str] = mapped_column(String(120), nullable=False, default="")
+    contact_person: Mapped[str] = mapped_column(String(120), nullable=False, default="")
+    phone: Mapped[str] = mapped_column(String(50), nullable=False, default="", index=True)
+    whatsapp_no: Mapped[str] = mapped_column(String(50), nullable=False, default="", index=True)
+    email: Mapped[str] = mapped_column(String(255), nullable=False, default="")
+    address: Mapped[str] = mapped_column(Text, nullable=False, default="")
+    city: Mapped[str] = mapped_column(String(120), nullable=False, default="", index=True)
+    state: Mapped[str] = mapped_column(String(120), nullable=False, default="")
+    pincode: Mapped[str] = mapped_column(String(20), nullable=False, default="")
+    source: Mapped[str] = mapped_column(String(80), nullable=False, default="manual")
+    status: Mapped[str] = mapped_column(String(40), nullable=False, default=CRM_STAGE_NEW, index=True)
+    score: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    priority_bucket: Mapped[str] = mapped_column(String(20), nullable=False, default="Cold")
+    tags_json: Mapped[str] = mapped_column(Text, nullable=False, default="[]")
+    notes: Mapped[str] = mapped_column(Text, nullable=False, default="")
+    member_user_id: Mapped[str | None] = mapped_column(String(36), ForeignKey("users.id"), nullable=True, index=True)
+    partner_id: Mapped[str | None] = mapped_column(String(36), ForeignKey("associate_partners.id"), nullable=True, index=True)
+    partner_request_id: Mapped[str | None] = mapped_column(String(36), nullable=True, index=True)
+    converted_partner_id: Mapped[str | None] = mapped_column(String(36), ForeignKey("associate_partners.id"), nullable=True, index=True)
+    assigned_user_id: Mapped[str | None] = mapped_column(String(36), ForeignKey("users.id"), nullable=True, index=True)
+    last_contact_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True, index=True)
+    next_follow_up_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True, index=True)
+    follow_up_status: Mapped[str] = mapped_column(String(30), nullable=False, default="Pending")
+    created_by_user_id: Mapped[str | None] = mapped_column(String(36), ForeignKey("users.id"), nullable=True, index=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now_utc, index=True)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now_utc, onupdate=now_utc, index=True)
+
+    member: Mapped[User | None] = relationship("User", foreign_keys=[member_user_id])
+    creator: Mapped[User | None] = relationship("User", foreign_keys=[created_by_user_id])
+    converted_partner: Mapped[AssociatePartner | None] = relationship("AssociatePartner", foreign_keys=[converted_partner_id])
+    assignee: Mapped[User | None] = relationship("User", foreign_keys=[assigned_user_id])
+
+
+class CRMLeadActivity(Base):
+    __tablename__ = "crm_lead_activities"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
+    lead_id: Mapped[str] = mapped_column(String(36), ForeignKey("crm_leads.id"), nullable=False, index=True)
+    activity_type: Mapped[str] = mapped_column(String(40), nullable=False, default="note")
+    message: Mapped[str] = mapped_column(Text, nullable=False, default="")
+    actor_user_id: Mapped[str | None] = mapped_column(String(36), ForeignKey("users.id"), nullable=True, index=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now_utc, index=True)
+
+
+class CRMFollowUp(Base):
+    __tablename__ = "crm_follow_ups"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
+    lead_id: Mapped[str] = mapped_column(String(36), ForeignKey("crm_leads.id"), nullable=False, index=True)
+    scheduled_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True, index=True)
+    status: Mapped[str] = mapped_column(String(30), nullable=False, default="Pending")
+    notes: Mapped[str] = mapped_column(Text, nullable=False, default="")
+    created_by_user_id: Mapped[str | None] = mapped_column(String(36), ForeignKey("users.id"), nullable=True, index=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now_utc, index=True)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now_utc, onupdate=now_utc)
+
+
+class CRMTask(Base):
+    __tablename__ = "crm_tasks"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
+    title: Mapped[str] = mapped_column(String(255), nullable=False)
+    description: Mapped[str] = mapped_column(Text, nullable=False, default="")
+    due_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, index=True)
+    status: Mapped[str] = mapped_column(String(30), nullable=False, default="Pending", index=True)
+    priority: Mapped[str] = mapped_column(String(20), nullable=False, default="Medium")
+    lead_id: Mapped[str | None] = mapped_column(String(36), ForeignKey("crm_leads.id"), nullable=True, index=True)
+    customer_user_id: Mapped[str | None] = mapped_column(String(36), ForeignKey("users.id"), nullable=True, index=True)
+    assigned_user_id: Mapped[str] = mapped_column(String(36), ForeignKey("users.id"), nullable=False, index=True)
+    created_by_user_id: Mapped[str] = mapped_column(String(36), ForeignKey("users.id"), nullable=False, index=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now_utc, index=True)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now_utc, onupdate=now_utc)
+
+
+class CRMLeadSnapshot(Base):
+    __tablename__ = "crm_lead_snapshots"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
+    lead_id: Mapped[str] = mapped_column(String(36), ForeignKey("crm_leads.id"), nullable=False, index=True)
+    snapshot_type: Mapped[str] = mapped_column(String(40), nullable=False, default="member_profile")
+    payload_json: Mapped[str] = mapped_column(Text, nullable=False, default="{}")
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now_utc, index=True)

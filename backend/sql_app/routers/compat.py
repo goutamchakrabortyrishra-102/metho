@@ -25,7 +25,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from ..database import get_db
-from ..models import AppSetting, AssociatePartner, FinancialLedgerEntry, InvoiceRecord, Order, PartnerProduct, PartnerRequest, PaymentRecord, Product, ProductMeta, PublicOrder, RewardRecord, User, UserReferral
+from ..models import AppSetting, AssociatePartner, CRMLead, CRMLeadActivity, FinancialLedgerEntry, InvoiceRecord, Order, PartnerProduct, PartnerRequest, PaymentRecord, Product, ProductMeta, PublicOrder, RewardRecord, User, UserReferral
 from ..security import hash_password, verify_password
 from ..storage import UPLOADED_OBJECTS_DIR
 from .auth import ADMIN_LOGIN_ID, get_current_user, get_current_user_optional
@@ -8076,6 +8076,13 @@ def admin_partner_request_approve(request_id: str, payload: dict | None = None, 
             ))
 
     req.status = "approved"
+    linked_crm_leads = db.query(CRMLead).filter(CRMLead.partner_request_id == req.id).all()
+    for lead in linked_crm_leads:
+        lead.converted_partner_id = partner.id
+        lead.partner_id = partner.id
+        lead.status = "CONVERTED"
+        lead.updated_at = datetime.now(timezone.utc)
+        db.add(CRMLeadActivity(lead_id=lead.id, activity_type="partner_approved", message=f"Partner approved through official PartnerRequest flow: {partner.partner_code}", actor_user_id=current_user.id))
     db.commit()
 
     partner_code = str(getattr(partner, "partner_code", "") or "")

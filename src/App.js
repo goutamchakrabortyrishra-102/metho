@@ -28,6 +28,10 @@ const loadMonthlySettlementPage = () => import("@/pages/dashboard/MonthlySettlem
 const loadAccountsPage = () => import("@/pages/dashboard/AccountsPage");
 const loadMPSClaimsPage = () => import("@/pages/dashboard/MPSClaimsPage");
 const loadPartnersPage = () => import("@/pages/dashboard/PartnersPage");
+const loadCRMLeadsPage = () => import("@/pages/dashboard/CRMLeadsPage");
+const loadCRMPipelinePage = () => import("@/pages/dashboard/CRMPipelinePage");
+const loadMember360Page = () => import("@/pages/dashboard/Member360Page");
+const loadCEODashboardPage = () => import("@/pages/dashboard/CEODashboardPage");
 const loadProductApprovalsPage = () => import("@/pages/dashboard/ProductApprovalsPage");
 const loadPartnerApprovalsPage = () => import("@/pages/dashboard/PartnerApprovalsPage");
 const loadAIUpgradePage = () => import("@/pages/dashboard/AIUpgradePage");
@@ -99,6 +103,10 @@ const MonthlySettlementPage = lazy(loadMonthlySettlementPage);
 const AccountsPage = lazy(loadAccountsPage);
 const MPSClaimsPage = lazy(loadMPSClaimsPage);
 const PartnersPage = lazy(loadPartnersPage);
+const CRMLeadsPage = lazy(loadCRMLeadsPage);
+const CRMPipelinePage = lazy(loadCRMPipelinePage);
+const Member360Page = lazy(loadMember360Page);
+const CEODashboardPage = lazy(loadCEODashboardPage);
 const ProductApprovalsPage = lazy(loadProductApprovalsPage);
 const PartnerApprovalsPage = lazy(loadPartnerApprovalsPage);
 const AIUpgradePage = lazy(loadAIUpgradePage);
@@ -384,6 +392,10 @@ function App() {
                 <Route path="settlement" element={<AdminRoute><MonthlySettlementPage /></AdminRoute>} />
                 <Route path="mps-claims" element={<AdminRoute><MPSClaimsPage /></AdminRoute>} />
                 <Route path="partners" element={<AdminRoute><PartnersPage /></AdminRoute>} />
+                <Route path="crm/leads" element={<AdminRoute><CRMLeadsPage /></AdminRoute>} />
+                <Route path="crm/pipeline" element={<AdminRoute><CRMPipelinePage /></AdminRoute>} />
+                <Route path="members/:memberId/360" element={<AdminRoute><Member360Page /></AdminRoute>} />
+                <Route path="ceo-dashboard" element={<AdminRoute><CEODashboardPage /></AdminRoute>} />
                 <Route path="metho-store-admin" element={<AdminRoute><MethoStoreAdminPage /></AdminRoute>} />
                 <Route path="company-inventory" element={<AdminRoute><CompanyInventoryPage /></AdminRoute>} />
                 <Route path="partner-approvals" element={<AdminRoute><PartnerApprovalsPage /></AdminRoute>} />
