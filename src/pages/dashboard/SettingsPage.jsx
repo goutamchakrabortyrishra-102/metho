@@ -1072,6 +1072,7 @@ export default function SettingsPage() {
 
   const updateMetaField = (key) => (value) => setMetaForm((prev) => ({ ...prev, [key]: value }));
   const saveMeta = async () => {
+    if (!metaForm || metaBusy) return;
     setMetaBusy(true);
     setMetaMessage("");
     try {
@@ -1083,6 +1084,11 @@ export default function SettingsPage() {
     } finally {
       setMetaBusy(false);
     }
+  };
+  const handleMetaSave = (event) => {
+    event.preventDefault();
+    event.stopPropagation();
+    void saveMeta();
   };
   const testMeta = async () => {
     setMetaBusy(true);
@@ -1499,7 +1505,7 @@ export default function SettingsPage() {
                 <Field label="Graph API Version" testId="settings-meta-graph-version" value={metaForm.graph_api_version} onChange={updateMetaField("graph_api_version")} type="text" />
                 <div><Label>Default CRM Assignee</Label><select value={metaForm.default_assignee_id || ""} onChange={(e) => setMetaForm({ ...metaForm, default_assignee_id: e.target.value })} className="mt-1.5 h-11 w-full rounded-md border border-input px-3"><option value="">First active admin</option>{metaAssignees.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</select></div>
                 {[["verify_token", "Webhook Verify Token"], ["app_secret", "App Secret"], ["access_token", "Page Access Token"]].map(([key, label]) => <div key={key}><Label>{label}</Label><Input type="password" value={metaForm[key] || ""} onChange={updateMetaField(key)} placeholder={metaForm[`${key}_masked`] || "Leave empty to keep existing"} className="mt-1.5 h-11" /></div>)}
-                <div className="md:col-span-2 flex flex-wrap items-center gap-2"><Button type="button" onClick={saveMeta} disabled={metaBusy}>Save Configuration</Button><Button type="button" variant="outline" onClick={testMeta} disabled={metaBusy}>Test Configuration</Button>{metaMessage ? <span className="text-xs text-slate-600">{metaMessage}</span> : null}</div>
+                <div className="md:col-span-2 flex flex-wrap items-center gap-2"><Button type="button" onClick={handleMetaSave} disabled={metaBusy}>Save Configuration</Button><Button type="button" variant="outline" onClick={testMeta} disabled={metaBusy}>Test Configuration</Button>{metaMessage ? <span className="text-xs text-slate-600">{metaMessage}</span> : null}</div>
               </Section>
             ) : null}
               <Label className="flex items-center gap-2">

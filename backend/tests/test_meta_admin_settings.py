@@ -94,3 +94,12 @@ def test_meta_text_field_handler_accepts_field_value_contract():
     content = handler_source.read_text(encoding="utf-8")
     assert "const updateMetaField = (key) => (value)" in content
     assert "event.target.value" not in content[content.index("const updateMetaField"):content.index("const saveMeta")]
+
+
+def test_meta_save_uses_explicit_button_event_boundary_and_put_endpoint():
+    source = (Path(__file__).resolve().parents[2] / "src" / "pages" / "dashboard" / "SettingsPage.jsx").read_text(encoding="utf-8")
+    assert "const handleMetaSave = (event)" in source
+    assert "event.preventDefault();" in source[source.index("const handleMetaSave"):source.index("if (loading")]
+    assert "event.stopPropagation();" in source[source.index("const handleMetaSave"):source.index("if (loading")]
+    assert 'onClick={handleMetaSave}' in source
+    assert 'api.put("/admin/settings/meta", metaForm)' in source
