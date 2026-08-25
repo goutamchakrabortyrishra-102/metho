@@ -1096,7 +1096,9 @@ export default function SettingsPage() {
       setMetaForm((prev) => ({ ...prev, ...data, verify_token: "", app_secret: "", access_token: "" }));
       setMetaMessage("Meta Lead Ads configuration saved.");
     } catch (err) {
-      setMetaMessage(err?.response?.data?.detail || "Meta configuration could not be saved");
+      const status = err?.response?.status;
+      const detail = err?.response?.data?.detail;
+      setMetaMessage(detail ? `Meta configuration could not be saved (${status || "error"}): ${detail}` : `Meta configuration could not be saved (${status || "network error"})`);
     } finally {
       setMetaBusy(false);
     }
