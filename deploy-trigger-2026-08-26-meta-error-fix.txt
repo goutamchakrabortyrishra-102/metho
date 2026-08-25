@@ -1,0 +1,5 @@
+Meta API: Improved error handling and token cleanup
+- Extract actual error details from Meta API responses
+- Strip whitespace from all config values
+- Better debugging for HTTP 400 and other API errors
+- Commit: 089f53d
