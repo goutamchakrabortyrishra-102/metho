@@ -45,10 +45,10 @@ def load_db_config(db) -> dict:
         return {}
     if not isinstance(payload, dict):
         return {}
-    result = {key: payload.get(key) for key in ("enabled", "page_id", "app_id", "graph_api_version", "default_assignee_id") if key in payload}
+    result = {key: str(payload.get(key) or "").strip() for key in ("enabled", "page_id", "app_id", "graph_api_version", "default_assignee_id") if key in payload}
     for key in ("verify_token", "app_secret", "access_token"):
         if payload.get(key):
-            result[key] = decrypt_secret(payload[key])
+            result[key] = decrypt_secret(payload[key]).strip()
     return result
 
 
@@ -93,6 +93,8 @@ def test_meta_config(db=None) -> dict:
     Returns dict with 'ok', 'page_name', 'page_id', 'graph_api_version'.
     Raises RuntimeError if test fails.
     """
+    from urllib.error import HTTPError
+
     config = resolve_config(db)
     token = config.get("access_token")
     page_id = config.get("page_id")
@@ -107,6 +109,17 @@ def test_meta_config(db=None) -> dict:
     try:
         with urlopen(request, timeout=10) as response:
             payload = json.loads(response.read().decode("utf-8"))
+    except HTTPError as exc:
+        try:
+            error_response = json.loads(exc.read().decode("utf-8"))
+            error_detail = error_response.get("error", {})
+            if isinstance(error_detail, dict):
+                error_msg = error_detail.get("message", str(exc))
+            else:
+                error_msg = str(error_detail)
+        except Exception:
+            error_msg = str(exc)
+        raise RuntimeError(f"Meta API error: {error_msg}") from exc
     except Exception as exc:
         raise RuntimeError(f"Meta API request failed: {str(exc)}") from exc
 
