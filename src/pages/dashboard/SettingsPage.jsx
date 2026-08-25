@@ -695,6 +695,10 @@ export default function SettingsPage() {
   const [form, setForm] = useState(null);
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [metaForm, setMetaForm] = useState(null);
+  const [metaAssignees, setMetaAssignees] = useState([]);
+  const [metaBusy, setMetaBusy] = useState(false);
+  const [metaMessage, setMetaMessage] = useState("");
   const [landingPartnerOptions, setLandingPartnerOptions] = useState([]);
   const [landingPartnerOptionsLoading, setLandingPartnerOptionsLoading] = useState(false);
 
@@ -711,6 +715,22 @@ export default function SettingsPage() {
     setLoading(true);
     api.get("/settings").then((r) => setForm(r.data)).finally(() => setLoading(false));
   }, []);
+
+  useEffect(() => {
+    if (!isAdmin(user)) return undefined;
+    Promise.all([api.get("/admin/settings/meta"), api.get("/admin/crm/assignees")])
+      .then(([settingsResponse, assigneeResponse]) => {
+        setMetaForm({
+          ...settingsResponse.data,
+          verify_token: "",
+          app_secret: "",
+          access_token: "",
+        });
+        setMetaAssignees(Array.isArray(assigneeResponse.data?.items) ? assigneeResponse.data.items : []);
+      })
+      .catch(() => setMetaForm(null));
+    return undefined;
+  }, [user]);
 
   useEffect(() => {
     let active = true;
@@ -1047,6 +1067,33 @@ export default function SettingsPage() {
       toast.error(err?.response?.data?.detail || "Save failed");
     } finally {
       setSaving(false);
+    }
+  };
+
+  const updateMetaField = (key) => (event) => setMetaForm((prev) => ({ ...prev, [key]: event.target.value }));
+  const saveMeta = async () => {
+    setMetaBusy(true);
+    setMetaMessage("");
+    try {
+      const { data } = await api.put("/admin/settings/meta", metaForm);
+      setMetaForm((prev) => ({ ...prev, ...data, verify_token: "", app_secret: "", access_token: "" }));
+      setMetaMessage("Meta Lead Ads configuration saved.");
+    } catch (err) {
+      setMetaMessage(err?.response?.data?.detail || "Meta configuration could not be saved");
+    } finally {
+      setMetaBusy(false);
+    }
+  };
+  const testMeta = async () => {
+    setMetaBusy(true);
+    setMetaMessage("");
+    try {
+      const { data } = await api.post("/admin/settings/meta/test");
+      setMetaMessage(data?.ok ? "Meta configuration is complete. No external API call was made." : `Missing: ${(data?.missing || []).join(", ")}`);
+    } catch (err) {
+      setMetaMessage(err?.response?.data?.detail || "Meta configuration test failed");
+    } finally {
+      setMetaBusy(false);
     }
   };
 
@@ -1440,6 +1487,21 @@ export default function SettingsPage() {
               <p className="mt-1">Enable করলে checkout-এ "Pay Now with Razorpay" button দেখাবে। Manual UPI proof flow আগের মতোই থাকবে।</p>
             </div>
             <div>
+
+            {!readOnly && metaForm ? (
+              <Section title="Meta Lead Ads" subtitle="Configure Facebook Lead Ads without editing source code or environment files." icon={SettingsIcon} badge="Admin">
+                <div className="md:col-span-2 rounded-lg border border-amber-200 bg-amber-50 p-3 text-xs text-amber-900">
+                  Secrets are stored securely and are never displayed in full.
+                </div>
+                <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={metaForm.enabled !== false} onChange={(e) => setMetaForm({ ...metaForm, enabled: e.target.checked })} /> Enable Meta Lead Integration</label>
+                <Field label="Facebook Page ID" testId="settings-meta-page-id" value={metaForm.page_id} onChange={updateMetaField("page_id")} type="text" />
+                <Field label="Meta App ID" testId="settings-meta-app-id" value={metaForm.app_id} onChange={updateMetaField("app_id")} type="text" />
+                <Field label="Graph API Version" testId="settings-meta-graph-version" value={metaForm.graph_api_version} onChange={updateMetaField("graph_api_version")} type="text" />
+                <div><Label>Default CRM Assignee</Label><select value={metaForm.default_assignee_id || ""} onChange={(e) => setMetaForm({ ...metaForm, default_assignee_id: e.target.value })} className="mt-1.5 h-11 w-full rounded-md border border-input px-3"><option value="">First active admin</option>{metaAssignees.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</select></div>
+                {[["verify_token", "Webhook Verify Token"], ["app_secret", "App Secret"], ["access_token", "Page Access Token"]].map(([key, label]) => <div key={key}><Label>{label}</Label><Input type="password" value={metaForm[key] || ""} onChange={updateMetaField(key)} placeholder={metaForm[`${key}_masked`] || "Leave empty to keep existing"} className="mt-1.5 h-11" /></div>)}
+                <div className="md:col-span-2 flex flex-wrap items-center gap-2"><Button type="button" onClick={saveMeta} disabled={metaBusy}>Save Configuration</Button><Button type="button" variant="outline" onClick={testMeta} disabled={metaBusy}>Test Configuration</Button>{metaMessage ? <span className="text-xs text-slate-600">{metaMessage}</span> : null}</div>
+              </Section>
+            ) : null}
               <Label className="flex items-center gap-2">
                 <input
                   type="checkbox"

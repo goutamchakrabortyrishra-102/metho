@@ -7,14 +7,14 @@ from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from sqlalchemy.orm import Session
 
 from ..database import get_db
-from ..meta_ads import fetch_lead, normalize_lead, verify_signature, verify_webhook_token, webhook_lead_ids
+from ..meta_ads import fetch_lead, normalize_lead, resolve_config, verify_signature, verify_webhook_token, webhook_lead_ids
 from ..models import CRMFollowUp, CRMLead, CRMLeadActivity, CRMTask, User
 
 router = APIRouter(prefix="/api", tags=["meta-ads"])
 
 
 def _admin_assignee(db: Session) -> User | None:
-    configured = str(os.getenv("META_CRM_DEFAULT_ASSIGNEE_ID", "") or "").strip()
+    configured = resolve_config(db).get("default_assignee_id")
     query = db.query(User).filter(User.role.in_(["super_admin", "company_admin", "admin"]), User.is_active.is_(True))
     if configured:
         return query.filter(User.id == configured).first()
@@ -74,7 +74,12 @@ def verify_meta_webhook(mode: str | None = Query(default=None, alias="hub.mode")
 @router.post("/webhooks/facebook")
 async def receive_meta_webhook(request: Request, db: Session = Depends(get_db)):
     body = await request.body()
-    if not verify_signature(body, request.headers.get("X-Hub-Signature-256")):
+    try:
+        signature_valid = verify_signature(body, request.headers.get("X-Hub-Signature-256"), db)
+    except Exception as exc:
+        db.rollback()
+        raise HTTPException(status_code=503, detail="Meta webhook configuration unavailable") from exc
+    if not signature_valid:
         raise HTTPException(status_code=403, detail="Invalid webhook signature")
     try:
         payload = json.loads(body.decode("utf-8"))
@@ -94,7 +99,7 @@ async def receive_meta_webhook(request: Request, db: Session = Depends(get_db)):
             if not lead_id:
                 continue
             try:
-                meta_payload = fetch_lead(lead_id)
+                meta_payload = fetch_lead(lead_id, db)
             except Exception as exc:
                 raise HTTPException(status_code=502, detail="Meta lead could not be retrieved") from exc
             try:

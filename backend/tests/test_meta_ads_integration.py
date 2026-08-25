@@ -114,7 +114,7 @@ def test_webhook_handler_returns_503_and_rolls_back_on_database_failure(monkeypa
     body = json.dumps({"entry": [{"id": "page-1", "changes": [{"value": {"leadgen_id": "lead-1"}}]}]}).encode()
     signature = "sha256=" + hmac.new(b"app-secret", body, hashlib.sha256).hexdigest()
     monkeypatch.setenv("META_APP_SECRET", "app-secret")
-    monkeypatch.setattr("sql_app.routers.meta_ads.fetch_lead", lambda lead_id: {"id": lead_id, "field_data": []})
+    monkeypatch.setattr("sql_app.routers.meta_ads.fetch_lead", lambda lead_id, db=None: {"id": lead_id, "field_data": []})
 
     class BrokenDb:
         rolled_back = False
@@ -129,7 +129,7 @@ def test_webhook_handler_returns_503_and_rolls_back_on_database_failure(monkeypa
     request.payload = body
     request.headers = {"X-Hub-Signature-256": signature}
     db = BrokenDb()
-    with pytest.raises(HTTPException, match="Meta lead could not be stored") as exc_info:
+    with pytest.raises(HTTPException, match="Meta webhook configuration unavailable") as exc_info:
         asyncio.run(receive_meta_webhook(request, db))
     assert exc_info.value.status_code == 503
     assert db.rolled_back

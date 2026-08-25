@@ -1,13 +1,17 @@
 import json
+import os
 from datetime import datetime, timezone
 
-from fastapi import APIRouter, Depends, Header
+from fastapi import APIRouter, Depends, Header, HTTPException
 from sqlalchemy.orm import Session
 
 from ..database import get_db
 from ..models import AppSetting
+from ..meta_ads import encrypt_secret, resolve_config
+from .auth import get_current_user
 
 router = APIRouter(prefix="/api", tags=["settings"])
+ADMIN_ROLES = {"super_admin", "company_admin", "admin"}
 
 PUBLIC_SETTINGS_EXCLUDE_KEYS = {
     "razorpay_key_secret",
@@ -243,3 +247,75 @@ def get_settings(authorization: str | None = Header(default=None), db: Session =
 @router.get("/settings/public")
 def get_public_settings(db: Session = Depends(get_db)):
     return _sanitize_public_settings(load_settings(db))
+
+
+def _require_admin(current_user):
+    if getattr(current_user, "role", "") not in ADMIN_ROLES:
+        raise HTTPException(status_code=403, detail="Admin access required")
+
+
+def _mask_secret(value: str) -> str:
+    text = str(value or "")
+    return f"{'*' * max(8, len(text) - 4)}{text[-4:]}" if text else ""
+
+
+@router.get("/admin/settings/meta")
+def get_meta_settings(db: Session = Depends(get_db), current_user=Depends(get_current_user)):
+    _require_admin(current_user)
+    config = resolve_config(db)
+    return {
+        "enabled": config["enabled"],
+        "page_id": config["page_id"],
+        "app_id": config["app_id"],
+        "graph_api_version": config["graph_api_version"],
+        "default_assignee_id": config["default_assignee_id"],
+        "verify_token_masked": _mask_secret(config["verify_token"]),
+        "app_secret_masked": _mask_secret(config["app_secret"]),
+        "access_token_masked": _mask_secret(config["access_token"]),
+        "configured": bool(config["verify_token"] and config["app_secret"] and config["access_token"] and config["page_id"]),
+    }
+
+
+@router.put("/admin/settings/meta")
+def update_meta_settings(payload: dict, db: Session = Depends(get_db), current_user=Depends(get_current_user)):
+    _require_admin(current_user)
+    data = payload if isinstance(payload, dict) else {}
+    current_row = db.query(AppSetting).filter(AppSetting.key == "meta_integration").first()
+    try:
+        current = json.loads(current_row.value_json or "{}") if current_row else {}
+    except json.JSONDecodeError:
+        current = {}
+    next_config = {
+        "enabled": bool(data.get("enabled", current.get("enabled", True))),
+        "page_id": str(data.get("page_id", current.get("page_id", "")) or "").strip(),
+        "app_id": str(data.get("app_id", current.get("app_id", "")) or "").strip(),
+        "graph_api_version": str(data.get("graph_api_version", current.get("graph_api_version", "v20.0")) or "v20.0").strip(),
+        "default_assignee_id": str(data.get("default_assignee_id", current.get("default_assignee_id", "")) or "").strip(),
+    }
+    secret_update_requested = any(str(data.get(field) or "").strip() for field in ("verify_token", "app_secret", "access_token"))
+    if secret_update_requested and not os.getenv("META_SETTINGS_ENCRYPTION_KEY", "").strip():
+        raise HTTPException(status_code=503, detail="META_SETTINGS_ENCRYPTION_KEY is required to save Meta secrets")
+    for field in ("verify_token", "app_secret", "access_token"):
+        value = str(data.get(field) or "").strip()
+        if value:
+            next_config[field] = encrypt_secret(value)
+        elif current.get(field):
+            next_config[field] = current[field]
+    if not current_row:
+        current_row = AppSetting(key="meta_integration", value_json=json.dumps(next_config), updated_at=datetime.now(timezone.utc))
+        db.add(current_row)
+    else:
+        current_row.value_json = json.dumps(next_config)
+        current_row.updated_at = datetime.now(timezone.utc)
+    db.commit()
+    return get_meta_settings(db, current_user)
+
+
+@router.post("/admin/settings/meta/test")
+def run_meta_settings_test(db: Session = Depends(get_db), current_user=Depends(get_current_user)):
+    _require_admin(current_user)
+    config = resolve_config(db)
+    missing = [key for key in ("verify_token", "app_secret", "access_token", "page_id") if not config.get(key)]
+    if missing:
+        return {"ok": False, "configured": False, "missing": missing}
+    return {"ok": True, "configured": True, "page_id": config["page_id"], "graph_api_version": config["graph_api_version"], "message": "Meta configuration is present; no external API call was made."}
