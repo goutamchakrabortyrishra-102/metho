@@ -87,3 +87,10 @@ def test_secret_update_requires_encryption_key(monkeypatch):
             update_meta_settings({"access_token": "secret"}, db, admin())
     finally:
         db.close()
+
+
+def test_meta_text_field_handler_accepts_field_value_contract():
+    handler_source = Path(__file__).resolve().parents[2] / "src" / "pages" / "dashboard" / "SettingsPage.jsx"
+    content = handler_source.read_text(encoding="utf-8")
+    assert "const updateMetaField = (key) => (value)" in content
+    assert "event.target.value" not in content[content.index("const updateMetaField"):content.index("const saveMeta")]

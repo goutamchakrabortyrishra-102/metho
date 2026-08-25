@@ -1070,7 +1070,7 @@ export default function SettingsPage() {
     }
   };
 
-  const updateMetaField = (key) => (event) => setMetaForm((prev) => ({ ...prev, [key]: event.target.value }));
+  const updateMetaField = (key) => (value) => setMetaForm((prev) => ({ ...prev, [key]: value }));
   const saveMeta = async () => {
     setMetaBusy(true);
     setMetaMessage("");
