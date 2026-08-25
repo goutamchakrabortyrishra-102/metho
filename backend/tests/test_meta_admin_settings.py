@@ -110,5 +110,13 @@ def test_meta_input_handler_normalizes_events_and_save_payload_excludes_masked_f
     handler = source[source.index("const updateMetaField"):source.index("const testMeta")]
     assert "valueOrEvent?.target" in handler
     assert "verify_token_masked" not in handler[handler.index("const payload"):handler.index("const { data }")]
-    assert "typeof metaForm.app_secret === \"string\"" in handler
-    assert "typeof metaForm.access_token === \"string\"" in handler
+    assert "typeof metaForm[key] === \"string\"" in handler
+
+
+def test_meta_save_payload_omits_empty_secrets_to_preserve_existing_values():
+    source = (Path(__file__).resolve().parents[2] / "src" / "pages" / "dashboard" / "SettingsPage.jsx").read_text(encoding="utf-8")
+    payload_block = source[source.index("const payload = {"):source.index("const { data }", source.index("const payload = {"))]
+    assert "if (value) payload[key] = value;" in payload_block
+    assert 'verify_token: ""' not in payload_block
+    assert 'app_secret: ""' not in payload_block
+    assert 'access_token: ""' not in payload_block

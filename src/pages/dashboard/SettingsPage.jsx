@@ -1087,10 +1087,11 @@ export default function SettingsPage() {
         app_id: String(metaForm.app_id || "").trim(),
         graph_api_version: String(metaForm.graph_api_version || "").trim(),
         default_assignee_id: String(metaForm.default_assignee_id || "").trim(),
-        verify_token: typeof metaForm.verify_token === "string" ? metaForm.verify_token.trim() : "",
-        app_secret: typeof metaForm.app_secret === "string" ? metaForm.app_secret.trim() : "",
-        access_token: typeof metaForm.access_token === "string" ? metaForm.access_token.trim() : "",
       };
+      ["verify_token", "app_secret", "access_token"].forEach((key) => {
+        const value = typeof metaForm[key] === "string" ? metaForm[key].trim() : "";
+        if (value) payload[key] = value;
+      });
       const { data } = await api.put("/admin/settings/meta", payload);
       setMetaForm((prev) => ({ ...prev, ...data, verify_token: "", app_secret: "", access_token: "" }));
       setMetaMessage("Meta Lead Ads configuration saved.");
