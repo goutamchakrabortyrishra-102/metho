@@ -92,7 +92,7 @@ def test_secret_update_requires_encryption_key(monkeypatch):
 def test_meta_text_field_handler_accepts_field_value_contract():
     handler_source = Path(__file__).resolve().parents[2] / "src" / "pages" / "dashboard" / "SettingsPage.jsx"
     content = handler_source.read_text(encoding="utf-8")
-    assert "const updateMetaField = (key) => (value)" in content
+    assert "const updateMetaField = (key) => (valueOrEvent)" in content
     assert "event.target.value" not in content[content.index("const updateMetaField"):content.index("const saveMeta")]
 
 
@@ -102,4 +102,13 @@ def test_meta_save_uses_explicit_button_event_boundary_and_put_endpoint():
     assert "event.preventDefault();" in source[source.index("const handleMetaSave"):source.index("if (loading")]
     assert "event.stopPropagation();" in source[source.index("const handleMetaSave"):source.index("if (loading")]
     assert 'onClick={handleMetaSave}' in source
-    assert 'api.put("/admin/settings/meta", metaForm)' in source
+    assert 'api.put("/admin/settings/meta", payload)' in source
+
+
+def test_meta_input_handler_normalizes_events_and_save_payload_excludes_masked_fields():
+    source = (Path(__file__).resolve().parents[2] / "src" / "pages" / "dashboard" / "SettingsPage.jsx").read_text(encoding="utf-8")
+    handler = source[source.index("const updateMetaField"):source.index("const testMeta")]
+    assert "valueOrEvent?.target" in handler
+    assert "verify_token_masked" not in handler[handler.index("const payload"):handler.index("const { data }")]
+    assert "typeof metaForm.app_secret === \"string\"" in handler
+    assert "typeof metaForm.access_token === \"string\"" in handler

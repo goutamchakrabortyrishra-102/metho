@@ -1070,13 +1070,28 @@ export default function SettingsPage() {
     }
   };
 
-  const updateMetaField = (key) => (value) => setMetaForm((prev) => ({ ...prev, [key]: value }));
+  const updateMetaField = (key) => (valueOrEvent) => {
+    const value = valueOrEvent?.target && typeof valueOrEvent.target.value === "string"
+      ? valueOrEvent.target.value
+      : valueOrEvent;
+    setMetaForm((prev) => ({ ...prev, [key]: value }));
+  };
   const saveMeta = async () => {
     if (!metaForm || metaBusy) return;
     setMetaBusy(true);
     setMetaMessage("");
     try {
-      const { data } = await api.put("/admin/settings/meta", metaForm);
+      const payload = {
+        enabled: metaForm.enabled !== false,
+        page_id: String(metaForm.page_id || "").trim(),
+        app_id: String(metaForm.app_id || "").trim(),
+        graph_api_version: String(metaForm.graph_api_version || "").trim(),
+        default_assignee_id: String(metaForm.default_assignee_id || "").trim(),
+        verify_token: typeof metaForm.verify_token === "string" ? metaForm.verify_token.trim() : "",
+        app_secret: typeof metaForm.app_secret === "string" ? metaForm.app_secret.trim() : "",
+        access_token: typeof metaForm.access_token === "string" ? metaForm.access_token.trim() : "",
+      };
+      const { data } = await api.put("/admin/settings/meta", payload);
       setMetaForm((prev) => ({ ...prev, ...data, verify_token: "", app_secret: "", access_token: "" }));
       setMetaMessage("Meta Lead Ads configuration saved.");
     } catch (err) {
