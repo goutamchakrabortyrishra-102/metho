@@ -7,7 +7,7 @@ from sqlalchemy.orm import Session
 
 from ..database import get_db
 from ..models import AppSetting
-from ..meta_ads import encrypt_secret, resolve_config
+from ..meta_ads import encrypt_secret, resolve_config, test_meta_config
 from .auth import get_current_user
 
 router = APIRouter(prefix="/api", tags=["settings"])
@@ -318,4 +318,8 @@ def run_meta_settings_test(db: Session = Depends(get_db), current_user=Depends(g
     missing = [key for key in ("verify_token", "app_secret", "access_token", "page_id") if not config.get(key)]
     if missing:
         return {"ok": False, "configured": False, "missing": missing}
-    return {"ok": True, "configured": True, "page_id": config["page_id"], "graph_api_version": config["graph_api_version"], "message": "Meta configuration is present; no external API call was made."}
+    try:
+        result = test_meta_config(db)
+        return {"ok": True, "configured": True, "page_id": result["page_id"], "page_name": result["page_name"], "graph_api_version": result["graph_api_version"], "message": "Meta configuration verified with external API call."}
+    except Exception as err:
+        return {"ok": False, "configured": True, "error": str(err)}

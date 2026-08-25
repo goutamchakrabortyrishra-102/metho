@@ -82,6 +82,46 @@ def verify_signature(body: bytes, signature: str | None, db=None) -> bool:
     return hmac.compare_digest(supplied[7:], digest)
 
 
+def test_meta_config(db=None) -> dict:
+    """Test Meta Graph API connectivity with current configuration.
+
+    Makes a safe, read-only API call to verify:
+    - Access token is valid
+    - Page ID exists
+    - Credentials work together
+
+    Returns dict with 'ok', 'page_name', 'page_id', 'graph_api_version'.
+    Raises RuntimeError if test fails.
+    """
+    config = resolve_config(db)
+    token = config.get("access_token")
+    page_id = config.get("page_id")
+    if not token:
+        raise RuntimeError("access_token not configured")
+    if not page_id:
+        raise RuntimeError("page_id not configured")
+
+    query = urlencode({"fields": "id,name", "access_token": token})
+    endpoint = f"https://graph.facebook.com/{config['graph_api_version']}/{page_id}?{query}"
+    request = Request(endpoint, headers={"Accept": "application/json", "User-Agent": "metho-crm-meta-config-test/1.0"})
+    try:
+        with urlopen(request, timeout=10) as response:
+            payload = json.loads(response.read().decode("utf-8"))
+    except Exception as exc:
+        raise RuntimeError(f"Meta API request failed: {str(exc)}") from exc
+
+    if not isinstance(payload, dict) or not payload.get("id"):
+        error_msg = payload.get("error", {}).get("message", "Unknown error") if isinstance(payload.get("error"), dict) else str(payload.get("error", "Invalid response"))
+        raise RuntimeError(f"Meta API error: {error_msg}")
+
+    return {
+        "ok": True,
+        "page_id": str(payload.get("id", "")),
+        "page_name": str(payload.get("name", "")),
+        "graph_api_version": config["graph_api_version"],
+    }
+
+
 def fetch_lead(lead_id: str, db=None) -> dict:
     config = resolve_config(db)
     if not config.get("enabled"):

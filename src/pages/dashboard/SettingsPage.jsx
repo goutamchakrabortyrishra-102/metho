@@ -1113,7 +1113,14 @@ export default function SettingsPage() {
     setMetaMessage("");
     try {
       const { data } = await api.post("/admin/settings/meta/test");
-      setMetaMessage(data?.ok ? "Meta configuration is complete. No external API call was made." : `Missing: ${(data?.missing || []).join(", ")}`);
+      if (data?.ok) {
+        const pageNameDisplay = data?.page_name ? ` (${data.page_name})` : "";
+        setMetaMessage(`Meta configuration verified! Page${pageNameDisplay} is accessible.`);
+      } else if (data?.error) {
+        setMetaMessage(`Meta API test failed: ${data.error}`);
+      } else {
+        setMetaMessage(`Missing: ${(data?.missing || []).join(", ")}`);
+      }
     } catch (err) {
       setMetaMessage(err?.response?.data?.detail || "Meta configuration test failed");
     } finally {
