@@ -11,9 +11,9 @@ from sqlalchemy.orm import sessionmaker
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from sql_app.database import Base
-from sql_app.models import AppSetting
+from sql_app.models import AppSetting, CRMLead, CRMLeadActivity
 from sql_app.routers.whatsapp import get_whatsapp_settings, receive_whatsapp_webhook, run_whatsapp_settings_test, update_whatsapp_settings
-from sql_app.whatsapp_cloud import ingest_whatsapp_message, normalize_whatsapp_message
+from sql_app.whatsapp_cloud import ingest_whatsapp_message, normalize_whatsapp_message, send_whatsapp_message
 
 
 def make_session():
@@ -24,6 +24,18 @@ def make_session():
 
 def admin(role="admin"):
     return SimpleNamespace(role=role, id="ADMIN")
+
+
+def message_payload(message_id="wamid.123", body="Need partner details", sender="8801712345678"):
+    return {
+        "object": "whatsapp_business_account",
+        "entry": [{"id": "business-account-1", "changes": [{"value": {
+            "messaging_product": "whatsapp",
+            "metadata": {"display_phone_number": "+1234567890", "phone_number_id": "123456"},
+            "contacts": [{"profile": {"name": "Ayesha Rahman"}, "wa_id": sender}],
+            "messages": [{"from": sender, "id": message_id, "timestamp": "1712345678", "type": "text", "text": {"body": body}}],
+        }}]}],
+    }
 
 
 def test_admin_can_save_whatsapp_secrets(monkeypatch):
@@ -55,32 +67,60 @@ def test_admin_can_save_whatsapp_secrets(monkeypatch):
 def test_whatsapp_webhook_normalizes_incoming_message_to_crm_lead():
     db = make_session()
     try:
-        payload = {
-            "object": "whatsapp_business_account",
-            "entry": [
-                {
-                    "id": "business-account-1",
-                    "changes": [
-                        {
-                            "value": {
-                                "messaging_product": "whatsapp",
-                                "metadata": {"display_phone_number": "+1234567890", "phone_number_id": "123456"},
-                                "contacts": [{"profile": {"name": "Ayesha Rahman"}, "wa_id": "8801712345678"}],
-                                "messages": [{"from": "8801712345678", "id": "wamid.123", "timestamp": "1712345678", "type": "text", "text": {"body": "Need partner details"}}],
-                            }
-                        }
-                    ],
-                }
-            ],
-        }
+        payload = message_payload()
         normalized = normalize_whatsapp_message(payload)
         assert normalized["lead_id"].startswith("WA-")
         assert normalized["contact_person"] == "Ayesha Rahman"
         assert normalized["phone"] == "8801712345678"
-        status = ingest_whatsapp_message(db, payload, None)
-        assert status in {"created", "duplicate"}
-        if status == "created":
-            assert db.query(AppSetting).count() >= 0
+        assert ingest_whatsapp_message(db, payload, None) == "created"
+        assert db.query(CRMLead).count() == 1
+        assert db.query(CRMLeadActivity).filter(CRMLeadActivity.activity_type == "whatsapp_message_received").count() == 1
+    finally:
+        db.close()
+
+
+def test_same_message_id_is_ignored_but_new_message_from_customer_is_recorded():
+    db = make_session()
+    try:
+        assert ingest_whatsapp_message(db, message_payload("wamid.same", "First"), None) == "created"
+        assert ingest_whatsapp_message(db, message_payload("wamid.same", "First retry"), None) == "duplicate"
+        assert ingest_whatsapp_message(db, message_payload("wamid.next", "Second"), None) == "updated"
+        assert db.query(CRMLead).count() == 1
+        activities = db.query(CRMLeadActivity).filter(CRMLeadActivity.activity_type == "whatsapp_message_received").all()
+        assert len(activities) == 2
+        assert any("Second" in activity.message for activity in activities)
+    finally:
+        db.close()
+
+
+def test_outgoing_text_and_template_requests_use_cloud_api(monkeypatch):
+    from unittest.mock import MagicMock
+
+    db = make_session()
+    try:
+        monkeypatch.setenv("WHATSAPP_SETTINGS_ENCRYPTION_KEY", Fernet.generate_key().decode())
+        update_whatsapp_settings({"phone_number_id": "123456", "access_token": "secret-token"}, db, admin())
+        requests = []
+
+        def fake_urlopen(request, timeout=10):
+            requests.append(request)
+            response = MagicMock()
+            response.read.return_value = b'{"messages":[{"id":"wamid.out"}]}'
+            response.__enter__.return_value = response
+            response.__exit__.return_value = None
+            return response
+
+        monkeypatch.setattr("sql_app.whatsapp_cloud.urlopen", fake_urlopen)
+        text_result = send_whatsapp_message(db, "8801712345678", text="Hello")
+        template_result = send_whatsapp_message(db, "8801712345678", template_name="approved_name", template_language_code="en_US", template_parameters=["Ayesha"])
+        assert text_result["messages"][0]["id"] == "wamid.out"
+        assert requests[0].get_method() == "POST"
+        assert requests[0].full_url.endswith("/v20.0/123456/messages")
+        assert requests[0].headers["Authorization"] == "Bearer secret-token"
+        assert json.loads(requests[0].data)["type"] == "text"
+        template_payload = json.loads(requests[1].data)
+        assert template_payload["template"]["name"] == "approved_name"
+        assert template_payload["template"]["components"][0]["parameters"][0]["text"] == "Ayesha"
     finally:
         db.close()
 
@@ -135,5 +175,16 @@ def test_non_admin_cannot_read_or_update_whatsapp_settings():
             get_whatsapp_settings(db, admin("member"))
         with pytest.raises(Exception):
             update_whatsapp_settings({"phone_number_id": "123"}, db, admin("member"))
+    finally:
+        db.close()
+
+
+def test_template_sender_requires_template_language_code(monkeypatch):
+    db = make_session()
+    try:
+        monkeypatch.setenv("WHATSAPP_SETTINGS_ENCRYPTION_KEY", Fernet.generate_key().decode())
+        update_whatsapp_settings({"phone_number_id": "123456", "access_token": "secret-token"}, db, admin())
+        with pytest.raises(ValueError, match="template_language_code"):
+            send_whatsapp_message(db, "8801712345678", template_name="approved_name")
     finally:
         db.close()

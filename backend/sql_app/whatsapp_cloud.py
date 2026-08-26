@@ -130,7 +130,75 @@ def test_whatsapp_config(db=None) -> dict:
     }
 
 
-def normalize_whatsapp_message(payload: dict) -> dict:
+def send_whatsapp_message(
+    db,
+    recipient: str,
+    text: str | None = None,
+    template_name: str | None = None,
+    template_language_code: str | None = None,
+    template_parameters: list[str] | None = None,
+) -> dict:
+    """Send one text or approved template message through WhatsApp Cloud API."""
+    config = resolve_config(db)
+    token = config.get("access_token")
+    phone_number_id = config.get("phone_number_id")
+    if not token:
+        raise RuntimeError("access_token not configured")
+    if not phone_number_id:
+        raise RuntimeError("phone_number_id not configured")
+
+    to = str(recipient or "").strip()
+    if not to:
+        raise ValueError("recipient is required")
+    has_text = bool(str(text or "").strip())
+    has_template = bool(str(template_name or "").strip())
+    if has_text == has_template:
+        raise ValueError("provide exactly one of text or template_name")
+
+    if has_text:
+        message = {"messaging_product": "whatsapp", "to": to, "type": "text", "text": {"body": str(text).strip()}}
+    else:
+        language_code = str(template_language_code or "").strip()
+        if not language_code:
+            raise ValueError("template_language_code is required for template messages")
+        components = []
+        if template_parameters:
+            components.append({"type": "body", "parameters": [{"type": "text", "text": str(value)} for value in template_parameters]})
+        message = {
+            "messaging_product": "whatsapp",
+            "to": to,
+            "type": "template",
+            "template": {"name": str(template_name).strip(), "language": {"code": language_code}, **({"components": components} if components else {})},
+        }
+
+    endpoint = f"https://graph.facebook.com/{config['graph_api_version']}/{phone_number_id}/messages"
+    request = Request(
+        endpoint,
+        data=json.dumps(message).encode("utf-8"),
+        headers={"Accept": "application/json", "Content-Type": "application/json", "Authorization": f"Bearer {token}", "User-Agent": "metho-crm-whatsapp-send/1.0"},
+        method="POST",
+    )
+    from urllib.error import HTTPError
+
+    try:
+        with urlopen(request, timeout=10) as response:
+            payload = json.loads(response.read().decode("utf-8"))
+    except HTTPError as exc:
+        try:
+            error_response = json.loads(exc.read().decode("utf-8"))
+            error_detail = error_response.get("error", {})
+            error_msg = error_detail.get("message", str(exc)) if isinstance(error_detail, dict) else str(error_detail)
+        except Exception:
+            error_msg = str(exc)
+        raise RuntimeError(f"WhatsApp API error: {error_msg}") from exc
+    except Exception as exc:
+        raise RuntimeError(f"WhatsApp API request failed: {str(exc)}") from exc
+    if not isinstance(payload, dict):
+        raise RuntimeError("WhatsApp API returned an invalid response")
+    return payload
+
+
+def _normalized_whatsapp_messages(payload: dict) -> list[dict]:
     if not isinstance(payload, dict):
         raise ValueError("WhatsApp payload must be an object")
     records = []
@@ -144,93 +212,112 @@ def normalize_whatsapp_message(payload: dict) -> dict:
             for message in value.get("messages") or []:
                 if isinstance(message, dict):
                     records.append({**value, "message": message, "business_account_id": str((entry or {}).get("id") or value.get("metadata", {}).get("phone_number_id") or "").strip()})
-    if not records:
+    normalized = []
+    for value in records:
+        message = value.get("message") or {}
+        contact = (value.get("contacts") or [{}])[0] if (value.get("contacts") or []) else {}
+        profile = contact.get("profile") or {}
+        wa_id = str(message.get("from") or contact.get("wa_id") or "").strip()
+        if not wa_id:
+            raise ValueError("WhatsApp sender id is required")
+        msg_id = str(message.get("id") or "").strip()
+        if not msg_id:
+            raise ValueError("WhatsApp message id is required")
+        name = str(profile.get("name") or "WhatsApp Lead").strip() or "WhatsApp Lead"
+        msg_type = str(message.get("type") or "text").strip() or "text"
+        body = ""
+        if msg_type == "text":
+            body = str((message.get("text") or {}).get("body") or "").strip()
+        elif msg_type == "interactive":
+            body = str((message.get("interactive") or {}).get("button_reply", {}).get("title") or (message.get("interactive") or {}).get("list_reply", {}).get("title") or "").strip()
+        elif msg_type == "button":
+            body = str((message.get("button") or {}).get("text") or "").strip()
+        elif msg_type == "image":
+            body = str((message.get("image") or {}).get("caption") or "").strip()
+        metadata = {
+            "source": "whatsapp",
+            "message_id": msg_id,
+            "wa_id": wa_id,
+            "phone_number_id": str((value.get("metadata") or {}).get("phone_number_id") or "").strip(),
+            "display_phone_number": str((value.get("metadata") or {}).get("display_phone_number") or "").strip(),
+            "business_account_id": str(value.get("business_account_id") or "").strip(),
+            "message_type": msg_type,
+            "timestamp": str(message.get("timestamp") or "").strip(),
+            "raw_body": body,
+        }
+        normalized.append({
+            "external_lead_id": msg_id,
+            "lead_id": f"WA-{wa_id}",
+            "business_name": f"WhatsApp-{name}",
+            "contact_person": name,
+            "phone": wa_id,
+            "whatsapp_no": wa_id,
+            "email": "",
+            "city": "",
+            "state": "",
+            "pincode": "",
+            "address": "",
+            "source": "whatsapp",
+            "tags": ["whatsapp_cloud", f"message_type:{msg_type}"],
+            "metadata": metadata,
+        })
+    if not normalized:
         raise ValueError("WhatsApp message payload is empty")
-
-    value = records[0]
-    message = value.get("message") or {}
-    contact = (value.get("contacts") or [{}])[0] if (value.get("contacts") or []) else {}
-    profile = contact.get("profile") or {}
-    wa_id = str(message.get("from") or contact.get("wa_id") or "").strip()
-    if not wa_id:
-        raise ValueError("WhatsApp sender id is required")
-    msg_id = str(message.get("id") or f"WA-{wa_id}").strip()
-    name = str(profile.get("name") or "WhatsApp Lead").strip() or "WhatsApp Lead"
-    msg_type = str(message.get("type") or "text").strip() or "text"
-    body = ""
-    if msg_type == "text":
-        body = str((message.get("text") or {}).get("body") or "").strip()
-    elif msg_type == "interactive":
-        body = str((message.get("interactive") or {}).get("button_reply", {}).get("title") or (message.get("interactive") or {}).get("list_reply", {}).get("title") or "").strip()
-    elif msg_type == "button":
-        body = str((message.get("button") or {}).get("text") or "").strip()
-    elif msg_type == "image":
-        body = str((message.get("image") or {}).get("caption") or "").strip()
-    metadata = {
-        "source": "whatsapp",
-        "message_id": msg_id,
-        "wa_id": wa_id,
-        "phone_number_id": str((value.get("metadata") or {}).get("phone_number_id") or value.get("business_account_id") or "").strip(),
-        "display_phone_number": str((value.get("metadata") or {}).get("display_phone_number") or "").strip(),
-        "business_account_id": str(value.get("business_account_id") or "").strip(),
-        "message_type": msg_type,
-        "timestamp": str(message.get("timestamp") or "").strip(),
-        "raw_body": body,
-    }
-    normalized = {
-        "external_lead_id": msg_id,
-        "lead_id": f"WA-{wa_id}",
-        "business_name": f"WhatsApp-{name}",
-        "contact_person": name,
-        "phone": wa_id,
-        "whatsapp_no": wa_id,
-        "email": "",
-        "city": "",
-        "state": "",
-        "pincode": "",
-        "address": "",
-        "source": "whatsapp",
-        "tags": ["whatsapp_cloud", f"message_type:{msg_type}"],
-        "metadata": metadata,
-    }
     return normalized
 
 
-def ingest_whatsapp_message(db, payload: dict, request=None) -> str:
-    normalized = normalize_whatsapp_message(payload)
-    existing = db.query(CRMLead).filter(CRMLead.lead_id == normalized["lead_id"]).first()
-    if existing:
-        return "duplicate"
-    duplicate_phone = db.query(CRMLead).filter(CRMLead.whatsapp_no == normalized["whatsapp_no"]).first()
-    if duplicate_phone:
-        return "duplicate"
+def normalize_whatsapp_message(payload: dict) -> dict:
+    return _normalized_whatsapp_messages(payload)[0]
 
-    lead = CRMLead(
-        lead_id=normalized["lead_id"],
-        business_name=normalized["business_name"],
-        business_type="WhatsApp Lead",
-        contact_person=normalized["contact_person"],
-        phone=normalized["phone"],
-        whatsapp_no=normalized["whatsapp_no"],
-        email=normalized["email"],
-        address=normalized["address"],
-        city=normalized["city"],
-        state=normalized["state"],
-        pincode=normalized["pincode"],
-        source=normalized["source"],
-        tags_json=json.dumps(normalized["tags"]),
-        notes=json.dumps(normalized["metadata"], sort_keys=True),
-        status="NEW",
-        priority_bucket="Warm",
-    )
-    assignee = _admin_assignee(db)
-    if assignee:
-        lead.assigned_user_id = assignee.id
-    db.add(lead)
-    db.flush()
-    db.add(CRMLeadActivity(lead_id=lead.id, activity_type="whatsapp_lead_received", message=f"WhatsApp lead received: {normalized['external_lead_id']}"))
-    db.add(CRMFollowUp(lead_id=lead.id, scheduled_at=datetime.now(timezone.utc) + timedelta(days=1), status="Pending", notes="Initial follow-up for WhatsApp Cloud lead"))
-    if assignee:
-        db.add(CRMTask(title="Initial WhatsApp lead follow-up", description="Contact WhatsApp lead and qualify the inbound enquiry", due_at=datetime.now(timezone.utc) + timedelta(days=1), status="Pending", priority="High", lead_id=lead.id, assigned_user_id=assignee.id, created_by_user_id=assignee.id))
+
+def ingest_whatsapp_message(db, payload: dict, request=None) -> str:
+    statuses = []
+    for normalized in _normalized_whatsapp_messages(payload):
+        message_id = normalized["external_lead_id"]
+        activity_prefix = f"WhatsApp message received [{message_id}]"
+        if db.query(CRMLeadActivity).filter(CRMLeadActivity.activity_type == "whatsapp_message_received", CRMLeadActivity.message.like(f"{activity_prefix}:%")).first():
+            statuses.append("duplicate")
+            continue
+
+        lead = db.query(CRMLead).filter(CRMLead.lead_id == normalized["lead_id"]).first()
+        if not lead:
+            lead = db.query(CRMLead).filter(CRMLead.whatsapp_no == normalized["whatsapp_no"]).first()
+        if not lead:
+            lead = CRMLead(
+                lead_id=normalized["lead_id"],
+                business_name=normalized["business_name"],
+                business_type="WhatsApp Lead",
+                contact_person=normalized["contact_person"],
+                phone=normalized["phone"],
+                whatsapp_no=normalized["whatsapp_no"],
+                email=normalized["email"],
+                address=normalized["address"],
+                city=normalized["city"],
+                state=normalized["state"],
+                pincode=normalized["pincode"],
+                source=normalized["source"],
+                tags_json=json.dumps(normalized["tags"]),
+                notes=json.dumps(normalized["metadata"], sort_keys=True),
+                status="NEW",
+                priority_bucket="Warm",
+            )
+            assignee = _admin_assignee(db)
+            if assignee:
+                lead.assigned_user_id = assignee.id
+            db.add(lead)
+            db.flush()
+            db.add(CRMFollowUp(lead_id=lead.id, scheduled_at=datetime.now(timezone.utc) + timedelta(days=1), status="Pending", notes="Initial follow-up for WhatsApp Cloud lead"))
+            if assignee:
+                db.add(CRMTask(title="Initial WhatsApp lead follow-up", description="Contact WhatsApp lead and qualify the inbound enquiry", due_at=datetime.now(timezone.utc) + timedelta(days=1), status="Pending", priority="High", lead_id=lead.id, assigned_user_id=assignee.id, created_by_user_id=assignee.id))
+            status = "created"
+        else:
+            status = "updated"
+        body = normalized["metadata"].get("raw_body") or ""
+        db.add(CRMLeadActivity(lead_id=lead.id, activity_type="whatsapp_message_received", message=f"{activity_prefix}: {body}"))
+        statuses.append(status)
     db.commit()
-    return "created"
+    if "created" in statuses:
+        return "created"
+    if "updated" in statuses:
+        return "updated"
+    return "duplicate"
