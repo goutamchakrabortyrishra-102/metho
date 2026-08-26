@@ -11,7 +11,7 @@ import time
 
 from .database import Base, SessionLocal, engine
 from .models import AssociatePartner, PartnerProduct, User
-from .routers import auth, checkout, commerce, compat, company_inventory, crm, directory, direct_booking, health, meta_ads, partner_public, rider, settings
+from .routers import auth, checkout, commerce, compat, company_inventory, crm, directory, direct_booking, health, meta_ads, partner_public, rider, settings, whatsapp
 from .security import hash_password
 
 logger = logging.getLogger(__name__)
@@ -72,10 +72,10 @@ ENABLE_BANDWIDTH_METRICS = str(os.getenv("ENABLE_BANDWIDTH_METRICS", "1") or "1"
 BANDWIDTH_METRICS_WINDOW_MINUTES = _int_env("BANDWIDTH_METRICS_WINDOW_MINUTES", 240)
 BANDWIDTH_METRICS_MAX_EVENTS = max(1000, _int_env("BANDWIDTH_METRICS_MAX_EVENTS", 5000))
 METRICS_API_KEY = str(os.getenv("METRICS_API_KEY", "") or "").strip()
-ADMIN_LOGIN_ID = str(os.getenv("ADMIN_LOGIN_ID", "admin@metho.com") or "admin@metho.com").strip()
-ADMIN_PASSWORD = str(os.getenv("ADMIN_PASSWORD", "admin123") or "admin123")
+ADMIN_LOGIN_ID = str(os.getenv("ADMIN_LOGIN_ID", "") or "").strip()
+ADMIN_PASSWORD = str(os.getenv("ADMIN_PASSWORD", "") or "")
 ADMIN_DISPLAY_NAME = str(os.getenv("ADMIN_DISPLAY_NAME", "METHO Admin") or "METHO Admin").strip()
-ADMIN_PHONE = str(os.getenv("ADMIN_PHONE", "9999999999") or "9999999999").strip()
+ADMIN_PHONE = str(os.getenv("ADMIN_PHONE", "") or "").strip()
 
 SENSITIVE_RATE_LIMITS: list[tuple[str, int]] = [
     ("/api/login", RATE_LIMIT_LOGIN),
@@ -372,8 +372,6 @@ def _initialize_database_with_retry(max_attempts: int = 8, delay_seconds: int = 
     for attempt in range(1, max_attempts + 1):
         try:
             Base.metadata.create_all(bind=engine)
-            _seed_demo_admin()
-            _seed_demo_directory_data()
             logger.info("SQL starter DB initialization complete")
             return True
         except Exception as exc:
@@ -458,7 +456,7 @@ def admin_system_bandwidth(
     top: int = 20,
     x_metrics_key: str | None = Header(default=None, alias="X-Metrics-Key"),
 ):
-    if METRICS_API_KEY and str(x_metrics_key or "").strip() != METRICS_API_KEY:
+    if not METRICS_API_KEY or str(x_metrics_key or "").strip() != METRICS_API_KEY:
         raise HTTPException(status_code=403, detail="Metrics key required")
     return _summarize_bandwidth(minutes=minutes, top=top)
 
@@ -474,6 +472,7 @@ app.include_router(direct_booking.router)
 app.include_router(checkout.router)
 app.include_router(crm.router)
 app.include_router(meta_ads.router)
+app.include_router(whatsapp.router)
 app.include_router(compat.router)
 
 

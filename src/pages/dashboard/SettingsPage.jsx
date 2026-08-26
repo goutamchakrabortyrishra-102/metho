@@ -699,6 +699,10 @@ export default function SettingsPage() {
   const [metaAssignees, setMetaAssignees] = useState([]);
   const [metaBusy, setMetaBusy] = useState(false);
   const [metaMessage, setMetaMessage] = useState("");
+  const [whatsappForm, setWhatsappForm] = useState(null);
+  const [whatsappAssignees, setWhatsappAssignees] = useState([]);
+  const [whatsappBusy, setWhatsappBusy] = useState(false);
+  const [whatsappMessage, setWhatsappMessage] = useState("");
   const [landingPartnerOptions, setLandingPartnerOptions] = useState([]);
   const [landingPartnerOptionsLoading, setLandingPartnerOptionsLoading] = useState(false);
 
@@ -729,6 +733,22 @@ export default function SettingsPage() {
         setMetaAssignees(Array.isArray(assigneeResponse.data?.items) ? assigneeResponse.data.items : []);
       })
       .catch(() => setMetaForm(null));
+    return undefined;
+  }, [user]);
+
+  useEffect(() => {
+    if (!isAdmin(user)) return undefined;
+    Promise.all([api.get("/admin/settings/whatsapp"), api.get("/admin/crm/assignees")])
+      .then(([settingsResponse, assigneeResponse]) => {
+        setWhatsappForm({
+          ...settingsResponse.data,
+          webhook_verify_token: "",
+          app_secret: "",
+          access_token: "",
+        });
+        setWhatsappAssignees(Array.isArray(assigneeResponse.data?.items) ? assigneeResponse.data.items : []);
+      })
+      .catch(() => setWhatsappForm(null));
     return undefined;
   }, [user]);
 
@@ -1132,6 +1152,65 @@ export default function SettingsPage() {
 
   const readOnly = !isAdmin(user);
   const landingFeaturedPartnerIds = normalizeIdList(form?.landing_featured_partner_ids, 12);
+
+  const updateWhatsappField = (key) => (valueOrEvent) => {
+    const value = valueOrEvent?.target && typeof valueOrEvent.target.value === "string"
+      ? valueOrEvent.target.value
+      : valueOrEvent;
+    setWhatsappForm((prev) => ({ ...prev, [key]: value }));
+  };
+  const saveWhatsapp = async () => {
+    if (!whatsappForm || whatsappBusy) return;
+    setWhatsappBusy(true);
+    setWhatsappMessage("");
+    try {
+      const payload = {
+        enabled: whatsappForm.enabled !== false,
+        phone_number_id: String(whatsappForm.phone_number_id || "").trim(),
+        business_account_id: String(whatsappForm.business_account_id || "").trim(),
+        graph_api_version: String(whatsappForm.graph_api_version || "").trim(),
+        default_assignee_id: String(whatsappForm.default_assignee_id || "").trim(),
+      };
+      ["webhook_verify_token", "app_secret", "access_token"].forEach((key) => {
+        const value = typeof whatsappForm[key] === "string" ? whatsappForm[key].trim() : "";
+        if (value) payload[key] = value;
+      });
+      const { data } = await api.put("/admin/settings/whatsapp", payload);
+      setWhatsappForm((prev) => ({ ...prev, ...data, webhook_verify_token: "", app_secret: "", access_token: "" }));
+      setWhatsappMessage("WhatsApp Cloud API configuration saved.");
+    } catch (err) {
+      const status = err?.response?.status;
+      const detail = err?.response?.data?.detail;
+      setWhatsappMessage(detail ? `WhatsApp configuration could not be saved (${status || "error"}): ${detail}` : `WhatsApp configuration could not be saved (${status || "network error"})`);
+    } finally {
+      setWhatsappBusy(false);
+    }
+  };
+  const handleWhatsappSave = (event) => {
+    event.preventDefault();
+    event.stopPropagation();
+    void saveWhatsapp();
+  };
+  const testWhatsapp = async () => {
+    setWhatsappBusy(true);
+    setWhatsappMessage("");
+    try {
+      const { data } = await api.post("/admin/settings/whatsapp/test");
+      if (data?.ok) {
+        const displayPhone = data?.display_phone_number ? ` (${data.display_phone_number})` : "";
+        setWhatsappMessage(`WhatsApp Cloud API verified! Number${displayPhone} is accessible.`);
+      } else if (data?.error) {
+        setWhatsappMessage(`WhatsApp API test failed: ${data.error}`);
+      } else {
+        setWhatsappMessage(`Missing: ${(data?.missing || []).join(", ")}`);
+      }
+    } catch (err) {
+      setWhatsappMessage(err?.response?.data?.detail || "WhatsApp configuration test failed");
+    } finally {
+      setWhatsappBusy(false);
+    }
+  };
+
   return (
     <div className="space-y-6" data-testid="settings-page">
       <div className="flex items-start justify-between gap-4">
@@ -1507,6 +1586,37 @@ export default function SettingsPage() {
             onPersist={(value) => persistBrandingField("upi_qr_url", value)}
           />
 
+
+          {!readOnly && metaForm ? (
+            <Section title="Meta Lead Ads" subtitle="Configure Facebook Lead Ads without editing source code or environment files." icon={SettingsIcon} badge="Admin">
+              <div className="md:col-span-2 rounded-lg border border-amber-200 bg-amber-50 p-3 text-xs text-amber-900">
+                Secrets are stored securely and are never displayed in full.
+              </div>
+              <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={metaForm.enabled !== false} onChange={(e) => setMetaForm({ ...metaForm, enabled: e.target.checked })} /> Enable Meta Lead Integration</label>
+              <Field label="Facebook Page ID" testId="settings-meta-page-id" value={metaForm.page_id} onChange={updateMetaField("page_id")} type="text" />
+              <Field label="Meta App ID" testId="settings-meta-app-id" value={metaForm.app_id} onChange={updateMetaField("app_id")} type="text" />
+              <Field label="Graph API Version" testId="settings-meta-graph-version" value={metaForm.graph_api_version} onChange={updateMetaField("graph_api_version")} type="text" />
+              <div><Label>Default CRM Assignee</Label><select value={metaForm.default_assignee_id || ""} onChange={(e) => setMetaForm({ ...metaForm, default_assignee_id: e.target.value })} className="mt-1.5 h-11 w-full rounded-md border border-input px-3"><option value="">First active admin</option>{metaAssignees.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</select></div>
+              {[["verify_token", "Webhook Verify Token"], ["app_secret", "App Secret"], ["access_token", "Page Access Token"]].map(([key, label]) => <div key={key}><Label>{label}</Label><Input type="password" value={metaForm[key] || ""} onChange={updateMetaField(key)} placeholder={metaForm[`${key}_masked`] || "Leave empty to keep existing"} className="mt-1.5 h-11" /></div>)}
+              <div className="md:col-span-2 flex flex-wrap items-center gap-2"><Button type="button" onClick={handleMetaSave} disabled={metaBusy}>Save Configuration</Button><Button type="button" variant="outline" onClick={testMeta} disabled={metaBusy}>Test Configuration</Button>{metaMessage ? <span className="text-xs text-slate-600">{metaMessage}</span> : null}</div>
+            </Section>
+          ) : null}
+
+          {!readOnly && whatsappForm ? (
+            <Section title="WhatsApp Cloud API" subtitle="Configure WhatsApp Business / Cloud API lead intake without touching the working Meta integration." icon={SettingsIcon} badge="Admin">
+              <div className="md:col-span-2 rounded-lg border border-emerald-200 bg-emerald-50 p-3 text-xs text-emerald-900">
+                Secrets are stored securely on the backend and are never displayed in full.
+              </div>
+              <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={whatsappForm.enabled !== false} onChange={(e) => setWhatsappForm({ ...whatsappForm, enabled: e.target.checked })} /> Enable WhatsApp Lead Integration</label>
+              <Field label="WhatsApp Phone Number ID" testId="settings-whatsapp-phone-number-id" value={whatsappForm.phone_number_id} onChange={updateWhatsappField("phone_number_id")} type="text" />
+              <Field label="Business Account ID" testId="settings-whatsapp-business-account-id" value={whatsappForm.business_account_id} onChange={updateWhatsappField("business_account_id")} type="text" />
+              <Field label="Graph API Version" testId="settings-whatsapp-graph-version" value={whatsappForm.graph_api_version} onChange={updateWhatsappField("graph_api_version")} type="text" />
+              <div><Label>Default CRM Assignee</Label><select value={whatsappForm.default_assignee_id || ""} onChange={(e) => setWhatsappForm({ ...whatsappForm, default_assignee_id: e.target.value })} className="mt-1.5 h-11 w-full rounded-md border border-input px-3"><option value="">First active admin</option>{whatsappAssignees.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</select></div>
+              {[["webhook_verify_token", "Webhook Verify Token"], ["app_secret", "App Secret"], ["access_token", "Access Token"]].map(([key, label]) => <div key={key}><Label>{label}</Label><Input type="password" value={whatsappForm[key] || ""} onChange={updateWhatsappField(key)} placeholder={whatsappForm[`${key}_masked`] || "Leave empty to keep existing"} className="mt-1.5 h-11" /></div>)}
+              <div className="md:col-span-2 flex flex-wrap items-center gap-2"><Button type="button" onClick={handleWhatsappSave} disabled={whatsappBusy}>Save Configuration</Button><Button type="button" variant="outline" onClick={testWhatsapp} disabled={whatsappBusy}>Test Configuration</Button>{whatsappMessage ? <span className="text-xs text-slate-600">{whatsappMessage}</span> : null}</div>
+            </Section>
+          ) : null}
+
           <Section
             title="Razorpay Gateway"
             subtitle="Instant online payment via Razorpay Checkout. Enable only after entering live/test key pair."
@@ -1518,21 +1628,6 @@ export default function SettingsPage() {
               <p className="mt-1">Enable করলে checkout-এ "Pay Now with Razorpay" button দেখাবে। Manual UPI proof flow আগের মতোই থাকবে।</p>
             </div>
             <div>
-
-            {!readOnly && metaForm ? (
-              <Section title="Meta Lead Ads" subtitle="Configure Facebook Lead Ads without editing source code or environment files." icon={SettingsIcon} badge="Admin">
-                <div className="md:col-span-2 rounded-lg border border-amber-200 bg-amber-50 p-3 text-xs text-amber-900">
-                  Secrets are stored securely and are never displayed in full.
-                </div>
-                <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={metaForm.enabled !== false} onChange={(e) => setMetaForm({ ...metaForm, enabled: e.target.checked })} /> Enable Meta Lead Integration</label>
-                <Field label="Facebook Page ID" testId="settings-meta-page-id" value={metaForm.page_id} onChange={updateMetaField("page_id")} type="text" />
-                <Field label="Meta App ID" testId="settings-meta-app-id" value={metaForm.app_id} onChange={updateMetaField("app_id")} type="text" />
-                <Field label="Graph API Version" testId="settings-meta-graph-version" value={metaForm.graph_api_version} onChange={updateMetaField("graph_api_version")} type="text" />
-                <div><Label>Default CRM Assignee</Label><select value={metaForm.default_assignee_id || ""} onChange={(e) => setMetaForm({ ...metaForm, default_assignee_id: e.target.value })} className="mt-1.5 h-11 w-full rounded-md border border-input px-3"><option value="">First active admin</option>{metaAssignees.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</select></div>
-                {[["verify_token", "Webhook Verify Token"], ["app_secret", "App Secret"], ["access_token", "Page Access Token"]].map(([key, label]) => <div key={key}><Label>{label}</Label><Input type="password" value={metaForm[key] || ""} onChange={updateMetaField(key)} placeholder={metaForm[`${key}_masked`] || "Leave empty to keep existing"} className="mt-1.5 h-11" /></div>)}
-                <div className="md:col-span-2 flex flex-wrap items-center gap-2"><Button type="button" onClick={handleMetaSave} disabled={metaBusy}>Save Configuration</Button><Button type="button" variant="outline" onClick={testMeta} disabled={metaBusy}>Test Configuration</Button>{metaMessage ? <span className="text-xs text-slate-600">{metaMessage}</span> : null}</div>
-              </Section>
-            ) : null}
               <Label className="flex items-center gap-2">
                 <input
                   type="checkbox"

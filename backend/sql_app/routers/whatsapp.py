@@ -1,0 +1,136 @@
+import json
+import os
+from datetime import datetime, timezone
+
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
+from sqlalchemy.orm import Session
+
+from ..database import get_db
+from ..models import AppSetting
+from ..whatsapp_cloud import encrypt_secret, resolve_config, test_whatsapp_config, verify_signature, verify_webhook_token, ingest_whatsapp_message
+from .auth import get_current_user
+
+router = APIRouter(prefix="/api", tags=["whatsapp"])
+ADMIN_ROLES = {"super_admin", "company_admin", "admin"}
+
+
+def _require_admin(current_user):
+    if getattr(current_user, "role", "") not in ADMIN_ROLES:
+        raise HTTPException(status_code=403, detail="Admin access required")
+
+
+def _mask_secret(value: str) -> str:
+    text = str(value or "")
+    return f"{'*' * max(8, len(text) - 4)}{text[-4:]}" if text else ""
+
+
+@router.get("/admin/settings/whatsapp")
+def get_whatsapp_settings(db: Session = Depends(get_db), current_user=Depends(get_current_user)):
+    _require_admin(current_user)
+    config = resolve_config(db)
+    return {
+        "enabled": config["enabled"],
+        "phone_number_id": config["phone_number_id"],
+        "business_account_id": config["business_account_id"],
+        "graph_api_version": config["graph_api_version"],
+        "default_assignee_id": config["default_assignee_id"],
+        "webhook_verify_token_masked": _mask_secret(config["webhook_verify_token"]),
+        "app_secret_masked": _mask_secret(config["app_secret"]),
+        "access_token_masked": _mask_secret(config["access_token"]),
+        "configured": bool(config["phone_number_id"] and config["access_token"]),
+    }
+
+
+@router.put("/admin/settings/whatsapp")
+def update_whatsapp_settings(payload: dict, db: Session = Depends(get_db), current_user=Depends(get_current_user)):
+    _require_admin(current_user)
+    data = payload if isinstance(payload, dict) else {}
+    current_row = db.query(AppSetting).filter(AppSetting.key == "whatsapp_cloud_integration").first()
+    try:
+        current = json.loads(current_row.value_json or "{}") if current_row else {}
+    except json.JSONDecodeError:
+        current = {}
+    next_config = {
+        "enabled": bool(data.get("enabled", current.get("enabled", True))),
+        "phone_number_id": str(data.get("phone_number_id", current.get("phone_number_id", "")) or "").strip(),
+        "business_account_id": str(data.get("business_account_id", current.get("business_account_id", "")) or "").strip(),
+        "graph_api_version": str(data.get("graph_api_version", current.get("graph_api_version", "v20.0")) or "v20.0").strip(),
+        "default_assignee_id": str(data.get("default_assignee_id", current.get("default_assignee_id", "")) or "").strip(),
+    }
+    secret_update_requested = any(str(data.get(field) or "").strip() for field in ("webhook_verify_token", "app_secret", "access_token"))
+    if secret_update_requested and not (os.getenv("WHATSAPP_SETTINGS_ENCRYPTION_KEY", "") or "").strip():
+        raise HTTPException(status_code=503, detail="WHATSAPP_SETTINGS_ENCRYPTION_KEY is required to save WhatsApp secrets")
+    for field in ("webhook_verify_token", "app_secret", "access_token"):
+        value = str(data.get(field) or "").strip()
+        if value:
+            next_config[field] = encrypt_secret(value)
+        elif current.get(field):
+            next_config[field] = current[field]
+    if not current_row:
+        current_row = AppSetting(key="whatsapp_cloud_integration", value_json=json.dumps(next_config), updated_at=datetime.now(timezone.utc))
+        db.add(current_row)
+    else:
+        current_row.value_json = json.dumps(next_config)
+        current_row.updated_at = datetime.now(timezone.utc)
+    db.commit()
+    return get_whatsapp_settings(db, current_user)
+
+
+@router.post("/admin/settings/whatsapp/test")
+def run_whatsapp_settings_test(db: Session = Depends(get_db), current_user=Depends(get_current_user)):
+    _require_admin(current_user)
+    config = resolve_config(db)
+    missing = [key for key in ("phone_number_id", "access_token") if not config.get(key)]
+    if missing:
+        return {"ok": False, "configured": False, "missing": missing}
+    try:
+        result = test_whatsapp_config(db)
+        return {"ok": True, "configured": True, "phone_number_id": result["phone_number_id"], "display_phone_number": result["display_phone_number"], "verified_name": result["verified_name"], "graph_api_version": result["graph_api_version"], "message": "WhatsApp Cloud configuration verified with external API call."}
+    except Exception as err:
+        return {"ok": False, "configured": True, "error": str(err)}
+
+
+@router.get("/webhooks/whatsapp")
+def verify_whatsapp_webhook(mode: str | None = Query(default=None, alias="hub.mode"), token: str | None = Query(default=None, alias="hub.verify_token"), challenge: str | None = Query(default=None, alias="hub.challenge"), db: Session = Depends(get_db)):
+    if mode != "subscribe":
+        raise HTTPException(status_code=400, detail="Invalid webhook mode")
+    verified = verify_webhook_token(token or "", challenge or "", db)
+    if verified is None:
+        raise HTTPException(status_code=403, detail="Invalid webhook verification token")
+    return int(verified) if verified.isdigit() else verified
+
+
+@router.post("/webhooks/whatsapp")
+async def receive_whatsapp_webhook(request: Request, db: Session = Depends(get_db)):
+    body = await request.body()
+    config = resolve_config(db)
+    if config.get("app_secret"):
+        try:
+            signature_valid = verify_signature(body, request.headers.get("X-Hub-Signature-256"), db)
+        except Exception as exc:
+            db.rollback()
+            raise HTTPException(status_code=503, detail="WhatsApp webhook configuration unavailable") from exc
+        if not signature_valid:
+            raise HTTPException(status_code=403, detail="Invalid webhook signature")
+    try:
+        payload = json.loads(body.decode("utf-8"))
+    except (UnicodeDecodeError, json.JSONDecodeError) as exc:
+        raise HTTPException(status_code=400, detail="Malformed webhook payload") from exc
+    if not isinstance(payload, dict):
+        raise HTTPException(status_code=400, detail="Webhook payload must be an object")
+
+    try:
+        normalized = payload.get("entry") or []
+        messages = []
+        for entry in normalized:
+            for change in (entry or {}).get("changes") or []:
+                value = (change or {}).get("value") or {}
+                if value.get("messages"):
+                    messages.extend(value.get("messages") or [])
+        if not messages:
+            raise ValueError("No WhatsApp message event found")
+        result = ingest_whatsapp_message(db, payload)
+    except Exception as exc:
+        db.rollback()
+        raise HTTPException(status_code=503, detail=f"WhatsApp lead could not be stored: {str(exc)}") from exc
+    return {"ok": True, "status": result, "message_count": len(messages)}

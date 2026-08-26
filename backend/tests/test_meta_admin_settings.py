@@ -234,3 +234,11 @@ def test_meta_test_endpoint_ui_shows_external_api_call_confirmation(monkeypatch)
     # Verify it doesn't expose tokens in messages
     assert "access_token" not in test_meta_block
     assert "app_secret" not in test_meta_block
+
+
+def test_whatsapp_ui_has_parallel_admin_settings_section():
+    source = (Path(__file__).resolve().parents[2] / "src" / "pages" / "dashboard" / "SettingsPage.jsx").read_text(encoding="utf-8")
+    assert 'api.get("/admin/settings/whatsapp")' in source
+    assert 'api.post("/admin/settings/whatsapp/test")' in source
+    assert 'WhatsApp Cloud API' in source
+    assert 'webhook_verify_token' in source

@@ -1,0 +1,236 @@
+import hashlib
+import hmac
+import json
+import os
+from datetime import datetime, timedelta, timezone
+from urllib.parse import urlencode
+from urllib.request import Request, urlopen
+
+from cryptography.fernet import Fernet, InvalidToken
+
+from .models import AppSetting, CRMFollowUp, CRMLead, CRMLeadActivity, CRMTask, User
+
+WHATSAPP_GRAPH_API_VERSION = os.getenv("WHATSAPP_GRAPH_API_VERSION", "v20.0").strip() or "v20.0"
+
+
+def _setting(name: str) -> str:
+    return str(os.getenv(name, "") or "").strip()
+
+
+def _encryption_key() -> bytes:
+    key = _setting("WHATSAPP_SETTINGS_ENCRYPTION_KEY")
+    if not key:
+        raise RuntimeError("WHATSAPP_SETTINGS_ENCRYPTION_KEY is not configured")
+    return key.encode("utf-8")
+
+
+def encrypt_secret(value: str) -> str:
+    return Fernet(_encryption_key()).encrypt(str(value).encode("utf-8")).decode("utf-8")
+
+
+def decrypt_secret(value: str) -> str:
+    try:
+        return Fernet(_encryption_key()).decrypt(str(value).encode("utf-8")).decode("utf-8")
+    except (InvalidToken, ValueError, TypeError) as exc:
+        raise RuntimeError("Stored WhatsApp secret could not be decrypted") from exc
+
+
+def load_db_config(db) -> dict:
+    row = db.query(AppSetting).filter(AppSetting.key == "whatsapp_cloud_integration").first()
+    if not row:
+        return {}
+    try:
+        payload = json.loads(row.value_json or "{}")
+    except json.JSONDecodeError:
+        return {}
+    if not isinstance(payload, dict):
+        return {}
+    result = {key: str(payload.get(key) or "").strip() for key in ("enabled", "phone_number_id", "business_account_id", "graph_api_version", "default_assignee_id") if key in payload}
+    for key in ("webhook_verify_token", "app_secret", "access_token"):
+        if payload.get(key):
+            result[key] = decrypt_secret(payload[key]).strip()
+    return result
+
+
+def resolve_config(db=None) -> dict:
+    db_config = load_db_config(db) if db is not None else {}
+    return {
+        "enabled": bool(db_config.get("enabled", True)),
+        "phone_number_id": str(db_config.get("phone_number_id") or _setting("WHATSAPP_PHONE_NUMBER_ID")),
+        "business_account_id": str(db_config.get("business_account_id") or _setting("WHATSAPP_BUSINESS_ACCOUNT_ID")),
+        "graph_api_version": str(db_config.get("graph_api_version") or WHATSAPP_GRAPH_API_VERSION),
+        "default_assignee_id": str(db_config.get("default_assignee_id") or _setting("WHATSAPP_CRM_DEFAULT_ASSIGNEE_ID")),
+        "webhook_verify_token": str(db_config.get("webhook_verify_token") or _setting("WHATSAPP_WEBHOOK_VERIFY_TOKEN")),
+        "app_secret": str(db_config.get("app_secret") or _setting("WHATSAPP_APP_SECRET")),
+        "access_token": str(db_config.get("access_token") or _setting("WHATSAPP_ACCESS_TOKEN")),
+    }
+
+
+def verify_webhook_token(token: str, challenge: str, db=None) -> str | None:
+    expected = resolve_config(db).get("webhook_verify_token")
+    if not expected or not hmac.compare_digest(str(token or ""), expected):
+        return None
+    return str(challenge or "")
+
+
+def verify_signature(body: bytes, signature: str | None, db=None) -> bool:
+    secret = resolve_config(db).get("app_secret")
+    supplied = str(signature or "").strip()
+    if not secret or not supplied.startswith("sha256="):
+        return False
+    digest = hmac.new(secret.encode("utf-8"), body, hashlib.sha256).hexdigest()
+    return hmac.compare_digest(supplied[7:], digest)
+
+
+def _admin_assignee(db) -> User | None:
+    configured = resolve_config(db).get("default_assignee_id")
+    query = db.query(User).filter(User.role.in_(["super_admin", "company_admin", "admin"]), User.is_active.is_(True))
+    if configured:
+        return query.filter(User.id == configured).first()
+    return query.order_by(User.created_at.asc()).first()
+
+
+def test_whatsapp_config(db=None) -> dict:
+    from urllib.error import HTTPError
+
+    config = resolve_config(db)
+    token = config.get("access_token")
+    phone_number_id = config.get("phone_number_id")
+    if not token:
+        raise RuntimeError("access_token not configured")
+    if not phone_number_id:
+        raise RuntimeError("phone_number_id not configured")
+
+    query = urlencode({"fields": "id,display_phone_number,verified_name", "access_token": token})
+    endpoint = f"https://graph.facebook.com/{config['graph_api_version']}/{phone_number_id}?{query}"
+    request = Request(endpoint, headers={"Accept": "application/json", "User-Agent": "metho-crm-whatsapp-config-test/1.0"})
+    try:
+        with urlopen(request, timeout=10) as response:
+            payload = json.loads(response.read().decode("utf-8"))
+    except HTTPError as exc:
+        try:
+            error_response = json.loads(exc.read().decode("utf-8"))
+            error_detail = error_response.get("error", {})
+            error_msg = error_detail.get("message", str(exc)) if isinstance(error_detail, dict) else str(error_detail)
+        except Exception:
+            error_msg = str(exc)
+        raise RuntimeError(f"WhatsApp API error: {error_msg}") from exc
+    except Exception as exc:
+        raise RuntimeError(f"WhatsApp API request failed: {str(exc)}") from exc
+
+    if not isinstance(payload, dict) or not payload.get("id"):
+        raise RuntimeError("WhatsApp API returned an invalid response")
+
+    return {
+        "ok": True,
+        "phone_number_id": str(payload.get("id", "")),
+        "display_phone_number": str(payload.get("display_phone_number", "")),
+        "verified_name": str(payload.get("verified_name", "")),
+        "graph_api_version": config["graph_api_version"],
+    }
+
+
+def normalize_whatsapp_message(payload: dict) -> dict:
+    if not isinstance(payload, dict):
+        raise ValueError("WhatsApp payload must be an object")
+    records = []
+    for entry in payload.get("entry") or []:
+        if not isinstance(entry, dict):
+            continue
+        for change in (entry or {}).get("changes") or []:
+            value = (change or {}).get("value") or {}
+            if not isinstance(value, dict):
+                continue
+            for message in value.get("messages") or []:
+                if isinstance(message, dict):
+                    records.append({**value, "message": message, "business_account_id": str((entry or {}).get("id") or value.get("metadata", {}).get("phone_number_id") or "").strip()})
+    if not records:
+        raise ValueError("WhatsApp message payload is empty")
+
+    value = records[0]
+    message = value.get("message") or {}
+    contact = (value.get("contacts") or [{}])[0] if (value.get("contacts") or []) else {}
+    profile = contact.get("profile") or {}
+    wa_id = str(message.get("from") or contact.get("wa_id") or "").strip()
+    if not wa_id:
+        raise ValueError("WhatsApp sender id is required")
+    msg_id = str(message.get("id") or f"WA-{wa_id}").strip()
+    name = str(profile.get("name") or "WhatsApp Lead").strip() or "WhatsApp Lead"
+    msg_type = str(message.get("type") or "text").strip() or "text"
+    body = ""
+    if msg_type == "text":
+        body = str((message.get("text") or {}).get("body") or "").strip()
+    elif msg_type == "interactive":
+        body = str((message.get("interactive") or {}).get("button_reply", {}).get("title") or (message.get("interactive") or {}).get("list_reply", {}).get("title") or "").strip()
+    elif msg_type == "button":
+        body = str((message.get("button") or {}).get("text") or "").strip()
+    elif msg_type == "image":
+        body = str((message.get("image") or {}).get("caption") or "").strip()
+    metadata = {
+        "source": "whatsapp",
+        "message_id": msg_id,
+        "wa_id": wa_id,
+        "phone_number_id": str((value.get("metadata") or {}).get("phone_number_id") or value.get("business_account_id") or "").strip(),
+        "display_phone_number": str((value.get("metadata") or {}).get("display_phone_number") or "").strip(),
+        "business_account_id": str(value.get("business_account_id") or "").strip(),
+        "message_type": msg_type,
+        "timestamp": str(message.get("timestamp") or "").strip(),
+        "raw_body": body,
+    }
+    normalized = {
+        "external_lead_id": msg_id,
+        "lead_id": f"WA-{wa_id}",
+        "business_name": f"WhatsApp-{name}",
+        "contact_person": name,
+        "phone": wa_id,
+        "whatsapp_no": wa_id,
+        "email": "",
+        "city": "",
+        "state": "",
+        "pincode": "",
+        "address": "",
+        "source": "whatsapp",
+        "tags": ["whatsapp_cloud", f"message_type:{msg_type}"],
+        "metadata": metadata,
+    }
+    return normalized
+
+
+def ingest_whatsapp_message(db, payload: dict, request=None) -> str:
+    normalized = normalize_whatsapp_message(payload)
+    existing = db.query(CRMLead).filter(CRMLead.lead_id == normalized["lead_id"]).first()
+    if existing:
+        return "duplicate"
+    duplicate_phone = db.query(CRMLead).filter(CRMLead.whatsapp_no == normalized["whatsapp_no"]).first()
+    if duplicate_phone:
+        return "duplicate"
+
+    lead = CRMLead(
+        lead_id=normalized["lead_id"],
+        business_name=normalized["business_name"],
+        business_type="WhatsApp Lead",
+        contact_person=normalized["contact_person"],
+        phone=normalized["phone"],
+        whatsapp_no=normalized["whatsapp_no"],
+        email=normalized["email"],
+        address=normalized["address"],
+        city=normalized["city"],
+        state=normalized["state"],
+        pincode=normalized["pincode"],
+        source=normalized["source"],
+        tags_json=json.dumps(normalized["tags"]),
+        notes=json.dumps(normalized["metadata"], sort_keys=True),
+        status="NEW",
+        priority_bucket="Warm",
+    )
+    assignee = _admin_assignee(db)
+    if assignee:
+        lead.assigned_user_id = assignee.id
+    db.add(lead)
+    db.flush()
+    db.add(CRMLeadActivity(lead_id=lead.id, activity_type="whatsapp_lead_received", message=f"WhatsApp lead received: {normalized['external_lead_id']}"))
+    db.add(CRMFollowUp(lead_id=lead.id, scheduled_at=datetime.now(timezone.utc) + timedelta(days=1), status="Pending", notes="Initial follow-up for WhatsApp Cloud lead"))
+    if assignee:
+        db.add(CRMTask(title="Initial WhatsApp lead follow-up", description="Contact WhatsApp lead and qualify the inbound enquiry", due_at=datetime.now(timezone.utc) + timedelta(days=1), status="Pending", priority="High", lead_id=lead.id, assigned_user_id=assignee.id, created_by_user_id=assignee.id))
+    db.commit()
+    return "created"
