@@ -9,6 +9,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { resolveAssetUrl, openWhatsAppShare } from "@/lib/utils";
+import WhatsAppWebAdminPanel from "@/components/WhatsAppWebAdminPanel";
 
 const isAdmin = (u) => u && (u.role === "super_admin" || u.role === "company_admin");
 const BRANDING_IMAGE_MAX_UPLOAD_BYTES = 2 * 1024 * 1024;
@@ -1616,6 +1617,8 @@ export default function SettingsPage() {
               <div className="md:col-span-2 flex flex-wrap items-center gap-2"><Button type="button" onClick={handleWhatsappSave} disabled={whatsappBusy}>Save Configuration</Button><Button type="button" variant="outline" onClick={testWhatsapp} disabled={whatsappBusy}>Test Configuration</Button>{whatsappMessage ? <span className="text-xs text-slate-600">{whatsappMessage}</span> : null}</div>
             </Section>
           ) : null}
+
+          {!readOnly ? <WhatsAppWebAdminPanel /> : null}
 
           <Section
             title="Razorpay Gateway"

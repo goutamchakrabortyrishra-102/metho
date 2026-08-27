@@ -16,3 +16,26 @@ services:
       name: metho-uploads
       mountPath: /var/data
       sizeGB: 1
+
+  # Optional, isolated WhatsApp Web automation microservice. Fully independent from
+  # the Python backend above and from the Cloudflare Pages frontend build — it only
+  # gets called over HTTP when an admin switches the active provider to "whatsapp_web".
+  - type: web
+    name: Metho-whatsapp-web
+    runtime: docker
+    rootDir: whatsapp-web-service
+    dockerfilePath: ./Dockerfile
+    healthCheckPath: /health
+    autoDeployTrigger: commit
+    buildFilter:
+      paths:
+        - whatsapp-web-service/**
+      ignoredPaths:
+        - whatsapp-web-service/**/*.md
+    envVars:
+      - key: WHATSAPP_WEB_SERVICE_TOKEN
+        sync: false
+    disk:
+      name: metho-whatsapp-web-session
+      mountPath: /app/whatsapp-session
+      sizeGB: 1

@@ -11,7 +11,7 @@ import time
 
 from .database import Base, SessionLocal, engine
 from .models import AssociatePartner, PartnerProduct, User
-from .routers import auth, checkout, commerce, compat, company_inventory, crm, directory, direct_booking, health, meta_ads, partner_public, rider, settings, whatsapp
+from .routers import auth, checkout, commerce, compat, company_inventory, crm, directory, direct_booking, health, meta_ads, partner_public, rider, settings, whatsapp, whatsapp_web
 from .security import hash_password
 
 logger = logging.getLogger(__name__)
@@ -473,6 +473,7 @@ app.include_router(checkout.router)
 app.include_router(crm.router)
 app.include_router(meta_ads.router)
 app.include_router(whatsapp.router)
+app.include_router(whatsapp_web.router)
 app.include_router(compat.router)
 
 
