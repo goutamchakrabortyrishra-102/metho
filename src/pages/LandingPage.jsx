@@ -13,6 +13,9 @@ import { useSettings } from "@/contexts/SettingsContext";
 import { getMethoPriceDetails, resolveAssetUrl, getAssetImageFallbackCandidates } from "@/lib/utils";
 import { isCompletePincode, normalizePincode } from "@/lib/indiaLocation";
 import useDebouncedValue from "@/hooks/useDebouncedValue";
+import SeoMeta from "@/components/SeoMeta";
+import WhatsAppOrderButton from "@/components/WhatsAppOrderButton";
+import { getOrganizationSchema } from "@/utils/seoSchema";
 
 function ReferralEntryStrip() {
   const [params] = useSearchParams();
@@ -1933,6 +1936,11 @@ const Footer = () => {
 export default function LandingPage() {
   return (
     <div className="min-h-screen bg-background" data-testid="landing-page">
+      <SeoMeta
+        description="METHO AAY-UPAY — Smart commerce platform for customers, members & partners. Shop METHO products, explore associate partner stores, and grow with real rewards."
+        schemas={[getOrganizationSchema()]}
+        id="landing"
+      />
       <Nav />
       <ReferralEntryStrip />
       <Hero />
@@ -1942,6 +1950,7 @@ export default function LandingPage() {
       <TopLeaders />
       <ReturnPolicyBox />
       <Footer />
+      <WhatsAppOrderButton />
     </div>
   );
 }
