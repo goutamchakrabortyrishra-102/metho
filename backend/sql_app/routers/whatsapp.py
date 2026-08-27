@@ -95,6 +95,7 @@ def run_whatsapp_settings_test(db: Session = Depends(get_db), current_user=Depen
         return {"ok": False, "configured": True, "error": str(err)}
 
 
+@router.get("/whatsapp/webhook")
 @router.get("/webhooks/whatsapp")
 def verify_whatsapp_webhook(mode: str | None = Query(default=None, alias="hub.mode"), token: str | None = Query(default=None, alias="hub.verify_token"), challenge: str | None = Query(default=None, alias="hub.challenge"), db: Session = Depends(get_db)):
     if mode != "subscribe":
