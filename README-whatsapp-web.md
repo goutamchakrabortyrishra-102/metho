@@ -7,6 +7,13 @@ This helper is intentionally isolated from the existing Meta Cloud API integrati
 - It does not replace the current database schema or route structure.
 - It does not modify the existing Meta integration or WhatsApp Cloud API configuration flow.
 - It is optional and can be enabled only if the server is configured to run this helper.
+- IMPORTANT: `whatsapp-web.js` is intentionally NOT listed in the root `package.json`
+  (used by the Cloudflare Pages frontend build). It pulls in Puppeteer/Chromium, which
+  is unnecessary weight for the React app and previously broke `npm ci` in CI because
+  `package-lock.json` was never in sync with it. Install it separately, only in the
+  environment that actually runs this Node service:
+  `npm install whatsapp-web.js --no-save` (or add it to a dedicated backend/service
+  `package.json`, not the frontend one).
 
 ## Initialization pattern
 
