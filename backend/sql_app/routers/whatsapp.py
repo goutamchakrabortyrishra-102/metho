@@ -95,6 +95,23 @@ def run_whatsapp_settings_test(db: Session = Depends(get_db), current_user=Depen
         return {"ok": False, "configured": True, "error": str(err)}
 
 
+@router.post("/admin/settings/whatsapp/send")
+def send_admin_whatsapp_reply(payload: dict, db: Session = Depends(get_db), current_user=Depends(get_current_user)):
+    _require_admin(current_user)
+    data = payload if isinstance(payload, dict) else {}
+    recipient = str(data.get("recipient") or "").strip()
+    message = str(data.get("message") or "").strip()
+    if not recipient or not message:
+        raise HTTPException(status_code=400, detail="Recipient and message are required")
+    try:
+        from ..whatsapp_cloud import send_whatsapp_message
+
+        result = send_whatsapp_message(db, recipient, text=message)
+        return {"ok": True, "message_id": ((result.get("messages") or [{}])[0]).get("id") if isinstance(result, dict) else None}
+    except Exception as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
+
+
 @router.get("/whatsapp/webhook")
 @router.get("/webhooks/whatsapp")
 def verify_whatsapp_webhook(mode: str | None = Query(default=None, alias="hub.mode"), token: str | None = Query(default=None, alias="hub.verify_token"), challenge: str | None = Query(default=None, alias="hub.challenge"), db: Session = Depends(get_db)):

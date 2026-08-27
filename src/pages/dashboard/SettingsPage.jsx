@@ -9,7 +9,6 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { resolveAssetUrl, openWhatsAppShare } from "@/lib/utils";
-import WhatsAppWebAdminPanel from "@/components/WhatsAppWebAdminPanel";
 
 const isAdmin = (u) => u && (u.role === "super_admin" || u.role === "company_admin");
 const BRANDING_IMAGE_MAX_UPLOAD_BYTES = 2 * 1024 * 1024;
@@ -704,6 +703,8 @@ export default function SettingsPage() {
   const [whatsappAssignees, setWhatsappAssignees] = useState([]);
   const [whatsappBusy, setWhatsappBusy] = useState(false);
   const [whatsappMessage, setWhatsappMessage] = useState("");
+  const [whatsappReplyRecipient, setWhatsappReplyRecipient] = useState("");
+  const [whatsappReplyText, setWhatsappReplyText] = useState("");
   const [landingPartnerOptions, setLandingPartnerOptions] = useState([]);
   const [landingPartnerOptionsLoading, setLandingPartnerOptionsLoading] = useState(false);
 
@@ -1211,6 +1212,27 @@ export default function SettingsPage() {
       setWhatsappBusy(false);
     }
   };
+  const sendWhatsappReply = async () => {
+    if (!whatsappReplyRecipient.trim() || !whatsappReplyText.trim()) {
+      setWhatsappMessage("Enter a recipient number and reply message.");
+      return;
+    }
+    setWhatsappBusy(true);
+    setWhatsappMessage("");
+    try {
+      const { data } = await api.post("/admin/settings/whatsapp/send", {
+        recipient: whatsappReplyRecipient.trim(),
+        message: whatsappReplyText.trim(),
+      });
+      if (!data?.ok) throw new Error(data?.error || "Reply could not be sent");
+      setWhatsappReplyText("");
+      setWhatsappMessage("WhatsApp reply sent through Meta Cloud API.");
+    } catch (err) {
+      setWhatsappMessage(err?.response?.data?.detail || err?.message || "WhatsApp reply failed");
+    } finally {
+      setWhatsappBusy(false);
+    }
+  };
 
   return (
     <div className="space-y-6" data-testid="settings-page">
@@ -1615,10 +1637,16 @@ export default function SettingsPage() {
               <div><Label>Default CRM Assignee</Label><select value={whatsappForm.default_assignee_id || ""} onChange={(e) => setWhatsappForm({ ...whatsappForm, default_assignee_id: e.target.value })} className="mt-1.5 h-11 w-full rounded-md border border-input px-3"><option value="">First active admin</option>{whatsappAssignees.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</select></div>
               {[["webhook_verify_token", "Webhook Verify Token"], ["app_secret", "App Secret"], ["access_token", "Access Token"]].map(([key, label]) => <div key={key}><Label>{label}</Label><Input type="password" value={whatsappForm[key] || ""} onChange={updateWhatsappField(key)} placeholder={whatsappForm[`${key}_masked`] || "Leave empty to keep existing"} className="mt-1.5 h-11" /></div>)}
               <div className="md:col-span-2 flex flex-wrap items-center gap-2"><Button type="button" onClick={handleWhatsappSave} disabled={whatsappBusy}>Save Configuration</Button><Button type="button" variant="outline" onClick={testWhatsapp} disabled={whatsappBusy}>Test Configuration</Button>{whatsappMessage ? <span className="text-xs text-slate-600">{whatsappMessage}</span> : null}</div>
+              <div className="md:col-span-2 border-t border-border pt-4">
+                <p className="text-sm font-semibold text-emerald-950">Admin Reply</p>
+                <div className="mt-2 grid gap-3 md:grid-cols-[minmax(0,0.4fr)_minmax(0,1fr)_auto]">
+                  <Input value={whatsappReplyRecipient} onChange={(e) => setWhatsappReplyRecipient(e.target.value)} placeholder="Customer WhatsApp number" className="h-11" data-testid="settings-whatsapp-reply-recipient" />
+                  <Input value={whatsappReplyText} onChange={(e) => setWhatsappReplyText(e.target.value)} placeholder="Write a reply" className="h-11" data-testid="settings-whatsapp-reply-text" />
+                  <Button type="button" onClick={sendWhatsappReply} disabled={whatsappBusy} data-testid="settings-whatsapp-send-reply">Send Reply</Button>
+                </div>
+              </div>
             </Section>
           ) : null}
-
-          {!readOnly ? <WhatsAppWebAdminPanel /> : null}
 
           <Section
             title="Razorpay Gateway"
