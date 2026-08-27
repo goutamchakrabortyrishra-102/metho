@@ -13,7 +13,7 @@ COPY . .
 ENV PUPPETEER_EXECUTABLE_PATH=/usr/bin/google-chrome-stable
 ENV NODE_ENV=production
 
-RUN mkdir -p /app/whatsapp-session && chown -R pptruser:pptruser /app
+RUN mkdir -p /app/.wwebjs_auth && chown -R pptruser:pptruser /app
 USER pptruser
 
 EXPOSE 4100

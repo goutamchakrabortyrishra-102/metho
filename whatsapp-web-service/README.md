@@ -23,7 +23,7 @@ and only when an admin explicitly switches the "active WhatsApp provider" to `wh
 ## Deploying on Render
 This repo's `render.yaml` includes a second service block (`Metho-whatsapp-web`, Docker
 runtime, `rootDir: whatsapp-web-service`) with a persistent disk mounted at
-`/app/whatsapp-session` so the authenticated session survives restarts (no repeated QR scans).
+`/app/.wwebjs_auth` so the authenticated session survives restarts (no repeated QR scans).
 Set the `WHATSAPP_WEB_SERVICE_TOKEN` env var (any long random string) on that service, and the
 same value in the main backend's `WHATSAPP_WEB_SERVICE_TOKEN` env var so it can authenticate.
 
@@ -33,4 +33,4 @@ cd whatsapp-web-service
 npm install
 WHATSAPP_WEB_SERVICE_TOKEN=dev-secret node server.js
 ```
-Then scan the QR from `GET /qr` (base64 image) once — session persists in `./whatsapp-session`.
+Then scan the QR from `GET /qr` (base64 image) once — session persists in `./.wwebjs_auth`.

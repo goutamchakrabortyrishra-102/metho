@@ -37,5 +37,5 @@ services:
         sync: false
     disk:
       name: metho-whatsapp-web-session
-      mountPath: /app/whatsapp-session
+      mountPath: /app/.wwebjs_auth
       sizeGB: 1

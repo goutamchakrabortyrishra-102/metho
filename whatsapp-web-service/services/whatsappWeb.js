@@ -3,7 +3,7 @@ const path = require('path');
 const QRCode = require('qrcode');
 const { Client, LocalAuth, MessageMedia } = require('whatsapp-web.js');
 
-const SESSION_DIR = path.resolve(process.cwd(), 'whatsapp-session');
+const SESSION_DIR = path.resolve(process.cwd(), '.wwebjs_auth');
 const QR_CODE_PATH = path.resolve(SESSION_DIR, 'qr-code.txt');
 const CACHE_DIRECTORY_NAMES = new Set(['Cache', 'Code Cache', 'GPUCache', 'DawnCache']);
 
@@ -50,10 +50,19 @@ function createClient() {
   ensureSessionDir();
 
   const client = new Client({
-    authStrategy: new LocalAuth({ dataPath: SESSION_DIR, session: 'metho-whatsapp-web' }),
+    authStrategy: new LocalAuth({ dataPath: SESSION_DIR, clientId: 'metho-session' }),
     puppeteer: {
       headless: true,
-      args: ['--no-sandbox', '--disable-setuid-sandbox'],
+      args: [
+        '--no-sandbox',
+        '--disable-setuid-sandbox',
+        '--disable-dev-shm-usage',
+        '--disable-accelerated-2d-canvas',
+        '--no-first-run',
+        '--no-zygote',
+        '--single-process',
+        '--disable-gpu',
+      ],
       executablePath: process.env.PUPPETEER_EXECUTABLE_PATH || undefined,
     },
     takeoverOnConflict: false,
