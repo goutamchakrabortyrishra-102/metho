@@ -3,7 +3,7 @@ const path = require('path');
 const QRCode = require('qrcode');
 const { Client, LocalAuth, MessageMedia } = require('whatsapp-web.js');
 
-const SESSION_DIR = path.resolve(process.cwd(), '.wwebjs_auth');
+const SESSION_DIR = '/tmp/.wwebjs_auth';
 const QR_CODE_PATH = path.resolve(SESSION_DIR, 'qr-code.txt');
 const CACHE_DIRECTORY_NAMES = new Set(['Cache', 'Code Cache', 'GPUCache', 'DawnCache']);
 const RESTART_DELAY_MS = 5000;
@@ -74,13 +74,37 @@ async function restartClient(reason) {
   }, RESTART_DELAY_MS);
 }
 
+async function resetSession() {
+  if (state.restartTimer) {
+    clearTimeout(state.restartTimer);
+    state.restartTimer = null;
+  }
+  state.restarting = true;
+  state.ready = false;
+  state.qrCode = null;
+  state.qrDataUri = null;
+  state.lastError = null;
+  const previousClient = state.client;
+  state.client = null;
+  try {
+    if (previousClient) await previousClient.destroy();
+  } catch (error) {
+    console.warn('[whatsapp-web-service] Client destroy during reset failed:', error.message);
+  }
+  fs.rmSync(SESSION_DIR, { recursive: true, force: true });
+  ensureSessionDir();
+  state.restarting = false;
+  initializeWhatsAppWebClient();
+  console.log('[whatsapp-web-service] WhatsApp Web session reset. Scan the new QR code.');
+}
+
 function createClient() {
   ensureSessionDir();
 
   const client = new Client({
     authStrategy: new LocalAuth({ dataPath: SESSION_DIR, clientId: 'metho-session' }),
     puppeteer: {
-      headless: true,
+      headless: 'new',
       args: [
         '--no-sandbox',
         '--disable-setuid-sandbox',
@@ -221,5 +245,6 @@ module.exports = {
   sendPdfInvoice,
   getStorageStatus,
   cleanupStorage,
+  resetSession,
   state,
 };

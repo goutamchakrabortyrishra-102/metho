@@ -19,11 +19,13 @@ and only when an admin explicitly switches the "active WhatsApp provider" to `wh
 - `GET /qr` — `{ qrDataUri, ready, lastError }` for the admin to scan.
 - `POST /send-text` — `{ to, message }`.
 - `POST /send-pdf` — `{ to, filename, caption, pdf_base64 }`.
+- `POST /reset-session` — deletes corrupted auth files and starts a new QR session.
 
 ## Deploying on Render
 This repo's `render.yaml` includes a second service block (`Metho-whatsapp-web`, Docker
-runtime, `rootDir: whatsapp-web-service`) with a persistent disk mounted at
-`/app/.wwebjs_auth` so the authenticated session survives restarts (no repeated QR scans).
+runtime, `rootDir: whatsapp-web-service`) stores LocalAuth under
+`/tmp/.wwebjs_auth` to avoid Render permission issues. Render clears `/tmp` on a service restart,
+so scan the QR code again after a restart or after resetting the session.
 Set the `WHATSAPP_WEB_SERVICE_TOKEN` env var (any long random string) on that service, and the
 same value in the main backend's `WHATSAPP_WEB_SERVICE_TOKEN` env var so it can authenticate.
 
@@ -33,4 +35,5 @@ cd whatsapp-web-service
 npm install
 WHATSAPP_WEB_SERVICE_TOKEN=dev-secret node server.js
 ```
-Then scan the QR from `GET /qr` (base64 image) once — session persists in `./.wwebjs_auth`.
+Then scan the QR from `GET /qr` (base64 image). Use authenticated `POST /reset-session` only when
+the saved session is corrupted; it deletes auth files and generates a new QR code.

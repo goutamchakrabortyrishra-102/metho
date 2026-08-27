@@ -10,6 +10,7 @@ const {
   getSessionStatus,
   getStorageStatus,
   cleanupStorage,
+  resetSession,
   sendTextMessage,
   sendPdfInvoice,
 } = require('./services/whatsappWeb');
@@ -51,6 +52,16 @@ app.get('/storage', requireToken, (req, res) => {
 
 app.post('/storage/cleanup', requireToken, (req, res) => {
   res.json({ ok: true, ...cleanupStorage() });
+});
+
+app.post('/reset-session', requireToken, async (req, res) => {
+  try {
+    await resetSession();
+    res.json({ ok: true, ready: false, message: 'Session reset. Scan the new QR code.' });
+  } catch (error) {
+    console.error('[whatsapp-web-service] /reset-session failed:', error.message);
+    res.status(503).json({ ok: false, error: error.message });
+  }
 });
 
 app.post('/send-text', requireToken, async (req, res) => {
