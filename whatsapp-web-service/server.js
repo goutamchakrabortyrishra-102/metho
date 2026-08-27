@@ -20,6 +20,7 @@ app.use(cors());
 app.use(express.json({ limit: '15mb' }));
 
 const SERVICE_TOKEN = process.env.WHATSAPP_WEB_SERVICE_TOKEN || '';
+const META_WHATSAPP_VERIFY_TOKEN = 'metho_secure_token_123';
 
 function requireToken(req, res, next) {
   if (!SERVICE_TOKEN) {
@@ -35,6 +36,21 @@ function requireToken(req, res, next) {
 
 app.get('/health', (req, res) => {
   res.json({ ok: true, ready: getSessionStatus().ready });
+});
+
+app.get('/api/whatsapp/webhook', (req, res) => {
+  const mode = req.query['hub.mode'];
+  const token = req.query['hub.verify_token'];
+  const challenge = req.query['hub.challenge'];
+
+  if (mode === 'subscribe' && token === META_WHATSAPP_VERIFY_TOKEN) {
+    return res.status(200).type('text/plain').send(String(challenge || ''));
+  }
+  return res.sendStatus(403);
+});
+
+app.post('/api/whatsapp/webhook', (req, res) => {
+  res.status(200).type('text/plain').send('EVENT_RECEIVED');
 });
 
 app.get('/status', requireToken, (req, res) => {
