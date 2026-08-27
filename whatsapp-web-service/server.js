@@ -38,7 +38,7 @@ app.get('/health', (req, res) => {
 });
 
 app.get('/status', requireToken, (req, res) => {
-  res.json({ ok: true, ...getSessionStatus() });
+  res.json({ ok: true, success: true, ...getSessionStatus() });
 });
 
 app.get('/qr', requireToken, (req, res) => {
