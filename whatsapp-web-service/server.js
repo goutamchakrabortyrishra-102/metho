@@ -33,7 +33,7 @@ function requireToken(req, res, next) {
 }
 
 app.get('/health', (req, res) => {
-  res.json({ ok: true });
+  res.json({ ok: true, ready: getSessionStatus().ready });
 });
 
 app.get('/status', requireToken, (req, res) => {

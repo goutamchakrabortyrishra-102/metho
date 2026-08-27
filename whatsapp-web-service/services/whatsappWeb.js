@@ -6,6 +6,7 @@ const { Client, LocalAuth, MessageMedia } = require('whatsapp-web.js');
 const SESSION_DIR = path.resolve(process.cwd(), '.wwebjs_auth');
 const QR_CODE_PATH = path.resolve(SESSION_DIR, 'qr-code.txt');
 const CACHE_DIRECTORY_NAMES = new Set(['Cache', 'Code Cache', 'GPUCache', 'DawnCache']);
+const RESTART_DELAY_MS = 5000;
 
 const state = {
   client: null,
@@ -13,6 +14,8 @@ const state = {
   qrCode: null,
   qrDataUri: null,
   lastError: null,
+  restarting: false,
+  restartTimer: null,
 };
 
 function ensureSessionDir() {
@@ -44,6 +47,31 @@ function cleanSessionCache(directory = SESSION_DIR) {
     freedBytes += cleanSessionCache(fullPath);
   }
   return freedBytes;
+}
+
+async function restartClient(reason) {
+  if (state.restarting) return;
+  state.restarting = true;
+  state.ready = false;
+  state.lastError = reason || 'WhatsApp Web client restarting';
+  const previousClient = state.client;
+  state.client = null;
+  try {
+    if (previousClient) await previousClient.destroy();
+  } catch (error) {
+    console.warn('[whatsapp-web-service] Client destroy failed:', error.message);
+  }
+  state.restartTimer = setTimeout(() => {
+    state.restartTimer = null;
+    state.restarting = false;
+    try {
+      initializeWhatsAppWebClient();
+      console.log('[whatsapp-web-service] Client re-initialized.');
+    } catch (error) {
+      console.error('[whatsapp-web-service] Client re-initialization failed:', error.message);
+      void restartClient(error.message);
+    }
+  }, RESTART_DELAY_MS);
 }
 
 function createClient() {
@@ -80,15 +108,16 @@ function createClient() {
   });
 
   client.on('authenticated', () => {
-    state.ready = true;
+    state.ready = false;
     state.lastError = null;
-    console.log('[whatsapp-web-service] Authenticated successfully.');
+    console.log('[whatsapp-web-service] Authenticated successfully. Waiting for ready event.');
   });
 
   client.on('auth_failure', (message) => {
     state.ready = false;
     state.lastError = message || 'Authentication failed';
     console.error('[whatsapp-web-service] Auth failure:', state.lastError);
+    void restartClient(state.lastError);
   });
 
   client.on('ready', () => {
@@ -97,13 +126,14 @@ function createClient() {
     state.qrCode = null;
     state.qrDataUri = null;
     fs.rmSync(QR_CODE_PATH, { force: true });
-    console.log('[whatsapp-web-service] Client ready.');
+    console.log('[whatsapp-web-service] Client is ready!');
   });
 
   client.on('disconnected', (reason) => {
     state.ready = false;
     state.lastError = reason || 'Client disconnected';
     console.warn('[whatsapp-web-service] Disconnected:', state.lastError);
+    void restartClient(state.lastError);
   });
 
   return client;
@@ -112,7 +142,13 @@ function createClient() {
 function initializeWhatsAppWebClient() {
   if (state.client) return state.client;
   state.client = createClient();
-  state.client.initialize();
+  try {
+    state.client.initialize();
+  } catch (error) {
+    state.client = null;
+    void restartClient(error.message);
+    throw error;
+  }
   return state.client;
 }
 
@@ -122,6 +158,7 @@ function getSessionStatus() {
     connected: !!state.ready,
     qrDataUri: state.qrDataUri || null,
     lastError: state.lastError || null,
+    restarting: !!state.restarting,
   };
 }
 
