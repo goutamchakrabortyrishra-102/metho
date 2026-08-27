@@ -1,5 +1,6 @@
 import json
 import sys
+import base64
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -13,6 +14,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from sql_app.database import Base
 from sql_app.models import AppSetting, CRMLead, CRMLeadActivity
 from sql_app.routers.whatsapp import get_whatsapp_settings, receive_whatsapp_webhook, run_whatsapp_settings_test, update_whatsapp_settings
+from sql_app.routers.whatsapp_web import send_invoice_to_customer_whatsapp, send_pdf_message
 from sql_app.whatsapp_cloud import ingest_whatsapp_message, normalize_whatsapp_message, send_whatsapp_message
 
 
@@ -60,6 +62,53 @@ def test_admin_can_save_whatsapp_secrets(monkeypatch):
         assert "secret-token" not in json.dumps(updated)
         stored = db.query(AppSetting).filter(AppSetting.key == "whatsapp_cloud_integration").one().value_json
         assert "secret-token" not in stored
+    finally:
+        db.close()
+
+
+def test_whatsapp_can_use_shared_meta_encryption_key(monkeypatch):
+    db = make_session()
+    try:
+        monkeypatch.delenv("WHATSAPP_SETTINGS_ENCRYPTION_KEY", raising=False)
+        monkeypatch.setenv("META_SETTINGS_ENCRYPTION_KEY", Fernet.generate_key().decode())
+        updated = update_whatsapp_settings(
+            {
+                "enabled": True,
+                "phone_number_id": "123456",
+                "business_account_id": "biz-1",
+                "access_token": "secret-token",
+                "default_assignee_id": "ADMIN",
+            },
+            db,
+            admin(),
+        )
+        assert updated["phone_number_id"] == "123456"
+        assert updated["access_token_masked"].endswith("ken")
+    finally:
+        db.close()
+
+
+def test_whatsapp_uses_default_fallback_key_when_no_env_is_set(monkeypatch):
+    db = make_session()
+    try:
+        monkeypatch.delenv("WHATSAPP_SETTINGS_ENCRYPTION_KEY", raising=False)
+        monkeypatch.delenv("META_SETTINGS_ENCRYPTION_KEY", raising=False)
+        updated = update_whatsapp_settings(
+            {
+                "enabled": True,
+                "phone_number_id": "123456",
+                "business_account_id": "biz-1",
+                "access_token": "secret-token",
+                "webhook_verify_token": "verify-token",
+                "app_secret": "app-secret",
+                "default_assignee_id": "ADMIN",
+            },
+            db,
+            admin(),
+        )
+        assert updated["phone_number_id"] == "123456"
+        assert updated["access_token_masked"].endswith("ken")
+        assert "secret-token" not in json.dumps(updated)
     finally:
         db.close()
 
@@ -186,5 +235,60 @@ def test_template_sender_requires_template_language_code(monkeypatch):
         update_whatsapp_settings({"phone_number_id": "123456", "access_token": "secret-token"}, db, admin())
         with pytest.raises(ValueError, match="template_language_code"):
             send_whatsapp_message(db, "8801712345678", template_name="approved_name")
+    finally:
+        db.close()
+
+
+def test_invoice_pdf_is_sent_only_through_whatsapp_web(monkeypatch):
+    db = make_session()
+    try:
+        monkeypatch.setattr(
+            "sql_app.routers.whatsapp_web.load_provider_config",
+            lambda _db: {"active_provider": "whatsapp_web"},
+        )
+        monkeypatch.setattr(
+            "sql_app.routers.compat._invoice_payload",
+            lambda _db, order_id, _user: {"invoice_no": f"INV-{order_id}"},
+        )
+        monkeypatch.setattr("sql_app.routers.compat._draw_invoice_pdf", lambda _invoice: b"pdf-content")
+        sent = {}
+        monkeypatch.setattr(
+            "sql_app.routers.whatsapp_web.send_via_active_provider",
+            lambda _db, to, **kwargs: sent.update({"to": to, **kwargs}) or {"ok": True},
+        )
+
+        result = send_invoice_to_customer_whatsapp("order-1", {"to": "919999999999"}, db, admin())
+
+        assert result["ok"] is True
+        assert sent["to"] == "919999999999"
+        assert sent["pdf_bytes"] == b"pdf-content"
+        assert sent["pdf_filename"] == "INV-order-1.pdf"
+    finally:
+        db.close()
+
+
+def test_admin_can_send_any_pdf_through_whatsapp_web(monkeypatch):
+    db = make_session()
+    try:
+        monkeypatch.setattr(
+            "sql_app.routers.whatsapp_web.load_provider_config",
+            lambda _db: {"active_provider": "whatsapp_web"},
+        )
+        sent = {}
+        monkeypatch.setattr(
+            "sql_app.routers.whatsapp_web.send_via_active_provider",
+            lambda _db, to, **kwargs: sent.update({"to": to, **kwargs}) or {"ok": True},
+        )
+
+        result = send_pdf_message(
+            {"to": "919999999999", "pdf_base64": base64.b64encode(b"pdf-content").decode(), "filename": "offer.pdf"},
+            db,
+            admin(),
+        )
+
+        assert result["ok"] is True
+        assert sent["to"] == "919999999999"
+        assert sent["pdf_bytes"] == b"pdf-content"
+        assert sent["pdf_filename"] == "offer.pdf"
     finally:
         db.close()

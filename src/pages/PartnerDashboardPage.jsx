@@ -864,44 +864,16 @@ export default function PartnerDashboardPage() {
     if (sendingInvoiceOrderId === order.id) return;
     setSendingInvoiceOrderId(order.id);
     try {
-      const response = await api.get(`/orders/${order.id}/invoice/pdf`, { responseType: "blob" });
-      const pdfBlob = response?.data instanceof Blob
-        ? response.data
-        : new Blob([response?.data], { type: "application/pdf" });
-      const fallbackName = `Invoice_${String(order?.order_no || order.id || "order").replace(/[^A-Za-z0-9_-]/g, "_")}.pdf`;
-
-      const anchor = document.createElement("a");
-      const objectUrl = URL.createObjectURL(pdfBlob);
-      anchor.href = objectUrl;
-      anchor.download = fallbackName;
-      document.body.appendChild(anchor);
-      anchor.click();
-      anchor.remove();
-      setTimeout(() => URL.revokeObjectURL(objectUrl), 1000);
-
-      const backendUrl = String(order?.customer_whatsapp_invoice_url || "").trim();
       const phoneFromOrder = String(order?.delivery_phone || "").replace(/\D/g, "");
+      const backendUrl = String(order?.customer_whatsapp_invoice_url || "").trim();
       const phoneFromBackendUrl = (backendUrl.match(/wa\.me\/(\d{6,15})/) || backendUrl.match(/[?&]phone=(\d{6,15})/))?.[1] || "";
       const phoneDigits = phoneFromOrder || phoneFromBackendUrl;
-
-      const invoiceLink = `${window.location.origin}/invoice/${order.id}`;
-      const message = `Invoice ready for ${order?.order_no || "your order"}\nCustomer: ${order?.delivery_name || "Customer"}\nOpen invoice: ${invoiceLink}\nPDF downloaded. Please attach and send.`;
-
-      let whatsappUrl = "";
-      if (phoneDigits) {
-        whatsappUrl = buildWhatsAppShareUrl({ phone: phoneDigits, text: message });
-      } else if (backendUrl) {
-        whatsappUrl = backendUrl;
-      }
-
-      if (whatsappUrl) {
-        const popup = window.open(whatsappUrl, "_blank", "noopener,noreferrer");
-        if (!popup) window.location.href = whatsappUrl;
-        toast.success("PDF downloaded and customer WhatsApp chat opened.");
-      } else {
-        openWhatsAppShare({ text: message });
-        toast.success("PDF downloaded and your WhatsApp share window opened.");
-      }
+      if (!phoneDigits) throw new Error("Customer WhatsApp number is unavailable");
+      await api.post(`/orders/${order.id}/invoice/whatsapp`, {
+        to: phoneDigits,
+        caption: `METHO invoice for ${order?.order_no || "your order"}`,
+      });
+      toast.success("Invoice PDF sent to customer WhatsApp.");
     } catch (err) {
       const detail = err?.response?.data?.detail;
       const msg = typeof detail === "string" && detail.trim()

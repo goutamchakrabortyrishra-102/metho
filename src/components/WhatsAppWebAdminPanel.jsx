@@ -16,6 +16,10 @@ export default function WhatsAppWebAdminPanel() {
   const [qr, setQr] = useState(null);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState("");
+  const [notice, setNotice] = useState("");
+  const [recipient, setRecipient] = useState("");
+  const [pdf, setPdf] = useState(null);
+  const [storage, setStorage] = useState(null);
   const [serviceUrl, setServiceUrl] = useState("");
   const [serviceToken, setServiceToken] = useState("");
 
@@ -28,8 +32,18 @@ export default function WhatsAppWebAdminPanel() {
       .catch(() => setSettings(null));
   };
 
+  const refreshStorage = async () => {
+    try {
+      const { data } = await api.get("/admin/whatsapp-web/storage");
+      setStorage(data?.ok ? data : null);
+    } catch {
+      setStorage(null);
+    }
+  };
+
   useEffect(() => {
     loadSettings();
+    void refreshStorage();
   }, []);
 
   const refreshStatus = async () => {
@@ -52,7 +66,7 @@ export default function WhatsAppWebAdminPanel() {
 
   const saveSettings = async (activeProvider) => {
     setBusy(true);
-    setMessage("");
+    setNotice("");
     try {
       const payload = { active_provider: activeProvider ?? settings?.active_provider ?? "meta", service_url: serviceUrl };
       if (serviceToken.trim()) payload.service_token = serviceToken.trim();
@@ -61,7 +75,7 @@ export default function WhatsAppWebAdminPanel() {
       setServiceToken("");
       toast.success("WhatsApp Web provider settings saved.");
     } catch (err) {
-      setMessage(err?.response?.data?.detail || "Save failed");
+      setNotice(err?.response?.data?.detail || "Save failed");
     } finally {
       setBusy(false);
     }
@@ -70,6 +84,73 @@ export default function WhatsAppWebAdminPanel() {
   const switchProvider = (provider) => {
     if (!settings || busy) return;
     void saveSettings(provider);
+  };
+
+  const sendMessage = async () => {
+    if (!recipient.trim() || !message.trim()) {
+      setNotice("Enter a WhatsApp number and message.");
+      return;
+    }
+    setBusy(true);
+    setNotice("");
+    try {
+      const { data } = await api.post("/admin/whatsapp-web/send-test", { to: recipient.trim(), message: message.trim() });
+      if (!data?.ok) throw new Error(data?.error || "Message could not be sent");
+      toast.success("WhatsApp message sent.");
+      setMessage("");
+    } catch (err) {
+      setNotice(err?.response?.data?.detail || err?.message || "Message send failed");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const sendPdf = async () => {
+    if (!recipient.trim() || !pdf?.base64) {
+      setNotice("Enter a WhatsApp number and choose a PDF.");
+      return;
+    }
+    setBusy(true);
+    setNotice("");
+    try {
+      const { data } = await api.post("/admin/whatsapp-web/send-pdf", {
+        to: recipient.trim(), pdf_base64: pdf.base64, filename: pdf.name, caption: message.trim() || "METHO document",
+      });
+      if (!data?.ok) throw new Error(data?.error || "PDF could not be sent");
+      toast.success("PDF sent to WhatsApp.");
+      setPdf(null);
+    } catch (err) {
+      setNotice(err?.response?.data?.detail || err?.message || "PDF send failed");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const handlePdfChange = (event) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+    if (file.type !== "application/pdf" || file.size > 10 * 1024 * 1024) {
+      setNotice("Choose a PDF file smaller than 10 MB.");
+      event.target.value = "";
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = () => setPdf({ name: file.name, base64: String(reader.result || "").split(",")[1] || "" });
+    reader.readAsDataURL(file);
+  };
+
+  const cleanupStorage = async () => {
+    setBusy(true);
+    setNotice("");
+    try {
+      const { data } = await api.post("/admin/whatsapp-web/storage/cleanup");
+      setStorage(data);
+      toast.success(`Old cache cleared (${Math.round((data?.freedBytes || 0) / 1024 / 1024)} MB).`);
+    } catch (err) {
+      setNotice(err?.response?.data?.detail || "Storage cleanup failed");
+    } finally {
+      setBusy(false);
+    }
   };
 
   if (!settings) return null;
@@ -137,7 +218,41 @@ export default function WhatsAppWebAdminPanel() {
         <Button type="button" variant="outline" onClick={refreshQr} disabled={busy} data-testid="whatsapp-web-refresh-qr">
           <QrCode className="w-4 h-4 mr-1" /> Get QR Code
         </Button>
-        {message ? <span className="text-xs text-red-600">{message}</span> : null}
+        {notice ? <span className="text-xs text-red-600">{notice}</span> : null}
+      </div>
+
+      <div className="mt-4 grid gap-3 md:grid-cols-[minmax(0,0.45fr)_minmax(0,1fr)_auto]">
+        <Input
+          value={recipient}
+          onChange={(e) => setRecipient(e.target.value)}
+          placeholder="Customer WhatsApp number"
+          className="h-11"
+          data-testid="whatsapp-web-message-recipient"
+        />
+        <Input
+          value={message}
+          onChange={(e) => setMessage(e.target.value)}
+          placeholder="Invoice, offer, or approved-template message"
+          className="h-11"
+          data-testid="whatsapp-web-message-template"
+        />
+        <Button type="button" onClick={sendMessage} disabled={busy} data-testid="whatsapp-web-send-message">
+          Send Message
+        </Button>
+      </div>
+
+      <div className="mt-3 flex flex-wrap items-center gap-2">
+        <Input type="file" accept="application/pdf" onChange={handlePdfChange} className="max-w-xs h-11" data-testid="whatsapp-web-pdf-file" />
+        <Button type="button" variant="outline" onClick={sendPdf} disabled={busy || !pdf} data-testid="whatsapp-web-send-pdf">
+          Send PDF
+        </Button>
+        {pdf ? <span className="text-xs text-muted-foreground">{pdf.name}</span> : null}
+      </div>
+
+      <div className="mt-3 flex flex-wrap items-center gap-2 text-xs text-slate-600">
+        <span>Web session storage: {storage ? `${(Number(storage.storageBytes || 0) / 1024 / 1024).toFixed(1)} MB` : "Unavailable"}</span>
+        <Button type="button" size="sm" variant="outline" onClick={refreshStorage} disabled={busy}>Refresh Storage</Button>
+        <Button type="button" size="sm" variant="outline" onClick={cleanupStorage} disabled={busy}>Clear Old Cache</Button>
       </div>
 
       {status ? (

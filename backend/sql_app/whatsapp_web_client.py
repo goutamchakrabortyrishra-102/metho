@@ -65,6 +65,14 @@ def get_qr(config: dict) -> dict:
     return _request(config, "GET", "/qr")
 
 
+def get_storage(config: dict) -> dict:
+    return _request(config, "GET", "/storage")
+
+
+def cleanup_storage(config: dict) -> dict:
+    return _request(config, "POST", "/storage/cleanup")
+
+
 def send_text_message(config: dict, to: str, message: str) -> dict:
     return _request(config, "POST", "/send-text", {"to": to, "message": message})
 

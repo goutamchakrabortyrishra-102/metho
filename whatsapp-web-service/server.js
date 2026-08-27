@@ -8,6 +8,8 @@ const cors = require('cors');
 const {
   initializeWhatsAppWebClient,
   getSessionStatus,
+  getStorageStatus,
+  cleanupStorage,
   sendTextMessage,
   sendPdfInvoice,
 } = require('./services/whatsappWeb');
@@ -41,6 +43,14 @@ app.get('/status', requireToken, (req, res) => {
 app.get('/qr', requireToken, (req, res) => {
   const status = getSessionStatus();
   res.json({ ok: true, qrDataUri: status.qrDataUri, ready: status.ready, lastError: status.lastError });
+});
+
+app.get('/storage', requireToken, (req, res) => {
+  res.json({ ok: true, ...getStorageStatus() });
+});
+
+app.post('/storage/cleanup', requireToken, (req, res) => {
+  res.json({ ok: true, ...cleanupStorage() });
 });
 
 app.post('/send-text', requireToken, async (req, res) => {

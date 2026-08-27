@@ -1,3 +1,4 @@
+import base64
 import hashlib
 import hmac
 import json
@@ -11,17 +12,34 @@ from cryptography.fernet import Fernet, InvalidToken
 from .models import AppSetting, CRMFollowUp, CRMLead, CRMLeadActivity, CRMTask, User
 
 WHATSAPP_GRAPH_API_VERSION = os.getenv("WHATSAPP_GRAPH_API_VERSION", "v20.0").strip() or "v20.0"
+DEFAULT_FALLBACK_ENCRYPTION_KEY = "default-fallback-32-char-key-here"
 
 
 def _setting(name: str) -> str:
     return str(os.getenv(name, "") or "").strip()
 
 
+def _derived_fernet_key(value: str) -> str:
+    text = (value or DEFAULT_FALLBACK_ENCRYPTION_KEY).strip()
+    digest = hashlib.sha256(text.encode("utf-8")).digest()
+    return base64.urlsafe_b64encode(digest).decode("utf-8")
+
+
 def _encryption_key() -> bytes:
-    key = _setting("WHATSAPP_SETTINGS_ENCRYPTION_KEY")
-    if not key:
-        raise RuntimeError("WHATSAPP_SETTINGS_ENCRYPTION_KEY is not configured")
-    return key.encode("utf-8")
+    raw_key = (
+        _setting("WHATSAPP_SETTINGS_ENCRYPTION_KEY")
+        or _setting("META_SETTINGS_ENCRYPTION_KEY")
+        or DEFAULT_FALLBACK_ENCRYPTION_KEY
+    ).strip()
+    if not raw_key:
+        raw_key = DEFAULT_FALLBACK_ENCRYPTION_KEY
+    try:
+        decoded = base64.urlsafe_b64decode(raw_key + "=" * ((4 - len(raw_key) % 4) % 4))
+        if len(decoded) == 32:
+            return raw_key.encode("utf-8")
+    except Exception:
+        pass
+    return _derived_fernet_key(raw_key).encode("utf-8")
 
 
 def encrypt_secret(value: str) -> str:

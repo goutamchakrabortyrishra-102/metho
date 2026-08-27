@@ -5,6 +5,7 @@ const { Client, LocalAuth, MessageMedia } = require('whatsapp-web.js');
 
 const SESSION_DIR = path.resolve(process.cwd(), 'whatsapp-session');
 const QR_CODE_PATH = path.resolve(SESSION_DIR, 'qr-code.txt');
+const CACHE_DIRECTORY_NAMES = new Set(['Cache', 'Code Cache', 'GPUCache', 'DawnCache']);
 
 const state = {
   client: null,
@@ -16,6 +17,33 @@ const state = {
 
 function ensureSessionDir() {
   fs.mkdirSync(SESSION_DIR, { recursive: true });
+}
+
+function directorySize(directory) {
+  if (!fs.existsSync(directory)) return 0;
+  let size = 0;
+  for (const entry of fs.readdirSync(directory, { withFileTypes: true })) {
+    const fullPath = path.join(directory, entry.name);
+    if (entry.isDirectory()) size += directorySize(fullPath);
+    else if (entry.isFile()) size += fs.statSync(fullPath).size;
+  }
+  return size;
+}
+
+function cleanSessionCache(directory = SESSION_DIR) {
+  if (!fs.existsSync(directory)) return 0;
+  let freedBytes = 0;
+  for (const entry of fs.readdirSync(directory, { withFileTypes: true })) {
+    const fullPath = path.join(directory, entry.name);
+    if (!entry.isDirectory()) continue;
+    if (CACHE_DIRECTORY_NAMES.has(entry.name)) {
+      freedBytes += directorySize(fullPath);
+      fs.rmSync(fullPath, { recursive: true, force: true });
+      continue;
+    }
+    freedBytes += cleanSessionCache(fullPath);
+  }
+  return freedBytes;
 }
 
 function createClient() {
@@ -59,6 +87,7 @@ function createClient() {
     state.lastError = null;
     state.qrCode = null;
     state.qrDataUri = null;
+    fs.rmSync(QR_CODE_PATH, { force: true });
     console.log('[whatsapp-web-service] Client ready.');
   });
 
@@ -85,6 +114,17 @@ function getSessionStatus() {
     qrDataUri: state.qrDataUri || null,
     lastError: state.lastError || null,
   };
+}
+
+function getStorageStatus() {
+  ensureSessionDir();
+  return { storageBytes: directorySize(SESSION_DIR) };
+}
+
+function cleanupStorage() {
+  ensureSessionDir();
+  const freedBytes = cleanSessionCache();
+  return { freedBytes, storageBytes: directorySize(SESSION_DIR) };
 }
 
 async function sendTextMessage(to, message) {
@@ -133,5 +173,7 @@ module.exports = {
   getSessionStatus,
   sendTextMessage,
   sendPdfInvoice,
+  getStorageStatus,
+  cleanupStorage,
   state,
 };
