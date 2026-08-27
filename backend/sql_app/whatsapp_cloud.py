@@ -297,6 +297,56 @@ def ingest_whatsapp_message(db, payload: dict, request=None) -> str:
             statuses.append("duplicate")
             continue
 
+        # Icebreaker response matching
+        incoming_text = str(
+            normalized.get("metadata", {}).get("raw_body") or ""
+        ).strip()
+
+        reply_text = ""
+
+        if (
+            "What is METHO AAY-UPAY?" in incoming_text
+            or "মেঠো আয়-উপায় কী?" in incoming_text
+        ):
+            reply_text = (
+                "METHO AAY-UPAY is a smart e-commerce platform by "
+                "Metho Logistics Pvt. Ltd. Browse quality daily essentials, "
+                "kitchenware, & direct farm produce easily!\n\n"
+                "মেঠো আয়-উপায় হলো মেঠো লজিস্টিকস প্রাইভেট লিমিটেডের একটি "
+                "ডিজিটাল প্ল্যাটফর্ম। এখান থেকে সহজেই দৈনন্দিন প্রয়োজনীয় "
+                "সামগ্রী, কিচেন অ্যাপ্লায়েন্স ও সেরা দেশি পণ্য অর্ডার করতে পারবেন।"
+            )
+
+        elif (
+            "How to buy products or join as a Partner?" in incoming_text
+            or "কীভাবে কেনাকাটা বা পার্টনার হিসেবে যুক্ত হব?" in incoming_text
+        ):
+            reply_text = (
+                "Looking to shop or grow your business with us? Visit our "
+                "portal to place orders or register as an authorized partner/vendor.\n\n"
+                "পণ্য কিনতে চান নাকি আমাদের সাথে বিজনেসে যুক্ত হতে চান? "
+                "অর্ডার করতে বা অথরাইজড বিজনেস পার্টনার/ভেন্ডর হিসেবে "
+                "রেজিস্টার করতে আমাদের পোর্টালে ভিজিট করুন।"
+            )
+
+        elif (
+            "How to contact Customer Support?" in incoming_text
+            or "কাস্টমার কেয়ারের সাথে কীভাবে যোগাযোগ করব?" in incoming_text
+        ):
+            reply_text = (
+                "We are here to help! For product details or business support, "
+                "call or WhatsApp us at +91 91635 30078.\n\n"
+                "আমরা আপনাকে সাহায্য করতে প্রস্তুত! পণ্য অর্ডার বা বিজনেসের "
+                "যেকোনো সহায়তার জন্য কল বা মেসেজ করুন: +91 91635 30078।"
+            )
+
+        if reply_text:
+            send_whatsapp_message(
+                db,
+                normalized["phone"],
+                text=reply_text,
+            )
+
         lead = db.query(CRMLead).filter(CRMLead.lead_id == normalized["lead_id"]).first()
         if not lead:
             lead = db.query(CRMLead).filter(CRMLead.whatsapp_no == normalized["whatsapp_no"]).first()
