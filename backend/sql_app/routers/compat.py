@@ -5042,6 +5042,24 @@ def order_invoice_pdf(order_id: str, db: Session = Depends(get_db), current_user
     return Response(content=_draw_invoice_pdf(inv), media_type="application/pdf")
 
 
+@router.post("/orders/{order_id}/invoice/whatsapp")
+def send_invoice_link_to_whatsapp(order_id: str, payload: dict | None = None, db: Session = Depends(get_db), current_user=Depends(get_current_user)):
+    invoice = _invoice_payload(db, order_id, current_user)
+    recipient = "".join(ch for ch in str((payload or {}).get("to") or invoice.get("buyer", {}).get("phone") or "") if ch.isdigit())
+    if not recipient:
+        raise HTTPException(status_code=400, detail="Customer WhatsApp number is required")
+    invoice_url = f"https://methoaayupay.com/invoice/{order_id}"
+    message = str((payload or {}).get("caption") or f"METHO invoice {invoice.get('invoice_no') or ''}").strip()
+    message = f"{message}\nView invoice: {invoice_url}"
+    from ..whatsapp_cloud import send_whatsapp_message
+
+    try:
+        result = send_whatsapp_message(db, recipient, text=message)
+    except Exception as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
+    return {"ok": True, "invoice_no": invoice.get("invoice_no"), "message_id": ((result.get("messages") or [{}])[0]).get("id") if isinstance(result, dict) else None}
+
+
 @router.get("/customer/mobile-access/orders/{order_id}/invoice")
 def customer_order_invoice(order_id: str, token: str = Query("", min_length=10), db: Session = Depends(get_db)):
     settings = load_settings(db)

@@ -873,7 +873,7 @@ export default function PartnerDashboardPage() {
         to: phoneDigits,
         caption: `METHO invoice for ${order?.order_no || "your order"}`,
       });
-      toast.success("Invoice PDF sent to customer WhatsApp.");
+      toast.success("Invoice link sent to customer WhatsApp.");
     } catch (err) {
       const detail = err?.response?.data?.detail;
       const msg = typeof detail === "string" && detail.trim()
