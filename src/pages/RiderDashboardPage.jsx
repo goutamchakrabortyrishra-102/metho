@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from "react";
-import { CheckCircle2, LogOut, Power, RefreshCw } from "lucide-react";
+import { CheckCircle2, ExternalLink, LogOut, MapPin, Power, RefreshCw } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -39,6 +39,13 @@ export default function RiderDashboardPage() {
 
   const signOut = () => { logout(); nav("/"); };
 
+  const pickupMapUrl = (job) => {
+    const latitude = Number(job?.pickup_latitude);
+    const longitude = Number(job?.pickup_longitude);
+    if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) return "";
+    return `https://www.google.com/maps/search/?api=1&query=${latitude},${longitude}`;
+  };
+
   return (
     <main className="min-h-screen bg-secondary/30 p-6 md:p-10" data-testid="rider-dashboard">
       <div className="mx-auto max-w-4xl">
@@ -56,7 +63,7 @@ export default function RiderDashboardPage() {
             <p><strong>Status:</strong> {rider?.approval_status || "approved"}</p>
           </div>
         </section>
-        <section className="mt-6 rounded-xl bg-white p-6 shadow-sm"><div className="flex items-center justify-between gap-3"><h2 className="font-display text-xl font-bold text-emerald-950">Assigned METHO Move jobs</h2><Button variant="outline" size="sm" onClick={loadJobs}><RefreshCw className="mr-2 h-4 w-4" /> Refresh</Button></div><div className="mt-4 grid gap-3">{jobs.length ? jobs.map((job) => <div key={job.id} className="rounded-lg border p-4"><div className="flex flex-wrap items-center justify-between gap-3"><div><p className="font-semibold text-emerald-950">{job.service_type} · {job.status}</p><p className="text-sm text-slate-600">{job.pickup} → {job.destination}</p><p className="text-xs text-slate-500">{job.customer_name} · {job.customer_phone}</p></div><div className="flex gap-2">{["assigned", "awaiting_driver_assignment"].includes(job.status) ? <><Button size="sm" onClick={async () => { await api.post(`/rider/metho-move/bookings/${job.id}/accept`); loadJobs(); }}><CheckCircle2 className="mr-1 h-4 w-4" /> Accept</Button><Button size="sm" variant="outline" onClick={async () => { await api.post(`/rider/metho-move/bookings/${job.id}/reject`); loadJobs(); }}>Reject</Button></> : null}{["accepted", "assigned", "paid"].includes(job.status) ? <Button size="sm" variant="outline" onClick={async () => { await api.post(`/rider/metho-move/bookings/${job.id}/complete`, {}); loadJobs(); }}>Complete</Button> : null}</div></div></div>) : <p className="text-sm text-slate-500">No assigned jobs.</p>}</div></section>
+        <section className="mt-6 rounded-xl bg-white p-6 shadow-sm"><div className="flex items-center justify-between gap-3"><h2 className="font-display text-xl font-bold text-emerald-950">Assigned METHO Move jobs</h2><Button variant="outline" size="sm" onClick={loadJobs}><RefreshCw className="mr-2 h-4 w-4" /> Refresh</Button></div><div className="mt-4 grid gap-3">{jobs.length ? jobs.map((job) => <div key={job.id} className="rounded-lg border p-4"><div className="flex flex-wrap items-center justify-between gap-3"><div><p className="font-semibold text-emerald-950">{job.service_type} · {job.status}</p><p className="text-sm text-slate-600">{job.pickup} → {job.destination}</p><p className="text-xs text-slate-500">{job.customer_name} · {job.customer_phone}</p>{pickupMapUrl(job) ? <a href={pickupMapUrl(job)} target="_blank" rel="noreferrer" className="mt-2 inline-flex items-center gap-1 text-xs font-semibold text-emerald-800 hover:text-emerald-950"><MapPin className="h-3.5 w-3.5" />Open pickup map <ExternalLink className="h-3 w-3" /></a> : <p className="mt-2 text-xs text-amber-700">Pickup map unavailable; use the customer address above.</p>}</div><div className="flex gap-2">{["assigned", "awaiting_driver_assignment"].includes(job.status) ? <><Button size="sm" onClick={async () => { await api.post(`/rider/metho-move/bookings/${job.id}/accept`); loadJobs(); }}><CheckCircle2 className="mr-1 h-4 w-4" /> Accept</Button><Button size="sm" variant="outline" onClick={async () => { await api.post(`/rider/metho-move/bookings/${job.id}/reject`); loadJobs(); }}>Reject</Button></> : null}{["accepted", "assigned", "paid"].includes(job.status) ? <Button size="sm" variant="outline" onClick={async () => { await api.post(`/rider/metho-move/bookings/${job.id}/complete`, {}); loadJobs(); }}>Complete</Button> : null}</div></div></div>) : <p className="text-sm text-slate-500">No assigned jobs.</p>}</div></section>
       </div>
     </main>
   );

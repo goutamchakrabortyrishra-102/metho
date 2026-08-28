@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
-import { ArrowRight, Loader2, MapPin } from "lucide-react";
+import { ArrowRight, Crosshair, Loader2, MapPin } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -20,8 +20,15 @@ const geocodeAddress = async (address) => {
   return Number.isFinite(latitude) && Number.isFinite(longitude) ? { latitude, longitude } : null;
 };
 
-const findRoadDistanceKm = async (pickup, destination) => {
-  const [origin, target] = await Promise.all([geocodeAddress(pickup), geocodeAddress(destination)]);
+const reverseGeocodeLocation = async (latitude, longitude) => {
+  const response = await fetch(`https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${latitude}&lon=${longitude}`, { headers: { Accept: "application/json" } });
+  if (!response.ok) return "";
+  const payload = await response.json();
+  return String(payload?.display_name || "").trim();
+};
+
+const findRoadDistanceKm = async (pickup, destination, pickupCoordinates = null) => {
+  const [origin, target] = await Promise.all([pickupCoordinates || geocodeAddress(pickup), geocodeAddress(destination)]);
   if (!origin || !target) return 0;
   const route = await fetch(`https://router.project-osrm.org/route/v1/driving/${origin.longitude},${origin.latitude};${target.longitude},${target.latitude}?overview=false&alternatives=true`);
   if (!route.ok) return 0;
@@ -50,6 +57,8 @@ export default function MethoMovePage() {
   const [routeLoading, setRouteLoading] = useState(false);
   const [loading, setLoading] = useState(false);
   const [termsAccepted, setTermsAccepted] = useState(false);
+  const [pickupCoordinates, setPickupCoordinates] = useState(null);
+  const [locationLoading, setLocationLoading] = useState(false);
 
   useEffect(() => {
     if (!booking?.id || !booking?.access_token || ["paid", "completed"].includes(booking.status)) return undefined;
@@ -91,7 +100,37 @@ export default function MethoMovePage() {
     api.get("/settings/public").then(({ data }) => setRates((current) => ({ ...current, ...(data?.metho_transport_rates || {}) }))).catch(() => {});
   }, []);
 
-  const update = (key, value) => setForm((current) => ({ ...current, [key]: value }));
+  const update = (key, value) => {
+    if (key === "pickup") setPickupCoordinates(null);
+    setForm((current) => ({ ...current, [key]: value }));
+  };
+
+  const useCurrentLocation = async () => {
+    if (!navigator.geolocation) {
+      toast.error("This browser does not support location access");
+      return;
+    }
+    setLocationLoading(true);
+    navigator.geolocation.getCurrentPosition(async (position) => {
+      const latitude = position.coords.latitude;
+      const longitude = position.coords.longitude;
+      try {
+        const address = await reverseGeocodeLocation(latitude, longitude);
+        setPickupCoordinates({ latitude, longitude });
+        setForm((current) => ({ ...current, pickup: address || `${latitude.toFixed(6)}, ${longitude.toFixed(6)}` }));
+        toast.success("Current pickup location added");
+      } catch {
+        setPickupCoordinates({ latitude, longitude });
+        setForm((current) => ({ ...current, pickup: `${latitude.toFixed(6)}, ${longitude.toFixed(6)}` }));
+        toast.success("Current pickup coordinates added");
+      } finally {
+        setLocationLoading(false);
+      }
+    }, (error) => {
+      setLocationLoading(false);
+      toast.error(error.code === error.PERMISSION_DENIED ? "Allow location permission to use current pickup" : "Current location could not be found");
+    }, { enableHighAccuracy: true, timeout: 15000, maximumAge: 60000 });
+  };
   const rateKey = form.service_type === "ebike" ? "bike" : form.service_type;
   const billableDistanceKm = roadDistanceKm > 0 ? Math.max(1, roadDistanceKm) : 0;
   const amount = billableDistanceKm ? billableDistanceKm * Number(rates[rateKey] || 0) : 0;
@@ -105,12 +144,12 @@ export default function MethoMovePage() {
     }
     let cancelled = false;
     setRouteLoading(true);
-    findRoadDistanceKm(pickup, destination)
+    findRoadDistanceKm(pickup, destination, pickupCoordinates)
       .then((distance) => { if (!cancelled) setRoadDistanceKm(distance); })
       .catch(() => { if (!cancelled) setRoadDistanceKm(0); })
       .finally(() => { if (!cancelled) setRouteLoading(false); });
     return () => { cancelled = true; };
-  }, [form.pickup, form.destination]);
+  }, [form.pickup, form.destination, pickupCoordinates]);
 
   const submit = async (event) => {
     event.preventDefault();
@@ -121,7 +160,14 @@ export default function MethoMovePage() {
     setLoading(true);
     try {
       if (!roadDistanceKm) throw new Error("Road distance could not be calculated. Enter complete pickup and destination addresses.");
-      const { data } = await api.post("/metho-move/bookings", { ...form, distance_km: Number(roadDistanceKm.toFixed(2)), request_assignment: true });
+      const typedPickupCoordinates = pickupCoordinates || await geocodeAddress(form.pickup);
+      const { data } = await api.post("/metho-move/bookings", {
+        ...form,
+        distance_km: Number(roadDistanceKm.toFixed(2)),
+        pickup_latitude: typedPickupCoordinates?.latitude,
+        pickup_longitude: typedPickupCoordinates?.longitude,
+        request_assignment: true,
+      });
       setBooking(data.booking);
       toast.success("Nearest driver খোঁজা হচ্ছে। Driver accept করলে payment button আসবে।");
     } catch (error) {
@@ -142,7 +188,7 @@ export default function MethoMovePage() {
         <form onSubmit={submit} className="grid gap-4 rounded-xl bg-white p-6 shadow-sm sm:grid-cols-2">
           <div><Label htmlFor="metho-service-type">METHO service</Label><select id="metho-service-type" value={form.service_type} onChange={(event) => update("service_type", event.target.value)} className="mt-1.5 h-10 w-full rounded-md border border-input bg-white px-3 text-sm"><option value="ebike">E-bike</option><option value="bike">Bike</option><option value="e_rickshaw">E-rickshaw</option><option value="auto_rickshaw">Auto-rickshaw</option><option value="four_wheeler">4-wheeler</option><option value="bolero_maxx">Bolero Maxx</option><option value="vehicle_207">207</option><option value="vehicle_407">407</option><option value="dumper">Dumper</option><option value="delivery">Generic Delivery</option></select></div>
           <div className="rounded-md border border-cyan-200 bg-cyan-50 px-3 py-2 text-sm"><p className="text-xs font-semibold text-cyan-900">Map road distance</p><p className="mt-1 font-bold text-emerald-950">{routeLoading ? "Calculating route..." : roadDistanceKm ? `${roadDistanceKm.toFixed(1)} km` : "Enter pickup and destination"}</p></div>
-          <div><Label htmlFor="metho-pickup">Pickup</Label><Input id="metho-pickup" required value={form.pickup} onChange={(event) => update("pickup", event.target.value)} className="mt-1.5" /></div>
+          <div><div className="flex items-center justify-between gap-2"><Label htmlFor="metho-pickup">Pickup</Label><Button type="button" variant="outline" size="sm" onClick={useCurrentLocation} disabled={locationLoading} className="h-7 px-2 text-xs"><Crosshair className="mr-1 h-3.5 w-3.5" />{locationLoading ? "Locating..." : "Use current location"}</Button></div><Input id="metho-pickup" required value={form.pickup} onChange={(event) => update("pickup", event.target.value)} placeholder="Use current location or type pickup address" className="mt-1.5" /></div>
           <div><Label htmlFor="metho-destination">Destination</Label><Input id="metho-destination" required value={form.destination} onChange={(event) => update("destination", event.target.value)} className="mt-1.5" /></div>
           <div><Label htmlFor="metho-customer-name">Customer name</Label><Input id="metho-customer-name" required value={form.customer_name} onChange={(event) => update("customer_name", event.target.value)} className="mt-1.5" /></div>
           <div><Label htmlFor="metho-customer-phone">Mobile / WhatsApp</Label><Input id="metho-customer-phone" required value={form.customer_phone} onChange={(event) => update("customer_phone", event.target.value)} className="mt-1.5" /></div>
