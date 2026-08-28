@@ -55,7 +55,7 @@ def load_db_config(db) -> dict:
 def resolve_config(db=None) -> dict:
     db_config = load_db_config(db) if db is not None else {}
     return {
-        "enabled": bool(db_config.get("enabled", True)),
+        "enabled": str(db_config.get("enabled", True)).strip().lower() not in {"false", "0", "no", "off"},
         "page_id": str(db_config.get("page_id") or _setting("META_PAGE_ID")),
         "app_id": str(db_config.get("app_id") or _setting("META_APP_ID")),
         "graph_api_version": str(db_config.get("graph_api_version") or META_GRAPH_API_VERSION),

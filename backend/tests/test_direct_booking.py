@@ -22,10 +22,12 @@ from sql_app.routers.direct_booking import (
     create_direct_booking,
     direct_razorpay_order,
     rider_accept_direct_booking,
+    rider_reject_direct_booking,
     rider_complete_direct_booking,
     verify_direct_payment,
     calculate_direct_amount,
 )
+from sql_app.routers.whatsapp import update_whatsapp_settings
 from sql_app.routers.rider import _save_profile
 
 
@@ -125,5 +127,90 @@ def test_guest_and_member_attribution_stays_outside_smart_cycle():
         assert attributed["customer_user_id"] == member.id
         assert attributed["member_ref"] == "MAU12345"
         assert guest["smart_cycle"] is False and attributed["smart_cycle"] is False
+    finally:
+        db.close()
+
+
+def test_delivery_type_is_supported_like_metho_move():
+    db = make_session()
+    try:
+        rider = user(db, "rider", "Delivery Rider")
+        profile(db, rider, 1, 1)
+        booking = create_direct_booking({**booking_payload(), "service_type": "delivery", "request_assignment": True}, db, None)["booking"]
+        assert booking["service_type"] == "delivery"
+        assert booking["rider_id"] == rider.id
+    finally:
+        db.close()
+
+
+def test_whatsapp_admin_can_store_autoreply_templates():
+    db = make_session()
+    try:
+        config = update_whatsapp_settings(
+            {
+                "phone_number_id": "123",
+                "access_token": "token-abc",
+                "default_auto_reply": "Welcome!",
+                "customer_auto_reply": "Hi customer",
+                "member_auto_reply": "Hi member",
+                "partner_auto_reply": "Hi partner",
+                "invoice_template": "Invoice ready",
+                "order_template": "Order update",
+            },
+            db,
+            user(db, "admin", "Admin"),
+        )
+        assert config["default_auto_reply"] == "Welcome!"
+        assert config["customer_auto_reply"] == "Hi customer"
+        assert config["invoice_template"] == "Invoice ready"
+    finally:
+        db.close()
+
+
+def test_booking_waits_for_driver_accept_and_rejects_to_next_rider(monkeypatch):
+    db = make_session()
+    try:
+        first = user(db, "rider", "First")
+        second = user(db, "rider", "Second")
+        profile(db, first, 1, 1)
+        profile(db, second, 2, 2)
+
+        booking = create_direct_booking({**booking_payload(), "request_assignment": False}, db, None)["booking"]
+        assert booking["status"] == "awaiting_driver_assignment"
+        assert booking["rider_id"] == ""
+        assert len(booking.get("candidate_riders", [])) >= 2
+
+        booking = admin_assign_direct_booking(booking["id"], {"rider_id": str(first.id)}, db, user(db, "admin", "Admin"))["booking"]
+        assert booking["rider_id"] == first.id
+
+        rejected = rider_reject_direct_booking(booking["id"], db, first)["booking"]
+        assert rejected["rider_id"] == second.id
+        assert rejected["status"] == "awaiting_driver_assignment"
+
+        next_booking = rider_accept_direct_booking(booking["id"], db, second)
+        assert next_booking["booking"]["status"] == "accepted"
+    finally:
+        db.close()
+
+
+def test_driver_accept_generates_booking_code_and_sends_whatsapp(monkeypatch):
+    db = make_session()
+    try:
+        rider = user(db, "rider", "Rider")
+        profile(db, rider, 1, 1)
+        calls = []
+
+        def fake_send(db_obj, recipient, text=None, template_name=None, template_language_code=None, template_parameters=None):
+            calls.append({"recipient": recipient, "text": text, "template_name": template_name})
+            return {"messages": [{"id": "wamid.test"}]}
+
+        monkeypatch.setattr("sql_app.routers.direct_booking.send_whatsapp_message", fake_send)
+        booking = create_direct_booking({**booking_payload(), "customer_phone": "8801712345678", "request_assignment": False}, db, None)["booking"]
+        booking = admin_assign_direct_booking(booking["id"], {"rider_id": str(rider.id)}, db, user(db, "admin", "Admin"))["booking"]
+        accepted = rider_accept_direct_booking(booking["id"], db, rider)["booking"]
+
+        assert accepted["booking_code"].startswith("MM-")
+        assert any(call["recipient"] == "8801712345678" for call in calls)
+        assert any(call["recipient"] == rider.phone for call in calls)
     finally:
         db.close()

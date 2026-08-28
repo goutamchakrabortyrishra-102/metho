@@ -63,7 +63,19 @@ def load_db_config(db) -> dict:
         return {}
     if not isinstance(payload, dict):
         return {}
-    result = {key: str(payload.get(key) or "").strip() for key in ("enabled", "phone_number_id", "business_account_id", "graph_api_version", "default_assignee_id") if key in payload}
+    result = {key: str(payload.get(key) or "").strip() for key in (
+        "enabled",
+        "phone_number_id",
+        "business_account_id",
+        "graph_api_version",
+        "default_assignee_id",
+        "default_auto_reply",
+        "customer_auto_reply",
+        "member_auto_reply",
+        "partner_auto_reply",
+        "invoice_template",
+        "order_template",
+    ) if key in payload}
     for key in ("webhook_verify_token", "app_secret", "access_token"):
         if payload.get(key):
             result[key] = decrypt_secret(payload[key]).strip()
@@ -73,15 +85,34 @@ def load_db_config(db) -> dict:
 def resolve_config(db=None) -> dict:
     db_config = load_db_config(db) if db is not None else {}
     return {
-        "enabled": bool(db_config.get("enabled", True)),
+        "enabled": str(db_config.get("enabled", True)).strip().lower() not in {"false", "0", "no", "off"},
         "phone_number_id": str(db_config.get("phone_number_id") or _setting("WHATSAPP_PHONE_NUMBER_ID")),
         "business_account_id": str(db_config.get("business_account_id") or _setting("WHATSAPP_BUSINESS_ACCOUNT_ID")),
         "graph_api_version": str(db_config.get("graph_api_version") or WHATSAPP_GRAPH_API_VERSION),
         "default_assignee_id": str(db_config.get("default_assignee_id") or _setting("WHATSAPP_CRM_DEFAULT_ASSIGNEE_ID")),
+        "default_auto_reply": str(db_config.get("default_auto_reply") or "").strip(),
+        "customer_auto_reply": str(db_config.get("customer_auto_reply") or "").strip(),
+        "member_auto_reply": str(db_config.get("member_auto_reply") or "").strip(),
+        "partner_auto_reply": str(db_config.get("partner_auto_reply") or "").strip(),
+        "invoice_template": str(db_config.get("invoice_template") or "").strip(),
+        "order_template": str(db_config.get("order_template") or "").strip(),
         "webhook_verify_token": str(db_config.get("webhook_verify_token") or _setting("WHATSAPP_WEBHOOK_VERIFY_TOKEN")),
         "app_secret": str(db_config.get("app_secret") or _setting("WHATSAPP_APP_SECRET")),
         "access_token": str(db_config.get("access_token") or _setting("WHATSAPP_ACCESS_TOKEN")),
     }
+
+
+def get_configured_whatsapp_reply(db, role: str | None = None, fallback: str = "") -> str:
+    config = resolve_config(db)
+    key_map = {
+        "customer": "customer_auto_reply",
+        "member": "member_auto_reply",
+        "partner": "partner_auto_reply",
+        "default": "default_auto_reply",
+    }
+    chosen = key_map.get((role or "default").lower(), "default_auto_reply")
+    value = config.get(chosen) or config.get("default_auto_reply") or fallback
+    return str(value or "").strip()
 
 
 def verify_webhook_token(token: str, challenge: str, db=None) -> str | None:
@@ -303,6 +334,14 @@ def ingest_whatsapp_message(db, payload: dict, request=None) -> str:
         ).strip()
 
         reply_text = ""
+        role_hint = None
+        lowered = incoming_text.lower()
+        if any(word in lowered for word in ("partner", "vendor", "business")):
+            role_hint = "partner"
+        elif any(word in lowered for word in ("member", "membership", "account")):
+            role_hint = "member"
+        elif any(word in lowered for word in ("customer", "product", "order", "price")):
+            role_hint = "customer"
 
         if (
             "What is METHO AAY-UPAY?" in incoming_text
@@ -346,6 +385,14 @@ def ingest_whatsapp_message(db, payload: dict, request=None) -> str:
                 normalized["phone"],
                 text=reply_text,
             )
+        elif role_hint:
+            configured_reply = get_configured_whatsapp_reply(db, role_hint)
+            if configured_reply:
+                send_whatsapp_message(db, normalized["phone"], text=configured_reply)
+        else:
+            configured_default = get_configured_whatsapp_reply(db, "default")
+            if configured_default:
+                send_whatsapp_message(db, normalized["phone"], text=configured_default)
 
         lead = db.query(CRMLead).filter(CRMLead.lead_id == normalized["lead_id"]).first()
         if not lead:

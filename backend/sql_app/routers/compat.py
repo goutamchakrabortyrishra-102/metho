@@ -1779,6 +1779,55 @@ def _load_order_contact_phone_for_order(db: Session, order_id: str) -> str:
     return "".join(ch for ch in str(payload.get("customer_phone") or "") if ch.isdigit())
 
 
+def _send_order_whatsapp_notifications(db: Session, row: PublicOrder, items: list[dict]) -> None:
+    from ..whatsapp_cloud import resolve_config, send_whatsapp_message
+
+    config = resolve_config(db)
+    order_no = f"ORD-{row.id[:8].upper()}"
+    invoice_no = f"INV-{row.id[:8].upper()}"
+    invoice_url = f"https://methoaayupay.com/invoice/{row.id}"
+    recipients: list[tuple[str, str]] = []
+    customer_phone = _load_order_contact_phone_for_order(db, row.id)
+    if not customer_phone and row.customer_user_id:
+        buyer = db.query(User).filter(User.id == row.customer_user_id).first()
+        customer_phone = "".join(ch for ch in str(getattr(buyer, "phone", "") or "") if ch.isdigit()) if buyer else ""
+    if customer_phone:
+        recipients.append((customer_phone, "customer"))
+    partner_ids: set[str] = set()
+    for item in items:
+        if str(item.get("product_type") or "").strip() != "associate_partner":
+            continue
+        product = db.query(PartnerProduct).filter(PartnerProduct.id == str(item.get("product_id") or "")).first()
+        if product:
+            partner_ids.add(str(product.partner_id))
+    for partner_id in partner_ids:
+        partner = db.query(AssociatePartner).filter(AssociatePartner.id == partner_id).first()
+        partner_phone = "".join(ch for ch in str((partner.whatsapp_no or partner.phone) if partner else "") if ch.isdigit())
+        if partner_phone:
+            recipients.append((partner_phone, "partner"))
+    marker_key = f"whatsapp_order_notification:{row.id}"
+    if db.query(AppSetting).filter(AppSetting.key == marker_key).first():
+        return
+    sent_count = 0
+    for recipient, role in recipients:
+        template = str(config.get("invoice_template" if role == "customer" else "order_template") or "").strip()
+        if not template:
+            template = f"METHO order {order_no} is confirmed. Invoice: {invoice_url}"
+        try:
+            message = template.format(order_no=order_no, invoice_no=invoice_no, amount=f"{float(row.total_amount or 0):.2f}", invoice_url=invoice_url)
+        except (KeyError, ValueError):
+            message = template
+        try:
+            send_whatsapp_message(db, recipient, text=message)
+            sent_count += 1
+        except Exception:
+            continue
+    if not sent_count:
+        return
+    db.add(AppSetting(key=marker_key, value_json=json.dumps({"order_id": row.id, "sent_at": now_iso()}), updated_at=datetime.now(timezone.utc)))
+    db.commit()
+
+
 def _transport_partner_payment_profile(db: Session, partner: AssociatePartner, request: Request | None = None) -> dict:
     qr_row = db.query(AppSetting).filter(AppSetting.key == _partner_payment_qr_key(partner.id)).first()
     qr_url = ""
@@ -5493,6 +5542,7 @@ def admin_approve_order(order_id: str, payload: dict | None = None, db: Session 
     for cycle_owner_id in cycle_owner_ids:
         _settle_completed_smart_cycles(db, cycle_owner_id)
     db.commit()
+    _send_order_whatsapp_notifications(db, row, items)
 
     return {
         "ok": True,

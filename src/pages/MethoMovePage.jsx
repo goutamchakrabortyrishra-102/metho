@@ -52,6 +52,42 @@ export default function MethoMovePage() {
   const [termsAccepted, setTermsAccepted] = useState(false);
 
   useEffect(() => {
+    if (!booking?.id || !booking?.access_token || ["paid", "completed"].includes(booking.status)) return undefined;
+    const timer = window.setInterval(async () => {
+      try {
+        const { data } = await api.get(`/metho-move/bookings/${booking.id}`, { params: { access_token: booking.access_token } });
+        if (data?.booking) setBooking(data.booking);
+      } catch {}
+    }, 5000);
+    return () => window.clearInterval(timer);
+  }, [booking?.id, booking?.access_token, booking?.status]);
+
+  const payForBooking = async () => {
+    if (!booking) return;
+    setLoading(true);
+    try {
+      const sdkLoaded = await loadRazorpay();
+      if (!sdkLoaded) throw new Error("Razorpay SDK failed to load");
+      const { data: order } = await api.post(`/metho-move/bookings/${booking.id}/razorpay/order`);
+      const checkout = new window.Razorpay({
+        key: order.key_id, amount: order.amount, currency: order.currency, name: order.name,
+        order_id: order.razorpay_order_id, description: "METHO Move booking",
+        prefill: { name: form.customer_name, contact: form.customer_phone }, theme: { color: "#065f46" },
+        handler: async (response) => {
+          try {
+            const verified = await api.post(`/metho-move/bookings/${booking.id}/razorpay/verify`, { ...response, amount: booking.amount });
+            setBooking(verified.data.booking);
+            toast.success("METHO booking payment verified");
+          } catch (error) { toast.error(error?.response?.data?.detail || "Payment verification failed"); }
+        },
+        modal: { ondismiss: () => setLoading(false) },
+      });
+      checkout.open();
+    } catch (error) { toast.error(error?.response?.data?.detail || error.message || "Payment could not be started"); }
+    finally { setLoading(false); }
+  };
+
+  useEffect(() => {
     api.get("/settings/public").then(({ data }) => setRates((current) => ({ ...current, ...(data?.metho_transport_rates || {}) }))).catch(() => {});
   }, []);
 
@@ -85,32 +121,8 @@ export default function MethoMovePage() {
     try {
       if (!roadDistanceKm) throw new Error("Road distance could not be calculated. Enter complete pickup and destination addresses.");
       const { data } = await api.post("/metho-move/bookings", { ...form, distance_km: Number(roadDistanceKm.toFixed(2)), request_assignment: true });
-      const created = data.booking;
-      const sdkLoaded = await loadRazorpay();
-      if (!sdkLoaded) throw new Error("Razorpay SDK failed to load");
-      const { data: order } = await api.post(`/metho-move/bookings/${created.id}/razorpay/order`);
-      setBooking(created);
-      const checkout = new window.Razorpay({
-        key: order.key_id,
-        amount: order.amount,
-        currency: order.currency,
-        name: order.name,
-        order_id: order.razorpay_order_id,
-        description: form.service_type === "delivery" ? "METHO Delivery booking" : "METHO Move booking",
-        prefill: { name: form.customer_name, contact: form.customer_phone },
-        theme: { color: "#065f46" },
-        handler: async (response) => {
-          try {
-            const verified = await api.post(`/metho-move/bookings/${created.id}/razorpay/verify`, { ...response, amount: created.amount });
-            setBooking(verified.data.booking);
-            toast.success("METHO booking payment verified");
-          } catch (error) {
-            toast.error(error?.response?.data?.detail || "Payment verification failed");
-          }
-        },
-        modal: { ondismiss: () => setLoading(false) },
-      });
-      checkout.open();
+      setBooking(data.booking);
+      toast.success("Nearest driver খোঁজা হচ্ছে। Driver accept করলে payment button আসবে।");
     } catch (error) {
       toast.error(error?.response?.data?.detail || error.message || "Booking could not be created");
     } finally {
@@ -137,7 +149,7 @@ export default function MethoMovePage() {
           <label className="sm:col-span-2 flex items-start gap-2 rounded-lg border border-emerald-200 bg-emerald-50 p-3 text-xs leading-5 text-emerald-950" data-testid="metho-move-terms-consent"><input type="checkbox" checked={termsAccepted} onChange={(event) => setTermsAccepted(event.target.checked)} className="mt-0.5 h-4 w-4 shrink-0" data-testid="metho-move-terms-checkbox" /><span>I have read and accept the <Link to="/metho-move-terms" target="_blank" rel="noreferrer" className="font-semibold underline">METHO Move Customer Terms &amp; Conditions</Link>, including METHO Move&apos;s intermediary role and my responsibilities as a customer.</span></label>
           <div className="sm:col-span-2 flex items-end justify-between gap-3"><div><p className="text-xs text-slate-500">Estimated amount</p><p className="text-2xl font-black text-emerald-950">{amount ? `₹${amount.toLocaleString("en-IN", { maximumFractionDigits: 2 })}` : "Route required"}</p></div><Button type="submit" disabled={loading || routeLoading || !roadDistanceKm || !termsAccepted} className="rounded-full bg-emerald-900 hover:bg-emerald-950" data-testid="metho-move-submit">{loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <>Pay &amp; book <ArrowRight className="ml-2 h-4 w-4" /></>}</Button></div>
         </form>
-        {booking ? <section className="mt-5 rounded-xl border border-emerald-200 bg-emerald-50 p-5"><div className="flex items-center gap-2"><MapPin className="h-5 w-5 text-emerald-800" /><h2 className="font-bold text-emerald-950">Booking status: {booking.status}</h2></div><p className="mt-2 text-sm text-slate-700">Reference {booking.id}</p></section> : null}
+        {booking ? <section className="mt-5 rounded-xl border border-emerald-200 bg-emerald-50 p-5"><div className="flex items-center gap-2"><MapPin className="h-5 w-5 text-emerald-800" /><h2 className="font-bold text-emerald-950">Booking status: {booking.status}</h2></div><p className="mt-2 text-sm text-slate-700">Reference {booking.id}</p>{booking.booking_code ? <p className="mt-1 text-sm font-semibold text-emerald-900">Booking code: {booking.booking_code}</p> : null}{booking.status === "accepted" ? <Button type="button" onClick={payForBooking} disabled={loading} className="mt-4 rounded-full bg-emerald-900 hover:bg-emerald-950">Pay securely and confirm</Button> : null}</section> : null}
       </div>
     </main>
   );

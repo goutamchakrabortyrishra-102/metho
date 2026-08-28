@@ -61,10 +61,12 @@ def _ingest_lead(db: Session, meta_payload: dict, event: dict) -> str:
 
 @router.get("/webhooks/meta/leads")
 @router.get("/webhooks/facebook")
-def verify_meta_webhook(mode: str | None = Query(default=None, alias="hub.mode"), token: str | None = Query(default=None, alias="hub.verify_token"), challenge: str | None = Query(default=None, alias="hub.challenge")):
+def verify_meta_webhook(mode: str | None = Query(default=None, alias="hub.mode"), token: str | None = Query(default=None, alias="hub.verify_token"), challenge: str | None = Query(default=None, alias="hub.challenge"), db: Session = Depends(get_db)):
     if mode != "subscribe":
         raise HTTPException(status_code=400, detail="Invalid webhook mode")
-    verified = verify_webhook_token(token or "", challenge or "")
+    if not isinstance(db, Session):
+        db = None
+    verified = verify_webhook_token(token or "", challenge or "", db)
     if verified is None:
         raise HTTPException(status_code=403, detail="Invalid webhook verification token")
     return int(verified) if verified.isdigit() else verified

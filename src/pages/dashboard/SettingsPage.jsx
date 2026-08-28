@@ -1173,6 +1173,9 @@ export default function SettingsPage() {
         graph_api_version: String(whatsappForm.graph_api_version || "").trim(),
         default_assignee_id: String(whatsappForm.default_assignee_id || "").trim(),
       };
+      ["default_auto_reply", "customer_auto_reply", "member_auto_reply", "partner_auto_reply", "invoice_template", "order_template"].forEach((key) => {
+        payload[key] = String(whatsappForm[key] || "").trim();
+      });
       ["webhook_verify_token", "app_secret", "access_token"].forEach((key) => {
         const value = typeof whatsappForm[key] === "string" ? whatsappForm[key].trim() : "";
         if (value) payload[key] = value;
@@ -1636,6 +1639,12 @@ export default function SettingsPage() {
               <Field label="Graph API Version" testId="settings-whatsapp-graph-version" value={whatsappForm.graph_api_version} onChange={updateWhatsappField("graph_api_version")} type="text" />
               <div><Label>Default CRM Assignee</Label><select value={whatsappForm.default_assignee_id || ""} onChange={(e) => setWhatsappForm({ ...whatsappForm, default_assignee_id: e.target.value })} className="mt-1.5 h-11 w-full rounded-md border border-input px-3"><option value="">First active admin</option>{whatsappAssignees.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</select></div>
               {[["webhook_verify_token", "Webhook Verify Token"], ["app_secret", "App Secret"], ["access_token", "Access Token"]].map(([key, label]) => <div key={key}><Label>{label}</Label><Input type="password" value={whatsappForm[key] || ""} onChange={updateWhatsappField(key)} placeholder={whatsappForm[`${key}_masked`] || "Leave empty to keep existing"} className="mt-1.5 h-11" /></div>)}
+              <div className="md:col-span-2 border-t border-border pt-4">
+                <p className="text-sm font-semibold text-emerald-950">Automatic Replies and Templates</p>
+                <div className="mt-2 grid gap-3 md:grid-cols-2">
+                  {[ ["default_auto_reply", "Default auto-reply"], ["customer_auto_reply", "Customer auto-reply"], ["member_auto_reply", "Member auto-reply"], ["partner_auto_reply", "Partner auto-reply"], ["invoice_template", "Invoice message template"], ["order_template", "Order message template"]].map(([key, label]) => <div key={key}><Label>{label}</Label><textarea value={whatsappForm[key] || ""} onChange={(e) => updateWhatsappField(key)(e.target.value)} placeholder={`Set ${label.toLowerCase()}`} className="mt-1.5 min-h-20 w-full rounded-md border border-input bg-white px-3 py-2 text-sm" /></div>)}
+                </div>
+              </div>
               <div className="md:col-span-2 flex flex-wrap items-center gap-2"><Button type="button" onClick={handleWhatsappSave} disabled={whatsappBusy}>Save Configuration</Button><Button type="button" variant="outline" onClick={testWhatsapp} disabled={whatsappBusy}>Test Configuration</Button>{whatsappMessage ? <span className="text-xs text-slate-600">{whatsappMessage}</span> : null}</div>
               <div className="md:col-span-2 border-t border-border pt-4">
                 <p className="text-sm font-semibold text-emerald-950">Admin Reply</p>

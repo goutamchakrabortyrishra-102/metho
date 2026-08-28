@@ -28,12 +28,25 @@ def _mask_secret(value: str) -> str:
 def get_whatsapp_settings(db: Session = Depends(get_db), current_user=Depends(get_current_user)):
     _require_admin(current_user)
     config = resolve_config(db)
+    current_row = db.query(AppSetting).filter(AppSetting.key == "whatsapp_cloud_integration").first()
+    current = {}
+    if current_row:
+        try:
+            current = json.loads(current_row.value_json or "{}")
+        except json.JSONDecodeError:
+            current = {}
     return {
         "enabled": config["enabled"],
         "phone_number_id": config["phone_number_id"],
         "business_account_id": config["business_account_id"],
         "graph_api_version": config["graph_api_version"],
         "default_assignee_id": config["default_assignee_id"],
+        "default_auto_reply": str(current.get("default_auto_reply") or "").strip(),
+        "customer_auto_reply": str(current.get("customer_auto_reply") or "").strip(),
+        "member_auto_reply": str(current.get("member_auto_reply") or "").strip(),
+        "partner_auto_reply": str(current.get("partner_auto_reply") or "").strip(),
+        "invoice_template": str(current.get("invoice_template") or "").strip(),
+        "order_template": str(current.get("order_template") or "").strip(),
         "webhook_verify_token_masked": _mask_secret(config["webhook_verify_token"]),
         "app_secret_masked": _mask_secret(config["app_secret"]),
         "access_token_masked": _mask_secret(config["access_token"]),
@@ -56,6 +69,12 @@ def update_whatsapp_settings(payload: dict, db: Session = Depends(get_db), curre
         "business_account_id": str(data.get("business_account_id", current.get("business_account_id", "")) or "").strip(),
         "graph_api_version": str(data.get("graph_api_version", current.get("graph_api_version", "v20.0")) or "v20.0").strip(),
         "default_assignee_id": str(data.get("default_assignee_id", current.get("default_assignee_id", "")) or "").strip(),
+        "default_auto_reply": str(data.get("default_auto_reply", current.get("default_auto_reply", "")) or "").strip(),
+        "customer_auto_reply": str(data.get("customer_auto_reply", current.get("customer_auto_reply", "")) or "").strip(),
+        "member_auto_reply": str(data.get("member_auto_reply", current.get("member_auto_reply", "")) or "").strip(),
+        "partner_auto_reply": str(data.get("partner_auto_reply", current.get("partner_auto_reply", "")) or "").strip(),
+        "invoice_template": str(data.get("invoice_template", current.get("invoice_template", "")) or "").strip(),
+        "order_template": str(data.get("order_template", current.get("order_template", "")) or "").strip(),
     }
     secret_update_requested = any(str(data.get(field) or "").strip() for field in ("webhook_verify_token", "app_secret", "access_token"))
     encryption_key = (

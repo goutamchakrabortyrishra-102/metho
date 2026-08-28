@@ -2,6 +2,7 @@ import hashlib
 import hmac
 import json
 import math
+import secrets
 import uuid
 from datetime import datetime, timezone
 
@@ -10,6 +11,7 @@ from sqlalchemy.orm import Session
 
 from ..database import get_db
 from ..models import AppSetting, User
+from ..whatsapp_cloud import send_whatsapp_message
 from .auth import ADMIN_ROLES, get_current_user, get_current_user_optional
 from .checkout import _load_checkout_razorpay_settings, _razorpay_create_order
 from .rider import _profile, _save_profile
@@ -88,13 +90,100 @@ def _nearest_rider(db: Session, booking: dict, rider_id: str = "") -> User | Non
     return min(riders, key=distance, default=None)
 
 
+def _normalize_phone(value: str | None) -> str:
+    digits = "".join(ch for ch in str(value or "") if ch.isdigit())
+    return digits
+
+
+def _generate_booking_code() -> str:
+    return f"MM-{uuid.uuid4().hex[:8].upper()}"
+
+
+def _candidate_rider_ids(db: Session, booking: dict, rider_id: str = "") -> list[str]:
+    riders = _active_riders(db)
+    if not riders:
+        return []
+    latitude = booking.get("pickup_latitude")
+    longitude = booking.get("pickup_longitude")
+    if latitude is None or longitude is None:
+        ordered = riders
+    else:
+        def distance(rider: User) -> float:
+            profile = _profile(db, rider.id)
+            return math.hypot(float(profile.get("latitude", 0)) - float(latitude), float(profile.get("longitude", 0)) - float(longitude))
+        ordered = sorted(riders, key=distance)
+    if rider_id:
+        ordered = [r for r in ordered if str(r.id) == str(rider_id)] + [r for r in ordered if str(r.id) != str(rider_id)]
+    return [str(r.id) for r in ordered]
+
+
+def _assign_next_driver(db: Session, booking: dict, preferred_rider_id: str = "") -> dict:
+    candidates = _candidate_rider_ids(db, booking, preferred_rider_id)
+    if not candidates:
+        booking["rider_id"] = ""
+        booking["status"] = "awaiting_driver_assignment"
+        booking["candidate_riders"] = []
+        return booking
+    rider_id = candidates[0]
+    rider = db.query(User).filter(User.id == rider_id).first()
+    if not rider:
+        booking["rider_id"] = ""
+        booking["status"] = "awaiting_driver_assignment"
+        booking["candidate_riders"] = candidates[1:]
+        return booking
+    booking["rider_id"] = rider.id
+    booking["status"] = "awaiting_driver_assignment"
+    booking["assigned_at"] = datetime.now(timezone.utc).isoformat()
+    booking["candidate_riders"] = candidates
+    return booking
+
+
+def _assign_next_available_driver(db: Session, booking: dict, excluded_rider_id: str) -> dict:
+    candidates = [rider_id for rider_id in _candidate_rider_ids(db, booking) if str(rider_id) != str(excluded_rider_id)]
+    booking["candidate_riders"] = candidates
+    if not candidates:
+        booking["rider_id"] = ""
+        booking["status"] = "awaiting_driver_assignment"
+        return booking
+    rider = db.query(User).filter(User.id == candidates[0]).first()
+    if not rider:
+        return _assign_next_available_driver(db, booking, candidates[0])
+    booking["rider_id"] = rider.id
+    booking["status"] = "awaiting_driver_assignment"
+    booking["assigned_at"] = datetime.now(timezone.utc).isoformat()
+    return booking
+
+
+def _notify_booking_status(db: Session, booking: dict, rider: User | None = None) -> None:
+    if not booking.get("customer_phone"):
+        return
+    text = (
+        f"METHO Move booking {booking.get('booking_code') or booking.get('id')[:8].upper()} has been accepted. "
+        f"Pickup: {booking.get('pickup')} | Destination: {booking.get('destination')}"
+    )
+    try:
+        send_whatsapp_message(db, _normalize_phone(booking.get("customer_phone")), text=text)
+    except Exception:
+        pass
+    if rider and rider.phone:
+        try:
+            driver_text = (
+                f"You accepted Metho Move booking {booking.get('booking_code') or booking.get('id')[:8].upper()}. "
+                f"Customer: {booking.get('customer_name')} | Phone: {booking.get('customer_phone')} | Pickup: {booking.get('pickup')}"
+            )
+            send_whatsapp_message(db, _normalize_phone(rider.phone), text=driver_text)
+        except Exception:
+            pass
+
+
 def _assign(db: Session, booking: dict, rider_id: str = "") -> dict:
     rider = _nearest_rider(db, booking, rider_id)
     if not rider:
         raise HTTPException(status_code=404, detail="No approved online rider is available")
     booking["rider_id"] = rider.id
-    booking["status"] = "assigned" if booking.get("status") == "paid" else booking.get("status")
+    booking["status"] = "awaiting_driver_assignment"
     booking["assigned_at"] = datetime.now(timezone.utc).isoformat()
+    booking["candidate_riders"] = _candidate_rider_ids(db, booking, rider_id)
     return booking
 
 
@@ -114,11 +203,12 @@ def create_direct_booking(payload: dict, db: Session = Depends(get_db), current_
         "customer_user_id": str(current_user.id) if current_user else "", "distance_km": max(1.0, float(payload.get("distance_km") or 1)),
         "pickup_latitude": payload.get("pickup_latitude"), "pickup_longitude": payload.get("pickup_longitude"),
         "amount": calculate_direct_amount(service_type, settings, payload.get("distance_km") or 1),
-        "status": "payment_pending", "rider_id": "", "payment_id": "", "razorpay_order_id": "",
-        "created_at": datetime.now(timezone.utc).isoformat(), "smart_cycle": False,
+        "status": "awaiting_driver_assignment", "rider_id": "", "payment_id": "", "razorpay_order_id": "",
+        "created_at": datetime.now(timezone.utc).isoformat(), "smart_cycle": False, "candidate_riders": [], "booking_code": "", "access_token": secrets.token_urlsafe(24),
     }
-    if payload.get("request_assignment"):
-        _assign(db, booking)
+    booking["candidate_riders"] = _candidate_rider_ids(db, booking)
+    if payload.get("request_assignment") and booking["candidate_riders"]:
+        _assign(db, booking, booking["candidate_riders"][0])
     bookings = _json_list(db, BOOKINGS_KEY)
     bookings.append(booking)
     _save_json_list(db, BOOKINGS_KEY, bookings)
@@ -127,11 +217,12 @@ def create_direct_booking(payload: dict, db: Session = Depends(get_db), current_
 
 
 @router.get("/metho-move/bookings/{booking_id}")
-def get_direct_booking(booking_id: str, db: Session = Depends(get_db), current_user: User | None = Depends(get_current_user_optional)):
+def get_direct_booking(booking_id: str, access_token: str = "", db: Session = Depends(get_db), current_user: User | None = Depends(get_current_user_optional)):
     booking = next((item for item in _json_list(db, BOOKINGS_KEY) if item.get("id") == booking_id), None)
     if not booking:
         raise HTTPException(status_code=404, detail="METHO Move booking not found")
-    if current_user and (current_user.role in ADMIN_ROLES or str(booking.get("customer_user_id") or "") == str(current_user.id)):
+    token_matches = bool(access_token and secrets.compare_digest(str(booking.get("access_token") or ""), access_token))
+    if token_matches or (current_user and (current_user.role in ADMIN_ROLES or str(booking.get("customer_user_id") or "") == str(current_user.id))):
         return {"booking": booking}
     raise HTTPException(status_code=403, detail="Booking ownership required")
 
@@ -194,7 +285,20 @@ def admin_assign_direct_booking(booking_id: str, payload: dict, db: Session = De
     booking = next((item for item in bookings if item.get("id") == booking_id), None)
     if not booking:
         raise HTTPException(status_code=404, detail="METHO Move booking not found")
-    _assign(db, booking, str(payload.get("rider_id") or ""))
+    rider_id = str(payload.get("rider_id") or "").strip()
+    if rider_id:
+        rider = db.query(User).filter(User.id == rider_id).first()
+        if not rider or rider.role != "rider":
+            raise HTTPException(status_code=400, detail="Invalid rider selected")
+    else:
+        rider = _nearest_rider(db, booking)
+        if not rider:
+            raise HTTPException(status_code=404, detail="No approved online rider is available")
+        rider_id = str(rider.id)
+    booking["rider_id"] = rider_id
+    booking["status"] = "awaiting_driver_assignment"
+    booking["assigned_at"] = datetime.now(timezone.utc).isoformat()
+    booking["candidate_riders"] = _candidate_rider_ids(db, booking, rider_id)
     _save_json_list(db, BOOKINGS_KEY, bookings)
     db.commit()
     return {"booking": booking}
@@ -215,16 +319,30 @@ def _rider_booking_action(booking_id: str, action: str, db: Session, current_use
         raise HTTPException(status_code=403, detail="Rider approval required")
     bookings = _json_list(db, BOOKINGS_KEY)
     booking = next((item for item in bookings if item.get("id") == booking_id), None)
-    if not booking or str(booking.get("rider_id")) != str(current_user.id):
+    if not booking:
+        raise HTTPException(status_code=404, detail="METHO Move booking not found")
+
+    if str(booking.get("rider_id") or "") != str(current_user.id):
+        if booking.get("status") == "accepted" and booking.get("rider_id"):
+            booking["rider_id"] = ""
+            booking["status"] = "awaiting_driver_assignment"
+            booking["candidate_riders"] = _candidate_rider_ids(db, booking)
+            _save_json_list(db, BOOKINGS_KEY, bookings)
+            db.commit()
+            return {"booking": booking}
         raise HTTPException(status_code=403, detail="Assigned booking ownership required")
+
     if action == "accept":
-        if booking.get("status") != "assigned":
+        if booking.get("status") not in {"assigned", "awaiting_driver_assignment"}:
             raise HTTPException(status_code=409, detail="Booking is not ready to accept")
         booking["status"] = "accepted"
+        if not booking.get("booking_code"):
+            booking["booking_code"] = _generate_booking_code()
+        _notify_booking_status(db, booking, current_user)
     else:
         if booking.get("status") == "completed":
             return {"booking": booking}
-        if booking.get("status") not in {"accepted", "assigned"}:
+        if booking.get("status") not in {"paid", "accepted", "assigned", "awaiting_driver_assignment"}:
             raise HTTPException(status_code=409, detail="Booking is not active")
         booking["status"] = "completed"
         earnings = _json_list(db, EARNINGS_KEY)
@@ -252,6 +370,27 @@ def _rider_booking_action(booking_id: str, action: str, db: Session, current_use
 @router.post("/rider/metho-move/bookings/{booking_id}/accept")
 def rider_accept_direct_booking(booking_id: str, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     return _rider_booking_action(booking_id, "accept", db, current_user)
+
+
+@router.post("/rider/metho-move/bookings/{booking_id}/reject")
+def rider_reject_direct_booking(booking_id: str, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    if current_user.role != "rider":
+        raise HTTPException(status_code=403, detail="Rider credentials required")
+    profile = _profile(db, current_user.id)
+    if not current_user.is_active or profile.get("approval_status") != "approved":
+        raise HTTPException(status_code=403, detail="Rider approval required")
+    bookings = _json_list(db, BOOKINGS_KEY)
+    booking = next((item for item in bookings if item.get("id") == booking_id), None)
+    if not booking:
+        raise HTTPException(status_code=404, detail="METHO Move booking not found")
+    if str(booking.get("rider_id") or "") != str(current_user.id):
+        raise HTTPException(status_code=403, detail="Assigned booking ownership required")
+    if booking.get("status") not in {"assigned", "awaiting_driver_assignment"}:
+        raise HTTPException(status_code=409, detail="Booking is no longer waiting for a rider")
+    _assign_next_available_driver(db, booking, str(current_user.id))
+    _save_json_list(db, BOOKINGS_KEY, bookings)
+    db.commit()
+    return {"booking": booking}
 
 
 @router.post("/rider/metho-move/bookings/{booking_id}/complete")
