@@ -29,6 +29,7 @@ from sql_app.routers.direct_booking import (
 )
 from sql_app.routers.whatsapp import update_whatsapp_settings
 from sql_app.routers.rider import _save_profile
+from sql_app.routers.settings import load_settings
 
 
 def make_session():
@@ -56,6 +57,27 @@ def booking_payload(member_ref=""):
 def test_amount_uses_current_transport_rate():
     assert calculate_direct_amount("auto_rickshaw", {"metho_transport_rates": {"auto_rickshaw": 20}}, 3) == 60
     assert calculate_direct_amount("ebike", {"metho_transport_rates": {"bike": 12}}, 3) == 36
+
+
+def test_move_and_delivery_categories_use_separate_rates_with_one_km_minimum():
+    rates = {"bike": 12, "e_rickshaw": 16, "auto_rickshaw": 20, "four_wheeler": 24, "bolero_maxx": 28, "vehicle_207": 30, "vehicle_407": 36, "dumper": 45, "delivery": 14}
+    for category, rate in rates.items():
+        assert calculate_direct_amount(category, {"metho_transport_rates": rates}, 0.2) == rate
+
+
+def test_existing_settings_receive_new_vehicle_rate_defaults():
+    db = make_session()
+    try:
+        db.add(AppSetting(key="global", value_json=json.dumps({"metho_transport_rates": {"bike": 99}})))
+        db.commit()
+        rates = load_settings(db)["metho_transport_rates"]
+        assert rates["bike"] == 99
+        assert rates["bolero_maxx"] == 28
+        assert rates["dumper"] == 45
+    finally:
+        db.close()
+    assert calculate_direct_amount("bike", {"metho_transport_rates": {"bike": 12}}, 0.25) == 12
+    assert calculate_direct_amount("delivery", {"metho_transport_rates": {"delivery": 14}}, 0.25) == 14
 
 
 def test_razorpay_signature_and_amount_are_verified(monkeypatch):

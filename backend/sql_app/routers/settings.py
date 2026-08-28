@@ -60,7 +60,7 @@ DEFAULT_SETTINGS = {
     "metho_delivery_smart_cycle_percent": 0,
     "metho_delivery_reward_pool_percent": 0,
     "metho_rider_share_percent": 70,
-    "metho_transport_rates": {"bike": 12, "e_rickshaw": 16, "auto_rickshaw": 20, "delivery": 14},
+    "metho_transport_rates": {"bike": 12, "e_rickshaw": 16, "auto_rickshaw": 20, "four_wheeler": 24, "bolero_maxx": 28, "vehicle_207": 30, "vehicle_407": 36, "dumper": 45, "delivery": 14},
     "min_withdrawal": 100,
     "withdrawal_tds_percent": 5,
     "withdrawal_admin_charge_percent": 3,
@@ -204,6 +204,16 @@ def load_settings(db: Session) -> dict:
         if payload.get(key) is None:
             payload[key] = value
             changed = True
+    default_rates = DEFAULT_SETTINGS["metho_transport_rates"]
+    saved_rates = payload.get("metho_transport_rates")
+    if not isinstance(saved_rates, dict):
+        payload["metho_transport_rates"] = dict(default_rates)
+        changed = True
+    else:
+        for rate_key, rate_value in default_rates.items():
+            if saved_rates.get(rate_key) is None:
+                saved_rates[rate_key] = rate_value
+                changed = True
     if changed:
         row.value_json = json.dumps(payload)
         row.updated_at = datetime.now(timezone.utc)

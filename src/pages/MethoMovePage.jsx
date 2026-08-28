@@ -45,7 +45,7 @@ export default function MethoMovePage() {
   const [searchParams] = useSearchParams();
   const [form, setForm] = useState({ service_type: searchParams.get("service") === "delivery" ? "delivery" : "ebike", pickup: "", destination: "", customer_name: "", customer_phone: "", member_ref: "", distance_km: 1 });
   const [booking, setBooking] = useState(null);
-  const [rates, setRates] = useState({ bike: 12, e_rickshaw: 16, auto_rickshaw: 20, delivery: 14 });
+  const [rates, setRates] = useState({ bike: 12, e_rickshaw: 16, auto_rickshaw: 20, four_wheeler: 24, bolero_maxx: 28, vehicle_207: 30, vehicle_407: 36, dumper: 45, delivery: 14 });
   const [roadDistanceKm, setRoadDistanceKm] = useState(0);
   const [routeLoading, setRouteLoading] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -93,7 +93,8 @@ export default function MethoMovePage() {
 
   const update = (key, value) => setForm((current) => ({ ...current, [key]: value }));
   const rateKey = form.service_type === "ebike" ? "bike" : form.service_type;
-  const amount = roadDistanceKm > 0 ? roadDistanceKm * Number(rates[rateKey] || 0) : 0;
+  const billableDistanceKm = roadDistanceKm > 0 ? Math.max(1, roadDistanceKm) : 0;
+  const amount = billableDistanceKm ? billableDistanceKm * Number(rates[rateKey] || 0) : 0;
 
   useEffect(() => {
     const pickup = String(form.pickup || "").trim();
@@ -139,7 +140,7 @@ export default function MethoMovePage() {
           <p className="mt-2 text-slate-600">Choose a METHO service, enter the route, and pay securely through Razorpay.</p>
         </div>
         <form onSubmit={submit} className="grid gap-4 rounded-xl bg-white p-6 shadow-sm sm:grid-cols-2">
-          <div><Label htmlFor="metho-service-type">METHO service</Label><select id="metho-service-type" value={form.service_type} onChange={(event) => update("service_type", event.target.value)} className="mt-1.5 h-10 w-full rounded-md border border-input bg-white px-3 text-sm"><option value="ebike">E-bike</option><option value="e_rickshaw">E-rickshaw</option><option value="auto_rickshaw">Auto-rickshaw</option><option value="delivery">METHO Delivery</option></select></div>
+          <div><Label htmlFor="metho-service-type">METHO service</Label><select id="metho-service-type" value={form.service_type} onChange={(event) => update("service_type", event.target.value)} className="mt-1.5 h-10 w-full rounded-md border border-input bg-white px-3 text-sm"><option value="ebike">E-bike</option><option value="bike">Bike</option><option value="e_rickshaw">E-rickshaw</option><option value="auto_rickshaw">Auto-rickshaw</option><option value="four_wheeler">4-wheeler</option><option value="bolero_maxx">Bolero Maxx</option><option value="vehicle_207">207</option><option value="vehicle_407">407</option><option value="dumper">Dumper</option><option value="delivery">Generic Delivery</option></select></div>
           <div className="rounded-md border border-cyan-200 bg-cyan-50 px-3 py-2 text-sm"><p className="text-xs font-semibold text-cyan-900">Map road distance</p><p className="mt-1 font-bold text-emerald-950">{routeLoading ? "Calculating route..." : roadDistanceKm ? `${roadDistanceKm.toFixed(1)} km` : "Enter pickup and destination"}</p></div>
           <div><Label htmlFor="metho-pickup">Pickup</Label><Input id="metho-pickup" required value={form.pickup} onChange={(event) => update("pickup", event.target.value)} className="mt-1.5" /></div>
           <div><Label htmlFor="metho-destination">Destination</Label><Input id="metho-destination" required value={form.destination} onChange={(event) => update("destination", event.target.value)} className="mt-1.5" /></div>
@@ -147,7 +148,7 @@ export default function MethoMovePage() {
           <div><Label htmlFor="metho-customer-phone">Mobile / WhatsApp</Label><Input id="metho-customer-phone" required value={form.customer_phone} onChange={(event) => update("customer_phone", event.target.value)} className="mt-1.5" /></div>
           <div><Label htmlFor="metho-member-ref">Member ID (optional)</Label><Input id="metho-member-ref" value={form.member_ref} onChange={(event) => update("member_ref", event.target.value)} className="mt-1.5" /></div>
           <label className="sm:col-span-2 flex items-start gap-2 rounded-lg border border-emerald-200 bg-emerald-50 p-3 text-xs leading-5 text-emerald-950" data-testid="metho-move-terms-consent"><input type="checkbox" checked={termsAccepted} onChange={(event) => setTermsAccepted(event.target.checked)} className="mt-0.5 h-4 w-4 shrink-0" data-testid="metho-move-terms-checkbox" /><span>I have read and accept the <Link to="/metho-move-terms" target="_blank" rel="noreferrer" className="font-semibold underline">METHO Move Customer Terms &amp; Conditions</Link>, including METHO Move&apos;s intermediary role and my responsibilities as a customer.</span></label>
-          <div className="sm:col-span-2 flex items-end justify-between gap-3"><div><p className="text-xs text-slate-500">Estimated amount</p><p className="text-2xl font-black text-emerald-950">{amount ? `₹${amount.toLocaleString("en-IN", { maximumFractionDigits: 2 })}` : "Route required"}</p></div><Button type="submit" disabled={loading || routeLoading || !roadDistanceKm || !termsAccepted} className="rounded-full bg-emerald-900 hover:bg-emerald-950" data-testid="metho-move-submit">{loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <>Pay &amp; book <ArrowRight className="ml-2 h-4 w-4" /></>}</Button></div>
+          <div className="sm:col-span-2 flex items-end justify-between gap-3"><div><p className="text-xs text-slate-500">Estimated amount</p><p className="text-2xl font-black text-emerald-950">{amount ? `₹${amount.toLocaleString("en-IN", { maximumFractionDigits: 2 })}` : "Route required"}</p></div><Button type="submit" disabled={loading || routeLoading || !roadDistanceKm || !termsAccepted} className="rounded-full bg-emerald-900 hover:bg-emerald-950" data-testid="metho-move-submit">{loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <>Request driver <ArrowRight className="ml-2 h-4 w-4" /></>}</Button></div>
         </form>
         {booking ? <section className="mt-5 rounded-xl border border-emerald-200 bg-emerald-50 p-5"><div className="flex items-center gap-2"><MapPin className="h-5 w-5 text-emerald-800" /><h2 className="font-bold text-emerald-950">Booking status: {booking.status}</h2></div><p className="mt-2 text-sm text-slate-700">Reference {booking.id}</p>{booking.booking_code ? <p className="mt-1 text-sm font-semibold text-emerald-900">Booking code: {booking.booking_code}</p> : null}{booking.status === "accepted" ? <Button type="button" onClick={payForBooking} disabled={loading} className="mt-4 rounded-full bg-emerald-900 hover:bg-emerald-950">Pay securely and confirm</Button> : null}</section> : null}
       </div>

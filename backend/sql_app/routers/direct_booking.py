@@ -21,7 +21,7 @@ router = APIRouter(prefix="/api", tags=["metho-direct-bookings"])
 BOOKINGS_KEY = "metho_direct_bookings"
 EARNINGS_KEY = "metho_direct_earnings"
 REWARDS_KEY = "metho_direct_rewards"
-VEHICLE_TYPES = {"bike", "ebike", "e_rickshaw", "auto_rickshaw", "delivery"}
+VEHICLE_TYPES = {"bike", "ebike", "e_rickshaw", "auto_rickshaw", "four_wheeler", "bolero_maxx", "vehicle_207", "vehicle_407", "dumper", "delivery"}
 
 
 def _json_list(db: Session, key: str) -> list[dict]:
@@ -157,8 +157,9 @@ def _assign_next_available_driver(db: Session, booking: dict, excluded_rider_id:
 def _notify_booking_status(db: Session, booking: dict, rider: User | None = None) -> None:
     if not booking.get("customer_phone"):
         return
+    service_label = "METHO Delivery" if booking.get("service_type") == "delivery" else "METHO Move"
     text = (
-        f"METHO Move booking {booking.get('booking_code') or booking.get('id')[:8].upper()} has been accepted. "
+        f"{service_label} booking {booking.get('booking_code') or booking.get('id')[:8].upper()} has been accepted. "
         f"Pickup: {booking.get('pickup')} | Destination: {booking.get('destination')}"
     )
     try:
@@ -168,7 +169,7 @@ def _notify_booking_status(db: Session, booking: dict, rider: User | None = None
     if rider and rider.phone:
         try:
             driver_text = (
-                f"You accepted Metho Move booking {booking.get('booking_code') or booking.get('id')[:8].upper()}. "
+                f"You accepted {service_label} booking {booking.get('booking_code') or booking.get('id')[:8].upper()}. "
                 f"Customer: {booking.get('customer_name')} | Phone: {booking.get('customer_phone')} | Pickup: {booking.get('pickup')}"
             )
             send_whatsapp_message(db, _normalize_phone(rider.phone), text=driver_text)

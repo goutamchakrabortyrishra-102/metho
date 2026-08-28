@@ -6,8 +6,14 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import AdminServiceSectorsPage from "./AdminServiceSectorsPage";
 
+const RATE_CATEGORIES = [
+  ["bike", "Bike"], ["e_rickshaw", "E-rickshaw"], ["auto_rickshaw", "Auto-rickshaw"],
+  ["four_wheeler", "4-wheeler"], ["bolero_maxx", "Bolero Maxx"], ["vehicle_207", "207"],
+  ["vehicle_407", "407"], ["dumper", "Dumper"], ["delivery", "Generic Delivery"],
+];
+
 export default function MethoDeliveryAdminPage() {
-  const [settings, setSettings] = useState({ metho_delivery_smart_cycle_percent: 0, metho_delivery_reward_pool_percent: 0, metho_rider_share_percent: 70, metho_transport_rates: { bike: 12, e_rickshaw: 16, auto_rickshaw: 20, delivery: 14 } });
+  const [settings, setSettings] = useState({ metho_delivery_smart_cycle_percent: 0, metho_delivery_reward_pool_percent: 0, metho_rider_share_percent: 70, metho_transport_rates: { bike: 12, e_rickshaw: 16, auto_rickshaw: 20, four_wheeler: 24, bolero_maxx: 28, vehicle_207: 30, vehicle_407: 36, dumper: 45, delivery: 14 } });
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [bookings, setBookings] = useState([]);
@@ -33,13 +39,13 @@ export default function MethoDeliveryAdminPage() {
     const rewardPool = Number(settings.metho_delivery_reward_pool_percent);
     const riderShare = Number(settings.metho_rider_share_percent);
     const rates = settings.metho_transport_rates || {};
-    if (![smartCycle, rewardPool, riderShare, rates.bike, rates.e_rickshaw, rates.auto_rickshaw, rates.delivery].every((value) => Number.isFinite(Number(value)) && Number(value) >= 0 && Number(value) <= 10000) || riderShare > 100) {
+    if (![smartCycle, rewardPool, riderShare, ...RATE_CATEGORIES.map(([key]) => rates[key])].every((value) => Number.isFinite(Number(value)) && Number(value) >= 0 && Number(value) <= 10000) || riderShare > 100) {
       toast.error("Both percentages must be between 0 and 100");
       return;
     }
     setSaving(true);
     try {
-      await api.put("/settings", { metho_delivery_smart_cycle_percent: smartCycle, metho_delivery_reward_pool_percent: rewardPool, metho_rider_share_percent: riderShare, metho_transport_rates: { bike: Number(rates.bike), e_rickshaw: Number(rates.e_rickshaw), auto_rickshaw: Number(rates.auto_rickshaw), delivery: Number(rates.delivery) } });
+      await api.put("/settings", { metho_delivery_smart_cycle_percent: smartCycle, metho_delivery_reward_pool_percent: rewardPool, metho_rider_share_percent: riderShare, metho_transport_rates: Object.fromEntries(RATE_CATEGORIES.map(([key]) => [key, Number(rates[key])])) });
       toast.success("METHO Delivery reward settings saved");
     } catch (error) {
       toast.error(error?.response?.data?.detail || "Delivery settings could not be saved");
@@ -83,10 +89,7 @@ export default function MethoDeliveryAdminPage() {
         <label className="text-sm font-semibold text-emerald-950">Smart Cycle %<Input type="number" min="0" max="100" step="0.01" value={settings.metho_delivery_smart_cycle_percent} onChange={(event) => setSettings((current) => ({ ...current, metho_delivery_smart_cycle_percent: event.target.value }))} className="mt-1 bg-white" disabled={loading || saving} /></label>
         <label className="text-sm font-semibold text-emerald-950">Reward Pool %<Input type="number" min="0" max="100" step="0.01" value={settings.metho_delivery_reward_pool_percent} onChange={(event) => setSettings((current) => ({ ...current, metho_delivery_reward_pool_percent: event.target.value }))} className="mt-1 bg-white" disabled={loading || saving} /></label>
         <label className="text-sm font-semibold text-emerald-950">Rider share %<Input type="number" min="0" max="100" step="0.01" value={settings.metho_rider_share_percent} onChange={(event) => setSettings((current) => ({ ...current, metho_rider_share_percent: event.target.value }))} className="mt-1 bg-white" disabled={loading || saving} /></label>
-        <label className="text-sm font-semibold text-emerald-950">Bike ₹/km<Input type="number" min="0" max="10000" step="0.01" value={settings.metho_transport_rates.bike} onChange={(event) => setSettings((current) => ({ ...current, metho_transport_rates: { ...current.metho_transport_rates, bike: event.target.value } }))} className="mt-1 bg-white" disabled={loading || saving} /></label>
-        <label className="text-sm font-semibold text-emerald-950">E-rickshaw ₹/km<Input type="number" min="0" max="10000" step="0.01" value={settings.metho_transport_rates.e_rickshaw} onChange={(event) => setSettings((current) => ({ ...current, metho_transport_rates: { ...current.metho_transport_rates, e_rickshaw: event.target.value } }))} className="mt-1 bg-white" disabled={loading || saving} /></label>
-        <label className="text-sm font-semibold text-emerald-950">Auto-rickshaw ₹/km<Input type="number" min="0" max="10000" step="0.01" value={settings.metho_transport_rates.auto_rickshaw} onChange={(event) => setSettings((current) => ({ ...current, metho_transport_rates: { ...current.metho_transport_rates, auto_rickshaw: event.target.value } }))} className="mt-1 bg-white" disabled={loading || saving} /></label>
-        <label className="text-sm font-semibold text-emerald-950">Delivery ₹/km<Input type="number" min="0" max="10000" step="0.01" value={settings.metho_transport_rates.delivery} onChange={(event) => setSettings((current) => ({ ...current, metho_transport_rates: { ...current.metho_transport_rates, delivery: event.target.value } }))} className="mt-1 bg-white" disabled={loading || saving} /></label>
+        {RATE_CATEGORIES.map(([key, label]) => <label key={key} className="text-sm font-semibold text-emerald-950">{label} ₹/km<Input type="number" min="0" max="10000" step="0.01" value={settings.metho_transport_rates[key] ?? ""} onChange={(event) => setSettings((current) => ({ ...current, metho_transport_rates: { ...current.metho_transport_rates, [key]: event.target.value } }))} className="mt-1 bg-white" disabled={loading || saving} /></label>)}
         <Button type="submit" className="rounded-full bg-emerald-900 hover:bg-emerald-950" disabled={loading || saving}><Save className="w-4 h-4 mr-2" /> {saving ? "Saving..." : "Save delivery settings"}</Button>
       </form>
     </section>
