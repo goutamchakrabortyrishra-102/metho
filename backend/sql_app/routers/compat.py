@@ -5935,7 +5935,9 @@ def create_transport_booking(payload: dict, request: Request, db: Session = Depe
     except Exception:
         estimated_distance_km = 0.0
     transport_rates = load_settings(db).get("metho_transport_rates") or {}
-    vehicle_rate = float(transport_rates.get(vehicle_type) or 0) if isinstance(transport_rates, dict) else 0
+    pricing_unit = str(vehicle_meta.get("pricing_unit") or "").strip().upper()
+    service_rate = float(service.price or 0) if pricing_unit == "PER_KM" else 0
+    vehicle_rate = service_rate or (float(transport_rates.get(vehicle_type) or 0) if isinstance(transport_rates, dict) else 0)
     if estimated_distance_km > 0 and vehicle_rate > 0:
         fare_quote = round(max(1.0, estimated_distance_km * vehicle_rate), 2)
     try:

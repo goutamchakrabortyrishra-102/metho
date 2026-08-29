@@ -35,6 +35,9 @@ const EMPTY = {
   service_type: "",
   pricing_unit: "PER_ITEM",
   availability: "available",
+  vehicle_type: "four_wheeler",
+  seating_capacity: "4",
+  air_conditioning: "ac",
   is_available: true,
   service_area: "",
   district: "",
@@ -1223,7 +1226,7 @@ export default function PartnerProductForm({
           </div>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             {isTransportOnlyTemplateMode ? null : (
-              <div><Label>{activeListingType === "service" ? "Service Rate Before GST (₹) *" : "Price Before GST (₹) *"}</Label><Input type="number" required value={form.price} onChange={(e) => setForm({ ...form, price: e.target.value, price_before_gst: e.target.value })} className="mt-1" data-testid="my-prod-price" /></div>
+              <div><Label>{activeListingType === "service" ? (isTransportOnlyTemplateMode && String(form.pricing_unit || "").toUpperCase() === "PER_KM" ? "Partner Rate (₹/km) *" : "Service Rate Before GST (₹) *") : "Price Before GST (₹) *"}</Label><Input type="number" required value={form.price} onChange={(e) => setForm({ ...form, price: e.target.value, price_before_gst: e.target.value })} className="mt-1" data-testid="my-prod-price" /></div>
             )}
             {activeListingType !== "service" ? <div><Label>Opening / Current Stock</Label><Input type="number" value={form.stock} onChange={(e) => setForm({ ...form, stock: e.target.value })} className="mt-1" data-testid="my-prod-stock" /></div> : null}
           </div>
@@ -1268,6 +1271,7 @@ export default function PartnerProductForm({
               <div><Label>Service Category</Label><Input value={form.service_category || ""} onChange={(e) => setForm({ ...form, service_category: e.target.value })} className="mt-1" /></div>
               <div><Label>Service Type</Label><Input value={form.service_type || ""} onChange={(e) => setForm({ ...form, service_type: e.target.value })} className="mt-1" /></div>
               <div><Label>Pricing Unit</Label><select value={form.pricing_unit || "PER_VISIT"} onChange={(e) => setForm({ ...form, pricing_unit: e.target.value })} className="mt-1 h-10 w-full rounded-md border border-input bg-white px-3 text-sm">{SERVICE_PRICING_UNITS.map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></div>
+              {isTransportOnlyTemplateMode ? <><div><Label>Vehicle Category</Label><select value={form.vehicle_type || "four_wheeler"} onChange={(e) => setForm({ ...form, vehicle_type: e.target.value })} className="mt-1 h-10 w-full rounded-md border border-input bg-white px-3 text-sm"><option value="four_wheeler">4-wheeler</option><option value="bolero_maxx">Bolero Maxx</option><option value="vehicle_207">207</option><option value="vehicle_407">407</option><option value="dumper">Dumper</option><option value="bike">Bike</option><option value="e_rickshaw">E-rickshaw</option><option value="auto_rickshaw">Auto-rickshaw</option></select></div><div><Label>AC / Non-AC</Label><select value={form.air_conditioning || "ac"} onChange={(e) => setForm({ ...form, air_conditioning: e.target.value })} className="mt-1 h-10 w-full rounded-md border border-input bg-white px-3 text-sm"><option value="ac">AC</option><option value="non_ac">Non-AC</option></select></div><div><Label>Seat Capacity</Label><select value={form.seating_capacity || "4"} onChange={(e) => setForm({ ...form, seating_capacity: e.target.value })} className="mt-1 h-10 w-full rounded-md border border-input bg-white px-3 text-sm"><option value="4">4 seater</option><option value="7">7 seater</option><option value="9">9 seater</option><option value="12">12 seater</option><option value="16">16 seater</option></select></div></> : null}
               <div><Label>Availability</Label><select value={form.availability || "available"} onChange={(e) => setForm({ ...form, availability: e.target.value })} className="mt-1 h-10 w-full rounded-md border border-input bg-white px-3 text-sm"><option value="available">Available</option><option value="unavailable">Unavailable</option><option value="temporarily_closed">Temporarily Closed</option></select></div>
               <div><Label>Service Area</Label><Input value={form.service_area || ""} onChange={(e) => setForm({ ...form, service_area: e.target.value })} className="mt-1" placeholder="Coverage area" /></div>
               <div><Label>City</Label><Input value={form.city || ""} onChange={(e) => setForm({ ...form, city: e.target.value })} className="mt-1" /></div>

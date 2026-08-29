@@ -17,6 +17,7 @@ PROPERTY_HINTS = {"property", "real estate", "realestate", "buy sell", "buy & se
 DOORSTEP_HINTS = {"doorstep", "mistri", "mechanic", "plumber", "plumbing", "electrician", "repair", "cleaning", "laundry", "tailoring", "beauty at home", "home service"}
 CREATIVE_HINTS = {"singing", "music", "song", "poetry", "recitation", "kobita", "abritti", "dance", "dancing", "performing arts", "recording", "studio", "acting", "audition", "instrument", "creative", "media"}
 SHOP_HINTS = {"shop", "store", "mart", "grocery", "vegetable", "cosmetics", "beauty", "product", "retail", "kirana", "pharmacy"}
+VEHICLE_SALE_HINTS = {"car sale", "car sell", "used car", "vehicle sale", "vehicle sell", "bike sale", "bike sell", "auto sale", "truck sale", "lorry sale"}
 
 
 def _partner_classification_key(prefix: str, partner_id: str) -> str:
@@ -51,6 +52,10 @@ def _infer_registration_sector_fields(payload: dict) -> tuple[str, str, str]:
     looks_doorstep = _contains_any_hint(combined, DOORSTEP_HINTS)
     looks_creative = _contains_any_hint(combined, CREATIVE_HINTS)
     looks_shop = _contains_any_hint(combined, SHOP_HINTS)
+    looks_vehicle_sale = _contains_any_hint(combined, VEHICLE_SALE_HINTS)
+    if looks_vehicle_sale:
+        looks_shop = True
+        looks_transport = False
 
     raw_sector = _normalize_partner_sector(payload.get("business_type") or payload.get("sector"))
     sector = "Service" if (looks_delivery or looks_transport or looks_stay_dining or looks_property or looks_doorstep or looks_creative) else ("Shop" if looks_shop else raw_sector)

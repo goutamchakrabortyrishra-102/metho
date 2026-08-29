@@ -101,6 +101,9 @@ const haversineKm = (lat1, lon1, lat2, lon2) => {
   return earthRadiusKm * c;
 };
 const getTransportRatePerKm = (service, rates, vehicleType) => {
+  const pricingUnit = String(service?.pricing_unit || "").trim().toUpperCase();
+  const serviceRate = Number(service?.price || 0);
+  if (pricingUnit === "PER_KM" && Number.isFinite(serviceRate) && serviceRate > 0) return serviceRate;
   const configuredRate = Number(rates?.[vehicleType] || 0);
   if (Number.isFinite(configuredRate) && configuredRate > 0) return configuredRate;
   const candidates = [
@@ -463,7 +466,7 @@ export default function PartnerShopPage() {
   const [serviceSearch, setServiceSearch] = useState("");
   const [transportService, setTransportService] = useState(null);
   const [transportVehicleType, setTransportVehicleType] = useState("bike");
-  const [transportRates, setTransportRates] = useState({ bike: 12, e_rickshaw: 16, auto_rickshaw: 20 });
+  const [transportRates, setTransportRates] = useState({ bike: 12, e_rickshaw: 16, auto_rickshaw: 20, four_wheeler: 24, bolero_maxx: 28, vehicle_207: 30, vehicle_407: 36, dumper: 45 });
   const [transportBookingMode, setTransportBookingMode] = useState("route");
   const [transportBusy, setTransportBusy] = useState(false);
   const [transportBooking, setTransportBooking] = useState(null);
@@ -1609,7 +1612,7 @@ export default function PartnerShopPage() {
                     <select value={transportVehicleType} onChange={(event) => setTransportVehicleType(event.target.value)} className="mb-3 h-10 w-full rounded-md border border-input bg-white px-3 text-sm" data-testid="transport-vehicle-type">
                       <option value="bike">Bike</option>
                       <option value="e_rickshaw">E-rickshaw</option>
-                      <option value="auto_rickshaw">Auto-rickshaw</option>
+                      <option value="auto_rickshaw">Auto-rickshaw</option><option value="four_wheeler">4-wheeler</option><option value="bolero_maxx">Bolero Maxx</option><option value="vehicle_207">207</option><option value="vehicle_407">407</option><option value="dumper">Dumper</option>
                     </select>
                     <div className="rounded-2xl border border-slate-200 bg-white p-2 shadow-sm">
                       <Input
@@ -1829,16 +1832,22 @@ export default function PartnerShopPage() {
                         <p className="font-display font-bold text-emerald-950 mt-0.5 line-clamp-1">{service.name || "Transport Service"}</p>
                         {service.vehicle_number ? <p className="text-xs text-slate-600 mt-1">Vehicle: {service.vehicle_number.length > 4 ? `${service.vehicle_number.slice(0, 2)}***${service.vehicle_number.slice(-2)}` : service.vehicle_number}</p> : null}
                         {Number(service.seating_capacity || 0) > 0 ? <p className="text-xs text-slate-600">Seats / capacity: {service.seating_capacity}</p> : null}
+                        {service.air_conditioning ? <p className="text-xs text-slate-600">{String(service.air_conditioning).replace("_", "-").toUpperCase()}</p> : null}
                         {service.service_area ? <p className="text-xs text-slate-600">Service area: {service.service_area}</p> : null}
                         <div className="mt-2 flex items-center justify-between">
                           <span className="text-[11px] font-semibold text-sky-800">Starting from: ₹{Number(service.base_fare || service.price || 0).toLocaleString("en-IN")}</span>
                           <span className={`text-[11px] font-semibold ${String(service.vehicle_status || "AVAILABLE") === "AVAILABLE" ? "text-emerald-700" : "text-amber-700"}`}>{service.vehicle_status || "AVAILABLE"}</span>
                         </div>
-                        {Number(service.per_km_rate || 0) > 0 ? <p className="text-[11px] text-slate-500 mt-1">₹{Number(service.per_km_rate).toLocaleString("en-IN")}/km</p> : null}
+                        {String(service.pricing_unit || "").toUpperCase() === "PER_KM" ? <p className="text-[11px] text-slate-500 mt-1">Partner rate: ₹{Number(service.price || 0).toLocaleString("en-IN")}/km</p> : Number(service.per_km_rate || 0) > 0 ? <p className="text-[11px] text-slate-500 mt-1">₹{Number(service.per_km_rate).toLocaleString("en-IN")}/km</p> : null}
 
                         <Button
                           type="button"
-                          onClick={() => submitPropertyEnquiry(service)}
+                          onClick={() => {
+                            selectTransportBookingService(service);
+                            setTransportVehicleType(String(service.vehicle_type || "four_wheeler").trim().toLowerCase() || "four_wheeler");
+                            setTransportActiveTab("booking");
+                            window.requestAnimationFrame(() => document.getElementById("transport-booking-desk")?.scrollIntoView({ behavior: "smooth", block: "start" }));
+                          }}
                           className="w-full mt-3 rounded-full bg-emerald-700 hover:bg-emerald-800 text-white font-bold"
                           data-testid={`shop-book-transport-${service.id}`}
                         >

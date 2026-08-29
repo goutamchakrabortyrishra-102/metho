@@ -30,6 +30,7 @@ from sql_app.routers.direct_booking import (
 from sql_app.routers.whatsapp import update_whatsapp_settings
 from sql_app.routers.rider import _save_profile
 from sql_app.routers.settings import load_settings
+from sql_app.routers.partner_public import _infer_registration_sector_fields
 
 
 def make_session():
@@ -76,6 +77,13 @@ def test_existing_settings_receive_new_vehicle_rate_defaults():
         assert rates["dumper"] == 45
     finally:
         db.close()
+
+
+def test_vehicle_sales_are_classified_as_shop_but_rentals_remain_transport():
+    sale = _infer_registration_sector_fields({"business_name": "Trusted Used Car Sale"})
+    rental = _infer_registration_sector_fields({"business_name": "City Car Rental"})
+    assert sale == ("Shop", "", "Others")
+    assert rental == ("Service", "Transport", "")
     assert calculate_direct_amount("bike", {"metho_transport_rates": {"bike": 12}}, 0.25) == 12
     assert calculate_direct_amount("delivery", {"metho_transport_rates": {"delivery": 14}}, 0.25) == 14
 

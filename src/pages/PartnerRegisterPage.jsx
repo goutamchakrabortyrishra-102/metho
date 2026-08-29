@@ -80,7 +80,7 @@ const SHOP_TEMPLATE_OPTIONS_BY_SECTOR = {
   Vegetables: ["Fresh Vegetable", "Leafy Greens", "Seasonal Produce", "Root Vegetables"],
   Grocery: ["Kirana Essentials", "Rice & Dal", "Spices & Masala", "Oil & Pantry"],
   "Cosmetics & Beauty": ["Skincare", "Makeup", "Hair Care", "Personal Care"],
-  Others: ["Household", "Stationery", "Fashion", "General Store"],
+  Others: ["Household", "Stationery", "Fashion", "General Store", "Car Sale", "Vehicle Sale", "Bike Sale"],
 };
 
 const TRANSPORT_REG_HINTS = [
@@ -104,6 +104,7 @@ const CREATIVE_REG_HINTS = [
 const SHOP_REG_HINTS = [
   "shop", "store", "mart", "grocery", "vegetable", "cosmetics", "beauty", "product", "retail", "kirana", "pharmacy",
 ];
+const VEHICLE_SALE_REG_HINTS = ["car sale", "car sell", "used car", "vehicle sale", "vehicle sell", "bike sale", "bike sell", "auto sale", "truck sale", "lorry sale"];
 
 const normalizeText = (value) => String(value || "").trim().toLowerCase();
 const includesAnyHint = (text, hints) => hints.some((hint) => text.includes(hint));
@@ -123,8 +124,9 @@ const inferRegistrationSelection = (form) => {
   const looksDoorstep = includesAnyHint(combinedText, DOORSTEP_REG_HINTS);
   const looksCreative = includesAnyHint(combinedText, CREATIVE_REG_HINTS);
   const looksShop = includesAnyHint(combinedText, SHOP_REG_HINTS);
+  const looksVehicleSale = includesAnyHint(combinedText, VEHICLE_SALE_REG_HINTS);
 
-  const inferredBusinessType = (looksDelivery || looksTransport || looksStayDining || looksProperty || looksDoorstep || looksCreative)
+  const inferredBusinessType = looksVehicleSale ? "Shop" : (looksDelivery || looksTransport || looksStayDining || looksProperty || looksDoorstep || looksCreative)
     ? "Service"
     : (looksShop ? "Shop" : String(form.business_type || "Shop"));
 
