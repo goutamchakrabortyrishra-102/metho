@@ -276,6 +276,7 @@ export const inferPartnerPrimarySector = ({ businessType, businessName, counts }
   const looksLikeVehicleSale = isVehicleSale(identity);
 
   // Deterministic mapping for registration/business naming.
+  if (normalizedType.startsWith("shop")) return PRODUCT_SECTOR;
   if (looksLikeVehicleSale) return PRODUCT_SECTOR;
   if (looksLikeDelivery) return DELIVERY_PARTNER_SECTOR;
   if (looksLikeTransport) return TRANSPORT_SECTOR;

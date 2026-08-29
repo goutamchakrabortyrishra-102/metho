@@ -17,6 +17,10 @@ test("vehicle sales stay in the partner product sector", () => {
   expect(inferPartnerPrimarySector({ businessType: "Service - Transport", businessName: "City Car Rental", counts: { products: 0, transport: 2 } })).toBe(PARTNER_SECTOR_KEYS.TRANSPORT_SECTOR);
 });
 
+test("explicit shop registrations remain product partners before listings are added", () => {
+  expect(inferPartnerPrimarySector({ businessType: "Shop - Others", businessName: "Local Vehicle Showroom", counts: { products: 0 } })).toBe(PARTNER_SECTOR_KEYS.PRODUCT_SECTOR);
+});
+
 test("property listings remain property semantics", () => {
   const property = { service_template_key: "plot_sale_listing", category: "Property Buy & Sell", name: "Land Listing" };
   expect(isPropertyServiceLike(property)).toBe(true);
