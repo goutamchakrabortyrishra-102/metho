@@ -81,8 +81,10 @@ def test_existing_settings_receive_new_vehicle_rate_defaults():
 
 def test_vehicle_sales_are_classified_as_shop_but_rentals_remain_transport():
     sale = _infer_registration_sector_fields({"business_name": "Trusted Used Car Sale"})
+    dealer = _infer_registration_sector_fields({"business_name": "Trusted Car Dealership"})
     rental = _infer_registration_sector_fields({"business_name": "City Car Rental"})
     assert sale == ("Shop", "", "Others")
+    assert dealer == ("Shop", "", "Others")
     assert rental == ("Service", "Transport", "")
     assert calculate_direct_amount("bike", {"metho_transport_rates": {"bike": 12}}, 0.25) == 12
     assert calculate_direct_amount("delivery", {"metho_transport_rates": {"delivery": 14}}, 0.25) == 14

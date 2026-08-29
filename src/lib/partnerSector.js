@@ -91,6 +91,18 @@ const TRANSPORT_HINTS = [
   "rickshaw",
 ];
 
+const VEHICLE_SALE_HINTS = [
+  "car sale", "car sell", "used car", "vehicle sale", "vehicle sell", "bike sale", "bike sell", "auto sale", "truck sale", "lorry sale",
+];
+const VEHICLE_SALE_WORDS = ["sale", "sell", "selling", "dealer", "dealership", "showroom"];
+const VEHICLE_WORDS = ["car", "vehicle", "bike", "auto", "truck", "lorry"];
+
+const isVehicleSale = (text) => {
+  const words = new Set(normalizeBusinessType(text).replace(/[/-]/g, " ").split(/\s+/));
+  return includesAny(normalizeBusinessType(text), VEHICLE_SALE_HINTS)
+    || (VEHICLE_SALE_WORDS.some((word) => words.has(word)) && VEHICLE_WORDS.some((word) => words.has(word)));
+};
+
 const DELIVERY_HINTS = [
   "delivery",
   "courier",
@@ -261,8 +273,10 @@ export const inferPartnerPrimarySector = ({ businessType, businessName, counts }
   const looksLikeDoorstep = includesAny(identity, DOORSTEP_HINTS);
   const looksLikeCreative = includesAny(identity, CREATIVE_HINTS);
   const looksLikeProduct = includesAny(identity, PRODUCT_HINTS);
+  const looksLikeVehicleSale = isVehicleSale(identity);
 
   // Deterministic mapping for registration/business naming.
+  if (looksLikeVehicleSale) return PRODUCT_SECTOR;
   if (looksLikeDelivery) return DELIVERY_PARTNER_SECTOR;
   if (looksLikeTransport) return TRANSPORT_SECTOR;
   if (looksLikeHospitality) return HOSPITALITY_SECTOR;

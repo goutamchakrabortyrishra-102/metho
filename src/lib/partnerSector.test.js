@@ -12,6 +12,11 @@ test("transport vehicle listings remain transport", () => {
   expect(isDeliveryServiceLike(transport)).toBe(false);
 });
 
+test("vehicle sales stay in the partner product sector", () => {
+  expect(inferPartnerPrimarySector({ businessType: "Shop - Others", businessName: "Trusted Used Car Sale", counts: { products: 5, transport: 0 } })).toBe(PARTNER_SECTOR_KEYS.PRODUCT_SECTOR);
+  expect(inferPartnerPrimarySector({ businessType: "Service - Transport", businessName: "City Car Rental", counts: { products: 0, transport: 2 } })).toBe(PARTNER_SECTOR_KEYS.TRANSPORT_SECTOR);
+});
+
 test("property listings remain property semantics", () => {
   const property = { service_template_key: "plot_sale_listing", category: "Property Buy & Sell", name: "Land Listing" };
   expect(isPropertyServiceLike(property)).toBe(true);

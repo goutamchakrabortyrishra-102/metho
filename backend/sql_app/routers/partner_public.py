@@ -18,6 +18,8 @@ DOORSTEP_HINTS = {"doorstep", "mistri", "mechanic", "plumber", "plumbing", "elec
 CREATIVE_HINTS = {"singing", "music", "song", "poetry", "recitation", "kobita", "abritti", "dance", "dancing", "performing arts", "recording", "studio", "acting", "audition", "instrument", "creative", "media"}
 SHOP_HINTS = {"shop", "store", "mart", "grocery", "vegetable", "cosmetics", "beauty", "product", "retail", "kirana", "pharmacy"}
 VEHICLE_SALE_HINTS = {"car sale", "car sell", "used car", "vehicle sale", "vehicle sell", "bike sale", "bike sell", "auto sale", "truck sale", "lorry sale"}
+VEHICLE_SALE_WORDS = {"sale", "sell", "selling", "dealer", "dealership", "showroom"}
+VEHICLE_WORDS = {"car", "vehicle", "bike", "auto", "truck", "lorry"}
 
 
 def _partner_classification_key(prefix: str, partner_id: str) -> str:
@@ -30,6 +32,11 @@ def _normalize_hint_text(value) -> str:
 
 def _contains_any_hint(text: str, hints: set[str]) -> bool:
     return any(h in text for h in hints)
+
+
+def _is_vehicle_sale(text: str) -> bool:
+    words = set(str(text or "").replace("/", " ").replace("-", " ").split())
+    return _contains_any_hint(text, VEHICLE_SALE_HINTS) or bool(words.intersection(VEHICLE_SALE_WORDS) and words.intersection(VEHICLE_WORDS))
 
 
 def _infer_registration_sector_fields(payload: dict) -> tuple[str, str, str]:
@@ -52,7 +59,7 @@ def _infer_registration_sector_fields(payload: dict) -> tuple[str, str, str]:
     looks_doorstep = _contains_any_hint(combined, DOORSTEP_HINTS)
     looks_creative = _contains_any_hint(combined, CREATIVE_HINTS)
     looks_shop = _contains_any_hint(combined, SHOP_HINTS)
-    looks_vehicle_sale = _contains_any_hint(combined, VEHICLE_SALE_HINTS)
+    looks_vehicle_sale = _is_vehicle_sale(combined)
     if looks_vehicle_sale:
         looks_shop = True
         looks_transport = False

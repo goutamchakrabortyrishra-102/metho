@@ -105,9 +105,15 @@ const SHOP_REG_HINTS = [
   "shop", "store", "mart", "grocery", "vegetable", "cosmetics", "beauty", "product", "retail", "kirana", "pharmacy",
 ];
 const VEHICLE_SALE_REG_HINTS = ["car sale", "car sell", "used car", "vehicle sale", "vehicle sell", "bike sale", "bike sell", "auto sale", "truck sale", "lorry sale"];
+const VEHICLE_SALE_WORDS = ["sale", "sell", "selling", "dealer", "dealership", "showroom"];
+const VEHICLE_WORDS = ["car", "vehicle", "bike", "auto", "truck", "lorry"];
 
 const normalizeText = (value) => String(value || "").trim().toLowerCase();
 const includesAnyHint = (text, hints) => hints.some((hint) => text.includes(hint));
+const isVehicleSale = (text) => {
+  const words = new Set(String(text || "").toLowerCase().replace(/[/-]/g, " ").split(/\s+/));
+  return includesAnyHint(text, VEHICLE_SALE_REG_HINTS) || (VEHICLE_SALE_WORDS.some((word) => words.has(word)) && VEHICLE_WORDS.some((word) => words.has(word)));
+};
 
 const inferRegistrationSelection = (form) => {
   const combinedText = [
@@ -124,7 +130,7 @@ const inferRegistrationSelection = (form) => {
   const looksDoorstep = includesAnyHint(combinedText, DOORSTEP_REG_HINTS);
   const looksCreative = includesAnyHint(combinedText, CREATIVE_REG_HINTS);
   const looksShop = includesAnyHint(combinedText, SHOP_REG_HINTS);
-  const looksVehicleSale = includesAnyHint(combinedText, VEHICLE_SALE_REG_HINTS);
+  const looksVehicleSale = isVehicleSale(combinedText);
 
   const inferredBusinessType = looksVehicleSale ? "Shop" : (looksDelivery || looksTransport || looksStayDining || looksProperty || looksDoorstep || looksCreative)
     ? "Service"
