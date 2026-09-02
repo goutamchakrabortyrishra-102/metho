@@ -1,5 +1,6 @@
 import json
 import hashlib
+import logging
 import os
 from datetime import datetime, timedelta, timezone
 
@@ -7,10 +8,11 @@ from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from sqlalchemy.orm import Session
 
 from ..database import get_db
-from ..meta_ads import fetch_lead, normalize_lead, resolve_config, verify_signature, verify_webhook_token, webhook_lead_ids
+from ..meta_ads import MetaGraphAPIError, fetch_lead, normalize_lead, resolve_config, verify_signature, verify_webhook_token, webhook_lead_ids
 from ..models import CRMFollowUp, CRMLead, CRMLeadActivity, CRMTask, User
 
 router = APIRouter(prefix="/api", tags=["meta-ads"])
+logger = logging.getLogger(__name__)
 
 
 def _admin_assignee(db: Session) -> User | None:
@@ -102,8 +104,16 @@ async def receive_meta_webhook(request: Request, db: Session = Depends(get_db)):
                 continue
             try:
                 meta_payload = fetch_lead(lead_id, db)
-            except Exception as exc:
-                raise HTTPException(status_code=502, detail="Meta lead could not be retrieved") from exc
+            except MetaGraphAPIError as exc:
+                logger.error(
+                    "Skipping Meta lead because Graph API retrieval failed: leadgen_id=%s status=%s message=%s response=%s",
+                    lead_id,
+                    exc.status_code or "unavailable",
+                    str(exc),
+                    exc.response_body or "unavailable",
+                )
+                results.append({"lead_id": lead_id, "status": "fetch_failed"})
+                continue
             try:
                 results.append({"lead_id": lead_id, "status": _ingest_lead(db, meta_payload, event)})
             except Exception as exc:

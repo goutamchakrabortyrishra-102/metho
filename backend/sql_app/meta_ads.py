@@ -3,7 +3,9 @@ import hmac
 import json
 import os
 from urllib.parse import urlencode
+from urllib.error import HTTPError, URLError
 from urllib.request import Request, urlopen
+import logging
 
 from cryptography.fernet import Fernet, InvalidToken
 
@@ -11,10 +13,25 @@ from .models import AppSetting
 
 
 META_GRAPH_API_VERSION = os.getenv("META_GRAPH_API_VERSION", "v20.0").strip() or "v20.0"
+logger = logging.getLogger(__name__)
+
+
+class MetaGraphAPIError(RuntimeError):
+    def __init__(self, message: str, status_code: int | None = None, response_body: str = ""):
+        super().__init__(message)
+        self.status_code = status_code
+        self.response_body = response_body
 
 
 def _setting(name: str) -> str:
     return str(os.getenv(name, "") or "").strip()
+
+
+def _clean_secret(value: str) -> str:
+    cleaned = str(value or "").strip()
+    if len(cleaned) >= 2 and cleaned[0] == cleaned[-1] and cleaned[0] in {"'", '"'}:
+        cleaned = cleaned[1:-1].strip()
+    return cleaned
 
 
 def _encryption_key() -> bytes:
@@ -30,7 +47,7 @@ def encrypt_secret(value: str) -> str:
 
 def decrypt_secret(value: str) -> str:
     try:
-        return Fernet(_encryption_key()).decrypt(str(value).encode("utf-8")).decode("utf-8")
+        return _clean_secret(Fernet(_encryption_key()).decrypt(str(value).encode("utf-8")).decode("utf-8"))
     except (InvalidToken, ValueError, TypeError) as exc:
         raise RuntimeError("Stored Meta secret could not be decrypted") from exc
 
@@ -60,9 +77,9 @@ def resolve_config(db=None) -> dict:
         "app_id": str(db_config.get("app_id") or _setting("META_APP_ID")),
         "graph_api_version": str(db_config.get("graph_api_version") or META_GRAPH_API_VERSION),
         "default_assignee_id": str(db_config.get("default_assignee_id") or _setting("META_CRM_DEFAULT_ASSIGNEE_ID")),
-        "verify_token": str(db_config.get("verify_token") or _setting("META_WEBHOOK_VERIFY_TOKEN")),
-        "app_secret": str(db_config.get("app_secret") or _setting("META_APP_SECRET")),
-        "access_token": str(db_config.get("access_token") or _setting("META_ACCESS_TOKEN")),
+        "verify_token": _clean_secret(db_config.get("verify_token") or _setting("META_WEBHOOK_VERIFY_TOKEN")),
+        "app_secret": _clean_secret(db_config.get("app_secret") or _setting("META_APP_SECRET")),
+        "access_token": _clean_secret(db_config.get("access_token") or _setting("META_ACCESS_TOKEN")),
     }
 
 
@@ -145,10 +162,28 @@ def fetch_lead(lead_id: str, db=None) -> dict:
     query = urlencode({"fields": "id,created_time,field_data", "access_token": token})
     endpoint = f"https://graph.facebook.com/{config['graph_api_version']}/{lead_id}?{query}"
     request = Request(endpoint, headers={"Accept": "application/json", "User-Agent": "metho-crm-meta-leads/1.0"})
-    with urlopen(request, timeout=10) as response:
-        payload = json.loads(response.read().decode("utf-8"))
+    try:
+        with urlopen(request, timeout=10) as response:
+            payload = json.loads(response.read().decode("utf-8"))
+    except HTTPError as exc:
+        response_body = exc.read().decode("utf-8", errors="replace")
+        logger.error(
+            "Meta Graph API lead retrieval failed: leadgen_id=%s status=%s response=%s",
+            lead_id,
+            exc.code,
+            response_body,
+        )
+        raise MetaGraphAPIError("Meta Graph API rejected lead retrieval", exc.code, response_body) from exc
+    except (URLError, TimeoutError, OSError) as exc:
+        logger.exception("Meta Graph API lead retrieval network failure: leadgen_id=%s", lead_id)
+        raise MetaGraphAPIError("Meta Graph API request failed") from exc
+    except (UnicodeDecodeError, json.JSONDecodeError) as exc:
+        logger.exception("Meta Graph API returned an invalid lead payload: leadgen_id=%s", lead_id)
+        raise MetaGraphAPIError("Meta Graph API returned an invalid lead payload") from exc
     if not isinstance(payload, dict) or not payload.get("id"):
-        raise RuntimeError("Meta lead payload is invalid")
+        response_body = json.dumps(payload, ensure_ascii=True)
+        logger.error("Meta Graph API returned an invalid lead payload: leadgen_id=%s response=%s", lead_id, response_body)
+        raise MetaGraphAPIError("Meta lead payload is invalid", response_body=response_body)
     return payload
 
 
