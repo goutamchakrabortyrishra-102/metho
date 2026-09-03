@@ -12,6 +12,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from sql_app.database import Base
 from sql_app.models import AppSetting, CRMLead, CRMLeadActivity
+from sql_app.routers.crm import get_whatsapp_conversation, list_whatsapp_conversations, send_whatsapp_conversation_message
 from sql_app.routers.whatsapp import get_whatsapp_settings, receive_whatsapp_webhook, run_whatsapp_settings_test, update_whatsapp_settings
 from sql_app.whatsapp_cloud import ingest_whatsapp_message, normalize_whatsapp_message, send_whatsapp_message
 
@@ -136,6 +137,30 @@ def test_same_message_id_is_ignored_but_new_message_from_customer_is_recorded():
         activities = db.query(CRMLeadActivity).filter(CRMLeadActivity.activity_type == "whatsapp_message_received").all()
         assert len(activities) == 2
         assert any("Second" in activity.message for activity in activities)
+    finally:
+        db.close()
+
+
+def test_admin_whatsapp_inbox_reads_existing_messages_and_records_replies(monkeypatch):
+    db = make_session()
+    try:
+        assert ingest_whatsapp_message(db, message_payload("wamid.inbox", "Need order help"), None) == "created"
+        lead = db.query(CRMLead).one()
+
+        inbox = list_whatsapp_conversations("Ayesha", db, admin())
+        assert inbox["items"][0]["lead_id"] == lead.id
+        assert inbox["items"][0]["latest_message"] == "Need order help"
+
+        conversation = get_whatsapp_conversation(lead.id, db, admin())
+        assert conversation["messages"][0]["direction"] == "incoming"
+        assert conversation["messages"][0]["text"] == "Need order help"
+
+        monkeypatch.setattr("sql_app.whatsapp_cloud.send_whatsapp_message", lambda *_args, **_kwargs: {"messages": [{"id": "wamid.reply"}]})
+        sent = send_whatsapp_conversation_message(lead.id, {"message": "We can help."}, db, admin())
+        assert sent["ok"] is True
+        assert sent["message_id"] == "wamid.reply"
+        assert sent["message"]["direction"] == "outgoing"
+        assert db.query(CRMLeadActivity).filter(CRMLeadActivity.activity_type == "whatsapp_message_sent").count() == 1
     finally:
         db.close()
 

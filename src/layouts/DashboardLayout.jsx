@@ -1,6 +1,6 @@
 import React, { useState } from "react";
 import { Outlet, NavLink, useLocation, useNavigate } from "react-router-dom";
-import { LayoutDashboard, Wallet, Users, Network, Package, ShoppingCart, TrendingUp, User, LogOut, Menu, X, Search, Settings, Sparkles, BadgeIndianRupee, Calculator, Shield, Store, Compass, Trophy, Send, CheckCircle2, Upload, Bot, ClipboardList, Activity, Warehouse, BookOpenCheck, CarTaxiFront, UtensilsCrossed, Building2, BriefcaseBusiness, Trash2, Boxes, Plane, MapPin } from "lucide-react";
+import { LayoutDashboard, Wallet, Users, Network, Package, ShoppingCart, TrendingUp, User, LogOut, Menu, X, Search, Settings, Sparkles, BadgeIndianRupee, Calculator, Shield, Store, Compass, Trophy, Send, CheckCircle2, Upload, Bot, ClipboardList, Activity, Warehouse, BookOpenCheck, CarTaxiFront, UtensilsCrossed, Building2, BriefcaseBusiness, Trash2, Boxes, Plane, MapPin, MessageCircle } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { Logo } from "@/components/Logo";
 import { Button } from "@/components/ui/button";
@@ -26,6 +26,7 @@ const links = [
   { to: "/app/company-inventory", icon: Boxes, label: "Company Inventory", testId: "nav-company-inventory", adminOnly: true },
   { to: "/app/partners", icon: Store, label: "Partners", testId: "nav-partners", adminOnly: true },
   { to: "/app/crm/leads", icon: BriefcaseBusiness, label: "CRM Leads", testId: "nav-crm-leads", adminOnly: true },
+  { to: "/app/crm/whatsapp", icon: MessageCircle, label: "WhatsApp Inbox", testId: "nav-crm-whatsapp", adminOnly: true },
   { to: "/app/crm/pipeline", icon: ClipboardList, label: "CRM Pipeline", testId: "nav-crm-pipeline", adminOnly: true },
   { to: "/app/ceo-dashboard", icon: TrendingUp, label: "CEO Dashboard", testId: "nav-ceo-dashboard", adminOnly: true },
   { to: "/app/partner-approvals", icon: CheckCircle2, label: "Partner Applications", testId: "nav-partner-approvals", adminOnly: true },

@@ -153,6 +153,98 @@ def _to_lead_payload(lead: CRMLead) -> dict:
     }
 
 
+def _whatsapp_message_payload(activity: CRMLeadActivity) -> dict:
+    message = str(activity.message or "")
+    received_prefix = "WhatsApp message received ["
+    if activity.activity_type == "whatsapp_message_received" and "]: " in message and message.startswith(received_prefix):
+        message = message.split("]: ", 1)[1]
+    return {
+        "id": activity.id,
+        "direction": "incoming" if activity.activity_type == "whatsapp_message_received" else "outgoing",
+        "text": message,
+        "created_at": _iso(activity.created_at),
+        "actor_user_id": activity.actor_user_id,
+    }
+
+
+@router.get("/admin/crm/whatsapp/conversations")
+def list_whatsapp_conversations(search: str = "", db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    _require_admin_user(current_user)
+    activities = (
+        db.query(CRMLeadActivity)
+        .join(CRMLead, CRMLead.id == CRMLeadActivity.lead_id)
+        .filter(CRMLeadActivity.activity_type == "whatsapp_message_received", CRMLead.source == "whatsapp")
+        .order_by(CRMLeadActivity.created_at.desc())
+        .all()
+    )
+    term = str(search or "").strip().lower()
+    conversations = []
+    seen_lead_ids = set()
+    for activity in activities:
+        if activity.lead_id in seen_lead_ids:
+            continue
+        lead = db.query(CRMLead).filter(CRMLead.id == activity.lead_id).first()
+        if not lead:
+            continue
+        searchable = " ".join((lead.contact_person, lead.business_name, lead.phone, lead.whatsapp_no)).lower()
+        if term and term not in searchable:
+            continue
+        seen_lead_ids.add(lead.id)
+        conversations.append({
+            "lead_id": lead.id,
+            "contact_person": lead.contact_person,
+            "business_name": lead.business_name,
+            "phone": lead.whatsapp_no or lead.phone,
+            "latest_message": _whatsapp_message_payload(activity)["text"],
+            "latest_message_at": _iso(activity.created_at),
+        })
+    return {"items": conversations}
+
+
+@router.get("/admin/crm/whatsapp/conversations/{lead_id}")
+def get_whatsapp_conversation(lead_id: str, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    _require_admin_user(current_user)
+    lead = db.query(CRMLead).filter(CRMLead.id == lead_id, CRMLead.source == "whatsapp").first()
+    if not lead:
+        raise HTTPException(status_code=404, detail="WhatsApp conversation not found")
+    activities = (
+        db.query(CRMLeadActivity)
+        .filter(
+            CRMLeadActivity.lead_id == lead.id,
+            CRMLeadActivity.activity_type.in_(["whatsapp_message_received", "whatsapp_message_sent"]),
+        )
+        .order_by(CRMLeadActivity.created_at.asc())
+        .all()
+    )
+    return {"conversation": {"lead_id": lead.id, "contact_person": lead.contact_person, "business_name": lead.business_name, "phone": lead.whatsapp_no or lead.phone}, "messages": [_whatsapp_message_payload(activity) for activity in activities]}
+
+
+@router.post("/admin/crm/whatsapp/conversations/{lead_id}/messages")
+def send_whatsapp_conversation_message(lead_id: str, payload: dict, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    _require_admin_user(current_user)
+    lead = db.query(CRMLead).filter(CRMLead.id == lead_id, CRMLead.source == "whatsapp").first()
+    if not lead:
+        raise HTTPException(status_code=404, detail="WhatsApp conversation not found")
+    message = str((payload or {}).get("message") or "").strip()
+    recipient = str(lead.whatsapp_no or lead.phone or "").strip()
+    if not message:
+        raise HTTPException(status_code=400, detail="Message is required")
+    if not recipient:
+        raise HTTPException(status_code=400, detail="WhatsApp phone number is required")
+    try:
+        from ..whatsapp_cloud import send_whatsapp_message
+
+        result = send_whatsapp_message(db, recipient, text=message)
+    except Exception as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
+    activity = CRMLeadActivity(lead_id=lead.id, activity_type="whatsapp_message_sent", message=message, actor_user_id=current_user.id)
+    db.add(activity)
+    lead.last_contact_at = datetime.now(timezone.utc)
+    db.commit()
+    db.refresh(activity)
+    return {"ok": True, "message": _whatsapp_message_payload(activity), "message_id": ((result.get("messages") or [{}])[0]).get("id") if isinstance(result, dict) else None}
+
+
 def _partner_conversion_state(lead: CRMLead, db: Session) -> dict:
     partner = None
     if lead.converted_partner_id or lead.partner_id:
