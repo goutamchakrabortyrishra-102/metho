@@ -1172,7 +1172,14 @@ export default function SettingsPage() {
       : valueOrEvent;
     setWhatsappForm((prev) => ({ ...prev, [key]: value }));
   };
-  const updateVoiceCallerField = (key) => (event) => setVoiceCallerForm((prev) => ({ ...prev, [key]: event?.target?.type === "checkbox" ? event.target.checked : event.target.value }));
+  const updateVoiceCallerField = (key) => (event) => {
+    try {
+      const value = event?.target?.type === "checkbox" ? Boolean(event.target.checked) : String(event?.target?.value ?? "");
+      setVoiceCallerForm((previous) => ({ ...(previous || {}), [key]: value }));
+    } catch (err) {
+      toast.error("AI voice caller field could not be updated.");
+    }
+  };
   const saveVoiceCaller = async () => {
     if (!voiceCallerForm || voiceCallerBusy) return;
     setVoiceCallerBusy(true);
@@ -1181,21 +1188,35 @@ export default function SettingsPage() {
       const payload = {};
       ["enabled", "provider", "caller_id", "bengali_voice", "hindi_voice", "model", "max_call_attempts", "retry_delay_minutes"].forEach((key) => { payload[key] = voiceCallerForm[key]; });
       ["api_key", "api_secret"].forEach((key) => { if (String(voiceCallerForm[key] || "").trim()) payload[key] = String(voiceCallerForm[key]).trim(); });
-      const { data } = await api.put("/admin/settings/voice-caller", payload);
-      setVoiceCallerForm({ ...data, api_key: "", api_secret: "" });
-      setVoiceCallerMessage("AI voice caller configuration saved.");
+      const response = await api.put("/admin/settings/voice-caller", payload);
+      const data = response?.data;
+      if (!data || typeof data !== "object" || data.success === false) throw new Error(data?.message || "Invalid AI voice caller response.");
+      setVoiceCallerForm((previous) => ({ ...(previous || {}), ...data, api_key: "", api_secret: "" }));
+      setVoiceCallerMessage(data.message || "AI voice caller configuration saved.");
     } catch (err) {
-      setVoiceCallerMessage(err?.response?.data?.detail || "AI voice caller configuration could not be saved.");
+      const message = err?.response?.data?.message || err?.response?.data?.detail || err?.message || "AI voice caller configuration could not be saved.";
+      setVoiceCallerMessage(message);
+      toast.error(message);
     } finally { setVoiceCallerBusy(false); }
   };
   const testVoiceCaller = async () => {
     setVoiceCallerBusy(true);
     setVoiceCallerMessage("");
     try {
-      const { data } = await api.post("/admin/settings/voice-caller/test");
-      setVoiceCallerMessage(data?.ok ? data.message : `Missing: ${(data?.missing || []).join(", ")}`);
+      const response = await api.post("/admin/settings/voice-caller/test");
+      const data = response?.data;
+      if (!data || typeof data !== "object") throw new Error("Invalid AI voice caller test response.");
+      if (data.success === true || data.ok === true) {
+        setVoiceCallerMessage(data.message || "AI voice caller configuration verified.");
+      } else {
+        const message = data.message || `Missing: ${(Array.isArray(data.missing) ? data.missing : []).join(", ") || "required configuration"}`;
+        setVoiceCallerMessage(message);
+        toast.error(message);
+      }
     } catch (err) {
-      setVoiceCallerMessage(err?.response?.data?.detail || "AI voice caller configuration test failed.");
+      const message = err?.response?.data?.message || err?.response?.data?.detail || err?.message || "AI voice caller configuration test failed.";
+      setVoiceCallerMessage(message);
+      toast.error(message);
     } finally { setVoiceCallerBusy(false); }
   };
   const saveWhatsapp = async () => {

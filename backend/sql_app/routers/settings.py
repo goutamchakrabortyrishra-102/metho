@@ -3,6 +3,7 @@ import os
 from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends, Header, HTTPException
+from fastapi.responses import JSONResponse
 from sqlalchemy.orm import Session
 
 from ..database import get_db
@@ -281,46 +282,63 @@ def get_voice_caller_settings(db: Session = Depends(get_db), current_user=Depend
 @router.put("/admin/settings/voice-caller")
 def update_voice_caller_settings(payload: dict, db: Session = Depends(get_db), current_user=Depends(get_current_user)):
     _require_admin(current_user)
-    data = payload if isinstance(payload, dict) else {}
-    current_row = db.query(AppSetting).filter(AppSetting.key == "ai_voice_caller").first()
     try:
-        current = json.loads(current_row.value_json or "{}") if current_row else {}
-    except json.JSONDecodeError:
-        current = {}
-    next_config = {
-        "enabled": bool(data.get("enabled", current.get("enabled", False))),
-        "provider": str(data.get("provider", current.get("provider", "mock")) or "mock").strip().lower(),
-        "caller_id": str(data.get("caller_id", current.get("caller_id", "")) or "").strip(),
-        "bengali_voice": str(data.get("bengali_voice", current.get("bengali_voice", "")) or "").strip(),
-        "hindi_voice": str(data.get("hindi_voice", current.get("hindi_voice", "")) or "").strip(),
-        "model": str(data.get("model", current.get("model", "")) or "").strip(),
-        "max_call_attempts": max(1, min(5, int(data.get("max_call_attempts", current.get("max_call_attempts", 1)) or 1))),
-        "retry_delay_minutes": max(1, min(10080, int(data.get("retry_delay_minutes", current.get("retry_delay_minutes", 60)) or 60))),
-    }
-    secret_update_requested = any(str(data.get(field) or "").strip() for field in ("api_key", "api_secret"))
-    if secret_update_requested and not os.getenv("META_SETTINGS_ENCRYPTION_KEY", "").strip():
-        raise HTTPException(status_code=503, detail="META_SETTINGS_ENCRYPTION_KEY is required to save AI voice secrets")
-    for field in ("api_key", "api_secret"):
-        value = str(data.get(field) or "").strip()
-        if value:
-            next_config[field] = encrypt_secret(value)
-        elif current.get(field):
-            next_config[field] = current[field]
-    if not current_row:
-        db.add(AppSetting(key="ai_voice_caller", value_json=json.dumps(next_config), updated_at=datetime.now(timezone.utc)))
-    else:
-        current_row.value_json = json.dumps(next_config)
-        current_row.updated_at = datetime.now(timezone.utc)
-    db.commit()
-    return get_voice_caller_settings(db, current_user)
+        data = payload if isinstance(payload, dict) else {}
+        current_row = db.query(AppSetting).filter(AppSetting.key == "ai_voice_caller").first()
+        try:
+            current = json.loads(current_row.value_json or "{}") if current_row else {}
+        except json.JSONDecodeError:
+            current = {}
+        if not isinstance(current, dict):
+            current = {}
+        get_value = lambda field, alias: data.get(field, data.get(alias, current.get(field, "")))
+        next_config = {
+            "enabled": bool(data.get("enabled", current.get("enabled", False))),
+            "provider": str(get_value("provider", "provider") or "mock").strip().lower(),
+            "caller_id": str(get_value("caller_id", "callerId") or "").strip(),
+            "bengali_voice": str(get_value("bengali_voice", "bengaliVoice") or "").strip(),
+            "hindi_voice": str(get_value("hindi_voice", "hindiVoice") or "").strip(),
+            "model": str(get_value("model", "model") or "").strip(),
+            "max_call_attempts": max(1, min(5, int(get_value("max_call_attempts", "maxCallAttempts") or 1))),
+            "retry_delay_minutes": max(1, min(10080, int(get_value("retry_delay_minutes", "retryDelayMinutes") or 60))),
+        }
+        secret_update_requested = any(str(data.get(field, data.get(alias, "")) or "").strip() for field, alias in (("api_key", "apiKey"), ("api_secret", "apiSecret")))
+        if secret_update_requested and not os.getenv("META_SETTINGS_ENCRYPTION_KEY", "").strip():
+            raise HTTPException(status_code=503, detail="META_SETTINGS_ENCRYPTION_KEY is required to save AI voice secrets")
+        for field, alias in (("api_key", "apiKey"), ("api_secret", "apiSecret")):
+            value = str(data.get(field, data.get(alias, "")) or "").strip()
+            if value:
+                next_config[field] = encrypt_secret(value)
+            elif current.get(field):
+                next_config[field] = current[field]
+        if not current_row:
+            db.add(AppSetting(key="ai_voice_caller", value_json=json.dumps(next_config), updated_at=datetime.now(timezone.utc)))
+        else:
+            current_row.value_json = json.dumps(next_config)
+            current_row.updated_at = datetime.now(timezone.utc)
+        db.commit()
+        return get_voice_caller_settings(db, current_user)
+    except HTTPException:
+        raise
+    except (TypeError, ValueError) as exc:
+        db.rollback()
+        return JSONResponse(status_code=400, content={"success": False, "message": f"Invalid AI voice configuration: {str(exc)}"})
+    except Exception:
+        db.rollback()
+        return JSONResponse(status_code=500, content={"success": False, "message": "AI voice configuration could not be saved."})
 
 
 @router.post("/admin/settings/voice-caller/test")
 def run_voice_caller_settings_test(db: Session = Depends(get_db), current_user=Depends(get_current_user)):
     _require_admin(current_user)
-    config = resolve_voice_config(db)
-    missing = validate_voice_config(config)
-    return {"ok": not missing, "configured": not missing, "missing": missing, "message": "Mock provider configuration is ready." if not missing and config["provider"] == "mock" else "Provider configuration is structurally valid; no provider connection was attempted." if not missing else "AI voice configuration is incomplete."}
+    try:
+        config = resolve_voice_config(db)
+        if str(config.get("provider") or "mock").strip().lower() == "mock":
+            return {"success": True, "message": "Mock provider active"}
+        missing = validate_voice_config(config)
+        return {"success": not missing, "ok": not missing, "configured": not missing, "missing": missing, "message": "Provider configuration is structurally valid; no provider connection was attempted." if not missing else "AI voice configuration is incomplete."}
+    except Exception:
+        return JSONResponse(status_code=500, content={"success": False, "message": "AI voice configuration test could not be completed."})
 
 
 @router.get("/admin/settings/meta")

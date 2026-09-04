@@ -50,3 +50,12 @@ def test_voice_caller_settings_preserve_secrets_and_validate_missing_values(monk
         assert resolve_voice_config(db)["api_key"] == "stored-key"
     finally:
         db.close()
+
+
+def test_mock_voice_caller_test_response_never_connects_to_provider():
+    db = make_session()
+    try:
+        result = run_voice_caller_settings_test(db, admin())
+        assert result == {"success": True, "message": "Mock provider active"}
+    finally:
+        db.close()
