@@ -341,7 +341,7 @@ def run_voice_caller_settings_test(db: Session = Depends(get_db), current_user=D
         if missing:
             return {"success": False, "ok": False, "configured": False, "missing": missing, "message": "AI voice configuration is incomplete."}
         if config["provider"] == "dvaarik":
-            endpoint = f"https://api.dvaarik.com/v1/agents/{config['caller_id']}"
+            endpoint = "https://api.dvaarik.com/v1/agents"
             request = Request(
                 endpoint,
                 headers={"Authorization": f"Bearer {config['api_key']}", "Content-Type": "application/json", "Accept": "application/json"},
@@ -349,12 +349,13 @@ def run_voice_caller_settings_test(db: Session = Depends(get_db), current_user=D
             try:
                 with urlopen(request, timeout=5) as response:
                     if response.status == 200:
-                        return {"success": True, "message": "Dvaarik API key & Agent ID validated successfully!"}
+                        agents = json.loads(response.read().decode("utf-8"))
+                        if any(isinstance(agent, dict) and (agent.get("id") == config["caller_id"] or agent.get("name") == config["caller_id"]) for agent in agents):
+                            return {"success": True, "message": "Dvaarik connection and Agent verified successfully!"}
+                        return {"success": False, "message": "Connected to Dvaarik, but agent ID/name was not found in your account."}
             except HTTPError as exc:
                 if exc.code in {401, 403}:
                     return JSONResponse(status_code=400, content={"success": False, "message": "Dvaarik authentication failed. Invalid API Key."})
-                if exc.code == 404:
-                    return JSONResponse(status_code=400, content={"success": False, "message": "Dvaarik Agent ID not found. Check Caller/Provider ID."})
                 return JSONResponse(status_code=500, content={"success": False, "message": "Dvaarik validation failed."})
             except Exception:
                 return JSONResponse(status_code=500, content={"success": False, "message": "Dvaarik validation failed."})

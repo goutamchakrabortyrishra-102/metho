@@ -70,17 +70,37 @@ def test_dvaarik_test_validates_agent_with_bearer_key(monkeypatch):
         update_voice_caller_settings({"enabled": True, "provider": "dvaarik", "caller_id": "agent-1", "bengali_voice": "bn", "hindi_voice": "hi", "api_key": "dvaarik-key"}, db, admin())
         response = MagicMock()
         response.status = 200
+        response.read.return_value = b'[{"id": "agent-1", "name": "Agent One"}]'
         response.__enter__.return_value = response
         response.__exit__.return_value = None
         captured = {}
         monkeypatch.setattr("sql_app.routers.settings.urlopen", lambda request, timeout: captured.update({"url": request.full_url, "authorization": request.headers["Authorization"], "timeout": timeout}) or response)
-        assert run_voice_caller_settings_test(db, admin()) == {"success": True, "message": "Dvaarik API key & Agent ID validated successfully!"}
-        assert captured == {"url": "https://api.dvaarik.com/v1/agents/agent-1", "authorization": "Bearer dvaarik-key", "timeout": 5}
+        assert run_voice_caller_settings_test(db, admin()) == {"success": True, "message": "Dvaarik connection and Agent verified successfully!"}
+        assert captured == {"url": "https://api.dvaarik.com/v1/agents", "authorization": "Bearer dvaarik-key", "timeout": 5}
     finally:
         db.close()
 
 
-def test_dvaarik_test_maps_auth_and_missing_agent_errors(monkeypatch):
+def test_dvaarik_test_validates_agent_name_and_reports_missing_agent(monkeypatch):
+    db = make_session()
+    try:
+        monkeypatch.setenv("META_SETTINGS_ENCRYPTION_KEY", Fernet.generate_key().decode())
+        update_voice_caller_settings({"enabled": True, "provider": "dvaarik", "caller_id": "agent-1", "bengali_voice": "bn", "hindi_voice": "hi", "api_key": "dvaarik-key"}, db, admin())
+        response = MagicMock()
+        response.status = 200
+        response.read.return_value = b'[{"id": "other-agent", "name": "agent-1"}]'
+        response.__enter__.return_value = response
+        response.__exit__.return_value = None
+        monkeypatch.setattr("sql_app.routers.settings.urlopen", lambda *_args, **_kwargs: response)
+        assert run_voice_caller_settings_test(db, admin()) == {"success": True, "message": "Dvaarik connection and Agent verified successfully!"}
+
+        response.read.return_value = b'[{"id": "other-agent", "name": "Other Agent"}]'
+        assert run_voice_caller_settings_test(db, admin()) == {"success": False, "message": "Connected to Dvaarik, but agent ID/name was not found in your account."}
+    finally:
+        db.close()
+
+
+def test_dvaarik_test_maps_invalid_api_key_errors(monkeypatch):
     db = make_session()
     try:
         monkeypatch.setenv("META_SETTINGS_ENCRYPTION_KEY", Fernet.generate_key().decode())
@@ -89,9 +109,10 @@ def test_dvaarik_test_maps_auth_and_missing_agent_errors(monkeypatch):
         auth_response = run_voice_caller_settings_test(db, admin())
         assert auth_response.status_code == 400
         assert json.loads(auth_response.body) == {"success": False, "message": "Dvaarik authentication failed. Invalid API Key."}
-        monkeypatch.setattr("sql_app.routers.settings.urlopen", lambda *_args, **_kwargs: (_ for _ in ()).throw(HTTPError("https://api.dvaarik.com", 404, "Not found", {}, None)))
-        agent_response = run_voice_caller_settings_test(db, admin())
-        assert agent_response.status_code == 400
-        assert json.loads(agent_response.body) == {"success": False, "message": "Dvaarik Agent ID not found. Check Caller/Provider ID."}
+
+        monkeypatch.setattr("sql_app.routers.settings.urlopen", lambda *_args, **_kwargs: (_ for _ in ()).throw(HTTPError("https://api.dvaarik.com", 403, "Forbidden", {}, None)))
+        forbidden_response = run_voice_caller_settings_test(db, admin())
+        assert forbidden_response.status_code == 400
+        assert json.loads(forbidden_response.body) == {"success": False, "message": "Dvaarik authentication failed. Invalid API Key."}
     finally:
         db.close()
