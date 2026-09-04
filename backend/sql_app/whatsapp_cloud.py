@@ -13,6 +13,21 @@ from .models import AppSetting, CRMFollowUp, CRMLead, CRMLeadActivity, CRMTask, 
 
 WHATSAPP_GRAPH_API_VERSION = os.getenv("WHATSAPP_GRAPH_API_VERSION", "v20.0").strip() or "v20.0"
 DEFAULT_FALLBACK_ENCRYPTION_KEY = "default-fallback-32-char-key-here"
+DEFAULT_WHATSAPP_REGISTRATION_URL = "https://methoaayupay.com/app/register"
+DEFAULT_WHATSAPP_WELCOME_MESSAGE = (
+    "মেঠো আয়-উপায়ে স্বাগতম। এখানে সহজে পণ্য কেনাকাটা, সদস্যপদ ও ব্যবসার সুযোগ সম্পর্কে জানতে পারবেন।\n\n"
+)
+DEFAULT_WHATSAPP_REGISTRATION_HELP_PROMPT = "রেজিস্ট্রেশনে কোনো সাহায্য লাগলে এই চ্যাটেই রিপ্লাই করুন, আমরা আপনাকে সহায়তা করব।"
+DEFAULT_REGISTRATION_ROLE_QUESTION = "আপনি কোনভাবে যুক্ত হতে চান? Member, Partner, না Rider? আপনার পছন্দটি লিখে রিপ্লাই করুন।"
+DEFAULT_MEMBER_REGISTRATION_URL = "https://methoaayupay.com/app/register"
+DEFAULT_PARTNER_REGISTRATION_URL = "https://methoaayupay.com/partner-register"
+DEFAULT_RIDER_REGISTRATION_URL = "https://methoaayupay.com/rider-register"
+REGISTRATION_ROLE_SETTINGS = ("member", "partner", "rider")
+DEFAULT_REGISTRATION_ROLE_KEYWORDS = {
+    "member": "member,membership,account,সদস্য,মেম্বার",
+    "partner": "partner,vendor,business,পার্টনার,ব্যবসা",
+    "rider": "rider,delivery rider,রাইডার,ডেলিভারি",
+}
 
 
 def _setting(name: str) -> str:
@@ -75,6 +90,13 @@ def load_db_config(db) -> dict:
         "partner_auto_reply",
         "invoice_template",
         "order_template",
+        "registration_welcome_message",
+        "registration_url",
+        "registration_help_prompt",
+        "registration_role_question",
+        *[f"{role}_registration_url" for role in REGISTRATION_ROLE_SETTINGS],
+        *[f"{role}_registration_reply" for role in REGISTRATION_ROLE_SETTINGS],
+        *[f"{role}_registration_keywords" for role in REGISTRATION_ROLE_SETTINGS],
     ) if key in payload}
     for key in ("webhook_verify_token", "app_secret", "access_token"):
         if payload.get(key):
@@ -96,6 +118,15 @@ def resolve_config(db=None) -> dict:
         "partner_auto_reply": str(db_config.get("partner_auto_reply") or "").strip(),
         "invoice_template": str(db_config.get("invoice_template") or "").strip(),
         "order_template": str(db_config.get("order_template") or "").strip(),
+        "registration_welcome_message": str(db_config.get("registration_welcome_message") or DEFAULT_WHATSAPP_WELCOME_MESSAGE).strip(),
+        "registration_url": str(db_config.get("registration_url") or DEFAULT_WHATSAPP_REGISTRATION_URL).strip(),
+        "registration_help_prompt": str(db_config.get("registration_help_prompt") or DEFAULT_WHATSAPP_REGISTRATION_HELP_PROMPT).strip(),
+        "registration_role_question": str(db_config.get("registration_role_question") or DEFAULT_REGISTRATION_ROLE_QUESTION).strip(),
+        "member_registration_url": str(db_config.get("member_registration_url") or DEFAULT_MEMBER_REGISTRATION_URL).strip(),
+        "partner_registration_url": str(db_config.get("partner_registration_url") or DEFAULT_PARTNER_REGISTRATION_URL).strip(),
+        "rider_registration_url": str(db_config.get("rider_registration_url") or DEFAULT_RIDER_REGISTRATION_URL).strip(),
+        **{f"{role}_registration_reply": str(db_config.get(f"{role}_registration_reply") or "").strip() for role in REGISTRATION_ROLE_SETTINGS},
+        **{f"{role}_registration_keywords": str(db_config.get(f"{role}_registration_keywords") or DEFAULT_REGISTRATION_ROLE_KEYWORDS[role]).strip() for role in REGISTRATION_ROLE_SETTINGS},
         "webhook_verify_token": str(db_config.get("webhook_verify_token") or _setting("WHATSAPP_WEBHOOK_VERIFY_TOKEN")),
         "app_secret": str(db_config.get("app_secret") or _setting("WHATSAPP_APP_SECRET")),
         "access_token": str(db_config.get("access_token") or _setting("WHATSAPP_ACCESS_TOKEN")),
@@ -319,6 +350,43 @@ def normalize_whatsapp_message(payload: dict) -> dict:
     return _normalized_whatsapp_messages(payload)[0]
 
 
+def _registration_reply(db, reply_text: str) -> str:
+    config = resolve_config(db)
+    text = str(reply_text or "").strip()
+    cta = "\n\n".join((
+        config["registration_welcome_message"],
+        f"রেজিস্ট্রেশন করুন: {config['registration_url']}",
+        config["registration_help_prompt"],
+    ))
+    return f"{text}\n\n{cta}" if text else cta
+
+
+def _role_registration_reply(db, role: str) -> str:
+    config = resolve_config(db)
+    reply = config.get(f"{role}_registration_reply") or config["registration_welcome_message"]
+    return "\n\n".join((
+        reply,
+        f"{role.title()} রেজিস্ট্রেশন করুন: {config[f'{role}_registration_url']}",
+        config["registration_help_prompt"],
+    ))
+
+
+def _registration_role_for_text(config: dict, text: str) -> str | None:
+    lowered = str(text or "").lower()
+    for role in REGISTRATION_ROLE_SETTINGS:
+        keywords = (keyword.strip().lower() for keyword in str(config.get(f"{role}_registration_keywords") or "").split(","))
+        if any(keyword and keyword in lowered for keyword in keywords):
+            return role
+    return None
+
+
+def _send_auto_reply_if_configured(db, recipient: str, text: str) -> None:
+    config = resolve_config(db)
+    if not config["enabled"] or not config["access_token"] or not config["phone_number_id"]:
+        return
+    send_whatsapp_message(db, recipient, text=text)
+
+
 def ingest_whatsapp_message(db, payload: dict, request=None) -> str:
     statuses = []
     for normalized in _normalized_whatsapp_messages(payload):
@@ -334,13 +402,10 @@ def ingest_whatsapp_message(db, payload: dict, request=None) -> str:
         ).strip()
 
         reply_text = ""
-        role_hint = None
+        config = resolve_config(db)
+        role_hint = _registration_role_for_text(config, incoming_text)
         lowered = incoming_text.lower()
-        if any(word in lowered for word in ("partner", "vendor", "business")):
-            role_hint = "partner"
-        elif any(word in lowered for word in ("member", "membership", "account")):
-            role_hint = "member"
-        elif any(word in lowered for word in ("customer", "product", "order", "price")):
+        if not role_hint and any(word in lowered for word in ("customer", "product", "order", "price")):
             role_hint = "customer"
 
         if (
@@ -380,19 +445,20 @@ def ingest_whatsapp_message(db, payload: dict, request=None) -> str:
             )
 
         if reply_text:
-            send_whatsapp_message(
+            _send_auto_reply_if_configured(
                 db,
                 normalized["phone"],
-                text=reply_text,
+                text=_registration_reply(db, reply_text),
             )
         elif role_hint:
-            configured_reply = get_configured_whatsapp_reply(db, role_hint)
-            if configured_reply:
-                send_whatsapp_message(db, normalized["phone"], text=configured_reply)
+            if role_hint in REGISTRATION_ROLE_SETTINGS:
+                _send_auto_reply_if_configured(db, normalized["phone"], text=_role_registration_reply(db, role_hint))
+            else:
+                configured_reply = get_configured_whatsapp_reply(db, role_hint)
+                _send_auto_reply_if_configured(db, normalized["phone"], text=_registration_reply(db, configured_reply))
         else:
             configured_default = get_configured_whatsapp_reply(db, "default")
-            if configured_default:
-                send_whatsapp_message(db, normalized["phone"], text=configured_default)
+            _send_auto_reply_if_configured(db, normalized["phone"], text=f"{_registration_reply(db, configured_default)}\n\n{resolve_config(db)['registration_role_question']}")
 
         lead = db.query(CRMLead).filter(CRMLead.lead_id == normalized["lead_id"]).first()
         if not lead:

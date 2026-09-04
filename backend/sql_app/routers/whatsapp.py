@@ -47,6 +47,11 @@ def get_whatsapp_settings(db: Session = Depends(get_db), current_user=Depends(ge
         "partner_auto_reply": str(current.get("partner_auto_reply") or "").strip(),
         "invoice_template": str(current.get("invoice_template") or "").strip(),
         "order_template": str(current.get("order_template") or "").strip(),
+        "registration_welcome_message": str(current.get("registration_welcome_message") or "").strip(),
+        "registration_url": str(current.get("registration_url") or "").strip(),
+        "registration_help_prompt": str(current.get("registration_help_prompt") or "").strip(),
+        "registration_role_question": str(current.get("registration_role_question") or "").strip(),
+        **{f"{role}_registration_{field}": str(current.get(f"{role}_registration_{field}") or "").strip() for role in ("member", "partner", "rider") for field in ("url", "reply", "keywords")},
         "webhook_verify_token_masked": _mask_secret(config["webhook_verify_token"]),
         "app_secret_masked": _mask_secret(config["app_secret"]),
         "access_token_masked": _mask_secret(config["access_token"]),
@@ -75,6 +80,11 @@ def update_whatsapp_settings(payload: dict, db: Session = Depends(get_db), curre
         "partner_auto_reply": str(data.get("partner_auto_reply", current.get("partner_auto_reply", "")) or "").strip(),
         "invoice_template": str(data.get("invoice_template", current.get("invoice_template", "")) or "").strip(),
         "order_template": str(data.get("order_template", current.get("order_template", "")) or "").strip(),
+        "registration_welcome_message": str(data.get("registration_welcome_message", current.get("registration_welcome_message", "")) or "").strip(),
+        "registration_url": str(data.get("registration_url", current.get("registration_url", "")) or "").strip(),
+        "registration_help_prompt": str(data.get("registration_help_prompt", current.get("registration_help_prompt", "")) or "").strip(),
+        "registration_role_question": str(data.get("registration_role_question", current.get("registration_role_question", "")) or "").strip(),
+        **{f"{role}_registration_{field}": str(data.get(f"{role}_registration_{field}", current.get(f"{role}_registration_{field}", "")) or "").strip() for role in ("member", "partner", "rider") for field in ("url", "reply", "keywords")},
     }
     secret_update_requested = any(str(data.get(field) or "").strip() for field in ("webhook_verify_token", "app_secret", "access_token"))
     encryption_key = (

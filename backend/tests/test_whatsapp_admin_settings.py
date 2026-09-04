@@ -112,17 +112,36 @@ def test_whatsapp_uses_default_fallback_key_when_no_env_is_set(monkeypatch):
         db.close()
 
 
-def test_whatsapp_webhook_normalizes_incoming_message_to_crm_lead():
+def test_whatsapp_webhook_normalizes_incoming_message_to_crm_lead(monkeypatch):
     db = make_session()
     try:
+        sent = []
+        monkeypatch.setattr("sql_app.whatsapp_cloud.send_whatsapp_message", lambda _db, recipient, text: sent.append((recipient, text)) or {"messages": [{"id": "wamid.reply"}]})
+        update_whatsapp_settings({"phone_number_id": "123456", "access_token": "secret-token"}, db, admin())
         payload = message_payload()
         normalized = normalize_whatsapp_message(payload)
         assert normalized["lead_id"].startswith("WA-")
         assert normalized["contact_person"] == "Ayesha Rahman"
         assert normalized["phone"] == "8801712345678"
         assert ingest_whatsapp_message(db, payload, None) == "created"
+        assert sent[0][0] == "8801712345678"
+        assert "https://methoaayupay.com/partner-register" in sent[0][1]
+        assert "রেজিস্ট্রেশনে কোনো সাহায্য লাগলে" in sent[0][1]
         assert db.query(CRMLead).count() == 1
         assert db.query(CRMLeadActivity).filter(CRMLeadActivity.activity_type == "whatsapp_message_received").count() == 1
+    finally:
+        db.close()
+
+
+def test_whatsapp_registration_role_reply_uses_configured_role_url(monkeypatch):
+    db = make_session()
+    try:
+        sent = []
+        monkeypatch.setattr("sql_app.whatsapp_cloud.send_whatsapp_message", lambda _db, recipient, text: sent.append((recipient, text)) or {"messages": [{"id": "wamid.reply"}]})
+        update_whatsapp_settings({"phone_number_id": "123456", "access_token": "secret-token", "partner_registration_url": "https://example.com/join-partner", "partner_registration_reply": "পার্টনার হিসেবে শুরু করুন"}, db, admin())
+        assert ingest_whatsapp_message(db, message_payload("wamid.partner", "আমি পার্টনার হতে চাই"), None) == "created"
+        assert "পার্টনার হিসেবে শুরু করুন" in sent[0][1]
+        assert "https://example.com/join-partner" in sent[0][1]
     finally:
         db.close()
 
