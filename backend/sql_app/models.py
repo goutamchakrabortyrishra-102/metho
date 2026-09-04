@@ -260,7 +260,6 @@ class CRMLead(Base):
     tags_json: Mapped[str] = mapped_column(Text, nullable=False, default="[]")
     notes: Mapped[str] = mapped_column(Text, nullable=False, default="")
     member_user_id: Mapped[str | None] = mapped_column(String(36), ForeignKey("users.id"), nullable=True, index=True)
-    rider_user_id: Mapped[str | None] = mapped_column(String(36), ForeignKey("users.id"), nullable=True, index=True)
     partner_id: Mapped[str | None] = mapped_column(String(36), ForeignKey("associate_partners.id"), nullable=True, index=True)
     partner_request_id: Mapped[str | None] = mapped_column(String(36), nullable=True, index=True)
     converted_partner_id: Mapped[str | None] = mapped_column(String(36), ForeignKey("associate_partners.id"), nullable=True, index=True)
