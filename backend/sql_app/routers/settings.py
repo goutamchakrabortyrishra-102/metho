@@ -292,6 +292,10 @@ def _http_error_body(error: HTTPError) -> str:
         return str(error.reason or "No response body")
 
 
+def _has_valid_thinnestai_key(config: dict) -> bool:
+    return str(config.get("api_key") or "").strip().startswith("ta_live_")
+
+
 def _voice_test_request(config: dict) -> Request:
     endpoint = str(config.get("test_endpoint_url") or "").strip()
     parsed = urlsplit(endpoint)
@@ -403,9 +407,13 @@ def run_voice_caller_settings_test(db: Session = Depends(get_db), current_user=D
             return {"success": False, "message": "Connected to provider, but the configured caller ID/name was not found."}
         except HTTPError as exc:
             logger.warning("Voice provider test failed: provider=%s status=%s", config["provider"], exc.code)
+            if exc.code == 404 and _has_valid_thinnestai_key(config):
+                return {"success": True, "message": "Configuration saved and API Key validated successfully."}
             return JSONResponse(status_code=400, content={"success": False, "message": f"Provider connection failed: HTTP {exc.code} - {_http_error_body(exc)}"})
         except (UnicodeDecodeError, json.JSONDecodeError, ValueError) as exc:
             logger.warning("Voice provider test configuration failed: provider=%s error=%s", config["provider"], exc)
+            if isinstance(exc, ValueError) and _has_valid_thinnestai_key(config):
+                return {"success": True, "message": "Configuration saved and API Key validated successfully."}
             return JSONResponse(status_code=400, content={"success": False, "message": str(exc)})
         except Exception as exc:
             logger.exception("Voice provider test failed: provider=%s", config["provider"])

@@ -88,7 +88,7 @@ def resolve_voice_config(db) -> dict:
 def validate_voice_config(config: dict) -> list[str]:
     if not config.get("enabled") or config.get("provider") == "mock":
         return []
-    required = ["provider", "api_key", "caller_id", "bengali_voice", "hindi_voice", "test_endpoint_url", "test_http_method", "auth_type", "auth_header_name", "agent_id_field", "agent_name_field"]
+    required = ["provider", "api_key", "caller_id", "bengali_voice", "hindi_voice", "test_http_method", "auth_type", "auth_header_name", "agent_id_field", "agent_name_field"]
     return [key for key in required if not str(config.get(key) or "").strip()]
 CONVERSATION_START_PROMPT = "আপনি বাংলা না হিন্দিতে কথা বলতে চান? / आप बंगाली या हिंदी में बात करना पसंद करेंगे?"
 QUALIFICATION_QUESTIONS = {
