@@ -2,6 +2,7 @@ import json
 import hashlib
 import logging
 import os
+import re
 from datetime import datetime, timedelta, timezone
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
@@ -21,6 +22,38 @@ def _admin_assignee(db: Session) -> User | None:
     if configured:
         return query.filter(User.id == configured).first()
     return query.order_by(User.created_at.asc()).first()
+
+
+def _usable_whatsapp_number(value: str) -> str:
+    digits = re.sub(r"\D", "", str(value or ""))
+    return digits if 7 <= len(digits) <= 15 else ""
+
+
+def _send_meta_lead_whatsapp_reply(db: Session, lead: CRMLead) -> None:
+    from ..whatsapp_cloud import get_configured_whatsapp_reply, send_whatsapp_message
+
+    message = get_configured_whatsapp_reply(db, "default")
+    recipient = _usable_whatsapp_number(lead.whatsapp_no or lead.phone)
+    if not message or not recipient:
+        return
+    sent_activity = (
+        db.query(CRMLeadActivity)
+        .filter(
+            CRMLeadActivity.lead_id == lead.id,
+            CRMLeadActivity.activity_type == "whatsapp_message_sent",
+            CRMLeadActivity.message == message,
+        )
+        .first()
+    )
+    if sent_activity:
+        return
+    try:
+        send_whatsapp_message(db, recipient, text=message)
+    except Exception:
+        logger.exception("Meta lead WhatsApp auto-reply failed: lead_id=%s recipient=%s", lead.lead_id, recipient)
+        return
+    db.add(CRMLeadActivity(lead_id=lead.id, activity_type="whatsapp_message_sent", message=message))
+    db.commit()
 
 
 def _ingest_lead(db: Session, meta_payload: dict, event: dict) -> str:
@@ -58,6 +91,7 @@ def _ingest_lead(db: Session, meta_payload: dict, event: dict) -> str:
     if assignee:
         db.add(CRMTask(title="Initial Meta lead follow-up", description="Contact and qualify new Meta/Facebook Lead Ads lead", due_at=datetime.now(timezone.utc) + timedelta(days=1), status="Pending", priority="High", lead_id=lead.id, assigned_user_id=assignee.id, created_by_user_id=assignee.id))
     db.commit()
+    _send_meta_lead_whatsapp_reply(db, lead)
     return "created"
 
 

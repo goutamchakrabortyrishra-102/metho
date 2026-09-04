@@ -15,14 +15,21 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from sql_app.database import Base
 from sql_app.meta_ads import normalize_lead, verify_signature, verify_webhook_token
-from sql_app.models import CRMFollowUp, CRMLead, CRMTask, User
+from sql_app.models import AppSetting, CRMFollowUp, CRMLead, CRMLeadActivity, CRMTask, User
 from sql_app.routers.meta_ads import _ingest_lead, receive_meta_webhook, verify_meta_webhook
+from sql_app.whatsapp_cloud import encrypt_secret
 
 
 def make_session():
     engine = create_engine("sqlite:///:memory:")
     Base.metadata.create_all(engine)
     return sessionmaker(bind=engine)()
+
+
+def configure_default_whatsapp_reply(db, monkeypatch, reply="Thanks for contacting METHO."):
+    monkeypatch.setenv("WHATSAPP_SETTINGS_ENCRYPTION_KEY", "test-whatsapp-encryption-key")
+    db.add(AppSetting(key="whatsapp_cloud_integration", value_json=json.dumps({"default_auto_reply": reply, "access_token": encrypt_secret("token"), "phone_number_id": "123"})))
+    db.commit()
 
 
 def test_webhook_verification_and_signature(monkeypatch):
@@ -58,6 +65,44 @@ def test_meta_payload_normalization_and_ingestion_creates_followup_task(monkeypa
         assert db.query(CRMTask).filter(CRMTask.lead_id == lead.id).count() == 1
         assert _ingest_lead(db, meta, event) == "duplicate"
         assert db.query(CRMLead).count() == 1
+    finally:
+        db.close()
+
+
+def test_meta_lead_sends_configured_whatsapp_reply_once(monkeypatch):
+    db = make_session()
+    try:
+        configure_default_whatsapp_reply(db, monkeypatch)
+        sent = []
+        monkeypatch.setattr("sql_app.whatsapp_cloud.send_whatsapp_message", lambda _db, recipient, text: sent.append((recipient, text)) or {"messages": [{"id": "wamid.meta"}]})
+        meta = {"id": "lead-auto", "field_data": [{"name": "phone_number", "values": ["+91 99999 99999"]}]}
+        assert _ingest_lead(db, meta, {}) == "created"
+        assert _ingest_lead(db, meta, {}) == "duplicate"
+        assert sent == [("919999999999", "Thanks for contacting METHO.")]
+        assert db.query(CRMLeadActivity).filter(CRMLeadActivity.activity_type == "whatsapp_message_sent").count() == 1
+    finally:
+        db.close()
+
+
+def test_meta_lead_without_usable_phone_skips_whatsapp_reply(monkeypatch):
+    db = make_session()
+    try:
+        configure_default_whatsapp_reply(db, monkeypatch)
+        monkeypatch.setattr("sql_app.whatsapp_cloud.send_whatsapp_message", lambda *_args, **_kwargs: pytest.fail("WhatsApp send should not be attempted"))
+        assert _ingest_lead(db, {"id": "lead-no-phone", "field_data": []}, {}) == "created"
+        assert db.query(CRMLeadActivity).filter(CRMLeadActivity.activity_type == "whatsapp_message_sent").count() == 0
+    finally:
+        db.close()
+
+
+def test_meta_lead_is_stored_when_whatsapp_auto_reply_fails(monkeypatch):
+    db = make_session()
+    try:
+        configure_default_whatsapp_reply(db, monkeypatch)
+        monkeypatch.setattr("sql_app.whatsapp_cloud.send_whatsapp_message", lambda *_args, **_kwargs: (_ for _ in ()).throw(RuntimeError("WhatsApp unavailable")))
+        assert _ingest_lead(db, {"id": "lead-send-failure", "field_data": [{"name": "phone_number", "values": ["919999999999"]}]}, {}) == "created"
+        assert db.query(CRMLead).filter(CRMLead.lead_id == "META-lead-send-failure").one()
+        assert db.query(CRMLeadActivity).filter(CRMLeadActivity.activity_type == "whatsapp_message_sent").count() == 0
     finally:
         db.close()
 

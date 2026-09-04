@@ -1,6 +1,8 @@
 import json
 import os
 from datetime import datetime, timezone
+from urllib.error import HTTPError
+from urllib.request import Request, urlopen
 
 from fastapi import APIRouter, Depends, Header, HTTPException
 from fastapi.responses import JSONResponse
@@ -336,7 +338,28 @@ def run_voice_caller_settings_test(db: Session = Depends(get_db), current_user=D
         if str(config.get("provider") or "mock").strip().lower() == "mock":
             return {"success": True, "message": "Mock provider active"}
         missing = validate_voice_config(config)
-        return {"success": not missing, "ok": not missing, "configured": not missing, "missing": missing, "message": "Provider configuration is structurally valid; no provider connection was attempted." if not missing else "AI voice configuration is incomplete."}
+        if missing:
+            return {"success": False, "ok": False, "configured": False, "missing": missing, "message": "AI voice configuration is incomplete."}
+        if config["provider"] == "dvaarik":
+            endpoint = f"https://api.dvaarik.com/v1/agents/{config['caller_id']}"
+            request = Request(
+                endpoint,
+                headers={"Authorization": f"Bearer {config['api_key']}", "Content-Type": "application/json", "Accept": "application/json"},
+            )
+            try:
+                with urlopen(request, timeout=5) as response:
+                    if response.status == 200:
+                        return {"success": True, "message": "Dvaarik API key & Agent ID validated successfully!"}
+            except HTTPError as exc:
+                if exc.code in {401, 403}:
+                    return JSONResponse(status_code=400, content={"success": False, "message": "Dvaarik authentication failed. Invalid API Key."})
+                if exc.code == 404:
+                    return JSONResponse(status_code=400, content={"success": False, "message": "Dvaarik Agent ID not found. Check Caller/Provider ID."})
+                return JSONResponse(status_code=500, content={"success": False, "message": "Dvaarik validation failed."})
+            except Exception:
+                return JSONResponse(status_code=500, content={"success": False, "message": "Dvaarik validation failed."})
+            return JSONResponse(status_code=500, content={"success": False, "message": "Dvaarik validation failed."})
+        return {"success": True, "ok": True, "configured": True, "missing": [], "message": "Provider configuration is structurally valid; no provider connection was attempted."}
     except Exception:
         return JSONResponse(status_code=500, content={"success": False, "message": "AI voice configuration test could not be completed."})
 
