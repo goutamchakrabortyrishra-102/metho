@@ -56,10 +56,25 @@ def test_voice_caller_settings_preserve_secrets_and_validate_missing_values(monk
     try:
         monkeypatch.setenv("META_SETTINGS_ENCRYPTION_KEY", Fernet.generate_key().decode())
         update_voice_caller_settings({"enabled": True, "provider": "vapi", "api_key": "stored-key", **PROFILE}, db, admin())
-        assert run_voice_caller_settings_test(db, admin())["missing"] == ["caller_id", "bengali_voice", "hindi_voice"]
+        incomplete = run_voice_caller_settings_test(db, admin())
+        assert incomplete["missing"] == ["caller_id", "bengali_voice", "hindi_voice"]
+        assert incomplete["message"] == "AI voice configuration is incomplete: caller_id, bengali_voice, hindi_voice."
         update_voice_caller_settings({"caller_id": "caller-1", "bengali_voice": "bn", "hindi_voice": "hi", "api_key": "", **PROFILE}, db, admin())
         assert get_voice_caller_settings(db, admin())["configured"] is True
         assert resolve_voice_config(db)["api_key"] == "stored-key"
+    finally:
+        db.close()
+
+
+def test_voice_caller_settings_allow_empty_or_na_api_secret(monkeypatch):
+    db = make_session()
+    try:
+        monkeypatch.setenv("META_SETTINGS_ENCRYPTION_KEY", Fernet.generate_key().decode())
+        update_voice_caller_settings({"enabled": True, "provider": "any-provider", "caller_id": "agent-1", "bengali_voice": "bn", "hindi_voice": "hi", "api_key": "provider-key", "api_secret": "na", **PROFILE}, db, admin())
+        assert resolve_voice_config(db)["api_secret"] == "na"
+
+        update_voice_caller_settings({"api_secret": "", **PROFILE}, db, admin())
+        assert resolve_voice_config(db)["api_secret"] == "na"
     finally:
         db.close()
 

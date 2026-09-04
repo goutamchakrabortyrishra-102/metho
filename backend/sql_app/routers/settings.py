@@ -379,7 +379,7 @@ def run_voice_caller_settings_test(db: Session = Depends(get_db), current_user=D
             return {"success": True, "message": "Mock provider active"}
         missing = validate_voice_config(config)
         if missing:
-            return {"success": False, "ok": False, "configured": False, "missing": missing, "message": "AI voice configuration is incomplete."}
+            return {"success": False, "ok": False, "configured": False, "missing": missing, "message": f"AI voice configuration is incomplete: {', '.join(missing)}."}
         try:
             request = _voice_test_request(config)
             with urlopen(request, timeout=10) as response:
