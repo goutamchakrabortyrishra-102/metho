@@ -260,6 +260,7 @@ class CRMLead(Base):
     tags_json: Mapped[str] = mapped_column(Text, nullable=False, default="[]")
     notes: Mapped[str] = mapped_column(Text, nullable=False, default="")
     member_user_id: Mapped[str | None] = mapped_column(String(36), ForeignKey("users.id"), nullable=True, index=True)
+    rider_user_id: Mapped[str | None] = mapped_column(String(36), ForeignKey("users.id"), nullable=True, index=True)
     partner_id: Mapped[str | None] = mapped_column(String(36), ForeignKey("associate_partners.id"), nullable=True, index=True)
     partner_request_id: Mapped[str | None] = mapped_column(String(36), nullable=True, index=True)
     converted_partner_id: Mapped[str | None] = mapped_column(String(36), ForeignKey("associate_partners.id"), nullable=True, index=True)
@@ -286,6 +287,53 @@ class CRMLeadActivity(Base):
     message: Mapped[str] = mapped_column(Text, nullable=False, default="")
     actor_user_id: Mapped[str | None] = mapped_column(String(36), ForeignKey("users.id"), nullable=True, index=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now_utc, index=True)
+
+
+class CRMVoiceCallAttempt(Base):
+    __tablename__ = "crm_voice_call_attempts"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
+    lead_id: Mapped[str | None] = mapped_column(String(36), ForeignKey("crm_leads.id"), nullable=True, index=True)
+    target_type: Mapped[str] = mapped_column(String(20), nullable=False, default="LEAD", index=True)
+    target_id: Mapped[str] = mapped_column(String(36), nullable=False, default="", index=True)
+    target_phone: Mapped[str] = mapped_column(String(50), nullable=False, default="")
+    call_purpose: Mapped[str] = mapped_column(String(40), nullable=False, default="NEW_LEAD_QUALIFICATION", index=True)
+    campaign_id: Mapped[str | None] = mapped_column(String(36), ForeignKey("crm_voice_call_campaigns.id"), nullable=True, index=True)
+    provider: Mapped[str] = mapped_column(String(40), nullable=False, default="mock")
+    provider_call_id: Mapped[str] = mapped_column(String(120), nullable=False, unique=True, index=True)
+    idempotency_key: Mapped[str] = mapped_column(String(160), nullable=False, unique=True, index=True)
+    status: Mapped[str] = mapped_column(String(40), nullable=False, default="CALL_PENDING", index=True)
+    outcome: Mapped[str] = mapped_column(String(80), nullable=False, default="")
+    registration_type: Mapped[str] = mapped_column(String(20), nullable=False, default="OTHER")
+    language: Mapped[str] = mapped_column(String(8), nullable=False, default="")
+    qualification_result_json: Mapped[str] = mapped_column(Text, nullable=False, default="{}")
+    attempted_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now_utc, index=True)
+    connected_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    duration_seconds: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    error_code: Mapped[str] = mapped_column(String(80), nullable=False, default="")
+    error_message: Mapped[str] = mapped_column(String(500), nullable=False, default="")
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now_utc)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now_utc, onupdate=now_utc)
+
+
+class CRMVoiceCallCampaign(Base):
+    __tablename__ = "crm_voice_call_campaigns"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
+    name: Mapped[str] = mapped_column(String(160), nullable=False, unique=True)
+    enabled: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    target_type: Mapped[str] = mapped_column(String(20), nullable=False)
+    call_purpose: Mapped[str] = mapped_column(String(40), nullable=False)
+    start_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    end_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    allowed_call_start: Mapped[str] = mapped_column(String(5), nullable=False, default="09:00")
+    allowed_call_end: Mapped[str] = mapped_column(String(5), nullable=False, default="18:00")
+    max_attempts: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
+    retry_delay_minutes: Mapped[int] = mapped_column(Integer, nullable=False, default=60)
+    supported_languages_json: Mapped[str] = mapped_column(Text, nullable=False, default='["bn", "hi"]')
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now_utc)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now_utc, onupdate=now_utc)
 
 
 class CRMFollowUp(Base):

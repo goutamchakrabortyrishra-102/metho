@@ -8,6 +8,7 @@ from sqlalchemy.orm import Session
 from ..database import get_db
 from ..models import AppSetting
 from ..meta_ads import encrypt_secret, resolve_config, test_meta_config
+from ..voice_caller import resolve_voice_config, validate_voice_config
 from .auth import get_current_user
 
 router = APIRouter(prefix="/api", tags=["settings"])
@@ -267,6 +268,59 @@ def _require_admin(current_user):
 def _mask_secret(value: str) -> str:
     text = str(value or "")
     return f"{'*' * max(8, len(text) - 4)}{text[-4:]}" if text else ""
+
+
+@router.get("/admin/settings/voice-caller")
+def get_voice_caller_settings(db: Session = Depends(get_db), current_user=Depends(get_current_user)):
+    _require_admin(current_user)
+    config = resolve_voice_config(db)
+    missing = validate_voice_config(config)
+    return {key: config[key] for key in ("enabled", "provider", "caller_id", "bengali_voice", "hindi_voice", "model", "max_call_attempts", "retry_delay_minutes")} | {"api_key_masked": _mask_secret(config["api_key"]), "api_secret_masked": _mask_secret(config["api_secret"]), "configured": not missing, "missing": missing}
+
+
+@router.put("/admin/settings/voice-caller")
+def update_voice_caller_settings(payload: dict, db: Session = Depends(get_db), current_user=Depends(get_current_user)):
+    _require_admin(current_user)
+    data = payload if isinstance(payload, dict) else {}
+    current_row = db.query(AppSetting).filter(AppSetting.key == "ai_voice_caller").first()
+    try:
+        current = json.loads(current_row.value_json or "{}") if current_row else {}
+    except json.JSONDecodeError:
+        current = {}
+    next_config = {
+        "enabled": bool(data.get("enabled", current.get("enabled", False))),
+        "provider": str(data.get("provider", current.get("provider", "mock")) or "mock").strip().lower(),
+        "caller_id": str(data.get("caller_id", current.get("caller_id", "")) or "").strip(),
+        "bengali_voice": str(data.get("bengali_voice", current.get("bengali_voice", "")) or "").strip(),
+        "hindi_voice": str(data.get("hindi_voice", current.get("hindi_voice", "")) or "").strip(),
+        "model": str(data.get("model", current.get("model", "")) or "").strip(),
+        "max_call_attempts": max(1, min(5, int(data.get("max_call_attempts", current.get("max_call_attempts", 1)) or 1))),
+        "retry_delay_minutes": max(1, min(10080, int(data.get("retry_delay_minutes", current.get("retry_delay_minutes", 60)) or 60))),
+    }
+    secret_update_requested = any(str(data.get(field) or "").strip() for field in ("api_key", "api_secret"))
+    if secret_update_requested and not os.getenv("META_SETTINGS_ENCRYPTION_KEY", "").strip():
+        raise HTTPException(status_code=503, detail="META_SETTINGS_ENCRYPTION_KEY is required to save AI voice secrets")
+    for field in ("api_key", "api_secret"):
+        value = str(data.get(field) or "").strip()
+        if value:
+            next_config[field] = encrypt_secret(value)
+        elif current.get(field):
+            next_config[field] = current[field]
+    if not current_row:
+        db.add(AppSetting(key="ai_voice_caller", value_json=json.dumps(next_config), updated_at=datetime.now(timezone.utc)))
+    else:
+        current_row.value_json = json.dumps(next_config)
+        current_row.updated_at = datetime.now(timezone.utc)
+    db.commit()
+    return get_voice_caller_settings(db, current_user)
+
+
+@router.post("/admin/settings/voice-caller/test")
+def run_voice_caller_settings_test(db: Session = Depends(get_db), current_user=Depends(get_current_user)):
+    _require_admin(current_user)
+    config = resolve_voice_config(db)
+    missing = validate_voice_config(config)
+    return {"ok": not missing, "configured": not missing, "missing": missing, "message": "Mock provider configuration is ready." if not missing and config["provider"] == "mock" else "Provider configuration is structurally valid; no provider connection was attempted." if not missing else "AI voice configuration is incomplete."}
 
 
 @router.get("/admin/settings/meta")
