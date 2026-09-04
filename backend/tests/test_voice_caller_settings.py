@@ -1,5 +1,6 @@
 import json
 import sys
+from io import BytesIO
 from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import MagicMock
@@ -147,19 +148,32 @@ def test_provider_test_supports_custom_header_and_query_parameter_authentication
         db.close()
 
 
-def test_provider_test_maps_invalid_api_key_errors(monkeypatch):
+def test_provider_test_returns_exact_http_failure_details(monkeypatch):
     db = make_session()
     try:
         monkeypatch.setenv("META_SETTINGS_ENCRYPTION_KEY", Fernet.generate_key().decode())
         update_voice_caller_settings({"enabled": True, "provider": "any-provider", "caller_id": "agent-1", "bengali_voice": "bn", "hindi_voice": "hi", "api_key": "provider-key", **PROFILE}, db, admin())
-        monkeypatch.setattr("sql_app.routers.settings.urlopen", lambda *_args, **_kwargs: (_ for _ in ()).throw(HTTPError("https://api.voice-provider.example", 401, "Unauthorized", {}, None)))
+        monkeypatch.setattr("sql_app.routers.settings.urlopen", lambda *_args, **_kwargs: (_ for _ in ()).throw(HTTPError("https://api.voice-provider.example", 401, "Unauthorized", {}, BytesIO(b'{"detail":"Invalid API key"}'))))
         auth_response = run_voice_caller_settings_test(db, admin())
         assert auth_response.status_code == 400
-        assert json.loads(auth_response.body) == {"success": False, "message": "Provider authentication failed. Check the API key and authentication settings."}
+        assert json.loads(auth_response.body) == {"success": False, "message": "Provider connection failed: HTTP 401 - {\"detail\":\"Invalid API key\"}"}
 
-        monkeypatch.setattr("sql_app.routers.settings.urlopen", lambda *_args, **_kwargs: (_ for _ in ()).throw(HTTPError("https://api.voice-provider.example", 403, "Forbidden", {}, None)))
+        monkeypatch.setattr("sql_app.routers.settings.urlopen", lambda *_args, **_kwargs: (_ for _ in ()).throw(HTTPError("https://api.voice-provider.example", 403, "Forbidden", {}, BytesIO(b"Access denied"))))
         forbidden_response = run_voice_caller_settings_test(db, admin())
         assert forbidden_response.status_code == 400
-        assert json.loads(forbidden_response.body) == {"success": False, "message": "Provider authentication failed. Check the API key and authentication settings."}
+        assert json.loads(forbidden_response.body) == {"success": False, "message": "Provider connection failed: HTTP 403 - Access denied"}
+    finally:
+        db.close()
+
+
+def test_provider_test_returns_network_error_details(monkeypatch):
+    db = make_session()
+    try:
+        monkeypatch.setenv("META_SETTINGS_ENCRYPTION_KEY", Fernet.generate_key().decode())
+        update_voice_caller_settings({"enabled": True, "provider": "any-provider", "caller_id": "agent-1", "bengali_voice": "bn", "hindi_voice": "hi", "api_key": "provider-key", **PROFILE}, db, admin())
+        monkeypatch.setattr("sql_app.routers.settings.urlopen", lambda *_args, **_kwargs: (_ for _ in ()).throw(ConnectionError("Connection timed out")))
+        response = run_voice_caller_settings_test(db, admin())
+        assert response.status_code == 500
+        assert json.loads(response.body) == {"success": False, "message": "Network Error: Connection timed out"}
     finally:
         db.close()
