@@ -1172,9 +1172,13 @@ export default function SettingsPage() {
       : valueOrEvent;
     setWhatsappForm((prev) => ({ ...prev, [key]: value }));
   };
-  const updateVoiceCallerField = (key) => (event) => {
+  const updateVoiceCallerField = (key) => (valueOrEvent) => {
     try {
-      const value = event?.target?.type === "checkbox" ? Boolean(event.target.checked) : String(event?.target?.value ?? "");
+      const value = valueOrEvent?.target?.type === "checkbox"
+        ? Boolean(valueOrEvent.target.checked)
+        : valueOrEvent?.target
+          ? String(valueOrEvent.target.value ?? "")
+          : valueOrEvent;
       setVoiceCallerForm((previous) => ({ ...(previous || {}), [key]: value }));
     } catch (err) {
       toast.error("AI voice caller field could not be updated.");
