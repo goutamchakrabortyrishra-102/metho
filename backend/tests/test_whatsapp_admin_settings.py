@@ -65,6 +65,18 @@ def test_admin_can_save_whatsapp_secrets(monkeypatch):
         db.close()
 
 
+def test_whatsapp_settings_prefill_registration_funnel_templates():
+    db = make_session()
+    try:
+        settings = get_whatsapp_settings(db, admin())
+        assert "1 লিখুন Member-এর জন্য" in settings["registration_role_question"]
+        assert "https://methoaayupay.com/app/register" == settings["member_registration_url"]
+        assert "মেঠো বিজনেস পার্টনার" in settings["partner_registration_reply"]
+        assert settings["rider_registration_keywords"].startswith("3,rider")
+    finally:
+        db.close()
+
+
 def test_whatsapp_can_use_shared_meta_encryption_key(monkeypatch):
     db = make_session()
     try:
@@ -142,6 +154,19 @@ def test_whatsapp_registration_role_reply_uses_configured_role_url(monkeypatch):
         assert ingest_whatsapp_message(db, message_payload("wamid.partner", "আমি পার্টনার হতে চাই"), None) == "created"
         assert "পার্টনার হিসেবে শুরু করুন" in sent[0][1]
         assert "https://example.com/join-partner" in sent[0][1]
+    finally:
+        db.close()
+
+
+def test_whatsapp_default_auto_reply_is_sent_without_duplicate_funnel_content(monkeypatch):
+    db = make_session()
+    try:
+        sent = []
+        monkeypatch.setattr("sql_app.whatsapp_cloud.send_whatsapp_message", lambda _db, recipient, text: sent.append((recipient, text)) or {"messages": [{"id": "wamid.reply"}]})
+        message = "নমস্কার! 1 লিখুন Member, 2 লিখুন Partner, 3 লিখুন Rider-এর জন্য।"
+        update_whatsapp_settings({"phone_number_id": "123456", "access_token": "secret-token", "default_auto_reply": message}, db, admin())
+        assert ingest_whatsapp_message(db, message_payload("wamid.default", "Hello, I want more info"), None) == "created"
+        assert sent == [("8801712345678", message)]
     finally:
         db.close()
 

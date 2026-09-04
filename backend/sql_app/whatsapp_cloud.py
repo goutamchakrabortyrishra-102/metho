@@ -14,19 +14,38 @@ from .models import AppSetting, CRMFollowUp, CRMLead, CRMLeadActivity, CRMTask, 
 WHATSAPP_GRAPH_API_VERSION = os.getenv("WHATSAPP_GRAPH_API_VERSION", "v20.0").strip() or "v20.0"
 DEFAULT_FALLBACK_ENCRYPTION_KEY = "default-fallback-32-char-key-here"
 DEFAULT_WHATSAPP_REGISTRATION_URL = "https://methoaayupay.com/app/register"
-DEFAULT_WHATSAPP_WELCOME_MESSAGE = (
-    "মেঠো আয়-উপায়ে স্বাগতম। এখানে সহজে পণ্য কেনাকাটা, সদস্যপদ ও ব্যবসার সুযোগ সম্পর্কে জানতে পারবেন।\n\n"
-)
+DEFAULT_WHATSAPP_WELCOME_MESSAGE = "নমস্কার! মেঠো আয়-উপায় (METHO AAY-UPAY)-এ আপনাকে স্বাগতম!"
 DEFAULT_WHATSAPP_REGISTRATION_HELP_PROMPT = "রেজিস্ট্রেশনে কোনো সাহায্য লাগলে এই চ্যাটেই রিপ্লাই করুন, আমরা আপনাকে সহায়তা করব।"
-DEFAULT_REGISTRATION_ROLE_QUESTION = "আপনি কোনভাবে যুক্ত হতে চান? Member, Partner, না Rider? আপনার পছন্দটি লিখে রিপ্লাই করুন।"
+DEFAULT_REGISTRATION_ROLE_QUESTION = "আপনি কীভাবে যুক্ত হতে চান? 1 লিখুন Member-এর জন্য, 2 লিখুন Partner-এর জন্য, অথবা 3 লিখুন Rider-এর জন্য।"
 DEFAULT_MEMBER_REGISTRATION_URL = "https://methoaayupay.com/app/register"
 DEFAULT_PARTNER_REGISTRATION_URL = "https://methoaayupay.com/partner-register"
 DEFAULT_RIDER_REGISTRATION_URL = "https://methoaayupay.com/rider-register"
 REGISTRATION_ROLE_SETTINGS = ("member", "partner", "rider")
+DEFAULT_AUTO_REPLY = """আমরা কারা?
+মেঠো হলো একটি আধুনিক প্ল্যাটফর্ম, যেখানে কেনাকাটা, ব্যবসা বা সার্ভিসের মাধ্যমে আয় করার সুযোগ রয়েছে।
+
+এখানে কীভাবে আয় করবেন?
+কেনাকাটা করে রিওয়ার্ড ও ক্যাশব্যাক পান, রেফারেলের মাধ্যমে কমিশন ও বোনাসের সুযোগ পান, এবং দোকান বা সার্ভিস যুক্ত করে কাস্টমার বৃদ্ধি করুন।
+
+সম্পূর্ণ ফ্রি রেজিস্ট্রেশন এবং অনলাইন ও অফলাইন ফ্রি ট্রেনিং সাপোর্ট দেওয়া হয়।"""
+DEFAULT_ROLE_REGISTRATION_REPLIES = {
+    "member": """মেঠো মেম্বার (Member) হিসেবে আয় শুরু করুন!
+কেনাকাটায় রিওয়ার্ড কমিশন, টিম ম্যাচিং বোনাস এবং লিডারশিপ বোনাসের সুযোগ পেতে এখনই আপনার আইডি চালু করুন।
+
+পরবর্তী ধাপ: রেজিস্ট্রেশন সম্পন্ন করার পরে ফ্রি ট্রেনিংয়ের জন্য আমাদের টিম আপনাকে গাইড করবে।""",
+    "partner": """মেঠো বিজনেস পার্টনার (Partner) হয়ে দোকান বা সার্ভিস বাড়ান!
+ছোট দোকানদার, খুচরা বিক্রেতা বা সার্ভিস প্রোভাইডার হিসেবে মেঠো পার্টনার হয়ে আপনার এলাকায় কাস্টমার বাড়ান।
+
+কোনো ইনভেস্টমেন্ট ছাড়াই রেজিস্ট্রেশন করুন। দোকান যুক্ত করার অনলাইন ও অফলাইন ট্রেনিং ফ্রিতে দেওয়া হবে।""",
+    "rider": """মেঠো রাইডার (Rider) হয়ে প্রতিদিন আয় করুন!
+আপনার বাইক, স্কুটার, টোটো বা ডেলিভারি সার্ভিস দিয়ে মেঠো প্ল্যাটফর্মে কাজের সুযোগ পান।
+
+রেজিস্ট্রেশন শেষে আমাদের প্রতিনিধি ভেরিফিকেশন ও ট্র্যাকিং সুবিধা বুঝিয়ে দেবেন।""",
+}
 DEFAULT_REGISTRATION_ROLE_KEYWORDS = {
-    "member": "member,membership,account,সদস্য,মেম্বার",
-    "partner": "partner,vendor,business,পার্টনার,ব্যবসা",
-    "rider": "rider,delivery rider,রাইডার,ডেলিভারি",
+    "member": "1,member,মেম্বার,কেনাকাটা,ইনকাম",
+    "partner": "2,partner,পার্টনার,দোকান,ব্যবসা",
+    "rider": "3,rider,রাইডার,ডেলিভারি,গাড়ি",
 }
 
 
@@ -112,7 +131,7 @@ def resolve_config(db=None) -> dict:
         "business_account_id": str(db_config.get("business_account_id") or _setting("WHATSAPP_BUSINESS_ACCOUNT_ID")),
         "graph_api_version": str(db_config.get("graph_api_version") or WHATSAPP_GRAPH_API_VERSION),
         "default_assignee_id": str(db_config.get("default_assignee_id") or _setting("WHATSAPP_CRM_DEFAULT_ASSIGNEE_ID")),
-        "default_auto_reply": str(db_config.get("default_auto_reply") or "").strip(),
+        "default_auto_reply": str(db_config.get("default_auto_reply") or DEFAULT_AUTO_REPLY).strip(),
         "customer_auto_reply": str(db_config.get("customer_auto_reply") or "").strip(),
         "member_auto_reply": str(db_config.get("member_auto_reply") or "").strip(),
         "partner_auto_reply": str(db_config.get("partner_auto_reply") or "").strip(),
@@ -125,7 +144,7 @@ def resolve_config(db=None) -> dict:
         "member_registration_url": str(db_config.get("member_registration_url") or DEFAULT_MEMBER_REGISTRATION_URL).strip(),
         "partner_registration_url": str(db_config.get("partner_registration_url") or DEFAULT_PARTNER_REGISTRATION_URL).strip(),
         "rider_registration_url": str(db_config.get("rider_registration_url") or DEFAULT_RIDER_REGISTRATION_URL).strip(),
-        **{f"{role}_registration_reply": str(db_config.get(f"{role}_registration_reply") or "").strip() for role in REGISTRATION_ROLE_SETTINGS},
+        **{f"{role}_registration_reply": str(db_config.get(f"{role}_registration_reply") or DEFAULT_ROLE_REGISTRATION_REPLIES[role]).strip() for role in REGISTRATION_ROLE_SETTINGS},
         **{f"{role}_registration_keywords": str(db_config.get(f"{role}_registration_keywords") or DEFAULT_REGISTRATION_ROLE_KEYWORDS[role]).strip() for role in REGISTRATION_ROLE_SETTINGS},
         "webhook_verify_token": str(db_config.get("webhook_verify_token") or _setting("WHATSAPP_WEBHOOK_VERIFY_TOKEN")),
         "app_secret": str(db_config.get("app_secret") or _setting("WHATSAPP_APP_SECRET")),
@@ -458,7 +477,7 @@ def ingest_whatsapp_message(db, payload: dict, request=None) -> str:
                 _send_auto_reply_if_configured(db, normalized["phone"], text=_registration_reply(db, configured_reply))
         else:
             configured_default = get_configured_whatsapp_reply(db, "default")
-            _send_auto_reply_if_configured(db, normalized["phone"], text=f"{_registration_reply(db, configured_default)}\n\n{resolve_config(db)['registration_role_question']}")
+            _send_auto_reply_if_configured(db, normalized["phone"], text=configured_default)
 
         lead = db.query(CRMLead).filter(CRMLead.lead_id == normalized["lead_id"]).first()
         if not lead:
