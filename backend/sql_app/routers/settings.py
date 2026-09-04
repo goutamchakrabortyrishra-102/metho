@@ -1,7 +1,9 @@
 import json
+import logging
 import os
 from datetime import datetime, timezone
 from urllib.error import HTTPError
+from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
 from urllib.request import Request, urlopen
 
 from fastapi import APIRouter, Depends, Header, HTTPException
@@ -11,10 +13,11 @@ from sqlalchemy.orm import Session
 from ..database import get_db
 from ..models import AppSetting
 from ..meta_ads import encrypt_secret, resolve_config, test_meta_config
-from ..voice_caller import resolve_voice_config, validate_voice_config
+from ..voice_caller import PROFILE_KEYS, resolve_voice_config, validate_voice_config
 from .auth import get_current_user
 
 router = APIRouter(prefix="/api", tags=["settings"])
+logger = logging.getLogger(__name__)
 ADMIN_ROLES = {"super_admin", "company_admin", "admin"}
 
 PUBLIC_SETTINGS_EXCLUDE_KEYS = {
@@ -273,12 +276,47 @@ def _mask_secret(value: str) -> str:
     return f"{'*' * max(8, len(text) - 4)}{text[-4:]}" if text else ""
 
 
+def _json_path_value(payload, path: str):
+    value = payload
+    for key in filter(None, path.split(".")):
+        if not isinstance(value, dict):
+            return None
+        value = value.get(key)
+    return value
+
+
+def _voice_test_request(config: dict) -> Request:
+    endpoint = str(config.get("test_endpoint_url") or "").strip()
+    parsed = urlsplit(endpoint)
+    if parsed.scheme != "https" or not parsed.netloc:
+        raise ValueError("Test endpoint URL must be a valid HTTPS URL.")
+    auth_type = str(config.get("auth_type") or "").strip()
+    credential_name = str(config.get("auth_header_name") or "").strip()
+    if not credential_name or "\r" in credential_name or "\n" in credential_name:
+        raise ValueError("Authentication header or query parameter name is invalid.")
+    headers = {"Accept": "application/json"}
+    if auth_type == "bearer_token":
+        headers[credential_name] = f"Bearer {config['api_key']}"
+    elif auth_type == "custom_header":
+        headers[credential_name] = config["api_key"]
+    elif auth_type == "api_key_query_param":
+        query = parse_qsl(parsed.query, keep_blank_values=True)
+        query.append((credential_name, config["api_key"]))
+        endpoint = urlunsplit((parsed.scheme, parsed.netloc, parsed.path, urlencode(query), parsed.fragment))
+    else:
+        raise ValueError("Authentication type is invalid.")
+    method = str(config.get("test_http_method") or "").upper()
+    if method not in {"GET", "POST"}:
+        raise ValueError("HTTP method must be GET or POST.")
+    return Request(endpoint, data=b"{}" if method == "POST" else None, headers=headers, method=method)
+
+
 @router.get("/admin/settings/voice-caller")
 def get_voice_caller_settings(db: Session = Depends(get_db), current_user=Depends(get_current_user)):
     _require_admin(current_user)
     config = resolve_voice_config(db)
     missing = validate_voice_config(config)
-    return {key: config[key] for key in ("enabled", "provider", "caller_id", "bengali_voice", "hindi_voice", "model", "max_call_attempts", "retry_delay_minutes")} | {"api_key_masked": _mask_secret(config["api_key"]), "api_secret_masked": _mask_secret(config["api_secret"]), "configured": not missing, "missing": missing}
+    return {key: config[key] for key in ("enabled", "provider", "caller_id", "bengali_voice", "hindi_voice", "model", "max_call_attempts", "retry_delay_minutes", *PROFILE_KEYS)} | {"api_key_masked": _mask_secret(config["api_key"]), "api_secret_masked": _mask_secret(config["api_secret"]), "configured": not missing, "missing": missing}
 
 
 @router.put("/admin/settings/voice-caller")
@@ -304,6 +342,8 @@ def update_voice_caller_settings(payload: dict, db: Session = Depends(get_db), c
             "max_call_attempts": max(1, min(5, int(get_value("max_call_attempts", "maxCallAttempts") or 1))),
             "retry_delay_minutes": max(1, min(10080, int(get_value("retry_delay_minutes", "retryDelayMinutes") or 60))),
         }
+        for key in PROFILE_KEYS:
+            next_config[key] = str(data.get(key, current.get(key, "")) or "").strip()
         secret_update_requested = any(str(data.get(field, data.get(alias, "")) or "").strip() for field, alias in (("api_key", "apiKey"), ("api_secret", "apiSecret")))
         if secret_update_requested and not os.getenv("META_SETTINGS_ENCRYPTION_KEY", "").strip():
             raise HTTPException(status_code=503, detail="META_SETTINGS_ENCRYPTION_KEY is required to save AI voice secrets")
@@ -340,27 +380,31 @@ def run_voice_caller_settings_test(db: Session = Depends(get_db), current_user=D
         missing = validate_voice_config(config)
         if missing:
             return {"success": False, "ok": False, "configured": False, "missing": missing, "message": "AI voice configuration is incomplete."}
-        if config["provider"] == "dvaarik":
-            endpoint = "https://api.dvaarik.com/v1/agents"
-            request = Request(
-                endpoint,
-                headers={"Authorization": f"Bearer {config['api_key']}", "Content-Type": "application/json", "Accept": "application/json"},
+        try:
+            request = _voice_test_request(config)
+            with urlopen(request, timeout=10) as response:
+                payload = json.loads(response.read().decode("utf-8"))
+            agents = _json_path_value(payload, config["agent_list_path"])
+            if not isinstance(agents, list):
+                return {"success": False, "message": "Connection succeeded, but the configured agent list path did not return a list."}
+            matches_agent = any(
+                isinstance(agent, dict) and (str(agent.get(config["agent_id_field"], "")) == config["caller_id"] or str(agent.get(config["agent_name_field"], "")) == config["caller_id"])
+                for agent in agents
             )
-            try:
-                with urlopen(request, timeout=5) as response:
-                    if response.status == 200:
-                        agents = json.loads(response.read().decode("utf-8"))
-                        if any(isinstance(agent, dict) and (agent.get("id") == config["caller_id"] or agent.get("name") == config["caller_id"]) for agent in agents):
-                            return {"success": True, "message": "Dvaarik connection and Agent verified successfully!"}
-                        return {"success": False, "message": "Connected to Dvaarik, but agent ID/name was not found in your account."}
-            except HTTPError as exc:
-                if exc.code in {401, 403}:
-                    return JSONResponse(status_code=400, content={"success": False, "message": "Dvaarik authentication failed. Invalid API Key."})
-                return JSONResponse(status_code=500, content={"success": False, "message": "Dvaarik validation failed."})
-            except Exception:
-                return JSONResponse(status_code=500, content={"success": False, "message": "Dvaarik validation failed."})
-            return JSONResponse(status_code=500, content={"success": False, "message": "Dvaarik validation failed."})
-        return {"success": True, "ok": True, "configured": True, "missing": [], "message": "Provider configuration is structurally valid; no provider connection was attempted."}
+            if matches_agent:
+                return {"success": True, "message": "Connection Successful & Agent Verified"}
+            return {"success": False, "message": "Connected to provider, but the configured caller ID/name was not found."}
+        except HTTPError as exc:
+            logger.warning("Voice provider test failed: provider=%s status=%s", config["provider"], exc.code)
+            if exc.code in {401, 403}:
+                return JSONResponse(status_code=400, content={"success": False, "message": "Provider authentication failed. Check the API key and authentication settings."})
+            return JSONResponse(status_code=400, content={"success": False, "message": f"Provider connection failed (HTTP {exc.code})."})
+        except (UnicodeDecodeError, json.JSONDecodeError, ValueError) as exc:
+            logger.warning("Voice provider test configuration failed: provider=%s error=%s", config["provider"], exc)
+            return JSONResponse(status_code=400, content={"success": False, "message": str(exc)})
+        except Exception:
+            logger.exception("Voice provider test failed: provider=%s", config["provider"])
+            return JSONResponse(status_code=500, content={"success": False, "message": "Provider connection could not be completed."})
     except Exception:
         return JSONResponse(status_code=500, content={"success": False, "message": "AI voice configuration test could not be completed."})
 

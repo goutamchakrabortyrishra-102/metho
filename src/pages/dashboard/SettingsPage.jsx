@@ -1190,7 +1190,7 @@ export default function SettingsPage() {
     setVoiceCallerMessage("");
     try {
       const payload = {};
-      ["enabled", "provider", "caller_id", "bengali_voice", "hindi_voice", "model", "max_call_attempts", "retry_delay_minutes"].forEach((key) => { payload[key] = voiceCallerForm[key]; });
+      ["enabled", "provider", "caller_id", "bengali_voice", "hindi_voice", "model", "max_call_attempts", "retry_delay_minutes", "test_endpoint_url", "test_http_method", "auth_type", "auth_header_name", "agent_list_path", "agent_id_field", "agent_name_field"].forEach((key) => { payload[key] = voiceCallerForm[key]; });
       ["api_key", "api_secret"].forEach((key) => { if (String(voiceCallerForm[key] || "").trim()) payload[key] = String(voiceCallerForm[key]).trim(); });
       const response = await api.put("/admin/settings/voice-caller", payload);
       const data = response?.data;
@@ -1730,6 +1730,14 @@ export default function SettingsPage() {
               <Field label="Maximum call attempts" value={voiceCallerForm.max_call_attempts ?? ""} onChange={updateVoiceCallerField("max_call_attempts")} type="number" />
               <Field label="Retry delay (minutes)" value={voiceCallerForm.retry_delay_minutes ?? ""} onChange={updateVoiceCallerField("retry_delay_minutes")} type="number" />
               {[ ["api_key", "Provider API Key"], ["api_secret", "Provider API Secret"] ].map(([key, label]) => <div key={key}><Label>{label}</Label><Input type="password" value={voiceCallerForm[key] || ""} onChange={updateVoiceCallerField(key)} placeholder={voiceCallerForm[`${key}_masked`] || "Leave empty to keep existing"} className="mt-1.5 h-11" /></div>)}
+              <div className="md:col-span-2 border-t border-border pt-4"><p className="text-sm font-semibold text-emerald-950">Provider Connection Profile</p></div>
+              <Field label="Test Endpoint URL" value={voiceCallerForm.test_endpoint_url || ""} onChange={updateVoiceCallerField("test_endpoint_url")} type="url" placeholder="https://api.provider.com/v1/agents" />
+              <div><Label>HTTP Method</Label><select value={voiceCallerForm.test_http_method || "GET"} onChange={updateVoiceCallerField("test_http_method")} className="mt-1.5 h-11 w-full rounded-md border border-input px-3"><option value="GET">GET</option><option value="POST">POST</option></select></div>
+              <div><Label>Authentication Type</Label><select value={voiceCallerForm.auth_type || "bearer_token"} onChange={updateVoiceCallerField("auth_type")} className="mt-1.5 h-11 w-full rounded-md border border-input px-3"><option value="bearer_token">Bearer Token</option><option value="custom_header">Custom Header</option><option value="api_key_query_param">API Key Query Param</option></select></div>
+              <Field label={voiceCallerForm.auth_type === "api_key_query_param" ? "Query Parameter Name" : "Header Name"} value={voiceCallerForm.auth_header_name || ""} onChange={updateVoiceCallerField("auth_header_name")} type="text" placeholder={voiceCallerForm.auth_type === "api_key_query_param" ? "api_key" : "Authorization"} />
+              <Field label="Agent List Path" value={voiceCallerForm.agent_list_path || ""} onChange={updateVoiceCallerField("agent_list_path")} type="text" placeholder="data.agents (empty for a root list)" />
+              <Field label="Agent ID Field Name" value={voiceCallerForm.agent_id_field || ""} onChange={updateVoiceCallerField("agent_id_field")} type="text" placeholder="id" />
+              <Field label="Agent Name Field Name" value={voiceCallerForm.agent_name_field || ""} onChange={updateVoiceCallerField("agent_name_field")} type="text" placeholder="name" />
               <div className="md:col-span-2 flex flex-wrap items-center gap-2"><Button type="button" onClick={saveVoiceCaller} disabled={voiceCallerBusy}>Save Configuration</Button><Button type="button" variant="outline" onClick={testVoiceCaller} disabled={voiceCallerBusy}>Test Configuration</Button>{voiceCallerMessage ? <span className="text-xs text-slate-600">{voiceCallerMessage}</span> : null}</div>
             </Section>
           ) : null}

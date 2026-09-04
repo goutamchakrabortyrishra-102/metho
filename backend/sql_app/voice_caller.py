@@ -30,6 +30,15 @@ REGISTRATION_LINKS = {
     "RIDER": "/rider-register",
     "OTHER": None,
 }
+PROFILE_KEYS = (
+    "test_endpoint_url",
+    "test_http_method",
+    "auth_type",
+    "auth_header_name",
+    "agent_list_path",
+    "agent_id_field",
+    "agent_name_field",
+)
 
 
 def _int_setting(value, default: int, minimum: int, maximum: int) -> int:
@@ -49,7 +58,7 @@ def load_voice_config(db) -> dict:
         return {}
     if not isinstance(payload, dict):
         return {}
-    result = {key: payload.get(key) for key in ("enabled", "provider", "caller_id", "bengali_voice", "hindi_voice", "model", "max_call_attempts", "retry_delay_minutes") if key in payload}
+    result = {key: payload.get(key) for key in ("enabled", "provider", "caller_id", "bengali_voice", "hindi_voice", "model", "max_call_attempts", "retry_delay_minutes", *PROFILE_KEYS) if key in payload}
     from .meta_ads import decrypt_secret
 
     for key in ("api_key", "api_secret"):
@@ -60,9 +69,10 @@ def load_voice_config(db) -> dict:
 
 def resolve_voice_config(db) -> dict:
     stored = load_voice_config(db)
+    provider = str(stored.get("provider") or "mock").strip().lower() or "mock"
     return {
         "enabled": bool(stored.get("enabled", False)),
-        "provider": str(stored.get("provider") or "mock").strip().lower() or "mock",
+        "provider": provider,
         "caller_id": str(stored.get("caller_id") or "").strip(),
         "bengali_voice": str(stored.get("bengali_voice") or "").strip(),
         "hindi_voice": str(stored.get("hindi_voice") or "").strip(),
@@ -71,13 +81,14 @@ def resolve_voice_config(db) -> dict:
         "retry_delay_minutes": _int_setting(stored.get("retry_delay_minutes"), 60, 1, 10080),
         "api_key": str(stored.get("api_key") or "").strip(),
         "api_secret": str(stored.get("api_secret") or "").strip(),
+        **{key: str(stored.get(key) or "").strip() for key in PROFILE_KEYS},
     }
 
 
 def validate_voice_config(config: dict) -> list[str]:
     if not config.get("enabled") or config.get("provider") == "mock":
         return []
-    required = ["provider", "api_key", "caller_id", "bengali_voice", "hindi_voice"]
+    required = ["provider", "api_key", "caller_id", "bengali_voice", "hindi_voice", "test_endpoint_url", "test_http_method", "auth_type", "auth_header_name", "agent_id_field", "agent_name_field"]
     return [key for key in required if not str(config.get(key) or "").strip()]
 CONVERSATION_START_PROMPT = "আপনি বাংলা না হিন্দিতে কথা বলতে চান? / आप बंगाली या हिंदी में बात करना पसंद करेंगे?"
 QUALIFICATION_QUESTIONS = {

@@ -16,6 +16,16 @@ from sql_app.models import AppSetting
 from sql_app.routers.settings import get_voice_caller_settings, run_voice_caller_settings_test, update_voice_caller_settings
 from sql_app.voice_caller import resolve_voice_config
 
+PROFILE = {
+    "test_endpoint_url": "https://api.voice-provider.example/v1/agents",
+    "test_http_method": "GET",
+    "auth_type": "bearer_token",
+    "auth_header_name": "Authorization",
+    "agent_list_path": "data.agents",
+    "agent_id_field": "id",
+    "agent_name_field": "name",
+}
+
 
 def make_session():
     engine = create_engine("sqlite:///:memory:")
@@ -31,7 +41,7 @@ def test_voice_caller_settings_encrypt_and_mask_secrets(monkeypatch):
     db = make_session()
     try:
         monkeypatch.setenv("META_SETTINGS_ENCRYPTION_KEY", Fernet.generate_key().decode())
-        updated = update_voice_caller_settings({"enabled": True, "provider": "vapi", "caller_id": "caller-1", "bengali_voice": "bn-voice", "hindi_voice": "hi-voice", "api_key": "voice-api-secret", "api_secret": "voice-secret"}, db, admin())
+        updated = update_voice_caller_settings({"enabled": True, "provider": "vapi", "caller_id": "caller-1", "bengali_voice": "bn-voice", "hindi_voice": "hi-voice", "api_key": "voice-api-secret", "api_secret": "voice-secret", **PROFILE}, db, admin())
         assert updated["api_key_masked"].endswith("cret")
         assert "voice-api-secret" not in json.dumps(updated)
         assert resolve_voice_config(db)["api_key"] == "voice-api-secret"
@@ -45,9 +55,9 @@ def test_voice_caller_settings_preserve_secrets_and_validate_missing_values(monk
     db = make_session()
     try:
         monkeypatch.setenv("META_SETTINGS_ENCRYPTION_KEY", Fernet.generate_key().decode())
-        update_voice_caller_settings({"enabled": True, "provider": "vapi", "api_key": "stored-key"}, db, admin())
+        update_voice_caller_settings({"enabled": True, "provider": "vapi", "api_key": "stored-key", **PROFILE}, db, admin())
         assert run_voice_caller_settings_test(db, admin())["missing"] == ["caller_id", "bengali_voice", "hindi_voice"]
-        update_voice_caller_settings({"caller_id": "caller-1", "bengali_voice": "bn", "hindi_voice": "hi", "api_key": ""}, db, admin())
+        update_voice_caller_settings({"caller_id": "caller-1", "bengali_voice": "bn", "hindi_voice": "hi", "api_key": "", **PROFILE}, db, admin())
         assert get_voice_caller_settings(db, admin())["configured"] is True
         assert resolve_voice_config(db)["api_key"] == "stored-key"
     finally:
@@ -63,56 +73,78 @@ def test_mock_voice_caller_test_response_never_connects_to_provider():
         db.close()
 
 
-def test_dvaarik_test_validates_agent_with_bearer_key(monkeypatch):
+def test_provider_test_uses_dynamic_bearer_profile(monkeypatch):
     db = make_session()
     try:
         monkeypatch.setenv("META_SETTINGS_ENCRYPTION_KEY", Fernet.generate_key().decode())
-        update_voice_caller_settings({"enabled": True, "provider": "dvaarik", "caller_id": "agent-1", "bengali_voice": "bn", "hindi_voice": "hi", "api_key": "dvaarik-key"}, db, admin())
+        update_voice_caller_settings({"enabled": True, "provider": "any-provider", "caller_id": "agent-1", "bengali_voice": "bn", "hindi_voice": "hi", "api_key": "provider-key", **PROFILE}, db, admin())
         response = MagicMock()
         response.status = 200
-        response.read.return_value = b'[{"id": "agent-1", "name": "Agent One"}]'
+        response.read.return_value = b'{"data": {"agents": [{"id": "agent-1", "name": "Agent One"}]}}'
         response.__enter__.return_value = response
         response.__exit__.return_value = None
         captured = {}
         monkeypatch.setattr("sql_app.routers.settings.urlopen", lambda request, timeout: captured.update({"url": request.full_url, "authorization": request.headers["Authorization"], "timeout": timeout}) or response)
-        assert run_voice_caller_settings_test(db, admin()) == {"success": True, "message": "Dvaarik connection and Agent verified successfully!"}
-        assert captured == {"url": "https://api.dvaarik.com/v1/agents", "authorization": "Bearer dvaarik-key", "timeout": 5}
+        assert run_voice_caller_settings_test(db, admin()) == {"success": True, "message": "Connection Successful & Agent Verified"}
+        assert captured == {"url": "https://api.voice-provider.example/v1/agents", "authorization": "Bearer provider-key", "timeout": 10}
     finally:
         db.close()
 
 
-def test_dvaarik_test_validates_agent_name_and_reports_missing_agent(monkeypatch):
+def test_provider_test_matches_name_and_reports_missing_agent(monkeypatch):
     db = make_session()
     try:
         monkeypatch.setenv("META_SETTINGS_ENCRYPTION_KEY", Fernet.generate_key().decode())
-        update_voice_caller_settings({"enabled": True, "provider": "dvaarik", "caller_id": "agent-1", "bengali_voice": "bn", "hindi_voice": "hi", "api_key": "dvaarik-key"}, db, admin())
+        update_voice_caller_settings({"enabled": True, "provider": "any-provider", "caller_id": "agent-1", "bengali_voice": "bn", "hindi_voice": "hi", "api_key": "provider-key", **PROFILE}, db, admin())
         response = MagicMock()
         response.status = 200
-        response.read.return_value = b'[{"id": "other-agent", "name": "agent-1"}]'
+        response.read.return_value = b'{"data": {"agents": [{"id": "other-agent", "name": "agent-1"}]}}'
         response.__enter__.return_value = response
         response.__exit__.return_value = None
         monkeypatch.setattr("sql_app.routers.settings.urlopen", lambda *_args, **_kwargs: response)
-        assert run_voice_caller_settings_test(db, admin()) == {"success": True, "message": "Dvaarik connection and Agent verified successfully!"}
+        assert run_voice_caller_settings_test(db, admin()) == {"success": True, "message": "Connection Successful & Agent Verified"}
 
-        response.read.return_value = b'[{"id": "other-agent", "name": "Other Agent"}]'
-        assert run_voice_caller_settings_test(db, admin()) == {"success": False, "message": "Connected to Dvaarik, but agent ID/name was not found in your account."}
+        response.read.return_value = b'{"data": {"agents": [{"id": "other-agent", "name": "Other Agent"}]}}'
+        assert run_voice_caller_settings_test(db, admin()) == {"success": False, "message": "Connected to provider, but the configured caller ID/name was not found."}
     finally:
         db.close()
 
 
-def test_dvaarik_test_maps_invalid_api_key_errors(monkeypatch):
+def test_provider_test_supports_custom_header_and_query_parameter_authentication(monkeypatch):
     db = make_session()
     try:
         monkeypatch.setenv("META_SETTINGS_ENCRYPTION_KEY", Fernet.generate_key().decode())
-        update_voice_caller_settings({"enabled": True, "provider": "dvaarik", "caller_id": "agent-1", "bengali_voice": "bn", "hindi_voice": "hi", "api_key": "dvaarik-key"}, db, admin())
-        monkeypatch.setattr("sql_app.routers.settings.urlopen", lambda *_args, **_kwargs: (_ for _ in ()).throw(HTTPError("https://api.dvaarik.com", 401, "Unauthorized", {}, None)))
+        response = MagicMock()
+        response.status = 200
+        response.read.return_value = b'{"data": {"agents": [{"id": "agent-1"}]}}'
+        response.__enter__.return_value = response
+        response.__exit__.return_value = None
+        captured = []
+        monkeypatch.setattr("sql_app.routers.settings.urlopen", lambda request, timeout: captured.append(request) or response)
+        update_voice_caller_settings({"enabled": True, "provider": "any-provider", "caller_id": "agent-1", "bengali_voice": "bn", "hindi_voice": "hi", "api_key": "provider-key", **PROFILE, "auth_type": "custom_header", "auth_header_name": "x-api-key"}, db, admin())
+        assert run_voice_caller_settings_test(db, admin())["success"] is True
+        assert captured[-1].headers["X-api-key"] == "provider-key"
+
+        update_voice_caller_settings({**PROFILE, "auth_type": "api_key_query_param", "auth_header_name": "api_key"}, db, admin())
+        assert run_voice_caller_settings_test(db, admin())["success"] is True
+        assert captured[-1].full_url == "https://api.voice-provider.example/v1/agents?api_key=provider-key"
+    finally:
+        db.close()
+
+
+def test_provider_test_maps_invalid_api_key_errors(monkeypatch):
+    db = make_session()
+    try:
+        monkeypatch.setenv("META_SETTINGS_ENCRYPTION_KEY", Fernet.generate_key().decode())
+        update_voice_caller_settings({"enabled": True, "provider": "any-provider", "caller_id": "agent-1", "bengali_voice": "bn", "hindi_voice": "hi", "api_key": "provider-key", **PROFILE}, db, admin())
+        monkeypatch.setattr("sql_app.routers.settings.urlopen", lambda *_args, **_kwargs: (_ for _ in ()).throw(HTTPError("https://api.voice-provider.example", 401, "Unauthorized", {}, None)))
         auth_response = run_voice_caller_settings_test(db, admin())
         assert auth_response.status_code == 400
-        assert json.loads(auth_response.body) == {"success": False, "message": "Dvaarik authentication failed. Invalid API Key."}
+        assert json.loads(auth_response.body) == {"success": False, "message": "Provider authentication failed. Check the API key and authentication settings."}
 
-        monkeypatch.setattr("sql_app.routers.settings.urlopen", lambda *_args, **_kwargs: (_ for _ in ()).throw(HTTPError("https://api.dvaarik.com", 403, "Forbidden", {}, None)))
+        monkeypatch.setattr("sql_app.routers.settings.urlopen", lambda *_args, **_kwargs: (_ for _ in ()).throw(HTTPError("https://api.voice-provider.example", 403, "Forbidden", {}, None)))
         forbidden_response = run_voice_caller_settings_test(db, admin())
         assert forbidden_response.status_code == 400
-        assert json.loads(forbidden_response.body) == {"success": False, "message": "Dvaarik authentication failed. Invalid API Key."}
+        assert json.loads(forbidden_response.body) == {"success": False, "message": "Provider authentication failed. Check the API key and authentication settings."}
     finally:
         db.close()
