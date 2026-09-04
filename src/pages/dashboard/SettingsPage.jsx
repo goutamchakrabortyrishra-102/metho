@@ -1722,13 +1722,13 @@ export default function SettingsPage() {
           {!readOnly && voiceCallerForm ? (
             <Section title="AI Voice Caller" subtitle="Provider settings are stored securely. The mock provider does not place calls." icon={SettingsIcon} badge="Admin">
               <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={voiceCallerForm.enabled === true} onChange={updateVoiceCallerField("enabled")} /> Enable AI Voice Caller</label>
-              <Field label="Provider" value={voiceCallerForm.provider || "mock"} onChange={updateVoiceCallerField("provider")} type="text" />
+              <Field label="Provider" value={voiceCallerForm.provider ?? ""} onChange={updateVoiceCallerField("provider")} type="text" />
               <Field label="Caller / Provider ID" value={voiceCallerForm.caller_id || ""} onChange={updateVoiceCallerField("caller_id")} type="text" />
               <Field label="Bengali voice" value={voiceCallerForm.bengali_voice || ""} onChange={updateVoiceCallerField("bengali_voice")} type="text" />
               <Field label="Hindi voice" value={voiceCallerForm.hindi_voice || ""} onChange={updateVoiceCallerField("hindi_voice")} type="text" />
               <Field label="Model" value={voiceCallerForm.model || ""} onChange={updateVoiceCallerField("model")} type="text" />
-              <Field label="Maximum call attempts" value={voiceCallerForm.max_call_attempts || 1} onChange={updateVoiceCallerField("max_call_attempts")} type="number" />
-              <Field label="Retry delay (minutes)" value={voiceCallerForm.retry_delay_minutes || 60} onChange={updateVoiceCallerField("retry_delay_minutes")} type="number" />
+              <Field label="Maximum call attempts" value={voiceCallerForm.max_call_attempts ?? ""} onChange={updateVoiceCallerField("max_call_attempts")} type="number" />
+              <Field label="Retry delay (minutes)" value={voiceCallerForm.retry_delay_minutes ?? ""} onChange={updateVoiceCallerField("retry_delay_minutes")} type="number" />
               {[ ["api_key", "Provider API Key"], ["api_secret", "Provider API Secret"] ].map(([key, label]) => <div key={key}><Label>{label}</Label><Input type="password" value={voiceCallerForm[key] || ""} onChange={updateVoiceCallerField(key)} placeholder={voiceCallerForm[`${key}_masked`] || "Leave empty to keep existing"} className="mt-1.5 h-11" /></div>)}
               <div className="md:col-span-2 flex flex-wrap items-center gap-2"><Button type="button" onClick={saveVoiceCaller} disabled={voiceCallerBusy}>Save Configuration</Button><Button type="button" variant="outline" onClick={testVoiceCaller} disabled={voiceCallerBusy}>Test Configuration</Button>{voiceCallerMessage ? <span className="text-xs text-slate-600">{voiceCallerMessage}</span> : null}</div>
             </Section>
