@@ -1,5 +1,6 @@
 import sys
 from pathlib import Path
+from unittest.mock import MagicMock
 
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
@@ -8,7 +9,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from sql_app.database import Base
 from sql_app.models import AssociatePartner, CRMLead, CRMVoiceCallAttempt, User
-from sql_app.voice_caller import CALL_PURPOSES, conversation_start_prompt, create_voice_campaign, language_for, qualification_questions_for, queue_campaign_call, registration_link_for, registration_type_for, resolve_call_target, queue_voice_call, receive_voice_call_result
+from sql_app.voice_caller import CALL_PURPOSES, ConfiguredVoiceProvider, conversation_start_prompt, create_voice_campaign, dispatch_voice_call, language_for, normalize_phone_number, qualification_questions_for, queue_campaign_call, registration_link_for, registration_type_for, resolve_call_target, queue_voice_call, receive_voice_call_result
 
 
 def make_session():
@@ -61,6 +62,12 @@ def test_hindi_language_selection_and_qualification_questions():
     assert len(qualification_questions_for("hi")) == 2
 
 
+def test_english_language_selection_and_phone_normalization():
+    assert language_for("English") == "en"
+    assert len(qualification_questions_for("en")) == 2
+    assert normalize_phone_number("99999 99999") == "+919999999999"
+
+
 def test_voice_call_callback_records_qualification_and_sanitizes_sensitive_values():
     db = make_session()
     try:
@@ -103,6 +110,37 @@ def test_failed_and_no_answer_calls_can_be_retried():
         final_retry, final_created = queue_voice_call(db, lead, retry=True)
         assert final_created is True
         assert final_retry.id != retry.id
+    finally:
+        db.close()
+
+
+def test_configured_provider_posts_dynamic_variables_and_records_response(monkeypatch):
+    db = make_session()
+    try:
+        lead = make_lead(db)
+        provider = ConfiguredVoiceProvider({"provider": "thinnestai", "call_endpoint_url": "https://api.example.test/v1/calls", "api_key": "test-key", "caller_id": "agent-1", "bengali_voice": "bn-voice", "hindi_voice": "hi-voice", "english_voice": "en-voice", "model": "test-model", "auth_type": "bearer_token", "auth_header_name": "Authorization"})
+        call, created = queue_voice_call(db, lead, provider=provider, preferred_language="English")
+        response = MagicMock()
+        response.status = 201
+        response.read.return_value = b'{"call_id":"provider-call-1"}'
+        response.__enter__.return_value = response
+        response.__exit__.return_value = None
+        captured = {}
+        monkeypatch.setattr("sql_app.voice_caller.urlopen", lambda request, timeout: captured.update({"url": request.full_url, "headers": dict(request.headers), "body": request.data, "timeout": timeout}) or response)
+
+        result = dispatch_voice_call(db, call, lead, provider)
+
+        assert created is True
+        assert result.status == "CALLING"
+        assert result.provider_call_id == "provider-call-1"
+        assert captured["url"] == "https://api.example.test/v1/calls"
+        assert captured["headers"]["Authorization"] == "Bearer test-key"
+        assert captured["timeout"] == 20
+        assert b'"lead_name": "Ayesha"' in captured["body"]
+        assert b'"platform_context": "METHO AAY-UPAY platform"' in captured["body"]
+        assert b'"registration_status": "NEW"' in captured["body"]
+        assert b'"preferred_language": "en"' in captured["body"]
+        assert b'"voice_id": "en-voice"' in captured["body"]
     finally:
         db.close()
 

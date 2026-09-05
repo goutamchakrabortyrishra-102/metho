@@ -1190,7 +1190,7 @@ export default function SettingsPage() {
     setVoiceCallerMessage("");
     try {
       const payload = {};
-      ["enabled", "provider", "caller_id", "bengali_voice", "hindi_voice", "model", "max_call_attempts", "retry_delay_minutes", "test_endpoint_url", "test_http_method", "auth_type", "auth_header_name", "agent_list_path", "agent_id_field", "agent_name_field"].forEach((key) => { payload[key] = voiceCallerForm[key]; });
+      ["enabled", "provider", "caller_id", "bengali_voice", "hindi_voice", "english_voice", "model", "max_call_attempts", "retry_delay_minutes", "call_endpoint_url", "test_endpoint_url", "test_http_method", "auth_type", "auth_header_name", "agent_list_path", "agent_id_field", "agent_name_field"].forEach((key) => { payload[key] = voiceCallerForm[key]; });
       ["api_key", "api_secret"].forEach((key) => { if (String(voiceCallerForm[key] || "").trim()) payload[key] = String(voiceCallerForm[key]).trim(); });
       const response = await api.put("/admin/settings/voice-caller", payload);
       const data = response?.data;
@@ -1729,11 +1729,13 @@ export default function SettingsPage() {
               <Field label="Caller / Provider ID" value={voiceCallerForm.caller_id || ""} onChange={updateVoiceCallerField("caller_id")} type="text" />
               <Field label="Bengali voice" value={voiceCallerForm.bengali_voice || ""} onChange={updateVoiceCallerField("bengali_voice")} type="text" />
               <Field label="Hindi voice" value={voiceCallerForm.hindi_voice || ""} onChange={updateVoiceCallerField("hindi_voice")} type="text" />
+              <Field label="English voice" value={voiceCallerForm.english_voice || ""} onChange={updateVoiceCallerField("english_voice")} type="text" />
               <Field label="Model" value={voiceCallerForm.model || ""} onChange={updateVoiceCallerField("model")} type="text" />
               <Field label="Maximum call attempts" value={voiceCallerForm.max_call_attempts ?? ""} onChange={updateVoiceCallerField("max_call_attempts")} type="number" />
               <Field label="Retry delay (minutes)" value={voiceCallerForm.retry_delay_minutes ?? ""} onChange={updateVoiceCallerField("retry_delay_minutes")} type="number" />
               {[ ["api_key", "Provider API Key"], ["api_secret", "Provider API Secret"] ].map(([key, label]) => <div key={key}><Label>{label}</Label><Input type="password" value={voiceCallerForm[key] || ""} onChange={updateVoiceCallerField(key)} placeholder={voiceCallerForm[`${key}_masked`] || "Leave empty to keep existing"} className="mt-1.5 h-11" /></div>)}
               <div className="md:col-span-2 border-t border-border pt-4"><p className="text-sm font-semibold text-emerald-950">Provider Connection Profile</p></div>
+              <Field label="Call Endpoint URL" value={voiceCallerForm.call_endpoint_url || ""} onChange={updateVoiceCallerField("call_endpoint_url")} type="url" placeholder="https://api.provider.com/v1/calls" />
               <Field label="Test Endpoint URL" value={voiceCallerForm.test_endpoint_url || ""} onChange={updateVoiceCallerField("test_endpoint_url")} type="url" placeholder="https://api.provider.com/v1/agents" />
               <div><Label>HTTP Method</Label><select value={voiceCallerForm.test_http_method || "GET"} onChange={updateVoiceCallerField("test_http_method")} className="mt-1.5 h-11 w-full rounded-md border border-input px-3"><option value="GET">GET</option><option value="POST">POST</option></select></div>
               <div><Label>Authentication Type</Label><select value={voiceCallerForm.auth_type || "bearer_token"} onChange={updateVoiceCallerField("auth_type")} className="mt-1.5 h-11 w-full rounded-md border border-input px-3"><option value="bearer_token">Bearer Token</option><option value="custom_header">Custom Header</option><option value="api_key_query_param">API Key Query Param</option></select></div>

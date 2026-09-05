@@ -327,7 +327,7 @@ def get_voice_caller_settings(db: Session = Depends(get_db), current_user=Depend
     _require_admin(current_user)
     config = resolve_voice_config(db)
     missing = validate_voice_config(config)
-    return {key: config[key] for key in ("enabled", "provider", "caller_id", "bengali_voice", "hindi_voice", "model", "max_call_attempts", "retry_delay_minutes", *PROFILE_KEYS)} | {"api_key_masked": _mask_secret(config["api_key"]), "api_secret_masked": _mask_secret(config["api_secret"]), "configured": not missing, "missing": missing}
+    return {key: config[key] for key in ("enabled", "provider", "caller_id", "bengali_voice", "hindi_voice", "english_voice", "model", "max_call_attempts", "retry_delay_minutes", *PROFILE_KEYS)} | {"api_key_masked": _mask_secret(config["api_key"]), "api_secret_masked": _mask_secret(config["api_secret"]), "configured": not missing, "missing": missing}
 
 
 @router.put("/admin/settings/voice-caller")
@@ -349,6 +349,7 @@ def update_voice_caller_settings(payload: dict, db: Session = Depends(get_db), c
             "caller_id": str(get_value("caller_id", "callerId") or "").strip(),
             "bengali_voice": str(get_value("bengali_voice", "bengaliVoice") or "").strip(),
             "hindi_voice": str(get_value("hindi_voice", "hindiVoice") or "").strip(),
+            "english_voice": str(get_value("english_voice", "englishVoice") or "").strip(),
             "model": str(get_value("model", "model") or "").strip(),
             "max_call_attempts": max(1, min(5, int(get_value("max_call_attempts", "maxCallAttempts") or 1))),
             "retry_delay_minutes": max(1, min(10080, int(get_value("retry_delay_minutes", "retryDelayMinutes") or 60))),

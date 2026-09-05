@@ -18,6 +18,7 @@ from sql_app.routers.settings import get_voice_caller_settings, run_voice_caller
 from sql_app.voice_caller import resolve_voice_config
 
 PROFILE = {
+    "english_voice": "en-voice",
     "test_endpoint_url": "https://api.voice-provider.example/v1/agents",
     "test_http_method": "GET",
     "auth_type": "bearer_token",

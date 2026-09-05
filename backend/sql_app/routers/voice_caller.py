@@ -3,7 +3,7 @@ from sqlalchemy.orm import Session
 
 from ..database import get_db
 from ..models import CRMLead, CRMVoiceCallAttempt, CRMVoiceCallCampaign, User
-from ..voice_caller import _call_payload, create_voice_campaign, queue_campaign_call, queue_voice_call, receive_voice_call_result, resolve_call_target
+from ..voice_caller import VoiceCallProviderError, _call_payload, create_voice_campaign, dispatch_voice_call, queue_campaign_call, receive_voice_call_result, resolve_call_target, trigger_lead_voice_call, voice_provider_for
 from .auth import get_current_user
 
 router = APIRouter(prefix="/api", tags=["voice-caller"])
@@ -33,22 +33,33 @@ def create_campaign(payload: dict, db: Session = Depends(get_db), current_user: 
 
 
 @router.post("/admin/crm/voice-caller/campaigns/{campaign_id}/targets/{target_type}/{target_id}")
-def trigger_campaign_target(campaign_id: str, target_type: str, target_id: str, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+def trigger_campaign_target(campaign_id: str, target_type: str, target_id: str, payload: dict | None = None, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     _require_admin(current_user)
     campaign = db.query(CRMVoiceCallCampaign).filter(CRMVoiceCallCampaign.id == campaign_id).first()
     if not campaign:
         raise HTTPException(status_code=404, detail="Campaign not found")
     try:
-        call, created = queue_campaign_call(db, campaign, resolve_call_target(db, target_type, target_id))
+        target = resolve_call_target(db, target_type, target_id)
+        provider = voice_provider_for(db)
+        call, created = queue_campaign_call(db, campaign, target, provider=provider, preferred_language=(payload or {}).get("preferred_language"))
+        if created and target.lead_id:
+            dispatch_voice_call(db, call, _lead_or_404(db, target.lead_id), provider)
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except VoiceCallProviderError as exc:
+        raise HTTPException(status_code=502, detail=str(exc)) from exc
     return {"ok": True, "created": created, "call": _call_payload(call)}
 
 
 @router.post("/admin/crm/leads/{lead_id}/voice-calls")
-def trigger_voice_call(lead_id: str, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+def trigger_voice_call(lead_id: str, payload: dict | None = None, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     _require_admin(current_user)
-    call, created = queue_voice_call(db, _lead_or_404(db, lead_id))
+    try:
+        call, created = trigger_lead_voice_call(db, _lead_or_404(db, lead_id), preferred_language=(payload or {}).get("preferred_language"))
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except VoiceCallProviderError as exc:
+        raise HTTPException(status_code=502, detail=str(exc)) from exc
     return {"ok": True, "created": created, "call": _call_payload(call)}
 
 
@@ -61,9 +72,14 @@ def list_voice_calls(lead_id: str, db: Session = Depends(get_db), current_user: 
 
 
 @router.post("/admin/crm/leads/{lead_id}/voice-calls/retry")
-def retry_voice_call(lead_id: str, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+def retry_voice_call(lead_id: str, payload: dict | None = None, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     _require_admin(current_user)
-    call, created = queue_voice_call(db, _lead_or_404(db, lead_id), retry=True)
+    try:
+        call, created = trigger_lead_voice_call(db, _lead_or_404(db, lead_id), retry=True, preferred_language=(payload or {}).get("preferred_language"))
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except VoiceCallProviderError as exc:
+        raise HTTPException(status_code=502, detail=str(exc)) from exc
     if not created:
         raise HTTPException(status_code=409, detail="Only failed or no-answer calls can be retried")
     return {"ok": True, "call": _call_payload(call)}
