@@ -27,6 +27,7 @@ const links = [
   { to: "/app/partners", icon: Store, label: "Partners", testId: "nav-partners", adminOnly: true },
   { to: "/app/crm/leads", icon: BriefcaseBusiness, label: "CRM Leads", testId: "nav-crm-leads", adminOnly: true },
   { to: "/app/crm/whatsapp", icon: MessageCircle, label: "WhatsApp Inbox", testId: "nav-crm-whatsapp", adminOnly: true },
+  { to: "/app/crm/whatsapp-ai", icon: Bot, label: "WhatsApp AI", testId: "nav-crm-whatsapp-ai", adminOnly: true },
   { to: "/app/crm/pipeline", icon: ClipboardList, label: "CRM Pipeline", testId: "nav-crm-pipeline", adminOnly: true },
   { to: "/app/ceo-dashboard", icon: TrendingUp, label: "CEO Dashboard", testId: "nav-ceo-dashboard", adminOnly: true },
   { to: "/app/partner-approvals", icon: CheckCircle2, label: "Partner Applications", testId: "nav-partner-approvals", adminOnly: true },

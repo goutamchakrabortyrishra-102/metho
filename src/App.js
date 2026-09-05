@@ -31,6 +31,7 @@ const loadPartnersPage = () => import("@/pages/dashboard/PartnersPage");
 const loadCRMLeadsPage = () => import("@/pages/dashboard/CRMLeadsPage");
 const loadCRMPipelinePage = () => import("@/pages/dashboard/CRMPipelinePage");
 const loadWhatsAppInboxPage = () => import("@/pages/dashboard/WhatsAppInboxPage");
+const loadWhatsAppAISettingsPage = () => import("@/pages/dashboard/WhatsAppAISettingsPage");
 const loadMember360Page = () => import("@/pages/dashboard/Member360Page");
 const loadCEODashboardPage = () => import("@/pages/dashboard/CEODashboardPage");
 const loadProductApprovalsPage = () => import("@/pages/dashboard/ProductApprovalsPage");
@@ -107,6 +108,7 @@ const PartnersPage = lazy(loadPartnersPage);
 const CRMLeadsPage = lazy(loadCRMLeadsPage);
 const CRMPipelinePage = lazy(loadCRMPipelinePage);
 const WhatsAppInboxPage = lazy(loadWhatsAppInboxPage);
+const WhatsAppAISettingsPage = lazy(loadWhatsAppAISettingsPage);
 const Member360Page = lazy(loadMember360Page);
 const CEODashboardPage = lazy(loadCEODashboardPage);
 const ProductApprovalsPage = lazy(loadProductApprovalsPage);
@@ -397,6 +399,7 @@ function App() {
                 <Route path="crm/leads" element={<AdminRoute><CRMLeadsPage /></AdminRoute>} />
                 <Route path="crm/pipeline" element={<AdminRoute><CRMPipelinePage /></AdminRoute>} />
                 <Route path="crm/whatsapp" element={<AdminRoute><WhatsAppInboxPage /></AdminRoute>} />
+                <Route path="crm/whatsapp-ai" element={<AdminRoute><WhatsAppAISettingsPage /></AdminRoute>} />
                 <Route path="members/:memberId/360" element={<AdminRoute><Member360Page /></AdminRoute>} />
                 <Route path="ceo-dashboard" element={<AdminRoute><CEODashboardPage /></AdminRoute>} />
                 <Route path="metho-store-admin" element={<AdminRoute><MethoStoreAdminPage /></AdminRoute>} />

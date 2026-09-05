@@ -335,6 +335,24 @@ class CRMVoiceCallCampaign(Base):
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now_utc, onupdate=now_utc)
 
 
+class CRMWhatsAppAISuggestion(Base):
+    __tablename__ = "crm_whatsapp_ai_suggestions"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
+    lead_id: Mapped[str] = mapped_column(String(36), ForeignKey("crm_leads.id"), nullable=False, index=True)
+    activity_id: Mapped[str] = mapped_column(String(36), ForeignKey("crm_lead_activities.id"), nullable=False, unique=True, index=True)
+    suggested_reply: Mapped[str] = mapped_column(Text, nullable=False, default="")
+    human_handoff_required: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    handoff_reason: Mapped[str] = mapped_column(String(255), nullable=False, default="")
+    provider_used: Mapped[str] = mapped_column(String(50), nullable=False, default="fallback")
+    model_used: Mapped[str] = mapped_column(String(80), nullable=False, default="")
+    status: Mapped[str] = mapped_column(String(20), nullable=False, default="PENDING", index=True)
+    sent_reply: Mapped[str] = mapped_column(Text, nullable=False, default="")
+    error_message: Mapped[str] = mapped_column(String(500), nullable=False, default="")
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now_utc, index=True)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now_utc, onupdate=now_utc)
+
+
 class CRMFollowUp(Base):
     __tablename__ = "crm_follow_ups"
 

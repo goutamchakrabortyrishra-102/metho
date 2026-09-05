@@ -2,11 +2,12 @@ import json
 import os
 from datetime import datetime, timezone
 
-from fastapi import APIRouter, Depends, HTTPException, Query, Request
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query, Request
 from sqlalchemy.orm import Session
 
 from ..database import get_db
-from ..models import AppSetting
+from ..models import AppSetting, CRMLeadActivity
+from ..whatsapp_ai import create_suggestion_for_activity
 from ..whatsapp_cloud import encrypt_secret, resolve_config, test_whatsapp_config, verify_signature, verify_webhook_token, ingest_whatsapp_message
 from .auth import get_current_user
 
@@ -153,7 +154,7 @@ def verify_whatsapp_webhook(mode: str | None = Query(default=None, alias="hub.mo
 
 
 @router.post("/webhooks/whatsapp")
-async def receive_whatsapp_webhook(request: Request, db: Session = Depends(get_db)):
+async def receive_whatsapp_webhook(request: Request, background_tasks: BackgroundTasks, db: Session = Depends(get_db)):
     body = await request.body()
     config = resolve_config(db)
     if config.get("app_secret"):
@@ -185,4 +186,14 @@ async def receive_whatsapp_webhook(request: Request, db: Session = Depends(get_d
     except Exception as exc:
         db.rollback()
         raise HTTPException(status_code=503, detail=f"WhatsApp lead could not be stored: {str(exc)}") from exc
+    for message in messages:
+        message_id = str((message or {}).get("id") or "").strip()
+        if not message_id:
+            continue
+        activity = db.query(CRMLeadActivity).filter(
+            CRMLeadActivity.activity_type == "whatsapp_message_received",
+            CRMLeadActivity.message.like(f"WhatsApp message received [{message_id}]:%"),
+        ).first()
+        if activity:
+            background_tasks.add_task(create_suggestion_for_activity, activity.id)
     return {"ok": True, "status": result, "message_count": len(messages)}
