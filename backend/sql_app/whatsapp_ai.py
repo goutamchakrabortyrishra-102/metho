@@ -6,6 +6,7 @@ import re
 from sqlalchemy.exc import IntegrityError
 
 from .database import SessionLocal
+from .google_search import search_web_context
 from .models import AppSetting, CRMLead, CRMLeadActivity, CRMWhatsAppAISuggestion
 
 logger = logging.getLogger(__name__)
@@ -19,6 +20,7 @@ DEFAULT_CONFIG = {
     "handoff_keywords": "agent,human,মানুষ,অফিস,complaint,refund,payment,legal,fraud,otp,password",
 }
 SENSITIVE_PATTERNS = (r"\b\d{4}[-\s]?\d{4}[-\s]?\d{4}\b", r"\b[A-Z]{5}[0-9]{4}[A-Z]\b", r"\b\d{6}\b")
+SEARCH_TERMS = ("price", "cost", "benefit", "use", "detail", "product", "দাম", "কত", "উপকারিতা", "ব্যবহার", "বিস্তারিত", "পণ্য")
 
 
 def resolve_ai_config(db) -> dict:
@@ -68,7 +70,8 @@ def _guardrail(text: str, keywords: str) -> tuple[str, bool, str]:
 
 
 def _generate_reply(config: dict, message: str) -> tuple[str, str, str]:
-    prompt = f"{config['system_prompt']}\n\nKnowledge base:\n{config['knowledge_base']}\n\nCustomer message:\n{message}"
+    search_context = search_web_context(f"METHO AAY-UPAY {message}") if any(term in message.lower() for term in SEARCH_TERMS) else ""
+    prompt = f"{config['system_prompt']}\n\nKnowledge base:\n{config['knowledge_base']}\n\nOptional public search context (use only as background; do not invent facts):\n{search_context or 'No search context available.'}\n\nCustomer message:\n{message}"
     preferred = config["provider"]
     openai_key = os.getenv("OPENAI_API_KEY", "").strip()
     gemini_key = (os.getenv("GEMINI_API_KEY", "") or os.getenv("GOOGLE_API_KEY", "")).strip()

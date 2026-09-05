@@ -28,6 +28,7 @@ from ..database import get_db
 from ..models import AppSetting, AssociatePartner, CRMLead, CRMLeadActivity, FinancialLedgerEntry, InvoiceRecord, Order, PartnerProduct, PartnerRequest, PaymentRecord, Product, ProductMeta, PublicOrder, RewardRecord, User, UserReferral
 from ..security import hash_password, verify_password
 from ..storage import UPLOADED_OBJECTS_DIR
+from ..google_search import search_web_context
 from .auth import ADMIN_LOGIN_ID, get_current_user, get_current_user_optional
 from .settings import load_settings, save_settings
 
@@ -8534,12 +8535,15 @@ def generate_product_description(payload: dict, current_user=Depends(get_current
     name = str(payload.get("name") or "Product").strip()
     category = str(payload.get("category") or "General").strip()
     product_type = str(payload.get("product_type") or "metho").strip()
+    search_context = search_web_context(f"METHO AAY-UPAY {name} {category}")
     prompt = (
         "Write a concise ecommerce product description in simple English. "
         "Length 45-70 words, no markdown, no emojis, no fake medical claims. "
+        "Use public search context only as background and do not invent price, availability, medical, or performance claims. "
         f"Product Name: {name}\n"
         f"Category: {category}\n"
         f"Type: {product_type}\n"
+        f"Optional public search context:\n{search_context or 'No search context available.'}\n"
     )
 
     openai_key = os.getenv("OPENAI_API_KEY", "").strip()
