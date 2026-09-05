@@ -60,6 +60,15 @@ def test_amount_uses_current_transport_rate():
     assert calculate_direct_amount("ebike", {"metho_transport_rates": {"bike": 12}}, 3) == 36
 
 
+def test_booking_rejects_invalid_road_distance():
+    db = make_session()
+    try:
+        with pytest.raises(HTTPException, match="positive road distance"):
+            create_direct_booking({**booking_payload(), "distance_km": 0}, db, None)
+    finally:
+        db.close()
+
+
 def test_move_and_delivery_categories_use_separate_rates_with_one_km_minimum():
     rates = {"bike": 12, "e_rickshaw": 16, "auto_rickshaw": 20, "four_wheeler": 24, "bolero_maxx": 28, "vehicle_207": 30, "vehicle_407": 36, "dumper": 45, "delivery": 14}
     for category, rate in rates.items():

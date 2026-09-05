@@ -24,6 +24,16 @@ REWARDS_KEY = "metho_direct_rewards"
 VEHICLE_TYPES = {"bike", "ebike", "e_rickshaw", "auto_rickshaw", "four_wheeler", "bolero_maxx", "vehicle_207", "vehicle_407", "dumper", "delivery"}
 
 
+def _validated_distance_km(value) -> float:
+    try:
+        distance = float(value or 0)
+    except (TypeError, ValueError) as exc:
+        raise HTTPException(status_code=400, detail="Distance must be a valid number") from exc
+    if not math.isfinite(distance) or distance <= 0:
+        raise HTTPException(status_code=400, detail="A positive road distance is required")
+    return min(distance, 10000.0)
+
+
 def _json_list(db: Session, key: str) -> list[dict]:
     row = db.query(AppSetting).filter(AppSetting.key == key).first()
     if not row:
@@ -201,7 +211,7 @@ def create_direct_booking(payload: dict, db: Session = Depends(get_db), current_
     booking = {
         "id": str(uuid.uuid4()), "service_type": service_type, "pickup": pickup, "destination": destination,
         "customer_name": name, "customer_phone": phone, "member_ref": str(payload.get("member_ref") or "").strip(),
-        "customer_user_id": str(current_user.id) if current_user else "", "distance_km": max(1.0, float(payload.get("distance_km") or 1)),
+        "customer_user_id": str(current_user.id) if current_user else "", "distance_km": _validated_distance_km(payload.get("distance_km")),
         "pickup_latitude": payload.get("pickup_latitude"), "pickup_longitude": payload.get("pickup_longitude"),
         "amount": calculate_direct_amount(service_type, settings, payload.get("distance_km") or 1),
         "status": "awaiting_driver_assignment", "rider_id": "", "payment_id": "", "razorpay_order_id": "",

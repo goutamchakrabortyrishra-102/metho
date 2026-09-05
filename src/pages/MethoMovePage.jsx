@@ -36,7 +36,7 @@ const findRoadDistanceKm = async (pickup, destination, pickupCoordinates = null)
   const distances = Array.isArray(payload?.routes)
     ? payload.routes.map((item) => Number(item.distance || 0) / 1000).filter((value) => Number.isFinite(value) && value > 0)
     : [];
-  return distances.length ? Math.max(...distances) : 0;
+  return distances.length ? Math.min(...distances) : 0;
 };
 
 const loadRazorpay = () => new Promise((resolve) => {
