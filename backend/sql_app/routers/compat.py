@@ -3174,6 +3174,25 @@ def _resolve_user_by_member_code(db: Session, member_code: str) -> User | None:
     return None
 
 
+def _default_admin_sponsor(db: Session) -> User | None:
+    preferred = _resolve_user_by_member_code(db, "MAU00001")
+    if preferred and preferred.role in {"admin", "company_admin", "super_admin"}:
+        return preferred
+    return db.query(User).filter(User.role.in_(["admin", "company_admin", "super_admin"])).order_by(User.created_at.asc()).first()
+
+
+def _is_downline_of(db: Session, sponsor_id: str, member_id: str) -> bool:
+    current = str(sponsor_id or "")
+    visited = set()
+    while current and current not in visited:
+        if current == str(member_id):
+            return True
+        visited.add(current)
+        relation = db.query(UserReferral).filter(UserReferral.user_id == current).first()
+        current = str(relation.sponsor_user_id) if relation else ""
+    return False
+
+
 def _sponsor_code_for_user(db: Session, user_id: str) -> str:
     rel = db.query(UserReferral).filter(UserReferral.user_id == user_id).first()
     if not rel:
@@ -3952,21 +3971,21 @@ def admin_update_user(user_id: str, payload: dict, db: Session = Depends(get_db)
         _save_user_profile_details(db, user.id, payload)
 
     if "sponsor_code" in payload:
+        if user.role != "member":
+            raise HTTPException(status_code=400, detail="Sponsor can only be changed for member accounts")
         sponsor_code = str(payload.get("sponsor_code") or "").strip().upper()
         existing_rel = db.query(UserReferral).filter(UserReferral.user_id == user.id).first()
-        if sponsor_code:
-            sponsor = _resolve_user_by_member_code(db, sponsor_code)
-            if not sponsor or sponsor.id == user.id:
-                raise HTTPException(status_code=400, detail="Valid sponsor_code required")
-            if not existing_rel:
-                db.add(UserReferral(user_id=user.id, sponsor_user_id=sponsor.id, sponsor_code=sponsor_code))
-            else:
-                existing_rel.sponsor_user_id = sponsor.id
-                existing_rel.sponsor_code = sponsor_code
-        elif existing_rel:
-            db.delete(existing_rel)
+        sponsor = _resolve_user_by_member_code(db, sponsor_code) if sponsor_code else _default_admin_sponsor(db)
+        if not sponsor or sponsor.id == user.id or _is_downline_of(db, sponsor.id, user.id):
+            raise HTTPException(status_code=400, detail="Valid sponsor_code required; sponsor cannot be a member's downline")
+        resolved_code = member_code_for_user(sponsor.id)
+        if not existing_rel:
+            db.add(UserReferral(user_id=user.id, sponsor_user_id=sponsor.id, sponsor_code=resolved_code))
+        else:
+            existing_rel.sponsor_user_id = sponsor.id
+            existing_rel.sponsor_code = resolved_code
     db.commit()
-    return {"ok": True, "id": user.id}
+    return {"ok": True, "id": user.id, "sponsor_code": _sponsor_code_for_user(db, user.id)}
 
 
 @router.delete("/admin/users/{user_id}")

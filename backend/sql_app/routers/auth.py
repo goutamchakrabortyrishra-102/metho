@@ -271,6 +271,15 @@ def register(payload: RegisterRequest, db: Session = Depends(get_db)):
     if db.query(User).filter(User.id == member_id).first() or db.query(User).filter(User.email == member_id).first():
         member_id = _next_member_id(db)
 
+    requested_sponsor = (payload.sponsor_code or "").strip().upper()
+    sponsor_user = _resolve_user_by_identifier(db, requested_sponsor) if requested_sponsor else _resolve_default_admin_sponsor(db)
+    if requested_sponsor and not sponsor_user:
+        raise HTTPException(status_code=400, detail="Sponsor code not found")
+    if not sponsor_user:
+        raise HTTPException(status_code=503, detail="Default METHO Admin sponsor is not configured")
+    if sponsor_user.id == member_id:
+        raise HTTPException(status_code=400, detail="A member cannot sponsor themselves")
+
     user = User(
         id=member_id,
         name=payload.name,
@@ -295,17 +304,11 @@ def register(payload: RegisterRequest, db: Session = Depends(get_db)):
     ))
     db.commit()
 
-    requested_sponsor = (payload.sponsor_code or "").strip().upper()
-    sponsor_user = _resolve_user_by_identifier(db, requested_sponsor) if requested_sponsor else None
-    if not sponsor_user:
-        sponsor_user = _resolve_default_admin_sponsor(db)
-
-    sponsor_code = member_code_for_user(sponsor_user.id) if sponsor_user else requested_sponsor
-    if sponsor_user and sponsor_user.id != user.id:
-        existing_rel = db.query(UserReferral).filter(UserReferral.user_id == user.id).first()
-        if not existing_rel:
-            db.add(UserReferral(user_id=user.id, sponsor_user_id=sponsor_user.id, sponsor_code=sponsor_code))
-            db.commit()
+    sponsor_code = member_code_for_user(sponsor_user.id)
+    existing_rel = db.query(UserReferral).filter(UserReferral.user_id == user.id).first()
+    if not existing_rel:
+        db.add(UserReferral(user_id=user.id, sponsor_user_id=sponsor_user.id, sponsor_code=sponsor_code))
+        db.commit()
 
     welcome_letter_url = build_welcome_pdf(user)
     member_code = member_code_for_user(user.id)

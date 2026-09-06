@@ -337,8 +337,8 @@ export default function MembersPage() {
               <Input value={editForm.phone} onChange={(e) => setEditForm({ ...editForm, phone: e.target.value })} className="mt-1.5 h-11" />
             </div>
             <div>
-              <Label>Sponsor Code (Optional)</Label>
-              <Input value={editForm.sponsor_code || ""} onChange={(e) => setEditForm({ ...editForm, sponsor_code: e.target.value.toUpperCase() })} placeholder="MAU12345" className="mt-1.5 h-11 font-mono uppercase" />
+              <Label>Sponsor Code (Required)</Label>
+              <Input required value={editForm.sponsor_code || "MAU00001"} onChange={(e) => setEditForm({ ...editForm, sponsor_code: e.target.value.toUpperCase() })} placeholder="MAU00001" className="mt-1.5 h-11 font-mono uppercase" />
             </div>
             <div>
               <Label>DOB</Label>
