@@ -602,6 +602,23 @@ def update_crm_lead(lead_id: str, payload: dict, db: Session = Depends(get_db), 
     return {"ok": True, "lead": _to_lead_payload(lead)}
 
 
+@router.delete("/admin/crm/leads/{lead_id}")
+def delete_crm_lead(lead_id: str, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    _require_admin_user(current_user)
+    lead = db.query(CRMLead).filter(CRMLead.id == lead_id).first()
+    if not lead:
+        raise HTTPException(status_code=404, detail="Lead not found")
+    if lead.status != "LOST":
+        raise HTTPException(status_code=400, detail="Only LOST/Rejected leads can be deleted")
+    db.query(CRMWhatsAppAISuggestion).filter(CRMWhatsAppAISuggestion.lead_id == lead.id).delete(synchronize_session=False)
+    db.query(CRMLeadActivity).filter(CRMLeadActivity.lead_id == lead.id).delete(synchronize_session=False)
+    db.query(CRMFollowUp).filter(CRMFollowUp.lead_id == lead.id).delete(synchronize_session=False)
+    db.query(CRMTask).filter(CRMTask.lead_id == lead.id).delete(synchronize_session=False)
+    db.delete(lead)
+    db.commit()
+    return {"ok": True, "deleted_lead_id": lead_id}
+
+
 @router.get("/admin/crm/leads/{lead_id}/activities")
 def get_crm_activities(lead_id: str, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     _require_admin_user(current_user)

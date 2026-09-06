@@ -13,6 +13,15 @@ export default function CEODashboardPage() {
     return <div className="bg-white rounded-xl border border-border p-6 text-slate-500">Loading CEO dashboard...</div>;
   }
 
+  const classification = [
+    ["New", ["NEW"]],
+    ["Old / Contacted", ["CONTACTED"]],
+    ["Interested", ["INTERESTED", "QUALIFIED"]],
+    ["Registration started", ["APPLICATION"]],
+    ["Completed", ["APPROVED", "CONVERTED"]],
+    ["Reject / Lost", ["LOST"]],
+  ].map(([label, stages]) => ({ label, count: (data.stage_breakdown || []).filter((item) => stages.includes(item.stage)).reduce((sum, item) => sum + item.count, 0), whatsapp: (data.stage_breakdown || []).filter((item) => stages.includes(item.stage)).reduce((sum, item) => sum + (item.whatsapp_count || 0), 0) }));
+
   return (
     <div className="space-y-5">
       <div>
@@ -27,7 +36,7 @@ export default function CEODashboardPage() {
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-        <div className="bg-white rounded-xl border border-border p-4"><h2 className="font-semibold mb-3">Lead stage breakup</h2><div className="grid grid-cols-2 gap-2 text-sm">{(data.stage_breakdown || []).map((item) => <Link key={item.stage} to={`/app/crm/leads?status=${item.stage}`} className="rounded border p-2 hover:bg-emerald-50"><span className="font-semibold">{item.stage}</span><span className="block text-slate-600">{item.count} total · {item.whatsapp_count || 0} WhatsApp</span></Link>)}</div></div>
+        <div className="bg-white rounded-xl border border-border p-4"><h2 className="font-semibold mb-3">Lead classification</h2><div className="grid grid-cols-2 gap-2 text-sm">{classification.map((item) => <Link key={item.label} to={`/app/crm/leads?status=${item.label === "Reject / Lost" ? "LOST" : item.label === "Registration started" ? "APPLICATION" : item.label === "Interested" ? "INTERESTED" : item.label === "Completed" ? "CONVERTED" : item.label === "Old / Contacted" ? "CONTACTED" : "NEW"}`} className="rounded border p-2 hover:bg-emerald-50"><span className="font-semibold">{item.label}</span><span className="block text-slate-600">{item.count} total · {item.whatsapp} WhatsApp</span></Link>)}</div></div>
         <div className="bg-white rounded-xl border border-border p-4"><h2 className="font-semibold mb-3">Lead source breakup</h2><div className="space-y-2 text-sm">{(data.source_breakdown || []).map((item) => <div key={item.source} className="flex justify-between rounded border p-2"><span>{item.source}</span><span className="font-semibold">{item.count}</span></div>)}</div></div>
       </div>
 

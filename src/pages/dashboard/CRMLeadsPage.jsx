@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
-import { Search, Plus, RefreshCw, ArrowUpRight, CircleAlert, Eye, Phone, PhoneCall, MessageSquareText, ArrowRightLeft } from "lucide-react";
+import { Search, Plus, RefreshCw, ArrowUpRight, CircleAlert, Eye, Phone, PhoneCall, MessageSquareText, ArrowRightLeft, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
@@ -7,6 +7,15 @@ import api from "@/services/api";
 import { useSearchParams } from "react-router-dom";
 
 const stageOptions = ["NEW", "CONTACTED", "INTERESTED", "QUALIFIED", "APPLICATION", "APPROVED", "CONVERTED", "LOST"];
+const classificationOptions = [
+  { key: "ALL", label: "All leads", stages: stageOptions },
+  { key: "NEW", label: "New", stages: ["NEW"] },
+  { key: "OLD", label: "Old / Contacted", stages: ["CONTACTED"] },
+  { key: "INTERESTED", label: "Interested", stages: ["INTERESTED", "QUALIFIED"] },
+  { key: "REGISTRATION", label: "Registration started", stages: ["APPLICATION"] },
+  { key: "COMPLETED", label: "Completed", stages: ["APPROVED", "CONVERTED"] },
+  { key: "REJECTED", label: "Reject / Lost", stages: ["LOST"] },
+];
 
 export default function CRMLeadsPage() {
   const [searchParams] = useSearchParams();
@@ -181,6 +190,16 @@ export default function CRMLeadsPage() {
     } catch (err) { setError(err?.response?.data?.detail || "Could not update lead stage"); }
   };
 
+  const deleteLostLead = async (lead) => {
+    if (lead.status !== "LOST") return;
+    if (!window.confirm(`Delete rejected lead ${lead.business_name}? CRM history and chat activity for this lead will be removed.`)) return;
+    try {
+      await api.delete(`/admin/crm/leads/${lead.id}`);
+      setDetailLead(null);
+      await loadLeads();
+    } catch (err) { setError(err?.response?.data?.detail || "Rejected lead could not be deleted"); }
+  };
+
   const createTask = async () => {
     if (!taskForm.lead_id || !taskForm.title || !taskForm.due_at || !taskForm.assigned_user_id) {
       setError("Task lead, title, due date, and assignee are required");
@@ -211,6 +230,14 @@ export default function CRMLeadsPage() {
         <div className="bg-white rounded-xl border border-border p-4"><p className="text-xs uppercase">Total leads</p><p className="text-2xl font-bold">{summary.total}</p></div>
         <div className="bg-white rounded-xl border border-border p-4"><p className="text-xs uppercase">Hot</p><p className="text-2xl font-bold text-red-600">{summary.hot}</p></div>
         <div className="bg-white rounded-xl border border-border p-4"><p className="text-xs uppercase">Warm/Cold</p><p className="text-2xl font-bold text-amber-600">{summary.warm + summary.cold}</p></div>
+      </div>
+
+      <div className="grid grid-cols-2 gap-2 md:grid-cols-4 xl:grid-cols-7">
+        {classificationOptions.map((option) => {
+          const count = option.stages.reduce((total, stage) => total + items.filter((lead) => lead.status === stage).length, 0);
+          const active = option.key === "ALL" ? status === "ALL" : option.stages.includes(status);
+          return <Button key={option.key} variant={active ? "default" : "outline"} size="sm" onClick={() => setStatus(option.key === "ALL" ? "ALL" : option.stages[0])} className="h-auto justify-between py-2"><span>{option.label}</span><span>{count}</span></Button>;
+        })}
       </div>
 
       <div className="bg-white rounded-xl border border-border p-4 space-y-4">
@@ -347,6 +374,7 @@ export default function CRMLeadsPage() {
                     {(["QUALIFIED", "APPLICATION", "APPROVED"].includes(lead.status) && !lead.partner_request_id && !lead.partner_id && !lead.converted_partner_id) ? (
                       <Button size="sm" variant="outline" className="mt-2" onClick={() => openConversion(lead)}><ArrowRightLeft className="w-3.5 h-3.5 mr-1" /> Convert to Partner</Button>
                     ) : null}
+                    {lead.status === "LOST" ? <Button size="sm" variant="outline" className="mt-2 text-red-700" onClick={() => deleteLostLead(lead)}><Trash2 className="w-3.5 h-3.5 mr-1" /> Delete rejected</Button> : null}
                     {lead.partner_request_id && !lead.converted_partner_id ? <span className="mt-2 block text-xs text-amber-700">PartnerRequest pending</span> : null}
                     {lead.converted_partner_id || lead.partner_id ? <span className="mt-2 block text-xs text-emerald-700">Already Partner</span> : null}
                   </td>
@@ -389,7 +417,7 @@ export default function CRMLeadsPage() {
             <div className="border-t pt-3"><h3 className="font-semibold">Follow-ups</h3>{detailLoading ? <p className="mt-2 text-slate-500">Loading...</p> : detailFollowups.length ? <div className="mt-2 space-y-2">{detailFollowups.map((followup) => <div key={followup.id} className="flex justify-between rounded border p-2"><span>{followup.notes || "CRM follow-up"}</span><span className="text-xs text-slate-500">{followup.status} · {followup.scheduled_at ? new Date(followup.scheduled_at).toLocaleString() : "-"}</span></div>)}</div> : <p className="mt-2 text-slate-500">No follow-up recorded</p>}</div>
             <div className="border-t pt-3"><h3 className="font-semibold">Activity timeline</h3>{detailLoading ? null : detailActivities.length ? <div className="mt-2 max-h-64 space-y-2 overflow-y-auto">{detailActivities.map((activity) => <div key={activity.id} className="rounded border p-2"><div className="flex justify-between gap-3"><span className="font-medium">{activity.activity_type}</span><span className="text-xs text-slate-500">{activity.created_at ? new Date(activity.created_at).toLocaleString() : ""}</span></div><p className="mt-1 whitespace-pre-wrap text-slate-600">{activity.message}</p></div>)}</div> : <p className="mt-2 text-slate-500">No activity recorded</p>}</div>
           </div> : null}
-          <DialogFooter><Button variant="outline" onClick={() => setDetailLead(null)}>Close</Button></DialogFooter>
+          <DialogFooter><Button variant="outline" onClick={() => setDetailLead(null)}>Close</Button>{detailLead?.status === "LOST" ? <Button variant="outline" className="text-red-700" onClick={() => deleteLostLead(detailLead)}><Trash2 className="mr-1 h-4 w-4" />Delete rejected</Button> : null}</DialogFooter>
         </DialogContent>
       </Dialog>
     </div>
