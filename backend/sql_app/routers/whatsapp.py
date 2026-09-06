@@ -153,6 +153,7 @@ def verify_whatsapp_webhook(mode: str | None = Query(default=None, alias="hub.mo
     return int(verified) if verified.isdigit() else verified
 
 
+@router.post("/whatsapp/webhook")
 @router.post("/webhooks/whatsapp")
 async def receive_whatsapp_webhook(request: Request, background_tasks: BackgroundTasks, db: Session = Depends(get_db)):
     body = await request.body()
