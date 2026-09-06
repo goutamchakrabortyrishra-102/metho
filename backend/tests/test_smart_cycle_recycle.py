@@ -9,7 +9,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from sql_app.database import Base
 from sql_app.models import PublicOrder, User, UserReferral
-from sql_app.routers.compat import _load_json_setting, _load_user_wallet, _settle_completed_smart_cycles, _smart_cycle_history_key, _smart_cycle_state_key
+from sql_app.routers.compat import _load_json_setting, _load_user_wallet, _member_purchase_activation_key, _save_json_setting, _settle_completed_smart_cycles, _smart_cycle_history_key, _smart_cycle_state_key
 
 
 def _make_session():
@@ -57,5 +57,26 @@ def test_slot_five_pays_gst_excluded_network_sale_then_recycles():
         assert owner_wallet["member_reward_credited"] == 10.0
         assert _load_json_setting(db, _smart_cycle_state_key(owner.id), {})["cycle_number"] == 2
         assert _load_json_setting(db, _smart_cycle_history_key(owner.id), [])[0]["bonus_paid"] == 10.0
+    finally:
+        db.close()
+
+
+def test_first_cycle_starts_at_activation_not_order_creation():
+    db = _make_session()
+    try:
+        order_created = datetime(2026, 9, 1, 10, tzinfo=timezone.utc)
+        activated = datetime(2026, 9, 7, 10, tzinfo=timezone.utc)
+        now = activated + timedelta(hours=1)
+        member = User(name="Delayed Approval", email="delayed@example.com", phone="3", password="x", role="member", is_active=True)
+        db.add(member)
+        db.flush()
+        db.add(_paid_metho_order(member.id, order_created, 100))
+        _save_json_setting(db, _member_purchase_activation_key(member.id), {"active": True, "activated_at": activated.isoformat()})
+        db.commit()
+
+        _settle_completed_smart_cycles(db, member.id, now)
+
+        state = _load_json_setting(db, _smart_cycle_state_key(member.id), {})
+        assert state["started_at"] == activated.isoformat()
     finally:
         db.close()

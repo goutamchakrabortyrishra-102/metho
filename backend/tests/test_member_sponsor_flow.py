@@ -12,7 +12,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from sql_app.database import Base
 from sql_app.models import User, UserReferral
 from sql_app.routers.auth import register
-from sql_app.routers.compat import admin_update_user
+from sql_app.routers.compat import _member_activation_datetime, admin_update_user
 from sql_app.schemas import RegisterRequest
 from sql_app.voice_caller import registration_type_for
 
@@ -105,5 +105,19 @@ def test_admin_cannot_assign_sponsor_to_non_member_account():
         actor = SimpleNamespace(role="admin", id=admin.id)
         with pytest.raises(Exception, match="member accounts"):
             admin_update_user(partner.id, {"sponsor_code": "MAU00001"}, db, actor)
+    finally:
+        db.close()
+
+
+def test_activation_datetime_is_available_for_cycle_start():
+    db = make_session()
+    try:
+        member = add_user(db, "MAU10003")
+        from sql_app.routers.compat import _save_json_setting, _member_purchase_activation_key
+
+        activated_at = "2026-09-07T10:30:00+00:00"
+        _save_json_setting(db, _member_purchase_activation_key(member.id), {"active": True, "activated_at": activated_at})
+        db.commit()
+        assert _member_activation_datetime(db, member.id).isoformat() == activated_at
     finally:
         db.close()

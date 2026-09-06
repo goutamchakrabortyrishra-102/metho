@@ -792,6 +792,16 @@ def _member_purchase_active(db: Session, user_id: str) -> bool:
     return bool(_load_json_setting(db, _member_purchase_activation_key(user_id), {}).get("active"))
 
 
+def _member_activation_datetime(db: Session, user_id: str) -> datetime | None:
+    activation = _load_json_setting(db, _member_purchase_activation_key(user_id), {})
+    if not isinstance(activation, dict) or not activation.get("active"):
+        return None
+    value = activation.get("activated_at")
+    if not value:
+        return None
+    return _parse_cycle_datetime(value)
+
+
 def _member_payment_state_key(user_id: str) -> str:
     return f"member_payment_state:{user_id}"
 
@@ -1000,9 +1010,11 @@ def _settle_completed_smart_cycles(db: Session, user_id: str, now: datetime | No
         return None
     state = _load_json_setting(db, _smart_cycle_state_key(user_id), {})
     if not state:
-        first_sale = min((entry["order"].created_at for entry in _approved_member_purchases(db, user_id)), default=now)
-        first_sale = first_sale.replace(tzinfo=timezone.utc) if first_sale and first_sale.tzinfo is None else first_sale
-        state = {"cycle_number": 1, "started_at": first_sale.isoformat(), "activated_at": first_sale.isoformat()}
+        activation_at = _member_activation_datetime(db, user_id)
+        if activation_at is None:
+            activation_at = min((entry["order"].created_at for entry in _approved_member_purchases(db, user_id)), default=now)
+            activation_at = activation_at.replace(tzinfo=timezone.utc) if activation_at and activation_at.tzinfo is None else activation_at
+        state = {"cycle_number": 1, "started_at": activation_at.isoformat(), "activated_at": activation_at.isoformat()}
 
     cycle_start = _parse_cycle_datetime(state.get("started_at"))
     cycle_number = max(1, int(state.get("cycle_number") or 1))
