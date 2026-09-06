@@ -403,14 +403,16 @@ def _registration_role_for_text(config: dict, text: str) -> str | None:
     return None
 
 
-def _send_auto_reply_if_configured(db, recipient: str, text: str) -> None:
+def _send_auto_reply_if_configured(db, recipient: str, text: str) -> str:
     config = resolve_config(db)
     if not config["enabled"] or not config["access_token"] or not config["phone_number_id"]:
-        return
+        return "skipped"
     try:
         send_whatsapp_message(db, recipient, text=text)
+        return "sent"
     except Exception:
         logger.exception("WhatsApp auto-reply failed; inbound CRM message will still be stored")
+        return "failed"
 
 
 def ingest_whatsapp_message(db, payload: dict, request=None) -> str:
@@ -470,21 +472,18 @@ def ingest_whatsapp_message(db, payload: dict, request=None) -> str:
                 "যেকোনো সহায়তার জন্য কল বা মেসেজ করুন: +91 91635 30078।"
             )
 
+        auto_reply = ""
         if reply_text:
-            _send_auto_reply_if_configured(
-                db,
-                normalized["phone"],
-                text=_registration_reply(db, reply_text),
-            )
+            auto_reply = _registration_reply(db, reply_text)
         elif role_hint:
             if role_hint in REGISTRATION_ROLE_SETTINGS:
-                _send_auto_reply_if_configured(db, normalized["phone"], text=_role_registration_reply(db, role_hint))
+                auto_reply = _role_registration_reply(db, role_hint)
             else:
                 configured_reply = get_configured_whatsapp_reply(db, role_hint)
-                _send_auto_reply_if_configured(db, normalized["phone"], text=_registration_reply(db, configured_reply))
+                auto_reply = _registration_reply(db, configured_reply)
         else:
             configured_default = get_configured_whatsapp_reply(db, "default")
-            _send_auto_reply_if_configured(db, normalized["phone"], text=configured_default)
+            auto_reply = configured_default
 
         lead = db.query(CRMLead).filter(CRMLead.lead_id == normalized["lead_id"]).first()
         if not lead:
@@ -530,6 +529,10 @@ def ingest_whatsapp_message(db, payload: dict, request=None) -> str:
             status = "updated"
         body = normalized["metadata"].get("raw_body") or ""
         db.add(CRMLeadActivity(lead_id=lead.id, activity_type="whatsapp_message_received", message=f"{activity_prefix}: {body}"))
+        if auto_reply:
+            reply_status = _send_auto_reply_if_configured(db, normalized["phone"], text=auto_reply)
+            if reply_status == "sent":
+                db.add(CRMLeadActivity(lead_id=lead.id, activity_type="whatsapp_message_sent", message=auto_reply))
         statuses.append(status)
     db.commit()
     if "created" in statuses:
