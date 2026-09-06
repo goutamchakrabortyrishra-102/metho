@@ -43,6 +43,9 @@ PROFILE_KEYS = (
     "agent_list_path",
     "agent_id_field",
     "agent_name_field",
+    "request_template",
+    "response_id_path",
+    "purpose_template",
 )
 
 logger = logging.getLogger(__name__)
@@ -150,6 +153,30 @@ def _response_data(response) -> dict:
     return data if isinstance(data, dict) else {"data": data}
 
 
+def _path_value(payload: dict, path: str):
+    value = payload
+    for key in filter(None, str(path or "").split(".")):
+        if not isinstance(value, dict):
+            return None
+        value = value.get(key)
+    return value
+
+
+def _render_request_template(template: str, values: dict) -> dict:
+    rendered = str(template or "").strip()
+    if not rendered:
+        return {}
+    for key, value in values.items():
+        rendered = rendered.replace(f'"{{{{{key}}}}}"', json.dumps(str(value or "")))
+    try:
+        payload = json.loads(rendered)
+    except json.JSONDecodeError as exc:
+        raise VoiceCallProviderError("Provider request template must be valid JSON with quoted placeholders") from exc
+    if not isinstance(payload, dict):
+        raise VoiceCallProviderError("Provider request template must contain a JSON object")
+    return payload
+
+
 class ConfiguredVoiceProvider:
 
     def __init__(self, config: dict):
@@ -164,7 +191,21 @@ class ConfiguredVoiceProvider:
         if not endpoint.startswith("https://"):
             raise VoiceCallProviderError("Voice call endpoint must be a valid HTTPS URL")
         voice_id = {"bn": self.config["bengali_voice"], "hi": self.config["hindi_voice"], "en": self.config["english_voice"]}[language]
-        payload = {
+        purpose = str(self.config.get("purpose_template") or "I'm calling from METHO AAY-UPAY for a follow-up.").strip()
+        purpose = purpose.replace("{{lead_name}}", lead.contact_person or lead.business_name or "Customer")
+        purpose = purpose.replace("{{status}}", lead.status or "NEW")
+        values = {
+            "to": call.target_phone.lstrip("+"),
+            "purpose": purpose,
+            "agent": self.config["caller_id"],
+            "voice": voice_id,
+            "model": self.config.get("model") or "",
+            "lead_name": lead.contact_person or lead.business_name or "Customer",
+            "registration_status": lead.status or "NEW",
+            "registration_type": registration_type_for(call.registration_type),
+            "preferred_language": language,
+        }
+        payload = _render_request_template(self.config.get("request_template"), values) if self.config.get("request_template") else {
             "agent_id": self.config["caller_id"],
             "to_number": call.target_phone,
             "voice_id": voice_id,
@@ -202,7 +243,8 @@ class ConfiguredVoiceProvider:
         except (URLError, OSError, TimeoutError) as exc:
             logger.warning("Voice provider call network error: provider=%s call_id=%s error=%s", self.name, call.id, exc)
             raise VoiceCallProviderError(f"{self.name} network error: {_sanitize_error(str(exc))}") from exc
-        provider_call_id = response_data.get("call_id") or response_data.get("id") or (response_data.get("data") or {}).get("call_id") or (response_data.get("data") or {}).get("id")
+        provider_call_id = _path_value(response_data, self.config.get("response_id_path")) if self.config.get("response_id_path") else None
+        provider_call_id = provider_call_id or response_data.get("call_id") or response_data.get("id") or (response_data.get("data") or {}).get("call_id") or (response_data.get("data") or {}).get("id")
         return str(provider_call_id or call.provider_call_id)
 
 

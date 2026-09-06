@@ -356,6 +356,15 @@ def update_voice_caller_settings(payload: dict, db: Session = Depends(get_db), c
         }
         for key in PROFILE_KEYS:
             next_config[key] = str(data.get(key, current.get(key, "")) or "").strip()
+        if next_config["provider"] == "thinnestai" and not next_config["request_template"]:
+            next_config["request_template"] = '{"to":"{{to}}","purpose":"{{purpose}}","agent":"{{agent}}"}'
+            next_config["response_id_path"] = next_config["response_id_path"] or "id"
+            next_config["purpose_template"] = next_config["purpose_template"] or "I'm calling from METHO AAY-UPAY for a follow-up with {{lead_name}}."
+        if next_config["provider"] == "thinnestai":
+            if next_config["call_endpoint_url"] in {"https://api.thinnest.ai/v1/calls", "https://api.thinnest.ai/api/v1/calls"}:
+                next_config["call_endpoint_url"] = "https://app.thinnest.ai/api/v1/calls"
+            if next_config["test_endpoint_url"] in {"https://api.thinnest.ai/v1/agents", "https://api.thinnest.ai/api/v1/agents"}:
+                next_config["test_endpoint_url"] = ""
         secret_update_requested = any(str(data.get(field, data.get(alias, "")) or "").strip() for field, alias in (("api_key", "apiKey"), ("api_secret", "apiSecret")))
         if secret_update_requested and not os.getenv("META_SETTINGS_ENCRYPTION_KEY", "").strip():
             raise HTTPException(status_code=503, detail="META_SETTINGS_ENCRYPTION_KEY is required to save AI voice secrets")
@@ -389,6 +398,8 @@ def run_voice_caller_settings_test(db: Session = Depends(get_db), current_user=D
         config = resolve_voice_config(db)
         if str(config.get("provider") or "mock").strip().lower() == "mock":
             return {"success": True, "message": "Mock provider active"}
+        if str(config.get("provider") or "").strip().lower() == "thinnestai" and not config.get("test_endpoint_url"):
+            return {"success": True, "message": "ThinnestAI call endpoint saved. It does not expose an agent-list test endpoint; verify with one CRM test call."}
         missing = validate_voice_config(config)
         if missing:
             return {"success": False, "ok": False, "configured": False, "missing": missing, "message": f"AI voice configuration is incomplete: {', '.join(missing)}."}

@@ -1190,7 +1190,7 @@ export default function SettingsPage() {
     setVoiceCallerMessage("");
     try {
       const payload = {};
-      ["enabled", "provider", "caller_id", "bengali_voice", "hindi_voice", "english_voice", "model", "max_call_attempts", "retry_delay_minutes", "call_endpoint_url", "test_endpoint_url", "test_http_method", "auth_type", "auth_header_name", "agent_list_path", "agent_id_field", "agent_name_field"].forEach((key) => { payload[key] = voiceCallerForm[key]; });
+      ["enabled", "provider", "caller_id", "bengali_voice", "hindi_voice", "english_voice", "model", "max_call_attempts", "retry_delay_minutes", "call_endpoint_url", "test_endpoint_url", "test_http_method", "auth_type", "auth_header_name", "agent_list_path", "agent_id_field", "agent_name_field", "request_template", "response_id_path", "purpose_template"].forEach((key) => { payload[key] = voiceCallerForm[key]; });
       ["api_key", "api_secret"].forEach((key) => { if (String(voiceCallerForm[key] || "").trim()) payload[key] = String(voiceCallerForm[key]).trim(); });
       const response = await api.put("/admin/settings/voice-caller", payload);
       const data = response?.data;
@@ -1743,6 +1743,9 @@ export default function SettingsPage() {
               <Field label="Agent List Path" value={voiceCallerForm.agent_list_path || ""} onChange={updateVoiceCallerField("agent_list_path")} type="text" placeholder="data.agents (empty for a root list)" />
               <Field label="Agent ID Field Name" value={voiceCallerForm.agent_id_field || ""} onChange={updateVoiceCallerField("agent_id_field")} type="text" placeholder="id" />
               <Field label="Agent Name Field Name" value={voiceCallerForm.agent_name_field || ""} onChange={updateVoiceCallerField("agent_name_field")} type="text" placeholder="name" />
+              <div className="md:col-span-2"><Label>Call Request JSON Template</Label><textarea value={voiceCallerForm.request_template || ""} onChange={updateVoiceCallerField("request_template")} placeholder={'{"to":"{{to}}","purpose":"{{purpose}}","agent":"{{agent}}"}'} className="mt-1.5 min-h-24 w-full rounded-md border border-input px-3 py-2 font-mono text-xs" /><p className="mt-1 text-xs text-slate-500">Use placeholders: {"{{to}}"}, {"{{purpose}}"}, {"{{agent}}"}, {"{{voice}}"}, {"{{model}}"}.</p></div>
+              <Field label="Response Call ID Path" value={voiceCallerForm.response_id_path || ""} onChange={updateVoiceCallerField("response_id_path")} type="text" placeholder="id or data.call_id" />
+              <Field label="Call Purpose Template" value={voiceCallerForm.purpose_template || ""} onChange={updateVoiceCallerField("purpose_template")} type="text" placeholder="I'm calling from METHO AAY-UPAY for a follow-up with {{lead_name}}." />
               <div className="md:col-span-2 flex flex-wrap items-center gap-2"><Button type="button" onClick={saveVoiceCaller} disabled={voiceCallerBusy}>Save Configuration</Button><Button type="button" variant="outline" onClick={testVoiceCaller} disabled={voiceCallerBusy}>Test Configuration</Button>{voiceCallerMessage ? <span className="text-xs text-slate-600">{voiceCallerMessage}</span> : null}</div>
             </Section>
           ) : null}

@@ -1,3 +1,4 @@
+import json
 import sys
 from pathlib import Path
 from unittest.mock import MagicMock
@@ -141,6 +142,27 @@ def test_configured_provider_posts_dynamic_variables_and_records_response(monkey
         assert b'"registration_status": "NEW"' in captured["body"]
         assert b'"preferred_language": "en"' in captured["body"]
         assert b'"voice_id": "en-voice"' in captured["body"]
+    finally:
+        db.close()
+
+
+def test_configured_provider_uses_admin_request_template_for_thinnestai(monkeypatch):
+    db = make_session()
+    try:
+        lead = make_lead(db)
+        provider = ConfiguredVoiceProvider({"provider": "thinnestai", "call_endpoint_url": "https://app.thinnest.ai/api/v1/calls", "api_key": "test-key", "caller_id": "ag_123", "bengali_voice": "aanya", "hindi_voice": "aanya", "english_voice": "aanya", "model": "thinnest-v1", "purpose_template": "Calling {{lead_name}} from METHO about your follow-up.", "request_template": '{"to":"{{to}}","purpose":"{{purpose}}","agent":"{{agent}}"}', "response_id_path": "id", "auth_type": "bearer_token", "auth_header_name": "Authorization"})
+        call, _ = queue_voice_call(db, lead, provider=provider, preferred_language="English")
+        response = MagicMock()
+        response.status = 202
+        response.read.return_value = b'{"id":"out_123","status":"ringing"}'
+        response.__enter__.return_value = response
+        response.__exit__.return_value = None
+        captured = {}
+        monkeypatch.setattr("sql_app.voice_caller.urlopen", lambda request, timeout: captured.update({"body": json.loads(request.data.decode()), "url": request.full_url}) or response)
+        result = dispatch_voice_call(db, call, lead, provider)
+        assert result.provider_call_id == "out_123"
+        assert captured["url"] == "https://app.thinnest.ai/api/v1/calls"
+        assert captured["body"] == {"to": "919999999999", "purpose": "Calling Ayesha from METHO about your follow-up.", "agent": "ag_123"}
     finally:
         db.close()
 

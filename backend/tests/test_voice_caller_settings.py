@@ -186,6 +186,19 @@ def test_thinnestai_agent_list_route_failure_is_reported(monkeypatch):
         db.close()
 
 
+def test_thinnestai_settings_normalize_documented_endpoint_and_skip_agent_list_probe(monkeypatch):
+    db = make_session()
+    try:
+        monkeypatch.setenv("META_SETTINGS_ENCRYPTION_KEY", Fernet.generate_key().decode())
+        update_voice_caller_settings({**PROFILE, "enabled": True, "provider": "thinnestai", "caller_id": "agent-1", "bengali_voice": "bn", "hindi_voice": "hi", "english_voice": "en", "api_key": "ta_live_provider-key", "call_endpoint_url": "https://api.thinnest.ai/v1/calls", "test_endpoint_url": "https://api.thinnest.ai/v1/agents"}, db, admin())
+        config = resolve_voice_config(db)
+        assert config["call_endpoint_url"] == "https://app.thinnest.ai/api/v1/calls"
+        assert config["test_endpoint_url"] == ""
+        assert run_voice_caller_settings_test(db, admin()) == {"success": True, "message": "ThinnestAI call endpoint saved. It does not expose an agent-list test endpoint; verify with one CRM test call."}
+    finally:
+        db.close()
+
+
 def test_provider_test_returns_network_error_details(monkeypatch):
     db = make_session()
     try:
