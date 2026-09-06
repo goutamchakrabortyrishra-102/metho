@@ -1094,6 +1094,44 @@ def _sql_member_rank(db: Session, user_id: str, period: str | None = None) -> st
     return "Starter"
 
 
+def _leader_qualification_snapshot(db: Session, user: User, period: str | None = None) -> dict:
+    period = period or datetime.now(timezone.utc).strftime("%Y-%m")
+    settings = load_settings(db)
+    direct_ids = {rel.user_id for rel in db.query(UserReferral).filter(UserReferral.sponsor_user_id == user.id).all()}
+    own = round(sum(item["metho_sales"] for item in _approved_member_purchases(db, user.id, period)), 2)
+    active_direct = sum(1 for user_id in direct_ids if _approved_member_purchases(db, user_id, period))
+    team = round(sum(sum(item["metho_sales"] for item in _approved_member_purchases(db, user_id, period)) for user_id in direct_ids), 2)
+    activation_at = _member_activation_datetime(db, user.id)
+    created_at = user.created_at.replace(tzinfo=timezone.utc) if user.created_at and user.created_at.tzinfo is None else user.created_at
+    active_since = activation_at or created_at
+    active_days = max(0, (datetime.now(timezone.utc) - active_since).days) if active_since else 0
+    required_direct = int(settings.get("leader_min_direct_members") or 0)
+    required_active = int(settings.get("leader_min_active_members") or 0)
+    required_personal = float(settings.get("leader_min_personal_monthly_purchase") or settings.get("leader_min_personal_product_sales") or 0)
+    required_team = float(settings.get("leader_min_team_monthly_purchase") or 0)
+    required_days = int(settings.get("leader_min_active_days") or 0)
+    checks = {
+        "direct_members": {"actual": len(direct_ids), "required": required_direct},
+        "active_direct_members": {"actual": active_direct, "required": required_active},
+        "personal_monthly_purchase": {"actual": own, "required": required_personal},
+        "direct_team_monthly_sales": {"actual": team, "required": required_team},
+        "active_days": {"actual": active_days, "required": required_days},
+    }
+    has_approved_purchase = _member_has_approved_metho_sale(db, user.id)
+    checks["approved_metho_purchase"] = {"actual": 1 if has_approved_purchase else 0, "required": 1, "passed": has_approved_purchase}
+    for check in checks.values():
+        check["passed"] = check["actual"] >= check["required"]
+    qualified = all(check["passed"] for check in checks.values())
+    rank = "Diamond" if team >= float(settings.get("rank_diamond_bv") or 100000) else "Gold" if team >= float(settings.get("rank_gold_bv") or 50000) else "Silver" if team >= float(settings.get("rank_silver_bv") or 20000) else "Bronze" if team >= float(settings.get("rank_bronze_bv") or 5000) else "Starter"
+    tier_ranks = {
+        "Leader": {value.strip().lower() for value in str(settings.get("leader_tier_leader_ranks") or "starter,bronze").replace("|", ",").split(",") if value.strip()},
+        "Elite Leader": {value.strip().lower() for value in str(settings.get("leader_tier_elite_ranks") or "silver,gold").replace("|", ",").split(",") if value.strip()},
+        "Crown Leader": {value.strip().lower() for value in str(settings.get("leader_tier_crown_ranks") or "diamond").replace("|", ",").split(",") if value.strip()},
+    }
+    grade = next((name for name, ranks in tier_ranks.items() if rank.lower() in ranks), "Leader") if qualified else "Not Qualified"
+    return {"qualified": qualified, "grade": grade, "rank": rank, "period": period, "checks": checks, "activation_date": activation_at.isoformat() if activation_at else None, "personal_sales": own, "direct_team_sales": team}
+
+
 def _reward_pool_snapshot(db: Session, period: str) -> dict:
     return _load_json_setting(db, _reward_pool_key(period), {
         "commission_pool": 0.0, "member_pool": 0.0, "leader_pool": 0.0,
@@ -4414,6 +4452,7 @@ def admin_smart_cycles(db: Session = Depends(get_db), current_user=Depends(get_c
             "started_at": started_at.isoformat(),
             "history": history,
             "matching_history": _load_json_setting(db, _smart_cycle_match_history_key(member.id), []),
+            "leader_qualification": _leader_qualification_snapshot(db, member),
         })
     db.commit()
     return rows

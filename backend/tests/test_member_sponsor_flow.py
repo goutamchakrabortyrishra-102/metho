@@ -12,7 +12,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from sql_app.database import Base
 from sql_app.models import User, UserReferral
 from sql_app.routers.auth import register
-from sql_app.routers.compat import _member_activation_datetime, admin_update_user
+from sql_app.routers.compat import _leader_qualification_snapshot, _member_activation_datetime, admin_update_user
 from sql_app.schemas import RegisterRequest
 from sql_app.voice_caller import registration_type_for
 
@@ -119,5 +119,19 @@ def test_activation_datetime_is_available_for_cycle_start():
         _save_json_setting(db, _member_purchase_activation_key(member.id), {"active": True, "activated_at": activated_at})
         db.commit()
         assert _member_activation_datetime(db, member.id).isoformat() == activated_at
+    finally:
+        db.close()
+
+
+def test_leader_qualification_snapshot_is_read_only_and_not_qualified_without_requirements():
+    db = make_session()
+    try:
+        member = add_user(db, "MAU10004")
+        db.commit()
+        snapshot = _leader_qualification_snapshot(db, member)
+        assert snapshot["qualified"] is False
+        assert snapshot["grade"] == "Not Qualified"
+        assert snapshot["checks"]["direct_members"]["passed"] is True
+        assert db.query(UserReferral).count() == 0
     finally:
         db.close()

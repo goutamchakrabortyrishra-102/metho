@@ -229,6 +229,7 @@ export default function SmartCyclePage() {
                     <span className="text-xs font-semibold rounded-full bg-emerald-100 text-emerald-800 px-2 py-1">Cycle #{entry.cycle_number} · Slot {entry.current_slot}</span>
                   </div>
                   <p className="text-xs text-slate-600 mt-1">Settled cycles: {entry.history?.length || 0} · Direct matches received: {entry.matching_history?.length || 0}</p>
+                  {entry.leader_qualification ? <div className="mt-3 border-t border-border pt-3"><div className="flex flex-wrap items-center justify-between gap-2"><span className="text-xs font-semibold text-slate-600">Leader qualification</span><span className={`rounded-full px-2 py-1 text-xs font-semibold ${entry.leader_qualification.qualified ? "bg-emerald-100 text-emerald-800" : "bg-slate-100 text-slate-600"}`}>{entry.leader_qualification.grade}</span></div><p className="mt-1 text-xs text-slate-500">Rank: {entry.leader_qualification.rank} · Direct team sales: ₹{Number(entry.leader_qualification.direct_team_sales || 0).toLocaleString("en-IN")}</p><div className="mt-2 grid grid-cols-2 gap-x-3 gap-y-1 text-[11px] text-slate-500">{Object.entries(entry.leader_qualification.checks || {}).map(([key, check]) => <span key={key} className={check.passed ? "text-emerald-700" : "text-red-700"}>{check.passed ? "✓" : "✕"} {key.replaceAll("_", " ")}: {check.actual}/{check.required}</span>)}</div></div> : null}
                 </div>
               ))}
             </div>
