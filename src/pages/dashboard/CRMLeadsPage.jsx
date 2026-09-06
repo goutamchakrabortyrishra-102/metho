@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
-import { Search, Plus, RefreshCw, ArrowUpRight, CircleAlert, Phone, MessageSquareText, ArrowRightLeft } from "lucide-react";
+import { Search, Plus, RefreshCw, ArrowUpRight, CircleAlert, Phone, PhoneCall, MessageSquareText, ArrowRightLeft } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
@@ -17,6 +17,8 @@ export default function CRMLeadsPage() {
   const [conversionBusy, setConversionBusy] = useState(false);
   const [conversionForm, setConversionForm] = useState({ login_id: "", password: "", pan_no: "", aadhaar_no: "", business_type: "Shop" });
   const [conversionStatus, setConversionStatus] = useState(null);
+  const [voiceCallBusyId, setVoiceCallBusyId] = useState("");
+  const [voiceCallMessage, setVoiceCallMessage] = useState("");
   const [assignees, setAssignees] = useState([]);
   const [assignedUserId, setAssignedUserId] = useState("ALL");
   const [source, setSource] = useState("ALL");
@@ -125,6 +127,27 @@ export default function CRMLeadsPage() {
       await loadLeads();
     } catch (err) {
       setError(err?.response?.data?.detail || "Could not assign lead");
+    }
+  };
+
+  const startVoiceCall = async (lead) => {
+    if (voiceCallBusyId) return;
+    if (!lead.phone && !lead.whatsapp_no) {
+      setError("This lead has no phone number for a voice call");
+      return;
+    }
+    if (!window.confirm(`Start a voice call for ${lead.contact_person || lead.business_name}?`)) return;
+    setVoiceCallBusyId(lead.id);
+    setVoiceCallMessage("");
+    setError("");
+    try {
+      const { data } = await api.post(`/admin/crm/leads/${lead.id}/voice-calls`, { preferred_language: "bn" });
+      setVoiceCallMessage(`${lead.business_name || "Lead"}: ${data?.call?.status || "CALL_PENDING"}`);
+      await loadLeads();
+    } catch (err) {
+      setError(err?.response?.data?.detail || "Voice call could not be started. Check AI Voice Caller settings.");
+    } finally {
+      setVoiceCallBusyId("");
     }
   };
 
@@ -242,6 +265,7 @@ export default function CRMLeadsPage() {
       </div>
 
       {error ? <div className="text-sm text-red-600 flex items-center gap-2"><CircleAlert className="w-4 h-4" /> {error}</div> : null}
+      {voiceCallMessage ? <div className="text-sm text-emerald-700 flex items-center gap-2"><Phone className="w-4 h-4" /> {voiceCallMessage}</div> : null}
 
       <div className="bg-white rounded-xl border border-border overflow-hidden">
         <div className="overflow-x-auto">
@@ -254,7 +278,7 @@ export default function CRMLeadsPage() {
                 <th className="px-3 py-2 text-left">Score</th>
                 <th className="px-3 py-2 text-left">Stage</th>
                 <th className="px-3 py-2 text-left">Assignee</th>
-                <th className="px-3 py-2 text-left">Next follow-up</th>
+                <th className="px-3 py-2 text-left">Next follow-up / Actions</th>
               </tr>
             </thead>
             <tbody>
@@ -281,6 +305,11 @@ export default function CRMLeadsPage() {
                   </td>
                   <td className="px-3 py-2">
                     <div className="flex items-center gap-2">{lead.next_follow_up_at || "-"} <ArrowUpRight className="w-4 h-4 text-slate-400" /></div>
+                    <div className="mt-2 flex flex-wrap gap-2">
+                      <Button size="sm" variant="outline" onClick={() => startVoiceCall(lead)} disabled={voiceCallBusyId === lead.id || Boolean(voiceCallBusyId)} title="Start voice call">
+                        <PhoneCall className="w-3.5 h-3.5 mr-1" /> {voiceCallBusyId === lead.id ? "Calling..." : "Voice call"}
+                      </Button>
+                    </div>
                     {(["QUALIFIED", "APPLICATION", "APPROVED"].includes(lead.status) && !lead.partner_request_id && !lead.partner_id && !lead.converted_partner_id) ? (
                       <Button size="sm" variant="outline" className="mt-2" onClick={() => openConversion(lead)}><ArrowRightLeft className="w-3.5 h-3.5 mr-1" /> Convert to Partner</Button>
                     ) : null}

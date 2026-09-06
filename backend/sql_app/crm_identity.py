@@ -1,6 +1,7 @@
 import re
+from datetime import datetime, timedelta, timezone
 
-from .models import CRMLead, CRMLeadActivity
+from .models import CRMFollowUp, CRMLead, CRMLeadActivity
 
 
 def normalize_phone(value: str | None) -> str:
@@ -46,6 +47,18 @@ def enrich_lead_from_contact(lead: CRMLead, *, name: str = "", phone: str = "", 
 
 def link_lead_activity(db, lead: CRMLead, activity_type: str, message: str) -> None:
     db.add(CRMLeadActivity(lead_id=lead.id, activity_type=activity_type, message=message))
+
+
+def ensure_pending_followup(db, lead: CRMLead, *, notes: str) -> None:
+    pending = db.query(CRMFollowUp).filter(CRMFollowUp.lead_id == lead.id, CRMFollowUp.status == "Pending").order_by(CRMFollowUp.scheduled_at.asc()).first()
+    if pending:
+        if pending.scheduled_at and not lead.next_follow_up_at:
+            lead.next_follow_up_at = pending.scheduled_at
+        return
+    scheduled_at = datetime.now(timezone.utc) + timedelta(days=1)
+    db.add(CRMFollowUp(lead_id=lead.id, scheduled_at=scheduled_at, status="Pending", notes=notes))
+    lead.next_follow_up_at = scheduled_at
+    lead.follow_up_status = "Pending"
 
 
 def link_lead_to_registration(db, *, phone: str, email: str = "", user_id: str | None = None, partner_request_id: str | None = None) -> CRMLead | None:

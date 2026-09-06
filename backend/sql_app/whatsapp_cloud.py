@@ -2,6 +2,7 @@ import base64
 import hashlib
 import hmac
 import json
+import logging
 import os
 from datetime import datetime, timedelta, timezone
 from urllib.parse import urlencode
@@ -9,8 +10,10 @@ from urllib.request import Request, urlopen
 
 from cryptography.fernet import Fernet, InvalidToken
 
-from .crm_identity import enrich_lead_from_contact, find_lead_by_phone
+from .crm_identity import enrich_lead_from_contact, ensure_pending_followup, find_lead_by_phone
 from .models import AppSetting, CRMFollowUp, CRMLead, CRMLeadActivity, CRMTask, User
+
+logger = logging.getLogger(__name__)
 
 WHATSAPP_GRAPH_API_VERSION = os.getenv("WHATSAPP_GRAPH_API_VERSION", "v20.0").strip() or "v20.0"
 DEFAULT_FALLBACK_ENCRYPTION_KEY = "default-fallback-32-char-key-here"
@@ -404,7 +407,10 @@ def _send_auto_reply_if_configured(db, recipient: str, text: str) -> None:
     config = resolve_config(db)
     if not config["enabled"] or not config["access_token"] or not config["phone_number_id"]:
         return
-    send_whatsapp_message(db, recipient, text=text)
+    try:
+        send_whatsapp_message(db, recipient, text=text)
+    except Exception:
+        logger.exception("WhatsApp auto-reply failed; inbound CRM message will still be stored")
 
 
 def ingest_whatsapp_message(db, payload: dict, request=None) -> str:
@@ -490,6 +496,7 @@ def ingest_whatsapp_message(db, payload: dict, request=None) -> str:
                 phone=normalized["phone"],
                 whatsapp_no=normalized["whatsapp_no"],
             )
+            ensure_pending_followup(db, lead, notes="Follow-up for WhatsApp Cloud lead")
         if not lead:
             lead = CRMLead(
                 lead_id=normalized["lead_id"],
@@ -515,6 +522,7 @@ def ingest_whatsapp_message(db, payload: dict, request=None) -> str:
             db.add(lead)
             db.flush()
             db.add(CRMFollowUp(lead_id=lead.id, scheduled_at=datetime.now(timezone.utc) + timedelta(days=1), status="Pending", notes="Initial follow-up for WhatsApp Cloud lead"))
+            lead.next_follow_up_at = datetime.now(timezone.utc) + timedelta(days=1)
             if assignee:
                 db.add(CRMTask(title="Initial WhatsApp lead follow-up", description="Contact WhatsApp lead and qualify the inbound enquiry", due_at=datetime.now(timezone.utc) + timedelta(days=1), status="Pending", priority="High", lead_id=lead.id, assigned_user_id=assignee.id, created_by_user_id=assignee.id))
             status = "created"

@@ -9,7 +9,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from sqlalchemy.orm import Session
 
 from ..database import get_db
-from ..crm_identity import enrich_lead_from_contact, find_lead_by_phone
+from ..crm_identity import enrich_lead_from_contact, ensure_pending_followup, find_lead_by_phone
 from ..meta_ads import MetaGraphAPIError, fetch_lead, normalize_lead, resolve_config, verify_signature, verify_webhook_token, webhook_lead_ids
 from ..models import CRMFollowUp, CRMLead, CRMLeadActivity, CRMTask, User
 
@@ -72,6 +72,7 @@ def _ingest_lead(db: Session, meta_payload: dict, event: dict) -> str:
             whatsapp_no=normalized["whatsapp_no"],
             email=normalized["email"],
         )
+        ensure_pending_followup(db, existing, notes="Follow-up for linked Meta/Facebook Lead Ads lead")
         db.add(CRMLeadActivity(lead_id=existing.id, activity_type="meta_lead_linked", message=f"Meta Lead Ads lead linked: {external_id}"))
         db.commit()
         return "linked"
@@ -101,6 +102,7 @@ def _ingest_lead(db: Session, meta_payload: dict, event: dict) -> str:
     db.flush()
     db.add(CRMLeadActivity(lead_id=lead.id, activity_type="meta_lead_received", message=f"Meta Lead Ads lead received: {external_id}"))
     db.add(CRMFollowUp(lead_id=lead.id, scheduled_at=datetime.now(timezone.utc) + timedelta(days=1), status="Pending", notes="Initial follow-up for Meta/Facebook Lead Ads lead"))
+    lead.next_follow_up_at = datetime.now(timezone.utc) + timedelta(days=1)
     if assignee:
         db.add(CRMTask(title="Initial Meta lead follow-up", description="Contact and qualify new Meta/Facebook Lead Ads lead", due_at=datetime.now(timezone.utc) + timedelta(days=1), status="Pending", priority="High", lead_id=lead.id, assigned_user_id=assignee.id, created_by_user_id=assignee.id))
     db.commit()
