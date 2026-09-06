@@ -558,14 +558,25 @@ def update_crm_lead(lead_id: str, payload: dict, db: Session = Depends(get_db), 
 @router.get("/admin/crm/leads/{lead_id}/activities")
 def get_crm_activities(lead_id: str, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     _require_admin_user(current_user)
+    lead = db.query(CRMLead).filter(CRMLead.id == lead_id).first()
+    if not lead:
+        raise HTTPException(status_code=404, detail="Lead not found")
     rows = db.query(CRMLeadActivity).filter(CRMLeadActivity.lead_id == lead_id).order_by(CRMLeadActivity.created_at.desc()).all()
+    followups = db.query(CRMFollowUp).filter(CRMFollowUp.lead_id == lead.id).order_by(CRMFollowUp.created_at.desc()).all()
     return {"items": [{
         "id": row.id,
         "activity_type": row.activity_type,
         "message": row.message,
         "actor_user_id": row.actor_user_id,
         "created_at": _iso(row.created_at),
-    } for row in rows]}
+    } for row in rows], "followups": [{
+        "id": row.id,
+        "scheduled_at": _iso(row.scheduled_at),
+        "status": row.status,
+        "notes": row.notes,
+        "created_at": _iso(row.created_at),
+        "updated_at": _iso(row.updated_at),
+    } for row in followups]}
 
 
 @router.post("/admin/crm/leads/{lead_id}/activities")
@@ -914,6 +925,8 @@ def ceo_dashboard(db: Session = Depends(get_db), current_user: User = Depends(ge
     whatsapp_leads = db.query(CRMLead).filter(CRMLead.source == "whatsapp").count()
     whatsapp_pending_followups = db.query(CRMFollowUp).join(CRMLead, CRMLead.id == CRMFollowUp.lead_id).filter(CRMLead.source == "whatsapp", CRMFollowUp.status == "Pending").count()
     whatsapp_messages = db.query(CRMLeadActivity).join(CRMLead, CRMLead.id == CRMLeadActivity.lead_id).filter(CRMLead.source == "whatsapp", CRMLeadActivity.activity_type == "whatsapp_message_received").count()
+    stage_breakdown = [{"stage": stage, "count": db.query(CRMLead).filter(CRMLead.status == stage).count(), "whatsapp_count": db.query(CRMLead).filter(CRMLead.status == stage, CRMLead.source == "whatsapp").count()} for stage in CRM_STAGE_SEQUENCE]
+    source_breakdown = [{"source": source, "count": db.query(CRMLead).filter(CRMLead.source == source).count()} for source in ["whatsapp", "facebook", "manual", "partners_page"]]
     overdue = db.query(CRMFollowUp).filter(CRMFollowUp.status == "Overdue").count()
     pending_partner_approvals = db.query(PartnerRequest).filter(PartnerRequest.status == "pending").count()
     pending_product_approvals = db.query(AppSetting).filter(AppSetting.key.like("product_approval:%")).count()
@@ -933,6 +946,8 @@ def ceo_dashboard(db: Session = Depends(get_db), current_user: User = Depends(ge
         "whatsapp_leads": whatsapp_leads,
         "whatsapp_pending_followups": whatsapp_pending_followups,
         "whatsapp_messages": whatsapp_messages,
+        "stage_breakdown": stage_breakdown,
+        "source_breakdown": source_breakdown,
         "overdue_followups": overdue,
         "conversion_rate": round((db.query(CRMLead).filter(CRMLead.status == "CONVERTED").count() / max(1, db.query(CRMLead).count())) * 100, 2),
         "pending_partner_approvals": pending_partner_approvals,

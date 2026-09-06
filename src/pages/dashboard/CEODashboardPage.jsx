@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from "react";
+import { Link } from "react-router-dom";
 import api from "@/services/api";
 
 export default function CEODashboardPage() {
@@ -23,6 +24,11 @@ export default function CEODashboardPage() {
         <div className="bg-white rounded-xl border border-border p-4"><p className="text-xs uppercase text-slate-500">WhatsApp CRM leads</p><p className="text-2xl font-bold text-emerald-800">{data.whatsapp_leads || 0}</p></div>
         <div className="bg-white rounded-xl border border-border p-4"><p className="text-xs uppercase text-slate-500">WhatsApp messages</p><p className="text-2xl font-bold">{data.whatsapp_messages || 0}</p></div>
         <div className="bg-white rounded-xl border border-border p-4"><p className="text-xs uppercase text-slate-500">WhatsApp pending follow-ups</p><p className="text-2xl font-bold text-amber-600">{data.whatsapp_pending_followups || 0}</p></div>
+      </div>
+
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+        <div className="bg-white rounded-xl border border-border p-4"><h2 className="font-semibold mb-3">Lead stage breakup</h2><div className="grid grid-cols-2 gap-2 text-sm">{(data.stage_breakdown || []).map((item) => <Link key={item.stage} to={`/app/crm/leads?status=${item.stage}`} className="rounded border p-2 hover:bg-emerald-50"><span className="font-semibold">{item.stage}</span><span className="block text-slate-600">{item.count} total · {item.whatsapp_count || 0} WhatsApp</span></Link>)}</div></div>
+        <div className="bg-white rounded-xl border border-border p-4"><h2 className="font-semibold mb-3">Lead source breakup</h2><div className="space-y-2 text-sm">{(data.source_breakdown || []).map((item) => <div key={item.source} className="flex justify-between rounded border p-2"><span>{item.source}</span><span className="font-semibold">{item.count}</span></div>)}</div></div>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">

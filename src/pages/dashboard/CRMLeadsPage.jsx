@@ -1,16 +1,18 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
-import { Search, Plus, RefreshCw, ArrowUpRight, CircleAlert, Phone, PhoneCall, MessageSquareText, ArrowRightLeft } from "lucide-react";
+import { Search, Plus, RefreshCw, ArrowUpRight, CircleAlert, Eye, Phone, PhoneCall, MessageSquareText, ArrowRightLeft } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import api from "@/services/api";
+import { useSearchParams } from "react-router-dom";
 
 const stageOptions = ["NEW", "CONTACTED", "INTERESTED", "QUALIFIED", "APPLICATION", "APPROVED", "CONVERTED", "LOST"];
 
 export default function CRMLeadsPage() {
+  const [searchParams] = useSearchParams();
   const [items, setItems] = useState([]);
   const [search, setSearch] = useState("");
-  const [status, setStatus] = useState("ALL");
+  const [status, setStatus] = useState(() => searchParams.get("status") || "ALL");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [conversionLead, setConversionLead] = useState(null);
@@ -19,6 +21,10 @@ export default function CRMLeadsPage() {
   const [conversionStatus, setConversionStatus] = useState(null);
   const [voiceCallBusyId, setVoiceCallBusyId] = useState("");
   const [voiceCallMessage, setVoiceCallMessage] = useState("");
+  const [detailLead, setDetailLead] = useState(null);
+  const [detailActivities, setDetailActivities] = useState([]);
+  const [detailFollowups, setDetailFollowups] = useState([]);
+  const [detailLoading, setDetailLoading] = useState(false);
   const [assignees, setAssignees] = useState([]);
   const [assignedUserId, setAssignedUserId] = useState("ALL");
   const [source, setSource] = useState("ALL");
@@ -149,6 +155,30 @@ export default function CRMLeadsPage() {
     } finally {
       setVoiceCallBusyId("");
     }
+  };
+
+  const openLeadDetails = async (lead) => {
+    setDetailLead(lead);
+    setDetailLoading(true);
+    try {
+      const { data } = await api.get(`/admin/crm/leads/${lead.id}/activities`);
+      setDetailActivities(Array.isArray(data?.items) ? data.items : []);
+      setDetailFollowups(Array.isArray(data?.followups) ? data.followups : []);
+    } catch (err) {
+      setError(err?.response?.data?.detail || "Could not load lead timeline");
+      setDetailActivities([]);
+      setDetailFollowups([]);
+    } finally { setDetailLoading(false); }
+  };
+
+  const updateLeadStage = async (stage) => {
+    if (!detailLead) return;
+    try {
+      const { data } = await api.put(`/admin/crm/leads/${detailLead.id}`, { status: stage });
+      setDetailLead(data?.lead || { ...detailLead, status: stage });
+      await loadLeads();
+      await openLeadDetails(data?.lead || { ...detailLead, status: stage });
+    } catch (err) { setError(err?.response?.data?.detail || "Could not update lead stage"); }
   };
 
   const createTask = async () => {
@@ -309,6 +339,7 @@ export default function CRMLeadsPage() {
                     <div className="flex items-center gap-2">{lead.next_follow_up_at ? new Date(lead.next_follow_up_at).toLocaleString() : "-"} <ArrowUpRight className="w-4 h-4 text-slate-400" /></div>
                     <div className="mt-1 text-xs text-slate-500">Follow-up: {lead.follow_up_status || "Pending"}</div>
                     <div className="mt-2 flex flex-wrap gap-2">
+                      <Button size="sm" variant="outline" onClick={() => openLeadDetails(lead)} title="View lead timeline"><Eye className="w-3.5 h-3.5 mr-1" /> Details</Button>
                       <Button size="sm" variant="outline" onClick={() => startVoiceCall(lead)} disabled={voiceCallBusyId === lead.id || Boolean(voiceCallBusyId)} title="Start voice call">
                         <PhoneCall className="w-3.5 h-3.5 mr-1" /> {voiceCallBusyId === lead.id ? "Calling..." : "Voice call"}
                       </Button>
@@ -347,6 +378,18 @@ export default function CRMLeadsPage() {
             <Button variant="outline" onClick={() => setConversionLead(null)}>Close</Button>
             {(!conversionStatus || conversionStatus.status === "not_started") ? <Button onClick={convertToPartner} disabled={conversionBusy}>Submit for approval</Button> : null}
           </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={Boolean(detailLead)} onOpenChange={(open) => { if (!open) setDetailLead(null); }}>
+        <DialogContent className="max-w-3xl">
+          <DialogHeader><DialogTitle>Lead timeline: {detailLead?.business_name}</DialogTitle><DialogDescription>এখানে WhatsApp, CRM follow-up, stage এবং registration-এর সম্পূর্ণ history দেখা যাবে।</DialogDescription></DialogHeader>
+          {detailLead ? <div className="space-y-4 text-sm">
+            <div className="grid grid-cols-2 gap-3 md:grid-cols-4"><div><span className="text-xs text-slate-500">Source</span><p>{detailLead.source || "manual"}</p></div><div><span className="text-xs text-slate-500">Phone</span><p>{detailLead.phone || detailLead.whatsapp_no || "-"}</p></div><div><span className="text-xs text-slate-500">Stage</span><select value={detailLead.status || "NEW"} onChange={(event) => updateLeadStage(event.target.value)} className="mt-1 w-full rounded-md border border-input px-2 py-1 text-xs">{stageOptions.map((stage) => <option key={stage} value={stage}>{stage}</option>)}</select></div><div><span className="text-xs text-slate-500">Registration</span><p>{detailLead.member_user_id || detailLead.partner_request_id || detailLead.converted_partner_id ? "Linked" : "Not linked"}</p></div></div>
+            <div className="border-t pt-3"><h3 className="font-semibold">Follow-ups</h3>{detailLoading ? <p className="mt-2 text-slate-500">Loading...</p> : detailFollowups.length ? <div className="mt-2 space-y-2">{detailFollowups.map((followup) => <div key={followup.id} className="flex justify-between rounded border p-2"><span>{followup.notes || "CRM follow-up"}</span><span className="text-xs text-slate-500">{followup.status} · {followup.scheduled_at ? new Date(followup.scheduled_at).toLocaleString() : "-"}</span></div>)}</div> : <p className="mt-2 text-slate-500">No follow-up recorded</p>}</div>
+            <div className="border-t pt-3"><h3 className="font-semibold">Activity timeline</h3>{detailLoading ? null : detailActivities.length ? <div className="mt-2 max-h-64 space-y-2 overflow-y-auto">{detailActivities.map((activity) => <div key={activity.id} className="rounded border p-2"><div className="flex justify-between gap-3"><span className="font-medium">{activity.activity_type}</span><span className="text-xs text-slate-500">{activity.created_at ? new Date(activity.created_at).toLocaleString() : ""}</span></div><p className="mt-1 whitespace-pre-wrap text-slate-600">{activity.message}</p></div>)}</div> : <p className="mt-2 text-slate-500">No activity recorded</p>}</div>
+          </div> : null}
+          <DialogFooter><Button variant="outline" onClick={() => setDetailLead(null)}>Close</Button></DialogFooter>
         </DialogContent>
       </Dialog>
     </div>
