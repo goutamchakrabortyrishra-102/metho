@@ -5,8 +5,10 @@ from typing import Any
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import func, or_
 from sqlalchemy.orm import Session
+from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
 
 from ..database import get_db
+from ..crm_automation import record_lifecycle_event
 from ..models import (
     AppSetting,
     AssociatePartner,
@@ -43,6 +45,13 @@ CRM_FOLLOWUP_STATUSES = {"Pending", "Completed", "Cancelled", "Overdue"}
 CRM_TASK_STATUSES = {"Pending", "In Progress", "Completed", "Cancelled", "Overdue"}
 CRM_TASK_PRIORITIES = {"Low", "Medium", "High", "Urgent"}
 CRM_ASSIGNEE_ROLES = {"super_admin", "company_admin", "admin"}
+
+
+def _registration_event_url(value: str, lead_id: str, phone: str) -> str:
+    parsed = urlsplit(str(value or ""))
+    query = dict(parse_qsl(parsed.query, keep_blank_values=True))
+    query.update({"crm_lead_id": lead_id, "prefill_phone": phone})
+    return urlunsplit((parsed.scheme, parsed.netloc, parsed.path, urlencode(query), parsed.fragment))
 
 
 def _require_admin_user(current_user: User):
@@ -94,6 +103,26 @@ def _parse_crm_datetime(value, detail: str = "Invalid due date") -> datetime:
     if parsed.tzinfo is None:
         parsed = parsed.replace(tzinfo=timezone.utc)
     return parsed
+
+
+@router.post("/public/crm/registration-event")
+def record_public_registration_event(payload: dict, db: Session = Depends(get_db)):
+    data = payload or {}
+    lead_id = str(data.get("crm_lead_id") or "").strip()
+    phone = str(data.get("phone") or data.get("prefill_phone") or "").strip()
+    event_type = str(data.get("event_type") or "registration_form_opened").strip()
+    if event_type not in {"registration_form_opened", "registration_form_submitted"}:
+        raise HTTPException(status_code=400, detail="Invalid registration event")
+    lead = db.query(CRMLead).filter(CRMLead.id == lead_id).first() if lead_id else find_lead_by_phone(db, phone)
+    if not lead:
+        return {"ok": True, "linked": False}
+    if event_type == "registration_form_submitted" and lead.status == "NEW":
+        lead.status = "APPLICATION"
+    db.add(CRMLeadActivity(lead_id=lead.id, activity_type=event_type, message=f"Registration form {('submitted' if event_type.endswith('submitted') else 'opened')} from {phone or 'tracked CRM link'}"))
+    db.commit()
+    if event_type == "registration_form_submitted":
+        record_lifecycle_event(db, lead, "registration_form_followup_started", "Registration form submitted; waiting for account activation or partner approval.", "Confirm registration status and next activation/approval step", 1)
+    return {"ok": True, "linked": True, "lead_id": lead.id, "status": lead.status}
 
 
 def _lead_lookup_filters(db: Session, search: str | None = None, status: str | None = None, city: str | None = None, hot_only: bool = False):

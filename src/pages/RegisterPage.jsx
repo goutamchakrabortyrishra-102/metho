@@ -19,6 +19,7 @@ const generateMemberId = () => {
 export default function RegisterPage() {
   const [params] = useSearchParams();
   const refFromUrl = (params.get("ref") || "").trim().toUpperCase();
+  const crmLeadId = (params.get("crm_lead_id") || "").trim();
   const prefillName = (params.get("prefill_name") || "").trim();
   const prefillPhone = (params.get("prefill_phone") || "").trim();
   const [form, setForm] = useState(() => ({
@@ -48,6 +49,11 @@ export default function RegisterPage() {
       setSmartCycleBonus(Number(s.smart_cycle_bonus_percent) || 10);
     }).catch(() => {});
   }, []);
+
+  useEffect(() => {
+    if (!crmLeadId && !prefillPhone) return;
+    api.post("/public/crm/registration-event", { crm_lead_id: crmLeadId, phone: prefillPhone, event_type: "registration_form_opened" }).catch(() => {});
+  }, [crmLeadId, prefillPhone]);
 
   // Resolve the real default METHO Admin sponsor code so the form shows the actual working code.
   useEffect(() => {
@@ -165,6 +171,7 @@ export default function RegisterPage() {
         password: String(formData.get("password") ?? form.password),
         needs_admin_approval: true,
       };
+      api.post("/public/crm/registration-event", { crm_lead_id: crmLeadId, phone: form.phone, event_type: "registration_form_submitted" }).catch(() => {});
 
       const dobValue = String(formData.get("dob") ?? form.dob).trim();
       if (dobValue) payload.dob = dobValue;

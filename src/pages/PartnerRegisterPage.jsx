@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { Store, Send, CheckCircle2, Loader2, ArrowLeft } from "lucide-react";
 import { toast } from "sonner";
 import api from "@/services/api";
@@ -242,6 +242,9 @@ const DEFAULT_REGISTRATION_CUSTOM_OPTIONS = {
 
 export default function PartnerRegisterPage() {
   const nav = useNavigate();
+  const [searchParams] = useSearchParams();
+  const crmLeadId = (searchParams.get("crm_lead_id") || "").trim();
+  const trackedPhone = (searchParams.get("prefill_phone") || "").trim();
   const [form, setForm] = useState({
     business_name: "", business_type: "Shop",
     contact_person: "", phone: "", dob: "", email: "", password: "", whatsapp_no: "",
@@ -265,6 +268,10 @@ export default function PartnerRegisterPage() {
   const [registrationCustomOptions, setRegistrationCustomOptions] = useState(DEFAULT_REGISTRATION_CUSTOM_OPTIONS);
   const isShop = form.business_type === "Shop";
   const isService = form.business_type === "Service";
+  useEffect(() => {
+    if (!crmLeadId && !trackedPhone) return;
+    api.post("/public/crm/registration-event", { crm_lead_id: crmLeadId, phone: trackedPhone, event_type: "registration_form_opened" }).catch(() => {});
+  }, [crmLeadId, trackedPhone]);
   const serviceSectorOptions = useMemo(
     () => mergeUniqueInOrder(SERVICE_SECTOR_OPTIONS, registrationCustomOptions.service_sectors),
     [registrationCustomOptions.service_sectors]
@@ -540,6 +547,7 @@ export default function PartnerRegisterPage() {
       return toast.error("Please select shop sector");
     }
     setBusy(true);
+    api.post("/public/crm/registration-event", { crm_lead_id: crmLeadId, phone: form.phone || trackedPhone, event_type: "registration_form_submitted" }).catch(() => {});
     try {
       const payload = {
         ...form,

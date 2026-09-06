@@ -12,6 +12,7 @@ from reportlab.lib.pagesizes import A4
 from reportlab.pdfgen import canvas
 
 from ..database import get_db
+from ..crm_automation import record_lifecycle_event_by_phone
 from ..crm_identity import link_lead_to_registration
 from ..models import AppSetting, User, UserReferral
 from ..schemas import LoginRequest, RegisterRequest
@@ -294,6 +295,7 @@ def register(payload: RegisterRequest, db: Session = Depends(get_db)):
     db.commit()
     link_lead_to_registration(db, phone=user.phone, email=user.email, user_id=user.id)
     db.commit()
+    record_lifecycle_event_by_phone(db, user.phone, "member_registration_completed", f"Member registration completed: {user.id}. Activation/payment is pending.", "Complete member activation/payment and explain first purchase steps", 1)
     db.add(AppSetting(
         key=f"member_payment_state:{user.id}",
         value_json=json.dumps({

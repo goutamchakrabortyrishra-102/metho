@@ -25,6 +25,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from ..database import get_db
+from ..crm_automation import record_lifecycle_event_by_phone
 from ..models import AppSetting, AssociatePartner, CRMLead, CRMLeadActivity, FinancialLedgerEntry, InvoiceRecord, Order, PartnerProduct, PartnerRequest, PaymentRecord, Product, ProductMeta, PublicOrder, RewardRecord, User, UserReferral
 from ..security import hash_password, verify_password
 from ..storage import UPLOADED_OBJECTS_DIR
@@ -834,6 +835,7 @@ def _activate_member_purchase(db: Session, user: User | None, order_id: str, sou
     })
     _set_member_payment_state(db, user.id, "paid", source, order_id)
     db.commit()
+    record_lifecycle_event_by_phone(db, user.phone, "member_activated", f"Member activated after approved purchase {order_id}.", "Explain Smart Cycle start, reward rules, and next product purchase", 1)
     return True
 
 
@@ -5620,6 +5622,16 @@ def admin_approve_order(order_id: str, payload: dict | None = None, db: Session 
             row.id,
             str(getattr(current_user, "id", "") or "") if activation_source != "razorpay" else "razorpay",
         )
+    if approved_member:
+        purchase_event = f"purchase_{str(row.id).replace('-', '')[:28]}"
+        record_lifecycle_event_by_phone(
+            db,
+            approved_member.phone,
+            purchase_event,
+            f"Product purchase approved: {row.id}. Reward and Smart Cycle engine processed this order.",
+            "Follow up on reward credit, Smart Cycle progress, and next eligible purchase",
+            7,
+        )
 
     # A paid METHO order activates/advances the buyer's cycle and every sponsor whose network includes them.
     cycle_member = _order_member(db, row)
@@ -8224,6 +8236,7 @@ def admin_partner_request_approve(request_id: str, payload: dict | None = None, 
         lead.status = "CONVERTED"
         lead.updated_at = datetime.now(timezone.utc)
         db.add(CRMLeadActivity(lead_id=lead.id, activity_type="partner_approved", message=f"Partner approved through official PartnerRequest flow: {partner.partner_code}", actor_user_id=current_user.id))
+        record_lifecycle_event_by_phone(db, lead.phone or lead.whatsapp_no, "partner_activated", f"Partner activated: {partner.partner_code}.", "Guide partner through shop/service onboarding and first listing", 1)
     db.commit()
 
     partner_code = str(getattr(partner, "partner_code", "") or "")

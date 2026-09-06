@@ -6,6 +6,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
 from ..database import get_db
+from ..crm_automation import record_lifecycle_event_by_phone
 from ..crm_identity import link_lead_to_registration
 from ..models import AppSetting, AssociatePartner, PartnerRequest, User
 
@@ -316,6 +317,7 @@ def partner_register(payload: dict, db: Session = Depends(get_db)):
     db.commit()
     link_lead_to_registration(db, phone=phone, email=login_id, partner_request_id=request_id)
     db.commit()
+    record_lifecycle_event_by_phone(db, phone, "partner_registration_submitted", f"Partner registration submitted: {request_id}. Admin approval is pending.", "Review partner KYC/application and guide onboarding after approval", 1)
 
     return {
         "request_id": request_id,

@@ -10,6 +10,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
 from ..database import get_db
+from ..crm_automation import record_lifecycle_event_by_phone
 from ..models import AppSetting, User
 from ..whatsapp_cloud import send_whatsapp_message
 from .auth import ADMIN_ROLES, get_current_user, get_current_user_optional
@@ -224,6 +225,7 @@ def create_direct_booking(payload: dict, db: Session = Depends(get_db), current_
     bookings.append(booking)
     _save_json_list(db, BOOKINGS_KEY, bookings)
     db.commit()
+    record_lifecycle_event_by_phone(db, phone, "metho_move_booking_created", f"METHO Move booking created: {booking['id']} ({service_type}).", "Follow up on METHO Move booking payment and rider assignment", 0)
     return {"booking": booking}
 
 
