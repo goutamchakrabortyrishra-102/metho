@@ -5,7 +5,7 @@ import json
 import logging
 import os
 from datetime import datetime, timedelta, timezone
-from urllib.parse import urlencode
+from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
 from urllib.request import Request, urlopen
 
 from cryptography.fernet import Fernet, InvalidToken
@@ -400,12 +400,12 @@ def normalize_whatsapp_message(payload: dict) -> dict:
     return _normalized_whatsapp_messages(payload)[0]
 
 
-def _registration_reply(db, reply_text: str) -> str:
+def _registration_reply(db, reply_text: str, lead_id: str = "", phone: str = "") -> str:
     config = resolve_config(db)
     text = str(reply_text or "").strip()
     cta = "\n\n".join((
         config["registration_welcome_message"],
-        f"রেজিস্ট্রেশন করুন: {config['registration_url']}",
+        f"রেজিস্ট্রেশন করুন: {_tracked_registration_url(config['registration_url'], 'member', lead_id, phone)}",
         config["registration_help_prompt"],
     ))
     return f"{text}\n\n{cta}" if text else cta
@@ -439,14 +439,26 @@ def _detect_language(text: str) -> str:
     return "en"
 
 
-def _localized_role_reply(db, role: str, language: str) -> str:
+def _localized_role_reply(db, role: str, language: str, lead_id: str = "", phone: str = "") -> str:
     config = resolve_config(db)
     custom = str(config.get(f"{role}_registration_reply") or "").strip()
     default = DEFAULT_ROLE_REGISTRATION_REPLIES.get(role, "")
     base = custom if custom and custom != default else LOCALIZED_ROLE_REPLIES[language][role]
     default_help = DEFAULT_WHATSAPP_REGISTRATION_HELP_PROMPT
     help_prompt = config["registration_help_prompt"] if config["registration_help_prompt"] != default_help else LOCALIZED_HELP_PROMPTS[language]
-    return "\n\n".join((base, f"{role.title()} registration: {config[f'{role}_registration_url']}", help_prompt))
+    return "\n\n".join((base, f"{role.title()} registration: {_tracked_registration_url(config[f'{role}_registration_url'], role, lead_id, phone)}", help_prompt))
+
+
+def _tracked_registration_url(url: str, role: str, lead_id: str = "", phone: str = "") -> str:
+    parsed = urlsplit(url)
+    query = dict(parse_qsl(parsed.query, keep_blank_values=True))
+    query["source"] = "whatsapp"
+    query["registration_role"] = role
+    if lead_id:
+        query["crm_lead_id"] = lead_id
+    if phone:
+        query["prefill_phone"] = phone
+    return urlunsplit((parsed.scheme, parsed.netloc, parsed.path, urlencode(query), parsed.fragment))
 
 
 def _localized_default_reply(db, language: str) -> str:
@@ -526,16 +538,6 @@ def ingest_whatsapp_message(db, payload: dict, request=None) -> str:
             )
 
         auto_reply = ""
-        if reply_text:
-            auto_reply = _registration_reply(db, reply_text)
-        elif role_hint:
-            if role_hint in REGISTRATION_ROLE_SETTINGS:
-                auto_reply = _localized_role_reply(db, role_hint, language)
-            else:
-                configured_reply = get_configured_whatsapp_reply(db, role_hint)
-                auto_reply = _registration_reply(db, configured_reply)
-        else:
-            auto_reply = _localized_default_reply(db, language)
 
         lead = db.query(CRMLead).filter(CRMLead.lead_id == normalized["lead_id"]).first()
         if not lead:
@@ -579,6 +581,16 @@ def ingest_whatsapp_message(db, payload: dict, request=None) -> str:
             status = "created"
         else:
             status = "updated"
+        if reply_text:
+            auto_reply = _registration_reply(db, reply_text, lead.id, normalized["phone"])
+        elif role_hint:
+            if role_hint in REGISTRATION_ROLE_SETTINGS:
+                auto_reply = _localized_role_reply(db, role_hint, language, lead.id, normalized["phone"])
+            else:
+                configured_reply = get_configured_whatsapp_reply(db, role_hint)
+                auto_reply = _registration_reply(db, configured_reply, lead.id, normalized["phone"])
+        else:
+            auto_reply = _localized_default_reply(db, language)
         body = normalized["metadata"].get("raw_body") or ""
         db.add(CRMLeadActivity(lead_id=lead.id, activity_type="whatsapp_message_received", message=f"{activity_prefix}: {body}"))
         if auto_reply:
