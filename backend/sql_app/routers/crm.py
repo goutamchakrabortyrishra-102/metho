@@ -195,6 +195,14 @@ def list_whatsapp_conversations(search: str = "", db: Session = Depends(get_db),
             "contact_person": lead.contact_person,
             "business_name": lead.business_name,
             "phone": lead.whatsapp_no or lead.phone,
+            "source": lead.source,
+            "status": lead.status,
+            "priority_bucket": lead.priority_bucket,
+            "next_follow_up_at": _iso(lead.next_follow_up_at),
+            "follow_up_status": lead.follow_up_status,
+            "member_user_id": lead.member_user_id,
+            "partner_request_id": lead.partner_request_id,
+            "converted_partner_id": lead.converted_partner_id,
             "latest_message": _whatsapp_message_payload(activity)["text"],
             "latest_message_at": _iso(activity.created_at),
         })
@@ -216,7 +224,7 @@ def get_whatsapp_conversation(lead_id: str, db: Session = Depends(get_db), curre
         .order_by(CRMLeadActivity.created_at.asc())
         .all()
     )
-    return {"conversation": {"lead_id": lead.id, "contact_person": lead.contact_person, "business_name": lead.business_name, "phone": lead.whatsapp_no or lead.phone}, "messages": [_whatsapp_message_payload(activity) for activity in activities]}
+    return {"conversation": {"lead_id": lead.id, "contact_person": lead.contact_person, "business_name": lead.business_name, "phone": lead.whatsapp_no or lead.phone, "source": lead.source, "status": lead.status, "priority_bucket": lead.priority_bucket, "next_follow_up_at": _iso(lead.next_follow_up_at), "follow_up_status": lead.follow_up_status, "member_user_id": lead.member_user_id, "partner_request_id": lead.partner_request_id, "converted_partner_id": lead.converted_partner_id}, "messages": [_whatsapp_message_payload(activity) for activity in activities]}
 
 
 @router.post("/admin/crm/whatsapp/conversations/{lead_id}/messages")
@@ -766,7 +774,8 @@ def crm_pipeline(db: Session = Depends(get_db), current_user: User = Depends(get
     stage_rows = []
     for stage in CRM_STAGE_SEQUENCE:
         count = db.query(CRMLead).filter(CRMLead.status == stage).count()
-        stage_rows.append({"stage": stage, "count": count})
+        whatsapp_count = db.query(CRMLead).filter(CRMLead.status == stage, CRMLead.source == "whatsapp").count()
+        stage_rows.append({"stage": stage, "count": count, "whatsapp_count": whatsapp_count})
     return {"stages": stage_rows}
 
 
@@ -780,6 +789,7 @@ def crm_dashboard(db: Session = Depends(get_db), current_user: User = Depends(ge
     leads_total = db.query(CRMLead).count()
     hot_leads = db.query(CRMLead).filter(CRMLead.priority_bucket == "Hot").count()
     pending_followups = db.query(CRMFollowUp).filter(CRMFollowUp.status == "Pending").count()
+    whatsapp_leads = db.query(CRMLead).filter(CRMLead.source == "whatsapp").count()
     overdue_followups = db.query(CRMFollowUp).filter(CRMFollowUp.status == "Overdue").count()
 
     new_members = db.query(User).filter(User.role == "member", User.created_at >= start_of_month).count()
@@ -796,6 +806,7 @@ def crm_dashboard(db: Session = Depends(get_db), current_user: User = Depends(ge
             "total_leads": leads_total,
             "hot_leads": hot_leads,
             "pending_followups": pending_followups,
+            "whatsapp_leads": whatsapp_leads,
             "overdue_followups": overdue_followups,
             "new_members": new_members,
             "active_members": active_members,
@@ -900,6 +911,9 @@ def ceo_dashboard(db: Session = Depends(get_db), current_user: User = Depends(ge
     new_leads = db.query(CRMLead).filter(CRMLead.created_at >= start_of_month).count()
     hot_leads = db.query(CRMLead).filter(CRMLead.priority_bucket == "Hot").count()
     pending_followups = db.query(CRMFollowUp).filter(CRMFollowUp.status == "Pending").count()
+    whatsapp_leads = db.query(CRMLead).filter(CRMLead.source == "whatsapp").count()
+    whatsapp_pending_followups = db.query(CRMFollowUp).join(CRMLead, CRMLead.id == CRMFollowUp.lead_id).filter(CRMLead.source == "whatsapp", CRMFollowUp.status == "Pending").count()
+    whatsapp_messages = db.query(CRMLeadActivity).join(CRMLead, CRMLead.id == CRMLeadActivity.lead_id).filter(CRMLead.source == "whatsapp", CRMLeadActivity.activity_type == "whatsapp_message_received").count()
     overdue = db.query(CRMFollowUp).filter(CRMFollowUp.status == "Overdue").count()
     pending_partner_approvals = db.query(PartnerRequest).filter(PartnerRequest.status == "pending").count()
     pending_product_approvals = db.query(AppSetting).filter(AppSetting.key.like("product_approval:%")).count()
@@ -916,6 +930,9 @@ def ceo_dashboard(db: Session = Depends(get_db), current_user: User = Depends(ge
         "new_leads": new_leads,
         "hot_leads": hot_leads,
         "pending_followups": pending_followups,
+        "whatsapp_leads": whatsapp_leads,
+        "whatsapp_pending_followups": whatsapp_pending_followups,
+        "whatsapp_messages": whatsapp_messages,
         "overdue_followups": overdue,
         "conversion_rate": round((db.query(CRMLead).filter(CRMLead.status == "CONVERTED").count() / max(1, db.query(CRMLead).count())) * 100, 2),
         "pending_partner_approvals": pending_partner_approvals,

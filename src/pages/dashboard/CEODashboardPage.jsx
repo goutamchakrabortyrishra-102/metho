@@ -19,6 +19,12 @@ export default function CEODashboardPage() {
         <h1 className="text-2xl font-bold text-slate-900">Executive overview</h1>
       </div>
 
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <div className="bg-white rounded-xl border border-border p-4"><p className="text-xs uppercase text-slate-500">WhatsApp CRM leads</p><p className="text-2xl font-bold text-emerald-800">{data.whatsapp_leads || 0}</p></div>
+        <div className="bg-white rounded-xl border border-border p-4"><p className="text-xs uppercase text-slate-500">WhatsApp messages</p><p className="text-2xl font-bold">{data.whatsapp_messages || 0}</p></div>
+        <div className="bg-white rounded-xl border border-border p-4"><p className="text-xs uppercase text-slate-500">WhatsApp pending follow-ups</p><p className="text-2xl font-bold text-amber-600">{data.whatsapp_pending_followups || 0}</p></div>
+      </div>
+
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
         <div className="bg-white rounded-xl border border-border p-4"><p className="text-xs uppercase text-slate-500">Today sales</p><p className="text-2xl font-bold">{data.today_sales}</p></div>
         <div className="bg-white rounded-xl border border-border p-4"><p className="text-xs uppercase text-slate-500">Monthly sales</p><p className="text-2xl font-bold">{data.monthly_sales}</p></div>

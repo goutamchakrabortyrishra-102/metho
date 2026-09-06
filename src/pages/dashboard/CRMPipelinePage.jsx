@@ -22,6 +22,7 @@ export default function CRMPipelinePage() {
             <div key={stage} className="bg-white rounded-xl border border-border p-4">
               <p className="text-xs uppercase text-slate-500">{stage}</p>
               <p className="text-3xl font-bold text-slate-900 mt-2">{item.count}</p>
+              <p className="mt-2 text-xs text-emerald-700">WhatsApp leads: {item.whatsapp_count || 0}</p>
             </div>
           );
         })}
