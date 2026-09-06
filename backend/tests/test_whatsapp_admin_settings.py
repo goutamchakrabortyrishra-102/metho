@@ -138,7 +138,7 @@ def test_whatsapp_webhook_normalizes_incoming_message_to_crm_lead(monkeypatch):
         assert ingest_whatsapp_message(db, payload, None) == "created"
         assert sent[0][0] == "8801712345678"
         assert "https://methoaayupay.com/partner-register" in sent[0][1]
-        assert "রেজিস্ট্রেশনে কোনো সাহায্য লাগলে" in sent[0][1]
+        assert "Reply in this WhatsApp chat if you need help with registration." in sent[0][1]
         assert db.query(CRMLead).count() == 1
         assert db.query(CRMLeadActivity).filter(CRMLeadActivity.activity_type == "whatsapp_message_received").count() == 1
     finally:

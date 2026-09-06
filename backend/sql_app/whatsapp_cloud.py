@@ -25,6 +25,33 @@ DEFAULT_MEMBER_REGISTRATION_URL = "https://methoaayupay.com/app/register"
 DEFAULT_PARTNER_REGISTRATION_URL = "https://methoaayupay.com/partner-register"
 DEFAULT_RIDER_REGISTRATION_URL = "https://methoaayupay.com/rider-register"
 REGISTRATION_ROLE_SETTINGS = ("member", "partner", "rider")
+LOCALIZED_ROLE_REPLIES = {
+    "bn": {
+        "member": "মেঠো মেম্বার হিসেবে যুক্ত হতে Member রেজিস্ট্রেশন করুন।",
+        "partner": "মেঠো বিজনেস পার্টনার হিসেবে যুক্ত হতে Partner রেজিস্ট্রেশন করুন।",
+        "rider": "মেঠো রাইডার হিসেবে যুক্ত হতে Rider রেজিস্ট্রেশন করুন।",
+    },
+    "hi": {
+        "member": "METHO Member के रूप में जुड़ने के लिए Member registration करें।",
+        "partner": "METHO Business Partner के रूप में जुड़ने के लिए Partner registration करें।",
+        "rider": "METHO Rider के रूप में जुड़ने के लिए Rider registration करें।",
+    },
+    "en": {
+        "member": "Register as a METHO Member to get started.",
+        "partner": "Register as a METHO Business Partner to get started.",
+        "rider": "Register as a METHO Rider to get started.",
+    },
+}
+LOCALIZED_DEFAULT_REPLIES = {
+    "bn": "নমস্কার! METHO-তে স্বাগতম। Member-এর জন্য 1, Partner-এর জন্য 2, Rider-এর জন্য 3 লিখুন।",
+    "hi": "नमस्कार! METHO में आपका स्वागत है। Member के लिए 1, Partner के लिए 2, Rider के लिए 3 लिखें।",
+    "en": "Hello! Welcome to METHO. Reply 1 for Member, 2 for Partner, or 3 for Rider.",
+}
+LOCALIZED_HELP_PROMPTS = {
+    "bn": "রেজিস্ট্রেশনে সাহায্য লাগলে এই WhatsApp chat-এ reply করুন।",
+    "hi": "Registration में मदद चाहिए तो इसी WhatsApp chat में reply करें।",
+    "en": "Reply in this WhatsApp chat if you need help with registration.",
+}
 DEFAULT_AUTO_REPLY = """আমরা কারা?
 মেঠো হলো একটি আধুনিক প্ল্যাটফর্ম, যেখানে কেনাকাটা, ব্যবসা বা সার্ভিসের মাধ্যমে আয় করার সুযোগ রয়েছে।
 
@@ -403,6 +430,31 @@ def _registration_role_for_text(config: dict, text: str) -> str | None:
     return None
 
 
+def _detect_language(text: str) -> str:
+    value = str(text or "")
+    if any("\u0980" <= char <= "\u09ff" for char in value):
+        return "bn"
+    if any("\u0900" <= char <= "\u097f" for char in value):
+        return "hi"
+    return "en"
+
+
+def _localized_role_reply(db, role: str, language: str) -> str:
+    config = resolve_config(db)
+    custom = str(config.get(f"{role}_registration_reply") or "").strip()
+    default = DEFAULT_ROLE_REGISTRATION_REPLIES.get(role, "")
+    base = custom if custom and custom != default else LOCALIZED_ROLE_REPLIES[language][role]
+    default_help = DEFAULT_WHATSAPP_REGISTRATION_HELP_PROMPT
+    help_prompt = config["registration_help_prompt"] if config["registration_help_prompt"] != default_help else LOCALIZED_HELP_PROMPTS[language]
+    return "\n\n".join((base, f"{role.title()} registration: {config[f'{role}_registration_url']}", help_prompt))
+
+
+def _localized_default_reply(db, language: str) -> str:
+    config = resolve_config(db)
+    custom = str(config.get("default_auto_reply") or "").strip()
+    return custom if custom and custom != DEFAULT_AUTO_REPLY else LOCALIZED_DEFAULT_REPLIES[language]
+
+
 def _send_auto_reply_if_configured(db, recipient: str, text: str) -> str:
     config = resolve_config(db)
     if not config["enabled"] or not config["access_token"] or not config["phone_number_id"]:
@@ -428,6 +480,7 @@ def ingest_whatsapp_message(db, payload: dict, request=None) -> str:
         incoming_text = str(
             normalized.get("metadata", {}).get("raw_body") or ""
         ).strip()
+        language = _detect_language(incoming_text)
 
         reply_text = ""
         config = resolve_config(db)
@@ -477,13 +530,12 @@ def ingest_whatsapp_message(db, payload: dict, request=None) -> str:
             auto_reply = _registration_reply(db, reply_text)
         elif role_hint:
             if role_hint in REGISTRATION_ROLE_SETTINGS:
-                auto_reply = _role_registration_reply(db, role_hint)
+                auto_reply = _localized_role_reply(db, role_hint, language)
             else:
                 configured_reply = get_configured_whatsapp_reply(db, role_hint)
                 auto_reply = _registration_reply(db, configured_reply)
         else:
-            configured_default = get_configured_whatsapp_reply(db, "default")
-            auto_reply = configured_default
+            auto_reply = _localized_default_reply(db, language)
 
         lead = db.query(CRMLead).filter(CRMLead.lead_id == normalized["lead_id"]).first()
         if not lead:

@@ -13,6 +13,7 @@ from ..models import (
     CRMFollowUp,
     CRMLead,
     CRMLeadActivity,
+    CRMWhatsAppAISuggestion,
     CRMLeadSnapshot,
     CRMTask,
     Order,
@@ -225,6 +226,52 @@ def get_whatsapp_conversation(lead_id: str, db: Session = Depends(get_db), curre
         .all()
     )
     return {"conversation": {"lead_id": lead.id, "contact_person": lead.contact_person, "business_name": lead.business_name, "phone": lead.whatsapp_no or lead.phone, "source": lead.source, "status": lead.status, "priority_bucket": lead.priority_bucket, "next_follow_up_at": _iso(lead.next_follow_up_at), "follow_up_status": lead.follow_up_status, "member_user_id": lead.member_user_id, "partner_request_id": lead.partner_request_id, "converted_partner_id": lead.converted_partner_id}, "messages": [_whatsapp_message_payload(activity) for activity in activities]}
+
+
+def _delete_whatsapp_activities(db: Session, lead_ids: list[str]) -> int:
+    if not lead_ids:
+        return 0
+    activity_ids = [row.id for row in db.query(CRMLeadActivity.id).filter(CRMLeadActivity.lead_id.in_(lead_ids), CRMLeadActivity.activity_type.in_(["whatsapp_message_received", "whatsapp_message_sent", "whatsapp_conversation_read"])).all()]
+    if activity_ids:
+        db.query(CRMWhatsAppAISuggestion).filter(CRMWhatsAppAISuggestion.activity_id.in_(activity_ids)).delete(synchronize_session=False)
+    deleted = db.query(CRMLeadActivity).filter(CRMLeadActivity.id.in_(activity_ids)).delete(synchronize_session=False) if activity_ids else 0
+    db.commit()
+    return deleted
+
+
+@router.delete("/admin/crm/whatsapp/conversations/{lead_id}")
+def delete_whatsapp_conversation(lead_id: str, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    _require_admin_user(current_user)
+    if not db.query(CRMLead).filter(CRMLead.id == lead_id).first():
+        raise HTTPException(status_code=404, detail="WhatsApp conversation not found")
+    return {"ok": True, "deleted_messages": _delete_whatsapp_activities(db, [lead_id])}
+
+
+@router.delete("/admin/crm/whatsapp/conversations")
+def delete_all_whatsapp_conversations(db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    _require_admin_user(current_user)
+    lead_ids = [row.id for row in db.query(CRMLead.id).filter(CRMLead.source == "whatsapp").all()]
+    return {"ok": True, "deleted_messages": _delete_whatsapp_activities(db, lead_ids)}
+
+
+@router.post("/admin/crm/whatsapp/conversations/{lead_id}/read")
+def mark_whatsapp_conversation_read(lead_id: str, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    _require_admin_user(current_user)
+    if not db.query(CRMLead).filter(CRMLead.id == lead_id).first():
+        raise HTTPException(status_code=404, detail="WhatsApp conversation not found")
+    db.add(CRMLeadActivity(lead_id=lead_id, activity_type="whatsapp_conversation_read", message="Conversation marked read", actor_user_id=current_user.id))
+    db.commit()
+    return {"ok": True}
+
+
+@router.post("/admin/crm/whatsapp/conversations/read-all")
+def mark_all_whatsapp_conversations_read(db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    _require_admin_user(current_user)
+    lead_ids = [row.id for row in db.query(CRMLead.id).filter(CRMLead.source == "whatsapp").all()]
+    for lead_id in lead_ids:
+        db.add(CRMLeadActivity(lead_id=lead_id, activity_type="whatsapp_conversation_read", message="Conversation marked read", actor_user_id=current_user.id))
+    db.commit()
+    return {"ok": True, "marked": len(lead_ids)}
 
 
 @router.post("/admin/crm/whatsapp/conversations/{lead_id}/messages")

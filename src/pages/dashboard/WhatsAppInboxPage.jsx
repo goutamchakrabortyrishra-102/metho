@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useState } from "react";
-import { Bot, Check, MessageCircle, RefreshCw, Search, Send, Settings2, X } from "lucide-react";
+import { Bot, Check, CheckCheck, MessageCircle, RefreshCw, Search, Send, Settings2, Trash2, X } from "lucide-react";
 import { Link } from "react-router-dom";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -88,12 +88,35 @@ export default function WhatsAppInboxPage() {
     }
   };
 
+  const deleteSelectedConversation = async () => {
+    if (!selected || !window.confirm("Delete this WhatsApp chat? CRM lead and follow-up data will remain.")) return;
+    try { await api.delete(`/admin/crm/whatsapp/conversations/${selected.lead_id}`); setSelected(null); setMessages([]); setSuggestions([]); await loadConversations(); }
+    catch (err) { setError(err?.response?.data?.detail || "Chat could not be deleted"); }
+  };
+
+  const deleteAllConversations = async () => {
+    if (!window.confirm("Delete all WhatsApp chat messages? CRM leads and follow-up data will remain.")) return;
+    try { await api.delete("/admin/crm/whatsapp/conversations"); setSelected(null); setMessages([]); setSuggestions([]); await loadConversations(); }
+    catch (err) { setError(err?.response?.data?.detail || "All chats could not be deleted"); }
+  };
+
+  const markRead = async () => {
+    if (!selected) return;
+    try { await api.post(`/admin/crm/whatsapp/conversations/${selected.lead_id}/read`); toast.success("Chat marked read"); }
+    catch (err) { setError(err?.response?.data?.detail || "Chat could not be marked read"); }
+  };
+
+  const markAllRead = async () => {
+    try { await api.post("/admin/crm/whatsapp/conversations/read-all"); toast.success("All chats marked read"); }
+    catch (err) { setError(err?.response?.data?.detail || "Chats could not be marked read"); }
+  };
+
   useEffect(() => { loadConversations(); }, [loadConversations]);
 
   return <div className="space-y-5">
     <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
       <div><p className="text-xs font-semibold uppercase tracking-[0.2em] text-emerald-800">METHO Business CRM</p><h1 className="text-2xl font-bold text-slate-900">WhatsApp Inbox</h1></div>
-      <div className="flex gap-2"><Button asChild variant="outline"><Link to="/app/crm/whatsapp-ai"><Settings2 className="mr-2 h-4 w-4" />AI settings</Link></Button><Button variant="outline" onClick={loadConversations} disabled={loading}><RefreshCw className="mr-2 h-4 w-4" />Refresh</Button></div>
+      <div className="flex flex-wrap gap-2"><Button asChild variant="outline"><Link to="/app/crm/whatsapp-ai"><Settings2 className="mr-2 h-4 w-4" />AI settings</Link></Button><Button variant="outline" onClick={markAllRead}><CheckCheck className="mr-2 h-4 w-4" />Mark all read</Button><Button variant="outline" onClick={deleteAllConversations}><Trash2 className="mr-2 h-4 w-4" />Delete all chats</Button><Button variant="outline" onClick={loadConversations} disabled={loading}><RefreshCw className="mr-2 h-4 w-4" />Refresh</Button></div>
     </div>
     {error ? <p className="text-sm text-red-600">{error}</p> : null}
     <div className="grid min-h-[600px] grid-cols-1 overflow-hidden border border-border bg-white md:grid-cols-[330px_minmax(0,1fr)]">
@@ -103,6 +126,7 @@ export default function WhatsAppInboxPage() {
       </aside>
       {selected ? <div className="border-b border-border bg-white px-5 py-3 text-xs text-slate-600 md:col-span-2"><span className="mr-3 font-semibold text-emerald-800">Stage: {selected.status || "NEW"}</span><span className="mr-3">Follow-up: {selected.follow_up_status || "Pending"}</span>{selected.next_follow_up_at ? <span className="mr-3">Next: {formatTime(selected.next_follow_up_at)}</span> : null}{selected.member_user_id || selected.partner_request_id || selected.converted_partner_id ? <span className="text-blue-700">Registration linked</span> : null}</div> : null}
       <section className="flex min-h-[500px] flex-col bg-slate-50">
+        {selected ? <div className="flex justify-end gap-2 border-b border-border bg-white px-5 py-2"><Button size="sm" variant="outline" onClick={markRead}><CheckCheck className="mr-1 h-3.5 w-3.5" />Mark read</Button><Button size="sm" variant="outline" onClick={deleteSelectedConversation}><Trash2 className="mr-1 h-3.5 w-3.5" />Delete chat</Button></div> : null}
         {selected ? <><header className="border-b border-border bg-white px-5 py-4"><h2 className="font-bold text-slate-900">{selected.contact_person || selected.business_name}</h2><p className="text-sm text-slate-500">{selected.phone}</p></header><div className="flex-1 space-y-3 overflow-y-auto p-5">{suggestions.filter((item) => item.status === "PENDING").map((suggestion) => <div key={suggestion.id} className="border border-amber-200 bg-amber-50 p-3 text-sm"><div className="flex items-center gap-2 font-semibold text-amber-900"><Bot className="h-4 w-4" />AI suggested reply</div><p className="mt-2 whitespace-pre-wrap text-slate-800">{suggestion.suggested_reply}</p>{suggestion.human_handoff_required ? <p className="mt-2 text-xs text-red-700">Human handoff required: {suggestion.handoff_reason}</p> : <div className="mt-3 flex gap-2"><Button size="sm" onClick={() => processSuggestion(suggestion, "approve")} disabled={suggestionBusy}><Check className="mr-1 h-3.5 w-3.5" />Send</Button><Button size="sm" variant="outline" onClick={() => processSuggestion(suggestion, "reject")} disabled={suggestionBusy}><X className="mr-1 h-3.5 w-3.5" />Reject</Button></div>}</div>)}{messages.map((message) => <div key={message.id} className={`flex ${message.direction === "outgoing" ? "justify-end" : "justify-start"}`}><div className={`max-w-[85%] rounded-lg px-3 py-2 text-sm ${message.direction === "outgoing" ? "bg-emerald-700 text-white" : "bg-white text-slate-800 shadow-sm"}`}><p className="whitespace-pre-wrap">{message.text}</p><p className={`mt-1 text-[10px] ${message.direction === "outgoing" ? "text-emerald-100" : "text-slate-400"}`}>{formatTime(message.created_at)}</p></div></div>)}</div><div className="border-t border-border bg-white p-3"><div className="flex gap-2"><Input value={draft} onChange={(event) => setDraft(event.target.value)} onKeyDown={(event) => { if (event.key === "Enter" && !event.shiftKey) { event.preventDefault(); sendReply(); } }} placeholder="Write a reply" /><Button onClick={sendReply} disabled={!draft.trim() || sending}><Send className="mr-2 h-4 w-4" />Send</Button></div></div></> : <div className="flex flex-1 flex-col items-center justify-center p-8 text-center text-slate-500"><MessageCircle className="mb-3 h-9 w-9 text-emerald-700" /><p className="font-medium text-slate-700">Select a WhatsApp conversation</p><p className="mt-1 text-sm">Incoming messages stored by the existing webhook appear here.</p></div>}
       </section>
     </div>
