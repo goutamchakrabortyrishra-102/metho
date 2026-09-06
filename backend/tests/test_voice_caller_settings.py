@@ -167,17 +167,21 @@ def test_provider_test_returns_exact_http_failure_details(monkeypatch):
         db.close()
 
 
-def test_thinnestai_key_allows_unavailable_agent_list_route(monkeypatch):
+def test_thinnestai_agent_list_route_failure_is_reported(monkeypatch):
     db = make_session()
     try:
         monkeypatch.setenv("META_SETTINGS_ENCRYPTION_KEY", Fernet.generate_key().decode())
         config = {"enabled": True, "provider": "thinnestai", "caller_id": "agent-1", "bengali_voice": "bn", "hindi_voice": "hi", "api_key": "ta_live_provider-key", **PROFILE}
         update_voice_caller_settings(config, db, admin())
         monkeypatch.setattr("sql_app.routers.settings.urlopen", lambda *_args, **_kwargs: (_ for _ in ()).throw(HTTPError("https://api.voice-provider.example", 404, "Not Found", {}, BytesIO(b"Route not found"))))
-        assert run_voice_caller_settings_test(db, admin()) == {"success": True, "message": "Configuration saved and API Key validated successfully."}
+        response = run_voice_caller_settings_test(db, admin())
+        assert response.status_code == 400
+        assert json.loads(response.body) == {"success": False, "message": "Provider connection failed: HTTP 404 - Route not found"}
 
-        update_voice_caller_settings({"test_endpoint_url": "", **PROFILE}, db, admin())
-        assert run_voice_caller_settings_test(db, admin()) == {"success": True, "message": "Configuration saved and API Key validated successfully."}
+        update_voice_caller_settings({**PROFILE, "test_endpoint_url": "not-a-url"}, db, admin())
+        response = run_voice_caller_settings_test(db, admin())
+        assert response.status_code == 400
+        assert json.loads(response.body) == {"success": False, "message": "Test endpoint URL must be a valid HTTPS URL."}
     finally:
         db.close()
 
