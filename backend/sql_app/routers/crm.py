@@ -173,7 +173,7 @@ def list_whatsapp_conversations(search: str = "", db: Session = Depends(get_db),
     activities = (
         db.query(CRMLeadActivity)
         .join(CRMLead, CRMLead.id == CRMLeadActivity.lead_id)
-        .filter(CRMLeadActivity.activity_type == "whatsapp_message_received", CRMLead.source == "whatsapp")
+        .filter(CRMLeadActivity.activity_type == "whatsapp_message_received")
         .order_by(CRMLeadActivity.created_at.desc())
         .all()
     )
@@ -204,7 +204,7 @@ def list_whatsapp_conversations(search: str = "", db: Session = Depends(get_db),
 @router.get("/admin/crm/whatsapp/conversations/{lead_id}")
 def get_whatsapp_conversation(lead_id: str, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     _require_admin_user(current_user)
-    lead = db.query(CRMLead).filter(CRMLead.id == lead_id, CRMLead.source == "whatsapp").first()
+    lead = db.query(CRMLead).filter(CRMLead.id == lead_id).first()
     if not lead:
         raise HTTPException(status_code=404, detail="WhatsApp conversation not found")
     activities = (
@@ -222,7 +222,7 @@ def get_whatsapp_conversation(lead_id: str, db: Session = Depends(get_db), curre
 @router.post("/admin/crm/whatsapp/conversations/{lead_id}/messages")
 def send_whatsapp_conversation_message(lead_id: str, payload: dict, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     _require_admin_user(current_user)
-    lead = db.query(CRMLead).filter(CRMLead.id == lead_id, CRMLead.source == "whatsapp").first()
+    lead = db.query(CRMLead).filter(CRMLead.id == lead_id).first()
     if not lead:
         raise HTTPException(status_code=404, detail="WhatsApp conversation not found")
     message = str((payload or {}).get("message") or "").strip()

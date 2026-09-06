@@ -36,6 +36,7 @@ export default function RegisterPage() {
   const [signupBonus, setSignupBonus] = useState(0);
   const [smartCycleBonus, setSmartCycleBonus] = useState(10);
   const [agreedToTerms, setAgreedToTerms] = useState(false);
+  const [defaultSponsorCode, setDefaultSponsorCode] = useState(DEFAULT_METHO_ADMIN_SPONSOR_ID);
   const { register, login, logout } = useAuth();
   const nav = useNavigate();
 
@@ -46,6 +47,17 @@ export default function RegisterPage() {
       setSignupBonus(Number(s.referral_signup_bonus) || 0);
       setSmartCycleBonus(Number(s.smart_cycle_bonus_percent) || 10);
     }).catch(() => {});
+  }, []);
+
+  // Resolve the real default METHO Admin sponsor code so the form shows the actual working code.
+  useEffect(() => {
+    api.get("/auth/default-sponsor").then((r) => {
+      const code = String(r.data?.member_code || "").trim().toUpperCase();
+      if (!code) return;
+      setDefaultSponsorCode(code);
+      if (!refFromUrl) setForm((f) => ({ ...f, sponsor_code: code }));
+    }).catch(() => {});
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   useEffect(() => {
@@ -67,7 +79,8 @@ export default function RegisterPage() {
       setForm((f) => ({ ...f, sponsor_code: refFromUrl }));
       return;
     }
-    setForm((f) => ({ ...f, sponsor_code: DEFAULT_METHO_ADMIN_SPONSOR_ID }));
+    setForm((f) => ({ ...f, sponsor_code: defaultSponsorCode }));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [refFromUrl]);
 
   const setField = (k) => (e) => setForm({ ...form, [k]: e.target.value });
@@ -156,7 +169,7 @@ export default function RegisterPage() {
       const dobValue = String(formData.get("dob") ?? form.dob).trim();
       if (dobValue) payload.dob = dobValue;
 
-      const sponsorCode = String(formData.get("sponsor_code") ?? form.sponsor_code).trim().toUpperCase() || DEFAULT_METHO_ADMIN_SPONSOR_ID;
+      const sponsorCode = String(formData.get("sponsor_code") ?? form.sponsor_code).trim().toUpperCase() || defaultSponsorCode;
       payload.sponsor_code = sponsorCode;
 
       const addressValue = String(formData.get("address") ?? form.address).trim();

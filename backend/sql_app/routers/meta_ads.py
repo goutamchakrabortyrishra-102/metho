@@ -9,6 +9,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from sqlalchemy.orm import Session
 
 from ..database import get_db
+from ..crm_identity import enrich_lead_from_contact, find_lead_by_phone
 from ..meta_ads import MetaGraphAPIError, fetch_lead, normalize_lead, resolve_config, verify_signature, verify_webhook_token, webhook_lead_ids
 from ..models import CRMFollowUp, CRMLead, CRMLeadActivity, CRMTask, User
 
@@ -62,6 +63,18 @@ def _ingest_lead(db: Session, meta_payload: dict, event: dict) -> str:
     existing = db.query(CRMLead).filter(CRMLead.lead_id == normalized["lead_id"]).first()
     if existing:
         return "duplicate"
+    existing = find_lead_by_phone(db, normalized["phone"], normalized["whatsapp_no"])
+    if existing:
+        enrich_lead_from_contact(
+            existing,
+            name=normalized["contact_person"],
+            phone=normalized["phone"],
+            whatsapp_no=normalized["whatsapp_no"],
+            email=normalized["email"],
+        )
+        db.add(CRMLeadActivity(lead_id=existing.id, activity_type="meta_lead_linked", message=f"Meta Lead Ads lead linked: {external_id}"))
+        db.commit()
+        return "linked"
     lead = CRMLead(
         id=hashlib.sha256(external_id.encode("utf-8")).hexdigest()[:36],
         lead_id=normalized["lead_id"],

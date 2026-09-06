@@ -9,6 +9,7 @@ from urllib.request import Request, urlopen
 
 from cryptography.fernet import Fernet, InvalidToken
 
+from .crm_identity import enrich_lead_from_contact, find_lead_by_phone
 from .models import AppSetting, CRMFollowUp, CRMLead, CRMLeadActivity, CRMTask, User
 
 WHATSAPP_GRAPH_API_VERSION = os.getenv("WHATSAPP_GRAPH_API_VERSION", "v20.0").strip() or "v20.0"
@@ -481,7 +482,14 @@ def ingest_whatsapp_message(db, payload: dict, request=None) -> str:
 
         lead = db.query(CRMLead).filter(CRMLead.lead_id == normalized["lead_id"]).first()
         if not lead:
-            lead = db.query(CRMLead).filter(CRMLead.whatsapp_no == normalized["whatsapp_no"]).first()
+            lead = find_lead_by_phone(db, normalized["phone"], normalized["whatsapp_no"])
+        if lead:
+            enrich_lead_from_contact(
+                lead,
+                name=normalized["contact_person"],
+                phone=normalized["phone"],
+                whatsapp_no=normalized["whatsapp_no"],
+            )
         if not lead:
             lead = CRMLead(
                 lead_id=normalized["lead_id"],

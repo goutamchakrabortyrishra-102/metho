@@ -12,6 +12,7 @@ from reportlab.lib.pagesizes import A4
 from reportlab.pdfgen import canvas
 
 from ..database import get_db
+from ..crm_identity import link_lead_to_registration
 from ..models import AppSetting, User, UserReferral
 from ..schemas import LoginRequest, RegisterRequest
 from ..security import create_token, decode_token, hash_password, verify_password
@@ -291,6 +292,8 @@ def register(payload: RegisterRequest, db: Session = Depends(get_db)):
     )
     db.add(user)
     db.commit()
+    link_lead_to_registration(db, phone=user.phone, email=user.email, user_id=user.id)
+    db.commit()
     db.add(AppSetting(
         key=f"member_payment_state:{user.id}",
         value_json=json.dumps({
@@ -397,6 +400,14 @@ def sponsor_info(code: str, db: Session = Depends(get_db)):
 
     return {
         "name": user.name,
-        "member_code": normalized,
+        "member_code": member_code_for_user(user.id),
         "rank": "Member",
     }
+
+
+@router.get("/auth/default-sponsor")
+def default_sponsor(db: Session = Depends(get_db)):
+    sponsor = _resolve_default_admin_sponsor(db)
+    if not sponsor:
+        raise HTTPException(status_code=503, detail="Default METHO Admin sponsor is not configured")
+    return {"member_code": member_code_for_user(sponsor.id), "name": sponsor.name}
