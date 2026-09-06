@@ -7,7 +7,7 @@ from sqlalchemy.exc import IntegrityError
 
 from .database import SessionLocal
 from .google_search import search_web_context
-from .models import AppSetting, CRMLead, CRMLeadActivity, CRMWhatsAppAISuggestion
+from .models import AppSetting, CRMFollowUp, CRMLead, CRMLeadActivity, CRMTask, CRMWhatsAppAISuggestion
 
 logger = logging.getLogger(__name__)
 SETTING_KEY = "crm_whatsapp_ai"
@@ -69,9 +69,26 @@ def _guardrail(text: str, keywords: str) -> tuple[str, bool, str]:
     return clean_text, False, ""
 
 
-def _generate_reply(config: dict, message: str) -> tuple[str, str, str]:
+def _crm_context(db, lead: CRMLead) -> str:
+    followup = db.query(CRMFollowUp).filter(CRMFollowUp.lead_id == lead.id, CRMFollowUp.status == "Pending").order_by(CRMFollowUp.scheduled_at.asc()).first()
+    tasks = db.query(CRMTask).filter(CRMTask.lead_id == lead.id, CRMTask.status.in_(["Pending", "In Progress"])).order_by(CRMTask.due_at.asc()).limit(5).all()
+    activities = db.query(CRMLeadActivity).filter(CRMLeadActivity.lead_id == lead.id).order_by(CRMLeadActivity.created_at.desc()).limit(8).all()
+    registration = "member linked" if lead.member_user_id else "partner request linked" if lead.partner_request_id else "partner active" if lead.converted_partner_id else "not linked"
+    timeline = "; ".join(f"{row.activity_type}: {str(row.message or '')[:160]}" for row in reversed(activities))
+    return "\n".join((
+        f"CRM stage: {lead.status}",
+        f"Lead source: {lead.source}",
+        f"Priority: {lead.priority_bucket}",
+        f"Registration/account: {registration}",
+        f"Next follow-up: {followup.scheduled_at.isoformat() if followup and followup.scheduled_at else 'none'}",
+        f"Pending admin actions: {', '.join(task.title for task in tasks) or 'none'}",
+        f"Recent CRM timeline: {timeline or 'none'}",
+    ))
+
+
+def _generate_reply(config: dict, message: str, context: str = "") -> tuple[str, str, str]:
     search_context = search_web_context(f"METHO AAY-UPAY {message}") if any(term in message.lower() for term in SEARCH_TERMS) else ""
-    prompt = f"{config['system_prompt']}\n\nKnowledge base:\n{config['knowledge_base']}\n\nOptional public search context (use only as background; do not invent facts):\n{search_context or 'No search context available.'}\n\nCustomer message:\n{message}"
+    prompt = f"{config['system_prompt']}\n\nOperational rules: Use the CRM context to answer the next action clearly. If registration is submitted, explain the pending activation or approval step. If a follow-up is due, offer help and state that a human agent will follow up. Never claim an account is activated, a reward is paid, or an approval is complete unless the CRM context says so.\n\nCRM context:\n{context or 'No CRM context available.'}\n\nKnowledge base:\n{config['knowledge_base']}\n\nOptional public search context (use only as background; do not invent facts):\n{search_context or 'No search context available.'}\n\nCustomer message:\n{message}"
     preferred = config["provider"]
     openai_key = os.getenv("OPENAI_API_KEY", "").strip()
     gemini_key = (os.getenv("GEMINI_API_KEY", "") or os.getenv("GOOGLE_API_KEY", "")).strip()
@@ -111,8 +128,10 @@ def create_suggestion_for_activity(activity_id: str) -> None:
             return
         incoming = activity.message.split("]: ", 1)[-1]
         clean_text, handoff, reason = _guardrail(incoming, config["handoff_keywords"])
-        reply, provider, model = _generate_reply(config, clean_text)
+        context = _crm_context(db, lead)
+        reply, provider, model = _generate_reply(config, clean_text, context)
         db.add(CRMWhatsAppAISuggestion(lead_id=lead.id, activity_id=activity.id, suggested_reply=reply, human_handoff_required=handoff, handoff_reason=reason, provider_used=provider, model_used=model))
+        db.add(CRMLeadActivity(lead_id=lead.id, activity_type="ai_suggestion_created", message=f"AI draft created. Handoff required: {'yes' if handoff else 'no'}. CRM context included: {context.splitlines()[0] if context else 'none'}"))
         db.commit()
     except IntegrityError:
         db.rollback()

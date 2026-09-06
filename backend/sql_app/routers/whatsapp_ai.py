@@ -18,7 +18,8 @@ def _require_admin(current_user: User) -> None:
         raise HTTPException(status_code=403, detail="Admin access required")
 
 
-def _suggestion_payload(suggestion: CRMWhatsAppAISuggestion) -> dict:
+def _suggestion_payload(suggestion: CRMWhatsAppAISuggestion, db: Session | None = None) -> dict:
+    lead = db.get(CRMLead, suggestion.lead_id) if db else None
     return {
         "id": suggestion.id,
         "lead_id": suggestion.lead_id,
@@ -32,6 +33,10 @@ def _suggestion_payload(suggestion: CRMWhatsAppAISuggestion) -> dict:
         "sent_reply": suggestion.sent_reply or None,
         "error_message": suggestion.error_message or None,
         "created_at": suggestion.created_at.isoformat() if suggestion.created_at else None,
+        "crm_stage": lead.status if lead else None,
+        "follow_up_status": lead.follow_up_status if lead else None,
+        "next_follow_up_at": lead.next_follow_up_at.isoformat() if lead and lead.next_follow_up_at else None,
+        "registration_linked": bool(lead and (lead.member_user_id or lead.partner_request_id or lead.converted_partner_id)),
     }
 
 
@@ -60,7 +65,7 @@ def list_suggestions(lead_id: str = "", status: str = "PENDING", db: Session = D
     if status and status.upper() != "ALL":
         query = query.filter(CRMWhatsAppAISuggestion.status == status.upper())
     rows = query.order_by(CRMWhatsAppAISuggestion.created_at.desc()).limit(100).all()
-    return {"items": [_suggestion_payload(row) for row in rows]}
+    return {"items": [_suggestion_payload(row, db) for row in rows]}
 
 
 @router.post("/suggestions/{suggestion_id}/approve")
@@ -90,8 +95,9 @@ def approve_suggestion(suggestion_id: str, payload: dict, db: Session = Depends(
     suggestion.error_message = ""
     lead.last_contact_at = datetime.now(timezone.utc)
     db.add(CRMLeadActivity(lead_id=lead.id, activity_type="whatsapp_message_sent", message=text, actor_user_id=current_user.id))
+    db.add(CRMLeadActivity(lead_id=lead.id, activity_type="ai_suggestion_approved", message="Admin approved and sent an AI suggestion", actor_user_id=current_user.id))
     db.commit()
-    return {"ok": True, "suggestion": _suggestion_payload(suggestion), "message_id": ((result.get("messages") or [{}])[0]).get("id") if isinstance(result, dict) else None}
+    return {"ok": True, "suggestion": _suggestion_payload(suggestion, db), "message_id": ((result.get("messages") or [{}])[0]).get("id") if isinstance(result, dict) else None}
 
 
 @router.post("/suggestions/{suggestion_id}/reject")
@@ -101,5 +107,8 @@ def reject_suggestion(suggestion_id: str, db: Session = Depends(get_db), current
     if not suggestion or suggestion.status != "PENDING":
         raise HTTPException(status_code=400, detail="Suggestion is not pending")
     suggestion.status = "REJECTED"
+    lead = db.get(CRMLead, suggestion.lead_id)
+    if lead:
+        db.add(CRMLeadActivity(lead_id=lead.id, activity_type="ai_suggestion_rejected", message="Admin rejected an AI suggestion; manual response may be needed", actor_user_id=current_user.id))
     db.commit()
-    return {"ok": True, "suggestion": _suggestion_payload(suggestion)}
+    return {"ok": True, "suggestion": _suggestion_payload(suggestion, db)}
