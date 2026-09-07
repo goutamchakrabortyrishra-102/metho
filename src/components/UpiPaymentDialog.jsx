@@ -652,6 +652,9 @@ export default function UpiPaymentDialog({
             <QrCode className="w-5 h-5 text-emerald-700" />
             {payLabel} · ₹{checkoutTotal.toLocaleString("en-IN")}
           </DialogTitle>
+          {cartDeliveryTotal > 0 ? (
+            <p className="text-xs font-semibold text-amber-700">Delivery charge included: ₹{cartDeliveryTotal.toLocaleString("en-IN")}</p>
+          ) : null}
           <DialogDescription>
             {razorpayEnabled
               ? "Complete payment using UPI proof flow, or pay instantly with Razorpay checkout."
@@ -732,7 +735,7 @@ export default function UpiPaymentDialog({
               <div className="space-y-4">
                 <div className="rounded-xl bg-gradient-to-br from-emerald-950 to-emerald-800 text-white p-5">
                   <p className="text-[10px] uppercase tracking-[0.2em] text-amber-400 font-bold">Step 1 · Pay via any UPI app</p>
-                  {cartDeliveryTotal > 0 ? <p className="text-xs text-slate-600 mt-2">Delivery charge: ₹{cartDeliveryTotal.toLocaleString("en-IN")}</p> : null}
+                  {cartDeliveryTotal > 0 ? <p className="text-xs text-emerald-100 mt-2">Delivery charge included: ₹{cartDeliveryTotal.toLocaleString("en-IN")}</p> : null}
                   <p className="text-2xl font-display font-black mt-2">₹{checkoutTotal.toLocaleString("en-IN")}</p>
                   <p className="text-xs text-emerald-100/80 mt-1">GPay, PhonePe, Paytm, BHIM — all are supported</p>
 
