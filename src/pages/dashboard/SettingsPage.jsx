@@ -1230,8 +1230,20 @@ export default function SettingsPage() {
   };
   const testShipping = async () => {
     setShippingBusy(true); setShippingMessage("");
-    try { const { data } = await api.post("/admin/settings/shipping-provider/test"); setShippingMessage(data?.message || "Shipping provider test completed."); }
-    catch (err) { setShippingMessage(err?.response?.data?.message || "Shipping provider test failed."); }
+    try {
+      const { data } = await api.post("/admin/settings/shipping-provider/test");
+      if (data?.ok === true) setShippingMessage(data?.message || "Shipping provider connection verified.");
+      else {
+        const message = data?.message || "Shipping provider test failed.";
+        setShippingMessage(message);
+        toast.error(message);
+      }
+    }
+    catch (err) {
+      const message = err?.response?.data?.message || "Shipping provider test failed.";
+      setShippingMessage(message);
+      toast.error(message);
+    }
     finally { setShippingBusy(false); }
   };
   const testVoiceCaller = async () => {

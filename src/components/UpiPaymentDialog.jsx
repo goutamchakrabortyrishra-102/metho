@@ -138,6 +138,10 @@ export default function UpiPaymentDialog({
   const { user } = useAuth();
   const [settings, setSettings] = useState(null);
   const [address, setAddress] = useState("");
+  const [shippingCity, setShippingCity] = useState("");
+  const [shippingState, setShippingState] = useState("West Bengal");
+  const [shippingPincode, setShippingPincode] = useState("");
+  const [customerEmail, setCustomerEmail] = useState("");
   const [txnId, setTxnId] = useState("");
   const [payerName, setPayerName] = useState("");
   const [payerPhone, setPayerPhone] = useState("");
@@ -199,6 +203,10 @@ export default function UpiPaymentDialog({
   const configuredDeliveryPincode = String(paymentConfig?.delivery_pincode || "").replace(/\D/g, "");
   const customerCity = extractCityFromAddress(address);
   const customerPincode = extractPincodeFromAddress(address);
+  const resolvedShippingCity = String(shippingCity || customerCity || "").trim();
+  const resolvedShippingState = String(shippingState || "West Bengal").trim();
+  const resolvedShippingPincode = String(shippingPincode || customerPincode || "").replace(/\D/g, "").slice(-6);
+  const resolvedCustomerEmail = String(customerEmail || user?.email || "").trim();
   const deliveryAreaMismatch = requiresDeliveryAreaCheck && (configuredDeliveryCity || configuredDeliveryPincode)
     ? Boolean((configuredDeliveryCity && customerCity && configuredDeliveryCity !== customerCity) || (configuredDeliveryPincode && customerPincode && configuredDeliveryPincode !== customerPincode))
     : false;
@@ -245,7 +253,19 @@ export default function UpiPaymentDialog({
     if (!String(address || "").trim() && String(saved.shipping_address || "").trim()) {
       setAddress(String(saved.shipping_address).trim());
     }
-  }, [open, isGuest, payerPhone, payerName, address]);
+    if (!String(shippingCity || "").trim() && String(saved.shipping_city || "").trim()) {
+      setShippingCity(String(saved.shipping_city).trim());
+    }
+    if (!String(shippingState || "").trim() && String(saved.shipping_state || "").trim()) {
+      setShippingState(String(saved.shipping_state).trim());
+    }
+    if (!String(shippingPincode || "").trim() && String(saved.shipping_pincode || "").trim()) {
+      setShippingPincode(String(saved.shipping_pincode).replace(/\D/g, "").slice(-6));
+    }
+    if (!String(customerEmail || "").trim() && String(saved.customer_email || "").trim()) {
+      setCustomerEmail(String(saved.customer_email).trim());
+    }
+  }, [open, isGuest, payerPhone, payerName, address, shippingCity, shippingState, shippingPincode, customerEmail]);
 
   useEffect(() => {
     if (!isGuest) return;
@@ -253,8 +273,12 @@ export default function UpiPaymentDialog({
       payer_phone: String(payerPhone || "").trim(),
       payer_name: String(payerName || "").trim(),
       shipping_address: String(address || "").trim(),
+      shipping_city: String(shippingCity || "").trim(),
+      shipping_state: String(shippingState || "").trim(),
+      shipping_pincode: String(shippingPincode || "").replace(/\D/g, "").slice(-6),
+      customer_email: String(customerEmail || "").trim(),
     });
-  }, [isGuest, payerPhone, payerName, address]);
+  }, [isGuest, payerPhone, payerName, address, shippingCity, shippingState, shippingPincode, customerEmail]);
 
   useEffect(() => {
     const ref = String(memberRef || "").trim();
@@ -356,6 +380,8 @@ export default function UpiPaymentDialog({
     if (paymentMode === "cod" && !resolvedCustomerPhone) return toast.error("COD order-এর জন্য Mobile Number দিন");
     if (paymentMode === "cod" && !resolvedPayerName) return toast.error("COD order-এর জন্য Customer Name দিন");
     if (!existingOrderId && requiresShippingAddress && !address.trim()) return toast.error("Please enter shipping address");
+    if (!existingOrderId && requiresShippingAddress && !resolvedShippingPincode) return toast.error("Delivery pincode দিন");
+    if (!existingOrderId && requiresShippingAddress && !resolvedShippingCity) return toast.error("Delivery city দিন");
     if (!existingOrderId && deliveryAreaMismatch) return toast.error(`Delivery is available only in ${[paymentConfig?.delivery_city, paymentConfig?.delivery_pincode].filter(Boolean).join(", ")}`);
     if (!existingOrderId && requiresServiceSlot && !slotDateTime.trim()) return toast.error("Service slot date and time দিন");
     if (!validateTourismSelection()) return;
@@ -379,6 +405,10 @@ export default function UpiPaymentDialog({
           service_template_key: i.service_template_key,
         })),
         shipping_address: requiresShippingAddress ? address : "",
+        shipping_city: requiresShippingAddress ? resolvedShippingCity : "",
+        shipping_state: requiresShippingAddress ? resolvedShippingState : "",
+        shipping_pincode: requiresShippingAddress ? resolvedShippingPincode : "",
+        customer_email: resolvedCustomerEmail || undefined,
         payment_method: paymentMode === "cod" ? "cod" : "upi",
         txn_id: paymentMode === "cod" ? "COD" : txnId.trim(),
         payment_screenshot_url: paymentMode === "cod" ? "" : screenshot.url,
@@ -414,10 +444,15 @@ export default function UpiPaymentDialog({
           payer_phone: String(payerPhone || "").trim(),
           payer_name: String(payerName || "").trim(),
           shipping_address: String(address || "").trim(),
+          shipping_city: String(shippingCity || "").trim(),
+          shipping_state: String(shippingState || "").trim(),
+          shipping_pincode: String(shippingPincode || "").replace(/\D/g, "").slice(-6),
+          customer_email: String(customerEmail || "").trim(),
         });
       }
       // Reset
       setTxnId(""); setPayerName(""); setPayerPhone(""); setScreenshot(null); setAddress("");
+      setShippingCity(""); setShippingState("West Bengal"); setShippingPincode(""); setCustomerEmail("");
       setSlotDateTime(""); setSlotGuestCount("1");
       setPaymentMode("upi");
     } catch (err) {
@@ -450,6 +485,8 @@ export default function UpiPaymentDialog({
       return;
     }
     if (requiresShippingAddress && !address.trim()) return toast.error("Please enter shipping address");
+    if (requiresShippingAddress && !resolvedShippingPincode) return toast.error("Delivery pincode দিন");
+    if (requiresShippingAddress && !resolvedShippingCity) return toast.error("Delivery city দিন");
     if (requiresServiceSlot && !slotDateTime.trim()) return toast.error("Service slot date and time দিন");
     if (requiresRestaurantSlot && Number(slotGuestCount || 0) <= 0) return toast.error("Guest count দিন");
     if (!resolvedPayerName) return toast.error("Order-এর জন্য Customer Name দিন");
@@ -470,6 +507,10 @@ export default function UpiPaymentDialog({
           service_template_key: i.service_template_key,
         })),
         shipping_address: requiresShippingAddress ? address : "",
+        shipping_city: requiresShippingAddress ? resolvedShippingCity : "",
+        shipping_state: requiresShippingAddress ? resolvedShippingState : "",
+        shipping_pincode: requiresShippingAddress ? resolvedShippingPincode : "",
+        customer_email: resolvedCustomerEmail || undefined,
         payment_method: "razorpay",
         payer_name: resolvedPayerName || undefined,
         customer_phone: resolvedCustomerPhone,
@@ -539,6 +580,10 @@ export default function UpiPaymentDialog({
                 payer_phone: String(payerPhone || "").trim(),
                 payer_name: String(payerName || "").trim(),
                 shipping_address: String(address || "").trim(),
+                shipping_city: String(shippingCity || "").trim(),
+                shipping_state: String(shippingState || "").trim(),
+                shipping_pincode: String(shippingPincode || "").replace(/\D/g, "").slice(-6),
+                customer_email: String(customerEmail || "").trim(),
               });
             }
             setTxnId("");
@@ -546,6 +591,10 @@ export default function UpiPaymentDialog({
             setPayerPhone("");
             setScreenshot(null);
             setAddress("");
+            setShippingCity("");
+            setShippingState("West Bengal");
+            setShippingPincode("");
+            setCustomerEmail("");
             setSlotDateTime("");
             setSlotGuestCount("1");
           } catch (err) {
@@ -851,6 +900,26 @@ export default function UpiPaymentDialog({
                     Delivery area: {[paymentConfig?.delivery_city, paymentConfig?.delivery_pincode].filter(Boolean).join(", ")}.
                   </p>
                 ) : null}
+                {requiresShippingAddress ? (
+                  <div className="mt-3 grid grid-cols-2 gap-2">
+                    <div>
+                      <Label htmlFor="shipping-pincode">Pincode <span className="text-red-500">*</span></Label>
+                      <Input id="shipping-pincode" value={shippingPincode} onChange={(e) => setShippingPincode(e.target.value.replace(/\D/g, "").slice(0, 6))} placeholder={customerPincode || "700001"} data-testid="upi-shipping-pincode-input" className="mt-1.5 h-11" />
+                    </div>
+                    <div>
+                      <Label htmlFor="shipping-city">City <span className="text-red-500">*</span></Label>
+                      <Input id="shipping-city" value={shippingCity} onChange={(e) => setShippingCity(e.target.value)} placeholder={customerCity || "Kolkata"} data-testid="upi-shipping-city-input" className="mt-1.5 h-11" />
+                    </div>
+                    <div>
+                      <Label htmlFor="shipping-state">State</Label>
+                      <Input id="shipping-state" value={shippingState} onChange={(e) => setShippingState(e.target.value)} placeholder="West Bengal" data-testid="upi-shipping-state-input" className="mt-1.5 h-11" />
+                    </div>
+                    <div>
+                      <Label htmlFor="customer-email">Email</Label>
+                      <Input id="customer-email" type="email" value={customerEmail} onChange={(e) => setCustomerEmail(e.target.value)} placeholder={user?.email || "customer@example.com"} data-testid="upi-customer-email-input" className="mt-1.5 h-11" />
+                    </div>
+                  </div>
+                ) : null}
               </div>
             )}
 
@@ -1008,6 +1077,26 @@ export default function UpiPaymentDialog({
                   <p className="text-[11px] text-muted-foreground mt-1">
                     Shipping address is required before opening Razorpay checkout.
                   </p>
+                  {requiresShippingAddress ? (
+                    <div className="mt-3 grid grid-cols-2 gap-2">
+                      <div>
+                        <Label htmlFor="shipping-pincode-razorpay">Pincode <span className="text-red-500">*</span></Label>
+                        <Input id="shipping-pincode-razorpay" value={shippingPincode} onChange={(e) => setShippingPincode(e.target.value.replace(/\D/g, "").slice(0, 6))} placeholder={customerPincode || "700001"} data-testid="razorpay-shipping-pincode-input" className="mt-1.5 h-11" />
+                      </div>
+                      <div>
+                        <Label htmlFor="shipping-city-razorpay">City <span className="text-red-500">*</span></Label>
+                        <Input id="shipping-city-razorpay" value={shippingCity} onChange={(e) => setShippingCity(e.target.value)} placeholder={customerCity || "Kolkata"} data-testid="razorpay-shipping-city-input" className="mt-1.5 h-11" />
+                      </div>
+                      <div>
+                        <Label htmlFor="shipping-state-razorpay">State</Label>
+                        <Input id="shipping-state-razorpay" value={shippingState} onChange={(e) => setShippingState(e.target.value)} placeholder="West Bengal" data-testid="razorpay-shipping-state-input" className="mt-1.5 h-11" />
+                      </div>
+                      <div>
+                        <Label htmlFor="customer-email-razorpay">Email</Label>
+                        <Input id="customer-email-razorpay" type="email" value={customerEmail} onChange={(e) => setCustomerEmail(e.target.value)} placeholder={user?.email || "customer@example.com"} data-testid="razorpay-customer-email-input" className="mt-1.5 h-11" />
+                      </div>
+                    </div>
+                  ) : null}
                 </div>
               ) : null}
 

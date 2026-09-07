@@ -1,9 +1,10 @@
 import json
 import logging
 import os
+import re
 from datetime import datetime, timezone
 from urllib.error import HTTPError
-from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
+from urllib.parse import parse_qsl, urlencode, urljoin, urlsplit, urlunsplit
 from urllib.request import Request, urlopen
 
 from fastapi import APIRouter, Depends, Header, HTTPException
@@ -11,7 +12,7 @@ from fastapi.responses import JSONResponse
 from sqlalchemy.orm import Session
 
 from ..database import get_db
-from ..models import AppSetting, PublicOrder
+from ..models import AppSetting, PublicOrder, User
 from ..meta_ads import encrypt_secret, resolve_config, test_meta_config
 from ..voice_caller import PROFILE_KEYS, resolve_voice_config, validate_voice_config
 from .auth import get_current_user
@@ -285,6 +286,11 @@ def _json_path_value(payload, path: str):
     return value
 
 
+def _json_path_text(payload, path: str) -> str:
+    value = _json_path_value(payload, path)
+    return "" if value is None else str(value).strip()
+
+
 def _http_error_body(error: HTTPError) -> str:
     try:
         return error.read().decode("utf-8", errors="replace").strip()
@@ -325,6 +331,59 @@ def _voice_test_request(config: dict) -> Request:
 SHIPPING_CONFIG_KEY = "shipping_provider_integration"
 SHIPPING_FIELDS = ("enabled", "provider", "api_base_url", "test_endpoint_url", "test_http_method", "auth_type", "auth_header_name", "shipment_request_template", "tracking_response_path")
 SHIPMENT_STATUSES = {"NOT_CREATED", "READY_TO_SHIP", "PICKED_UP", "IN_TRANSIT", "OUT_FOR_DELIVERY", "DELIVERED", "RTO", "CANCELLED"}
+DEFAULT_ITHINK_SHIPMENT_TEMPLATE = json.dumps(
+    {
+        "data": {
+            "shipments": [
+                {
+                    "waybill": "",
+                    "order": "{{order_id}}",
+                    "sub_order": "",
+                    "order_date": "{{order_date}}",
+                    "total_amount": "{{total_amount}}",
+                    "name": "{{customer_name}}",
+                    "company_name": "",
+                    "add": "{{address}}",
+                    "add2": "",
+                    "add3": "",
+                    "pin": "{{pincode}}",
+                    "city": "{{city}}",
+                    "state": "{{state}}",
+                    "country": "India",
+                    "phone": "{{phone}}",
+                    "alt_phone": "",
+                    "email": "{{email}}",
+                    "billing_address_name": "{{customer_name}}",
+                    "billing_address": "{{address}}",
+                    "billing_address2": "",
+                    "billing_city": "{{city}}",
+                    "billing_state": "{{state}}",
+                    "billing_country": "India",
+                    "billing_pincode": "{{pincode}}",
+                    "billing_phone": "{{phone}}",
+                    "billing_email": "{{email}}",
+                    "payment_mode": "{{payment_mode}}",
+                    "return_address_id": "",
+                    "products": "{{products}}",
+                    "shipment_height": "10",
+                    "shipment_width": "10",
+                    "shipment_length": "10",
+                    "shipment_weight": "0.5",
+                }
+            ]
+        }
+    },
+    indent=2,
+)
+
+
+def _has_shipments_template(value: str) -> bool:
+    try:
+        payload = json.loads(value or "{}")
+    except json.JSONDecodeError:
+        return False
+    shipments = ((payload if isinstance(payload, dict) else {}).get("data") or {}).get("shipments")
+    return isinstance(shipments, list) and bool(shipments)
 
 
 def _shipping_config(db: Session) -> dict:
@@ -336,6 +395,12 @@ def _shipping_config(db: Session) -> dict:
     stored = stored if isinstance(stored, dict) else {}
     from ..meta_ads import decrypt_secret
     result = {field: stored.get(field, False if field == "enabled" else "") for field in SHIPPING_FIELDS}
+    if str(result.get("provider") or "").strip().lower() == "ithink" and not _has_shipments_template(str(result.get("shipment_request_template") or "")):
+        result["shipment_request_template"] = DEFAULT_ITHINK_SHIPMENT_TEMPLATE
+    elif not str(result.get("shipment_request_template") or "").strip():
+        result["shipment_request_template"] = DEFAULT_ITHINK_SHIPMENT_TEMPLATE
+    if not str(result.get("tracking_response_path") or "").strip():
+        result["tracking_response_path"] = "data.1.waybill_number"
     for secret in ("api_key", "secret_key"):
         if stored.get(secret):
             result[secret] = decrypt_secret(stored[secret]).strip()
@@ -387,14 +452,71 @@ def test_shipping_provider_settings(db: Session = Depends(get_db), current_user=
     if missing:
         return {"ok": False, "missing": missing, "message": f"Shipping provider configuration is incomplete: {', '.join(missing)}"}
     try:
-        request = _voice_test_request(config)
+        if str(config.get("provider") or "").strip().lower() == "ithink" and "order/add.json" in str(config.get("test_endpoint_url") or ""):
+            return JSONResponse(status_code=400, content={"ok": False, "message": "Use an iThink serviceability or account-balance endpoint for Test Connection, not order/add.json."})
+        request = _shipping_request(config, config["test_endpoint_url"], method=config.get("test_http_method") or "GET")
         with urlopen(request, timeout=10) as response:
-            response.read()
+            payload = _read_json_response(response)
+        ok, message = _shipping_response_ok(payload)
+        if not ok:
+            return JSONResponse(status_code=400, content={"ok": False, "message": message})
         return {"ok": True, "message": "Shipping provider connection verified"}
     except HTTPError as exc:
         return JSONResponse(status_code=400, content={"ok": False, "message": f"Shipping provider returned HTTP {exc.code}: {_http_error_body(exc)}"})
+    except (UnicodeDecodeError, json.JSONDecodeError, ValueError) as exc:
+        return JSONResponse(status_code=400, content={"ok": False, "message": str(exc)})
     except Exception as exc:
         return JSONResponse(status_code=500, content={"ok": False, "message": f"Shipping provider test failed: {str(exc)}"})
+
+
+def _shipping_request(config: dict, endpoint: str, method: str = "GET", payload=None) -> Request:
+    endpoint = str(endpoint or "").strip()
+    parsed = urlsplit(endpoint)
+    if parsed.scheme != "https" or not parsed.netloc:
+        raise ValueError("Shipping endpoint URL must be a valid HTTPS URL.")
+    auth_type = str(config.get("auth_type") or "").strip()
+    credential_name = str(config.get("auth_header_name") or "").strip()
+    if not credential_name or "\r" in credential_name or "\n" in credential_name:
+        raise ValueError("Authentication header or query parameter name is invalid.")
+    headers = {"Accept": "application/json"}
+    body = None
+    if payload is not None:
+        headers["Content-Type"] = "application/json"
+        body = json.dumps(payload).encode("utf-8")
+    if auth_type == "bearer_token":
+        headers[credential_name] = f"Bearer {config['api_key']}"
+    elif auth_type == "custom_header":
+        headers[credential_name] = config["api_key"]
+    elif auth_type == "api_key_query_param":
+        query = parse_qsl(parsed.query, keep_blank_values=True)
+        query.append((credential_name, config["api_key"]))
+        if config.get("secret_key"):
+            secret_name = "secret-key" if credential_name == "access-token" else "secret_key"
+            query.append((secret_name, config["secret_key"]))
+        endpoint = urlunsplit((parsed.scheme, parsed.netloc, parsed.path, urlencode(query), parsed.fragment))
+    else:
+        raise ValueError("Authentication type is invalid.")
+    method = str(method or "GET").upper()
+    if method not in {"GET", "POST"}:
+        raise ValueError("HTTP method must be GET or POST.")
+    return Request(endpoint, data=body if body is not None else (b"{}" if method == "POST" else None), headers=headers, method=method)
+
+
+def _read_json_response(response) -> dict:
+    body = response.read().decode("utf-8")
+    payload = json.loads(body or "{}")
+    if not isinstance(payload, dict):
+        raise ValueError("Shipping provider returned a non-object JSON response.")
+    return payload
+
+
+def _shipping_response_ok(payload: dict) -> tuple[bool, str]:
+    status = str(payload.get("status") or "").strip().lower()
+    status_code = payload.get("status_code")
+    if status == "success" or status_code in {200, "200"}:
+        return True, ""
+    message = str(payload.get("html_message") or payload.get("message") or payload.get("error") or "iThink API Authentication Failed").strip()
+    return False, message
 
 
 def _shipment_key(order_id: str) -> str:
@@ -418,6 +540,132 @@ def _shipment_payload(order: PublicOrder, stored: dict) -> dict:
     }
 
 
+def _load_order_contact_details(db: Session, order_id: str) -> dict:
+    row = db.query(AppSetting).filter(AppSetting.key == f"order_contact:{str(order_id or '').strip()}").first()
+    try:
+        payload = json.loads(row.value_json or "{}") if row else {}
+    except json.JSONDecodeError:
+        payload = {}
+    payload = payload if isinstance(payload, dict) else {}
+    return {
+        "customer_phone": "".join(ch for ch in str(payload.get("customer_phone") or "") if ch.isdigit()),
+        "shipping_city": str(payload.get("shipping_city") or "").strip(),
+        "shipping_state": str(payload.get("shipping_state") or "").strip(),
+        "shipping_pincode": "".join(ch for ch in str(payload.get("shipping_pincode") or "") if ch.isdigit())[-6:],
+        "customer_email": str(payload.get("customer_email") or "").strip(),
+    }
+
+
+def _load_order_contact_phone(db: Session, order_id: str) -> str:
+    return _load_order_contact_details(db, order_id).get("customer_phone", "")
+
+
+def _first_pincode(text: str) -> str:
+    match = re.search(r"\b\d{6}\b", str(text or ""))
+    return match.group(0) if match else ""
+
+
+def _order_products(order: PublicOrder) -> list[dict]:
+    try:
+        items = json.loads(order.items_json or "[]")
+    except json.JSONDecodeError:
+        items = []
+    products = []
+    for index, item in enumerate(items if isinstance(items, list) else [], start=1):
+        item = item if isinstance(item, dict) else {}
+        quantity = item.get("quantity") or item.get("qty") or 1
+        price = item.get("price") or item.get("sale_price") or item.get("amount") or 0
+        products.append(
+            {
+                "product_name": str(item.get("name") or item.get("product_name") or f"Item {index}"),
+                "product_sku": str(item.get("sku") or item.get("product_sku") or item.get("product_id") or f"SKU-{index:03d}"),
+                "product_quantity": str(quantity),
+                "product_price": f"{float(price or 0):.2f}",
+                "product_tax_rate": str(item.get("tax_rate") or item.get("product_tax_rate") or "0"),
+            }
+        )
+    return products or [{"product_name": "METHO Order", "product_sku": "METHO-ORDER", "product_quantity": "1", "product_price": f"{float(order.total_amount or 0):.2f}", "product_tax_rate": "0"}]
+
+
+def _render_template_value(value, context: dict):
+    if isinstance(value, dict):
+        return {key: _render_template_value(child, context) for key, child in value.items()}
+    if isinstance(value, list):
+        return [_render_template_value(child, context) for child in value]
+    if isinstance(value, str):
+        if value.strip() == "{{products}}":
+            return context["products"]
+        for key, replacement in context.items():
+            if key != "products":
+                value = value.replace("{{" + key + "}}", str(replacement))
+        return value
+    return value
+
+
+def _build_shipment_request_payload(order: PublicOrder, config: dict, db: Session) -> dict:
+    try:
+        template = json.loads(config.get("shipment_request_template") or DEFAULT_ITHINK_SHIPMENT_TEMPLATE)
+    except json.JSONDecodeError as exc:
+        raise ValueError("Shipment Request JSON Template is not valid JSON.") from exc
+    address = str(order.shipping_address or "").strip()
+    contact = _load_order_contact_details(db, order.id)
+    phone = contact.get("customer_phone", "")
+    if not phone:
+        user = db.query(User).filter(User.id == order.customer_user_id).first() if str(order.customer_user_id or "").strip() else None
+        phone = "".join(ch for ch in str(getattr(user, "phone", "") or "") if ch.isdigit()) if user else ""
+    pincode = contact.get("shipping_pincode") or _first_pincode(address)
+    city = contact.get("shipping_city")
+    state = contact.get("shipping_state") or "West Bengal"
+    context = {
+        "order_id": order.id,
+        "order_date": (order.created_at or datetime.now(timezone.utc)).strftime("%d-%m-%Y"),
+        "total_amount": f"{float(order.total_amount or 0):.2f}",
+        "customer_name": order.payer_name or "Customer",
+        "address": address,
+        "pincode": pincode,
+        "city": city,
+        "state": state,
+        "phone": phone,
+        "email": contact.get("customer_email", ""),
+        "payment_mode": "COD" if str(order.payment_method or "").lower() == "cod" else "Prepaid",
+        "products": _order_products(order),
+    }
+    missing = [field for field in ("address", "pincode", "city", "state", "phone") if not context[field]]
+    if missing:
+        raise ValueError(f"Order is missing shipment data: {', '.join(missing)}")
+    return _render_template_value(template, context)
+
+
+def _shipment_endpoint(config: dict) -> str:
+    base = str(config.get("api_base_url") or "").strip()
+    if base.endswith("order/add.json"):
+        return base
+    if "/api_v3/" in base:
+        return urljoin(base.rstrip("/") + "/", "order/add.json")
+    return urljoin(base.rstrip("/") + "/", "api_v3/order/add.json")
+
+
+def _save_shipment_result(db: Session, order: PublicOrder, response_payload: dict, config: dict) -> dict:
+    awb = _json_path_text(response_payload, config.get("tracking_response_path") or "data.1.waybill_number")
+    courier = _json_path_text(response_payload, "data.1.logistic_name")
+    stored = {
+        "courier_name": courier,
+        "awb_number": awb,
+        "tracking_url": "",
+        "notes": json.dumps(response_payload),
+        "shipment_status": "READY_TO_SHIP" if awb else "NOT_CREATED",
+        "updated_at": datetime.now(timezone.utc).isoformat(),
+    }
+    row = db.query(AppSetting).filter(AppSetting.key == _shipment_key(order.id)).first()
+    if row:
+        row.value_json = json.dumps(stored)
+        row.updated_at = datetime.now(timezone.utc)
+    else:
+        db.add(AppSetting(key=_shipment_key(order.id), value_json=json.dumps(stored), updated_at=datetime.now(timezone.utc)))
+    db.commit()
+    return stored
+
+
 @router.get("/admin/shipments")
 def list_shipments(status: str = "", db: Session = Depends(get_db), current_user=Depends(get_current_user)):
     _require_admin(current_user)
@@ -433,6 +681,37 @@ def list_shipments(status: str = "", db: Session = Depends(get_db), current_user
         if not status or item["shipment_status"] == status:
             result.append(item)
     return {"items": result, "provider": get_shipping_provider_settings(db, current_user)}
+
+
+@router.post("/admin/shipments/{order_id}/create")
+def create_provider_shipment(order_id: str, db: Session = Depends(get_db), current_user=Depends(get_current_user)):
+    _require_admin(current_user)
+    order = db.query(PublicOrder).filter(PublicOrder.id == order_id).first()
+    if not order:
+        raise HTTPException(status_code=404, detail="Order not found")
+    config = _shipping_config(db)
+    missing = [field for field in ("api_base_url", "api_key", "auth_type", "auth_header_name") if not config.get(field)]
+    if str(config.get("provider") or "").strip().lower() == "ithink" and not config.get("secret_key"):
+        missing.append("secret_key")
+    if missing:
+        raise HTTPException(status_code=400, detail=f"Shipping provider configuration is incomplete: {', '.join(missing)}")
+    try:
+        request_payload = _build_shipment_request_payload(order, config, db)
+        request = _shipping_request(config, _shipment_endpoint(config), method="POST", payload=request_payload)
+        with urlopen(request, timeout=20) as response:
+            response_payload = _read_json_response(response)
+        ok, message = _shipping_response_ok(response_payload)
+        if not ok:
+            return JSONResponse(status_code=400, content={"ok": False, "message": message, "provider_response": response_payload})
+        stored = _save_shipment_result(db, order, response_payload, config)
+        return {"ok": True, "message": "Shipment created", "shipment": _shipment_payload(order, stored), "provider_response": response_payload}
+    except HTTPError as exc:
+        return JSONResponse(status_code=400, content={"ok": False, "message": f"Shipping provider returned HTTP {exc.code}: {_http_error_body(exc)}"})
+    except (UnicodeDecodeError, json.JSONDecodeError, ValueError) as exc:
+        return JSONResponse(status_code=400, content={"ok": False, "message": str(exc)})
+    except Exception as exc:
+        logger.exception("Shipping provider shipment creation failed: order_id=%s", order_id)
+        return JSONResponse(status_code=500, content={"ok": False, "message": f"Shipment creation failed: {str(exc)}"})
 
 
 @router.put("/admin/shipments/{order_id}")

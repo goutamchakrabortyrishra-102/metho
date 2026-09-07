@@ -333,19 +333,35 @@ def _order_contact_key(order_id: str) -> str:
     return f"{ORDER_CONTACT_KEY_PREFIX}{str(order_id or '').strip()}"
 
 
-def _save_order_contact_phone(db: Session, order_id: str, phone: str) -> None:
+def _save_order_contact_details(db: Session, order_id: str, phone: str, details: dict | None = None) -> None:
     oid = str(order_id or "").strip()
     digits = "".join(ch for ch in str(phone or "") if ch.isdigit())
-    if not oid or not digits:
+    if not oid:
         return
     row = db.query(AppSetting).filter(AppSetting.key == _order_contact_key(oid)).first()
-    payload = {"customer_phone": digits}
+    try:
+        payload = json.loads(row.value_json or "{}") if row else {}
+    except Exception:
+        payload = {}
+    payload = payload if isinstance(payload, dict) else {}
+    if digits:
+        payload["customer_phone"] = digits
+    for key in ("shipping_city", "shipping_state", "shipping_pincode", "customer_email"):
+        value = str((details or {}).get(key) or "").strip()
+        if value:
+            payload[key] = value
+    if not payload:
+        return
     if not row:
         row = AppSetting(key=_order_contact_key(oid), value_json=json.dumps(payload))
         db.add(row)
     else:
         row.value_json = json.dumps(payload)
     db.commit()
+
+
+def _save_order_contact_phone(db: Session, order_id: str, phone: str) -> None:
+    _save_order_contact_details(db, order_id, phone)
 
 
 def _load_order_contact_phone(db: Session, order_id: str) -> str:
@@ -1207,6 +1223,10 @@ def create_public_order(payload: dict, db: Session = Depends(get_db), authorizat
     payer_name_raw = str(payload.get("payer_name") or "").strip()
     customer_name = payer_name_raw
     customer_phone = str(payload.get("customer_phone") or "").strip()
+    customer_email = str(payload.get("customer_email") or "").strip()
+    shipping_city = str(payload.get("shipping_city") or "").strip()
+    shipping_state = str(payload.get("shipping_state") or "").strip()
+    shipping_pincode = "".join(ch for ch in str(payload.get("shipping_pincode") or "") if ch.isdigit())[-6:]
     shipping_address = str(payload.get("shipping_address") or "").strip()
     slot_datetime = str(payload.get("slot_datetime") or "").strip()
     guest_count_raw = payload.get("guest_count")
@@ -1359,7 +1379,17 @@ def create_public_order(payload: dict, db: Session = Depends(get_db), authorizat
     )
     db.add(row)
     db.commit()
-    _save_order_contact_phone(db, row.id, customer_phone_digits)
+    _save_order_contact_details(
+        db,
+        row.id,
+        customer_phone_digits,
+        {
+            "shipping_city": shipping_city,
+            "shipping_state": shipping_state,
+            "shipping_pincode": shipping_pincode,
+            "customer_email": customer_email,
+        },
+    )
     if has_tourism_item:
         _save_tourism_terms_acceptance(db, row.id, customer_name, customer_phone_digits)
         db.commit()
