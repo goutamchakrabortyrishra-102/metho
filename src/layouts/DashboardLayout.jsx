@@ -1,6 +1,6 @@
 import React, { useState } from "react";
 import { Outlet, NavLink, useLocation, useNavigate } from "react-router-dom";
-import { LayoutDashboard, Wallet, Users, Network, Package, ShoppingCart, TrendingUp, User, LogOut, Menu, X, Search, Settings, Sparkles, BadgeIndianRupee, Calculator, Shield, Store, Compass, Trophy, Send, CheckCircle2, Upload, Bot, ClipboardList, Activity, Warehouse, BookOpenCheck, CarTaxiFront, UtensilsCrossed, Building2, BriefcaseBusiness, Trash2, Boxes, Plane, MapPin, MessageCircle } from "lucide-react";
+import { LayoutDashboard, Wallet, Users, Network, Package, ShoppingCart, TrendingUp, User, LogOut, Menu, X, Search, Settings, Sparkles, BadgeIndianRupee, Calculator, Shield, Store, Compass, Trophy, Send, CheckCircle2, Upload, Bot, ClipboardList, Activity, Warehouse, BookOpenCheck, CarTaxiFront, UtensilsCrossed, Building2, BriefcaseBusiness, Trash2, Boxes, Plane, MapPin, MessageCircle, Truck } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { Logo } from "@/components/Logo";
 import { Button } from "@/components/ui/button";
@@ -33,6 +33,7 @@ const links = [
   { to: "/app/partner-approvals", icon: CheckCircle2, label: "Partner Applications", testId: "nav-partner-approvals", adminOnly: true },
   { to: "/app/product-approvals", icon: Package, label: "Product Approvals", testId: "nav-product-approvals", adminOnly: true },
   { to: "/app/orders", icon: ShoppingCart, label: "Orders", testId: "nav-orders" },
+  { to: "/app/shipments", icon: Truck, label: "Shipment Control", testId: "nav-shipments", adminOnly: true },
   { to: "/app/pending-payments", icon: BadgeIndianRupee, label: "Pending Payments", testId: "nav-pending-payments", adminOnly: true },
   { to: "/app/accounts", icon: Calculator, label: "Accounts", testId: "nav-accounts", adminOnly: true },
   { to: "/app/withdrawals", icon: Send, label: "Withdrawals", testId: "nav-withdrawals", adminOnly: true },

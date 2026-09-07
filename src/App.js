@@ -71,6 +71,7 @@ const loadAdminStayDiningBookingsPage = () => import("@/pages/dashboard/AdminSta
 const loadAdminPropertyBuySellPage = () => import("@/pages/dashboard/AdminPropertyBuySellPage");
 const loadAdminServiceSectorsPage = () => import("@/pages/dashboard/AdminServiceSectorsPage");
 const loadMethoDeliveryAdminPage = () => import("@/pages/dashboard/MethoDeliveryAdminPage");
+const loadShipmentsPage = () => import("@/pages/dashboard/ShipmentsPage");
 const loadAdminCreativeMediaPage = () => import("@/pages/dashboard/AdminCreativeMediaPage");
 const loadDriverRegistryPage = () => import("@/pages/dashboard/DriverRegistryPage");
 const loadMethoStoreOwnerPage = () => import("@/pages/dashboard/MethoStoreOwnerPage");
@@ -148,6 +149,7 @@ const AdminStayDiningBookingsPage = lazy(loadAdminStayDiningBookingsPage);
 const AdminPropertyBuySellPage = lazy(loadAdminPropertyBuySellPage);
 const AdminServiceSectorsPage = lazy(loadAdminServiceSectorsPage);
 const MethoDeliveryAdminPage = lazy(loadMethoDeliveryAdminPage);
+const ShipmentsPage = lazy(loadShipmentsPage);
 const AdminCreativeMediaPage = lazy(loadAdminCreativeMediaPage);
 const DriverRegistryPage = lazy(loadDriverRegistryPage);
 const MethoStoreOwnerPage = lazy(loadMethoStoreOwnerPage);
@@ -417,6 +419,7 @@ function App() {
                 <Route path="property-buy-sell" element={<AdminRoute><AdminPropertyBuySellPage /></AdminRoute>} />
                 <Route path="service-sectors" element={<AdminRoute><AdminServiceSectorsPage /></AdminRoute>} />
                 <Route path="metho-delivery" element={<AdminRoute><MethoDeliveryAdminPage /></AdminRoute>} />
+                <Route path="shipments" element={<AdminRoute><ShipmentsPage /></AdminRoute>} />
                 <Route path="creative-media" element={<AdminRoute><AdminCreativeMediaPage /></AdminRoute>} />
                 <Route path="driver-registry" element={<DriverRegistryPage />} />
                 <Route path="active-tracking" element={<AdminRoute><ActiveTrackingPage /></AdminRoute>} />

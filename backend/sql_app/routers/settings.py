@@ -11,7 +11,7 @@ from fastapi.responses import JSONResponse
 from sqlalchemy.orm import Session
 
 from ..database import get_db
-from ..models import AppSetting
+from ..models import AppSetting, PublicOrder
 from ..meta_ads import encrypt_secret, resolve_config, test_meta_config
 from ..voice_caller import PROFILE_KEYS, resolve_voice_config, validate_voice_config
 from .auth import get_current_user
@@ -320,6 +320,142 @@ def _voice_test_request(config: dict) -> Request:
     if method not in {"GET", "POST"}:
         raise ValueError("HTTP method must be GET or POST.")
     return Request(endpoint, data=b"{}" if method == "POST" else None, headers=headers, method=method)
+
+
+SHIPPING_CONFIG_KEY = "shipping_provider_integration"
+SHIPPING_FIELDS = ("enabled", "provider", "api_base_url", "test_endpoint_url", "test_http_method", "auth_type", "auth_header_name", "shipment_request_template", "tracking_response_path")
+SHIPMENT_STATUSES = {"NOT_CREATED", "READY_TO_SHIP", "PICKED_UP", "IN_TRANSIT", "OUT_FOR_DELIVERY", "DELIVERED", "RTO", "CANCELLED"}
+
+
+def _shipping_config(db: Session) -> dict:
+    row = db.query(AppSetting).filter(AppSetting.key == SHIPPING_CONFIG_KEY).first()
+    try:
+        stored = json.loads(row.value_json or "{}") if row else {}
+    except json.JSONDecodeError:
+        stored = {}
+    stored = stored if isinstance(stored, dict) else {}
+    from ..meta_ads import decrypt_secret
+    result = {field: stored.get(field, False if field == "enabled" else "") for field in SHIPPING_FIELDS}
+    for secret in ("api_key", "secret_key"):
+        if stored.get(secret):
+            result[secret] = decrypt_secret(stored[secret]).strip()
+        else:
+            result[secret] = ""
+    return result
+
+
+@router.get("/admin/settings/shipping-provider")
+def get_shipping_provider_settings(db: Session = Depends(get_db), current_user=Depends(get_current_user)):
+    _require_admin(current_user)
+    config = _shipping_config(db)
+    return {field: config[field] for field in SHIPPING_FIELDS} | {"api_key_masked": _mask_secret(config["api_key"]), "secret_key_masked": _mask_secret(config["secret_key"]), "configured": bool(config["api_base_url"] and config["api_key"])}
+
+
+@router.put("/admin/settings/shipping-provider")
+def update_shipping_provider_settings(payload: dict, db: Session = Depends(get_db), current_user=Depends(get_current_user)):
+    _require_admin(current_user)
+    data = payload if isinstance(payload, dict) else {}
+    row = db.query(AppSetting).filter(AppSetting.key == SHIPPING_CONFIG_KEY).first()
+    try:
+        current = json.loads(row.value_json or "{}") if row else {}
+    except json.JSONDecodeError:
+        current = {}
+    current = current if isinstance(current, dict) else {}
+    next_config = {field: (bool(data.get(field, current.get(field, False))) if field == "enabled" else str(data.get(field, current.get(field, "")) or "").strip()) for field in SHIPPING_FIELDS}
+    for secret in ("api_key", "secret_key"):
+        value = str(data.get(secret) or "").strip()
+        if value:
+            if not os.getenv("META_SETTINGS_ENCRYPTION_KEY", "").strip():
+                raise HTTPException(status_code=503, detail="META_SETTINGS_ENCRYPTION_KEY is required to save shipping provider secrets")
+            next_config[secret] = encrypt_secret(value)
+        elif current.get(secret):
+            next_config[secret] = current[secret]
+    if row:
+        row.value_json = json.dumps(next_config)
+        row.updated_at = datetime.now(timezone.utc)
+    else:
+        db.add(AppSetting(key=SHIPPING_CONFIG_KEY, value_json=json.dumps(next_config), updated_at=datetime.now(timezone.utc)))
+    db.commit()
+    return get_shipping_provider_settings(db, current_user)
+
+
+@router.post("/admin/settings/shipping-provider/test")
+def test_shipping_provider_settings(db: Session = Depends(get_db), current_user=Depends(get_current_user)):
+    _require_admin(current_user)
+    config = _shipping_config(db)
+    missing = [field for field in ("api_base_url", "api_key", "test_endpoint_url", "auth_type", "auth_header_name") if not config.get(field)]
+    if missing:
+        return {"ok": False, "missing": missing, "message": f"Shipping provider configuration is incomplete: {', '.join(missing)}"}
+    try:
+        request = _voice_test_request(config)
+        with urlopen(request, timeout=10) as response:
+            response.read()
+        return {"ok": True, "message": "Shipping provider connection verified"}
+    except HTTPError as exc:
+        return JSONResponse(status_code=400, content={"ok": False, "message": f"Shipping provider returned HTTP {exc.code}: {_http_error_body(exc)}"})
+    except Exception as exc:
+        return JSONResponse(status_code=500, content={"ok": False, "message": f"Shipping provider test failed: {str(exc)}"})
+
+
+def _shipment_key(order_id: str) -> str:
+    return f"shipment:{order_id}"
+
+
+def _shipment_payload(order: PublicOrder, stored: dict) -> dict:
+    return {
+        "order_id": order.id,
+        "order_status": order.status,
+        "customer_name": order.payer_name,
+        "shipping_address": order.shipping_address,
+        "amount": order.total_amount,
+        "created_at": order.created_at.isoformat() if order.created_at else None,
+        "shipment_status": stored.get("shipment_status", "NOT_CREATED"),
+        "courier_name": stored.get("courier_name", ""),
+        "awb_number": stored.get("awb_number", ""),
+        "tracking_url": stored.get("tracking_url", ""),
+        "notes": stored.get("notes", ""),
+        "updated_at": stored.get("updated_at"),
+    }
+
+
+@router.get("/admin/shipments")
+def list_shipments(status: str = "", db: Session = Depends(get_db), current_user=Depends(get_current_user)):
+    _require_admin(current_user)
+    rows = db.query(PublicOrder).filter(PublicOrder.shipping_address != "").order_by(PublicOrder.created_at.desc()).limit(300).all()
+    result = []
+    for order in rows:
+        setting = db.query(AppSetting).filter(AppSetting.key == _shipment_key(order.id)).first()
+        try:
+            stored = json.loads(setting.value_json or "{}") if setting else {}
+        except json.JSONDecodeError:
+            stored = {}
+        item = _shipment_payload(order, stored if isinstance(stored, dict) else {})
+        if not status or item["shipment_status"] == status:
+            result.append(item)
+    return {"items": result, "provider": get_shipping_provider_settings(db, current_user)}
+
+
+@router.put("/admin/shipments/{order_id}")
+def update_shipment(order_id: str, payload: dict, db: Session = Depends(get_db), current_user=Depends(get_current_user)):
+    _require_admin(current_user)
+    order = db.query(PublicOrder).filter(PublicOrder.id == order_id).first()
+    if not order:
+        raise HTTPException(status_code=404, detail="Order not found")
+    data = payload if isinstance(payload, dict) else {}
+    status = str(data.get("shipment_status") or "NOT_CREATED").strip().upper()
+    if status not in SHIPMENT_STATUSES:
+        raise HTTPException(status_code=400, detail="Invalid shipment status")
+    stored = {key: str(data.get(key) or "").strip() for key in ("courier_name", "awb_number", "tracking_url", "notes")}
+    stored["shipment_status"] = status
+    stored["updated_at"] = datetime.now(timezone.utc).isoformat()
+    row = db.query(AppSetting).filter(AppSetting.key == _shipment_key(order.id)).first()
+    if row:
+        row.value_json = json.dumps(stored)
+        row.updated_at = datetime.now(timezone.utc)
+    else:
+        db.add(AppSetting(key=_shipment_key(order.id), value_json=json.dumps(stored), updated_at=datetime.now(timezone.utc)))
+    db.commit()
+    return {"ok": True, "shipment": _shipment_payload(order, stored)}
 
 
 @router.get("/admin/settings/voice-caller")

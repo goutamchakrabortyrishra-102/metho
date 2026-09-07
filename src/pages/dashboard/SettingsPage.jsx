@@ -708,6 +708,9 @@ export default function SettingsPage() {
   const [voiceCallerForm, setVoiceCallerForm] = useState(null);
   const [voiceCallerBusy, setVoiceCallerBusy] = useState(false);
   const [voiceCallerMessage, setVoiceCallerMessage] = useState("");
+  const [shippingForm, setShippingForm] = useState(null);
+  const [shippingBusy, setShippingBusy] = useState(false);
+  const [shippingMessage, setShippingMessage] = useState("");
   const [landingPartnerOptions, setLandingPartnerOptions] = useState([]);
   const [landingPartnerOptionsLoading, setLandingPartnerOptionsLoading] = useState(false);
 
@@ -738,6 +741,12 @@ export default function SettingsPage() {
         setMetaAssignees(Array.isArray(assigneeResponse.data?.items) ? assigneeResponse.data.items : []);
       })
       .catch(() => setMetaForm(null));
+    return undefined;
+  }, [user]);
+
+  useEffect(() => {
+    if (!isAdmin(user)) return undefined;
+    api.get("/admin/settings/shipping-provider").then(({ data }) => setShippingForm({ ...data, api_key: "", secret_key: "" })).catch(() => setShippingForm(null));
     return undefined;
   }, [user]);
 
@@ -1202,6 +1211,28 @@ export default function SettingsPage() {
       setVoiceCallerMessage(message);
       toast.error(message);
     } finally { setVoiceCallerBusy(false); }
+  };
+  const updateShippingField = (key) => (valueOrEvent) => {
+    const value = valueOrEvent?.target?.type === "checkbox" ? Boolean(valueOrEvent.target.checked) : valueOrEvent?.target ? String(valueOrEvent.target.value ?? "") : valueOrEvent;
+    setShippingForm((previous) => ({ ...(previous || {}), [key]: value }));
+  };
+  const saveShipping = async () => {
+    if (!shippingForm || shippingBusy) return;
+    setShippingBusy(true); setShippingMessage("");
+    try {
+      const payload = {};
+      ["enabled", "provider", "api_base_url", "test_endpoint_url", "test_http_method", "auth_type", "auth_header_name", "shipment_request_template", "tracking_response_path"].forEach((key) => { payload[key] = shippingForm[key]; });
+      ["api_key", "secret_key"].forEach((key) => { if (String(shippingForm[key] || "").trim()) payload[key] = String(shippingForm[key]).trim(); });
+      const { data } = await api.put("/admin/settings/shipping-provider", payload);
+      setShippingForm({ ...data, api_key: "", secret_key: "" }); setShippingMessage("Shipping provider configuration saved.");
+    } catch (err) { setShippingMessage(err?.response?.data?.detail || "Shipping provider configuration could not be saved."); }
+    finally { setShippingBusy(false); }
+  };
+  const testShipping = async () => {
+    setShippingBusy(true); setShippingMessage("");
+    try { const { data } = await api.post("/admin/settings/shipping-provider/test"); setShippingMessage(data?.message || "Shipping provider test completed."); }
+    catch (err) { setShippingMessage(err?.response?.data?.message || "Shipping provider test failed."); }
+    finally { setShippingBusy(false); }
   };
   const testVoiceCaller = async () => {
     setVoiceCallerBusy(true);
@@ -1747,6 +1778,23 @@ export default function SettingsPage() {
               <Field label="Response Call ID Path" value={voiceCallerForm.response_id_path || ""} onChange={updateVoiceCallerField("response_id_path")} type="text" placeholder="id or data.call_id" />
               <Field label="Call Purpose Template" value={voiceCallerForm.purpose_template || ""} onChange={updateVoiceCallerField("purpose_template")} type="text" placeholder="I'm calling from METHO AAY-UPAY for a follow-up with {{lead_name}}." />
               <div className="md:col-span-2 flex flex-wrap items-center gap-2"><Button type="button" onClick={saveVoiceCaller} disabled={voiceCallerBusy}>Save Configuration</Button><Button type="button" variant="outline" onClick={testVoiceCaller} disabled={voiceCallerBusy}>Test Configuration</Button>{voiceCallerMessage ? <span className="text-xs text-slate-600">{voiceCallerMessage}</span> : null}</div>
+            </Section>
+          ) : null}
+
+          {!readOnly && shippingForm ? (
+            <Section title="Shipping Provider" subtitle="Configure courier credentials here. Existing orders stay unchanged until a shipment action is connected and enabled." icon={SettingsIcon} badge="Admin">
+              <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={shippingForm.enabled === true} onChange={updateShippingField("enabled")} /> Enable shipping provider</label>
+              <Field label="Provider" value={shippingForm.provider || ""} onChange={updateShippingField("provider")} placeholder="ithink" />
+              <Field label="API Base URL" value={shippingForm.api_base_url || ""} onChange={updateShippingField("api_base_url")} type="url" placeholder="https://api.provider.com" />
+              <div><Label>API Key</Label><Input type="password" value={shippingForm.api_key || ""} onChange={updateShippingField("api_key")} placeholder={shippingForm.api_key_masked || "Leave empty to keep existing"} className="mt-1.5 h-11" /></div>
+              <div><Label>Secret Key</Label><Input type="password" value={shippingForm.secret_key || ""} onChange={updateShippingField("secret_key")} placeholder={shippingForm.secret_key_masked || "Leave empty to keep existing"} className="mt-1.5 h-11" /></div>
+              <Field label="Test Endpoint URL" value={shippingForm.test_endpoint_url || ""} onChange={updateShippingField("test_endpoint_url")} type="url" placeholder="https://api.provider.com/health" />
+              <div><Label>Test HTTP Method</Label><select value={shippingForm.test_http_method || "GET"} onChange={updateShippingField("test_http_method")} className="mt-1.5 h-11 w-full rounded-md border border-input px-3"><option value="GET">GET</option><option value="POST">POST</option></select></div>
+              <div><Label>Authentication Type</Label><select value={shippingForm.auth_type || "bearer_token"} onChange={updateShippingField("auth_type")} className="mt-1.5 h-11 w-full rounded-md border border-input px-3"><option value="bearer_token">Bearer Token</option><option value="custom_header">Custom Header</option><option value="api_key_query_param">API Key Query Param</option></select></div>
+              <Field label="Authentication Header / Query Name" value={shippingForm.auth_header_name || ""} onChange={updateShippingField("auth_header_name")} placeholder="Authorization or X-API-Key" />
+              <div className="md:col-span-2"><Label>Shipment Request JSON Template</Label><textarea value={shippingForm.shipment_request_template || ""} onChange={updateShippingField("shipment_request_template")} placeholder='Provider-specific shipment request JSON; stored for a future shipment action.' className="mt-1.5 min-h-20 w-full rounded-md border border-input px-3 py-2 font-mono text-xs" /></div>
+              <Field label="Tracking Response Path" value={shippingForm.tracking_response_path || ""} onChange={updateShippingField("tracking_response_path")} placeholder="data.awb_number" />
+              <div className="md:col-span-2 flex flex-wrap gap-2"><Button type="button" onClick={saveShipping} disabled={shippingBusy}>Save Shipping Provider</Button><Button type="button" variant="outline" onClick={testShipping} disabled={shippingBusy}>Test Connection</Button>{shippingMessage ? <span className="self-center text-xs text-slate-600">{shippingMessage}</span> : null}</div>
             </Section>
           ) : null}
 
