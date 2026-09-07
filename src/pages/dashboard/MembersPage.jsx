@@ -300,28 +300,74 @@ export default function MembersPage() {
 
       {/* View Profile Dialog */}
       <Dialog open={!!profileTarget} onOpenChange={(o) => { if (!o) setProfileTarget(null); }}>
-        <DialogContent>
+        <DialogContent className="max-w-2xl">
           <DialogHeader>
             <DialogTitle>Member Full Profile</DialogTitle>
             <DialogDescription>
               ID immutable. Full details shown below.
             </DialogDescription>
           </DialogHeader>
-          <div className="grid gap-2 text-sm">
-            <p><span className="font-semibold">Member ID:</span> {getMemberDisplayId(profileTarget)}</p>
-            <p><span className="font-semibold">Name:</span> {profileTarget?.name}</p>
-            <p><span className="font-semibold">Phone:</span> {profileTarget?.phone || "-"}</p>
-            <p><span className="font-semibold">Sponsor Code:</span> {profileTarget?.sponsor_code || "-"}</p>
-            <p><span className="font-semibold">DOB:</span> {profileTarget?.dob || "-"}</p>
-            <p><span className="font-semibold">PAN:</span> {profileTarget?.pan_no || "-"}</p>
-            <p><span className="font-semibold">Address:</span> {profileTarget?.address || "-"}</p>
-            <p><span className="font-semibold">City:</span> {profileTarget?.city || "-"}</p>
-            <p><span className="font-semibold">State:</span> {profileTarget?.state || "-"}</p>
-            <p><span className="font-semibold">Pincode:</span> {profileTarget?.pincode || "-"}</p>
-            <p><span className="font-semibold">Status:</span> {profileTarget?.active === false ? "inactive" : "active"}</p>
+          <div className="grid gap-3 text-sm max-h-[65vh] overflow-y-auto pr-2">
+            <div className="grid md:grid-cols-2 gap-4">
+              <div>
+                <span className="font-semibold text-slate-700">Member ID:</span>
+                <p className="font-mono text-slate-900">{getMemberDisplayId(profileTarget)}</p>
+              </div>
+              <div>
+                <span className="font-semibold text-slate-700">Status:</span>
+                <p className={`${profileTarget?.active === false ? "text-red-700 font-semibold" : "text-emerald-700 font-semibold"}`}>
+                  {profileTarget?.active === false ? "INACTIVE" : "ACTIVE"}
+                </p>
+              </div>
+              <div>
+                <span className="font-semibold text-slate-700">Name:</span>
+                <p className="text-slate-900">{profileTarget?.name || "-"}</p>
+              </div>
+              <div>
+                <span className="font-semibold text-slate-700">Phone:</span>
+                <p className="text-slate-900">{profileTarget?.phone || "-"}</p>
+              </div>
+              <div>
+                <span className="font-semibold text-slate-700">Sponsor Code:</span>
+                <p className="font-mono text-slate-900">{profileTarget?.sponsor_code || "-"}</p>
+              </div>
+              <div>
+                <span className="font-semibold text-slate-700">Email:</span>
+                <p className="text-slate-900">{profileTarget?.email || "-"}</p>
+              </div>
+              <div>
+                <span className="font-semibold text-slate-700">DOB:</span>
+                <p className="text-slate-900">{profileTarget?.dob || "-"}</p>
+              </div>
+              <div>
+                <span className="font-semibold text-slate-700">PAN:</span>
+                <p className="font-mono text-slate-900">{profileTarget?.pan_no || "-"}</p>
+              </div>
+              <div className="md:col-span-2">
+                <span className="font-semibold text-slate-700">Address:</span>
+                <p className="text-slate-900">{profileTarget?.address || "-"}</p>
+              </div>
+              <div>
+                <span className="font-semibold text-slate-700">City:</span>
+                <p className="text-slate-900">{profileTarget?.city || "-"}</p>
+              </div>
+              <div>
+                <span className="font-semibold text-slate-700">State:</span>
+                <p className="text-slate-900">{profileTarget?.state || "-"}</p>
+              </div>
+              <div>
+                <span className="font-semibold text-slate-700">Pincode:</span>
+                <p className="text-slate-900">{profileTarget?.pincode || "-"}</p>
+              </div>
+            </div>
           </div>
-          <DialogFooter>
-            <Button onClick={() => setProfileTarget(null)} className="bg-emerald-900 hover:bg-emerald-950 text-white">Close</Button>
+          <DialogFooter className="gap-2 flex-wrap">
+            <Button onClick={() => setProfileTarget(null)} variant="outline">Close</Button>
+            {isAdmin && (
+              <Button onClick={() => { setProfileTarget(null); openEdit(profileTarget); }} className="bg-emerald-900 hover:bg-emerald-950 text-white">
+                <Pencil className="w-4 h-4 mr-2" /> Edit Profile
+              </Button>
+            )}
           </DialogFooter>
         </DialogContent>
       </Dialog>
