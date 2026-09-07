@@ -3189,6 +3189,10 @@ def _load_user_profile_details(db: Session, user_id: str) -> dict:
     return {
         "dob": str(payload.get("dob") or "").strip(),
         "pan_no": str(payload.get("pan_no") or "").strip().upper(),
+        "address": str(payload.get("address") or "").strip(),
+        "city": str(payload.get("city") or "").strip(),
+        "state": str(payload.get("state") or "").strip(),
+        "pincode": str(payload.get("pincode") or "").strip(),
     }
 
 
@@ -3198,6 +3202,10 @@ def _save_user_profile_details(db: Session, user_id: str, payload: dict | None) 
     normalized = {
         "dob": str(source.get("dob") if source.get("dob") is not None else current.get("dob") or "").strip(),
         "pan_no": str(source.get("pan_no") if source.get("pan_no") is not None else current.get("pan_no") or "").strip().upper(),
+        "address": str(source.get("address") if source.get("address") is not None else current.get("address") or "").strip(),
+        "city": str(source.get("city") if source.get("city") is not None else current.get("city") or "").strip(),
+        "state": str(source.get("state") if source.get("state") is not None else current.get("state") or "").strip(),
+        "pincode": str(source.get("pincode") if source.get("pincode") is not None else current.get("pincode") or "").strip(),
     }
     row = db.query(AppSetting).filter(AppSetting.key == _user_profile_key(user_id)).first()
     if not row:
@@ -4019,7 +4027,7 @@ def admin_update_user(user_id: str, payload: dict, db: Session = Depends(get_db)
                 raise HTTPException(status_code=400, detail="Password must be at least 6 characters")
             user.password = hash_password(new_password)
 
-    if any(key in payload for key in ("dob", "pan_no")):
+    if any(key in payload for key in ("dob", "pan_no", "address", "city", "state", "pincode")):
         _save_user_profile_details(db, user.id, payload)
 
     if "sponsor_code" in payload:
@@ -7949,6 +7957,7 @@ def admin_partners_create(payload: dict, db: Session = Depends(get_db), current_
 
 @router.put("/admin/partners/{partner_id}")
 def admin_partners_update(partner_id: str, payload: dict, db: Session = Depends(get_db), current_user=Depends(get_current_user)):
+    _require_admin_user(current_user)
     p = db.query(AssociatePartner).filter(AssociatePartner.id == partner_id).first()
     if p:
         p.business_name = str(payload.get("business_name") or p.business_name)
@@ -7957,6 +7966,9 @@ def admin_partners_update(partner_id: str, payload: dict, db: Session = Depends(
         p.phone = str(payload.get("phone") or p.phone)
         p.email = str(payload.get("email") or p.email)
         p.address = str(payload.get("address") or p.address)
+        p.city = str(payload.get("city") or p.city)
+        p.state = str(payload.get("state") or p.state)
+        p.pincode = str(payload.get("pincode") or p.pincode)
         p.gst_no = str(payload.get("gst_no") or p.gst_no)
         p.upi_id = str(payload.get("upi_id") or p.upi_id)
         p.whatsapp_no = str(payload.get("whatsapp_no") or p.whatsapp_no)

@@ -4,6 +4,7 @@ import { toast } from "sonner";
 import api from "@/services/api";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import AdminServiceSectorsPage from "./AdminServiceSectorsPage";
 
 const RATE_CATEGORIES = [
@@ -19,6 +20,8 @@ export default function MethoDeliveryAdminPage() {
   const [bookings, setBookings] = useState([]);
   const [earnings, setEarnings] = useState([]);
   const [riders, setRiders] = useState([]);
+  const [editingRider, setEditingRider] = useState(null);
+  const [riderForm, setRiderForm] = useState({});
 
   useEffect(() => {
     Promise.all([api.get("/settings"), api.get("/admin/metho-move/bookings"), api.get("/admin/metho-move/earnings"), api.get("/admin/riders")])
@@ -63,9 +66,9 @@ export default function MethoDeliveryAdminPage() {
     try {
       if (action === "delete" && !window.confirm(`Delete rider ${rider.name}?`)) return;
       if (action === "edit") {
-        const name = window.prompt("Rider name", rider.name);
-        if (!name) return;
-        await api.patch(`/admin/riders/${rider.id}`, { name });
+        setEditingRider(rider);
+        setRiderForm({ ...rider });
+        return;
       } else if (action === "delete") {
         await api.delete(`/admin/riders/${rider.id}`);
       } else {
@@ -76,6 +79,15 @@ export default function MethoDeliveryAdminPage() {
     } catch (error) {
       toast.error(error?.response?.data?.detail || `Rider ${action} failed`);
     }
+  };
+
+  const saveRider = async () => {
+    if (!editingRider) return;
+    try {
+      const fields = ["name", "phone", "vehicle_type", "vehicle_number", "whatsapp", "email", "dob", "address", "city", "district", "state", "pincode", "pan_no", "aadhaar_no", "emergency_contact_name", "emergency_contact_phone", "bank_account_holder", "bank_name", "bank_account_number", "bank_ifsc", "upi_id"];
+      await api.patch(`/admin/riders/${editingRider.id}`, Object.fromEntries(fields.map((field) => [field, riderForm[field] ?? ""])));
+      setEditingRider(null); await refreshRiders(); toast.success("Rider profile updated");
+    } catch (error) { toast.error(error?.response?.data?.detail || "Rider update failed"); }
   };
 
   return <div className="space-y-6">
@@ -97,5 +109,6 @@ export default function MethoDeliveryAdminPage() {
     <section className="rounded-xl border border-emerald-200 bg-white p-5"><div className="flex items-center justify-between gap-3"><h2 className="font-display font-bold text-lg text-emerald-950">Direct METHO Move bookings</h2><span className="text-sm text-slate-500">{bookings.length} total</span></div><div className="mt-4 grid gap-3">{bookings.length ? bookings.map((booking) => <div key={booking.id} className="rounded-lg border p-4"><div className="flex flex-wrap items-center justify-between gap-3"><div><p className="font-semibold text-emerald-950">{booking.service_type} · ₹{booking.amount} · {booking.status}</p><p className="text-sm text-slate-600">{booking.pickup} → {booking.destination}</p><p className="text-xs text-slate-500">{booking.customer_name} · {booking.customer_phone}</p></div><select value={booking.rider_id || ""} onChange={async (event) => { if (!event.target.value) return; await api.post(`/admin/metho-move/bookings/${booking.id}/assign`, { rider_id: event.target.value }); toast.success("Rider assigned"); window.location.reload(); }} className="h-9 rounded-md border px-2 text-xs"><option value="">Assign online rider</option>{riders.filter((rider) => rider.approval_status === "approved" && rider.is_active && rider.availability === "online").map((rider) => <option key={rider.id} value={rider.id}>{rider.name} · {rider.availability}</option>)}</select></div></div>) : <p className="text-sm text-slate-500">No direct bookings yet.</p>}</div></section>
     <section className="rounded-xl border border-amber-200 bg-amber-50 p-5"><h2 className="font-display font-bold text-lg text-emerald-950">Rider earnings and payouts</h2><div className="mt-4 grid gap-2">{earnings.length ? earnings.map((earning) => <div key={earning.id} className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-amber-200 bg-white p-3 text-sm"><span>{earning.rider_id} · ₹{earning.amount} · {earning.status}</span>{earning.status !== "paid" ? <Button size="sm" onClick={async () => { await api.post(`/admin/metho-move/earnings/${earning.id}/pay`); toast.success("Payout marked paid"); window.location.reload(); }}>Mark paid</Button> : null}</div>) : <p className="text-sm text-slate-500">No rider earnings yet.</p>}</div></section>
     <AdminServiceSectorsPage deliveryVertical="metho_delivery" methoDeliveryOnly />
+    <Dialog open={!!editingRider} onOpenChange={(open) => { if (!open) setEditingRider(null); }}><DialogContent className="max-h-[90vh] max-w-3xl overflow-y-auto"><DialogHeader><DialogTitle>Edit Rider Profile</DialogTitle><DialogDescription>Rider ID, order and earning history remain unchanged.</DialogDescription></DialogHeader><div className="grid gap-3 md:grid-cols-2">{[["name", "Name"], ["phone", "Phone"], ["whatsapp", "WhatsApp"], ["email", "Email"], ["vehicle_type", "Vehicle type"], ["vehicle_number", "Vehicle number"], ["dob", "DOB"], ["pan_no", "PAN"], ["aadhaar_no", "Aadhaar"], ["emergency_contact_name", "Emergency contact name"], ["emergency_contact_phone", "Emergency contact phone"], ["bank_account_holder", "Bank account holder"], ["bank_name", "Bank name"], ["bank_account_number", "Bank account number"], ["bank_ifsc", "Bank IFSC"], ["upi_id", "UPI ID"], ["address", "Address"], ["city", "City"], ["district", "District"], ["state", "State"], ["pincode", "Pincode"]].map(([field, label]) => <label key={field} className={field === "address" ? "md:col-span-2 text-sm" : "text-sm"}>{label}<Input value={riderForm[field] || ""} onChange={(event) => setRiderForm({ ...riderForm, [field]: event.target.value })} className="mt-1" /></label>)}</div><DialogFooter><Button variant="outline" onClick={() => setEditingRider(null)}>Cancel</Button><Button onClick={saveRider}>Save Changes</Button></DialogFooter></DialogContent></Dialog>
   </div>;
 }

@@ -30,6 +30,10 @@ export default function MembersPage() {
     sponsor_code: "",
     dob: "",
     pan_no: "",
+    address: "",
+    city: "",
+    state: "",
+    pincode: "",
     role: "member",
     password: "",
     is_active: true,
@@ -134,6 +138,10 @@ export default function MembersPage() {
       sponsor_code: m.sponsor_code || "",
       dob: m.dob || "",
       pan_no: m.pan_no || "",
+      address: m.address || "",
+      city: m.city || "",
+      state: m.state || "",
+      pincode: m.pincode || "",
       role: m.role || "member",
       password: "",
       is_active: m.active !== false,
@@ -154,6 +162,10 @@ export default function MembersPage() {
         sponsor_code: String(editForm.sponsor_code || "").trim().toUpperCase(),
         dob: editForm.dob || null,
         pan_no: String(editForm.pan_no || "").trim().toUpperCase(),
+        address: editForm.address,
+        city: editForm.city,
+        state: editForm.state,
+        pincode: editForm.pincode,
         role: "member",
         active: !!editForm.is_active,
       };
@@ -348,6 +360,10 @@ export default function MembersPage() {
               <Label>PAN Number</Label>
               <Input value={editForm.pan_no || ""} onChange={(e) => setEditForm({ ...editForm, pan_no: e.target.value.toUpperCase() })} placeholder="ABCDE1234F" className="mt-1.5 h-11 uppercase" maxLength={10} />
             </div>
+            <div className="md:col-span-2"><Label>Address</Label><Input value={editForm.address || ""} onChange={(e) => setEditForm({ ...editForm, address: e.target.value })} className="mt-1.5 h-11" /></div>
+            <div><Label>City</Label><Input value={editForm.city || ""} onChange={(e) => setEditForm({ ...editForm, city: e.target.value })} className="mt-1.5 h-11" /></div>
+            <div><Label>State</Label><Input value={editForm.state || ""} onChange={(e) => setEditForm({ ...editForm, state: e.target.value })} className="mt-1.5 h-11" /></div>
+            <div><Label>Pincode</Label><Input value={editForm.pincode || ""} onChange={(e) => setEditForm({ ...editForm, pincode: e.target.value })} className="mt-1.5 h-11" /></div>
             <div>
               <Label>Role</Label>
               <Input value="member" readOnly className="mt-1.5 h-11 bg-slate-50" />
