@@ -118,8 +118,9 @@ export default function MembersPage() {
     const action = m.active === false ? "activate" : "block";
     if (!window.confirm(`${action} ${m.name} (${m.member_code})?`)) return;
     try {
-      const { data } = await api.post(`/admin/users/${m.id}/toggle-active`);
-      toast.success(`${data.user_name} is now ${data.active ? "active" : "blocked"}`);
+      const nextActive = m.active === false;
+      await api.put(`/admin/users/${m.id}`, { active: nextActive });
+      toast.success(`${m.name} is now ${nextActive ? "active" : "blocked"}`);
       load();
     } catch (err) {
       toast.error(adminActionError(err, "Failed"));
