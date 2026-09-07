@@ -2,21 +2,26 @@ import json
 import logging
 import os
 import re
+from datetime import datetime, timedelta, timezone
 
 from sqlalchemy.exc import IntegrityError
 
 from .database import SessionLocal
 from .google_search import search_web_context
-from .models import AppSetting, CRMFollowUp, CRMLead, CRMLeadActivity, CRMTask, CRMWhatsAppAISuggestion
+from .models import AppSetting, CRMFollowUp, CRMLead, CRMLeadActivity, CRMTask, CRMWhatsAppAISuggestion, User
 
 logger = logging.getLogger(__name__)
 SETTING_KEY = "crm_whatsapp_ai"
 DEFAULT_CONFIG = {
     "enabled": False,
+    "auto_send_enabled": False,
+    "auto_send_fallback_allowed": False,
+    "suppress_static_default_when_ai_enabled": True,
+    "follow_up_delay_hours": 24,
     "provider": "openai",
     "model": "gpt-4.1-mini",
-    "system_prompt": "You are METHO AAY-UPAY customer support. Write a concise, polite reply in the customer's language. Do not promise discounts, refunds, payments, approvals, or account changes. Ask a human agent to help when unsure.",
-    "knowledge_base": "METHO AAY-UPAY is an e-commerce and partner platform. Customers can ask about products, orders, registration, and partner opportunities.",
+    "system_prompt": "You are METHO AAY-UPAY customer support. Answer only from the CRM context and knowledge base. Reply in the customer's language. Be concise, polite, and practical. Do not invent product availability, prices, payment status, shipment status, approvals, rewards, refunds, or account changes. If the answer is not known from context, say a METHO team member will check and follow up.",
+    "knowledge_base": "METHO AAY-UPAY is an e-commerce, member reward, partner shop/service, METHO Move, and delivery platform. Customers can ask about products, orders, registration, partner opportunities, rider work, payments, delivery, and support. Never ask for OTP, UPI PIN, ATM PIN, CVV, passwords, or full bank details.",
     "handoff_keywords": "agent,human,মানুষ,অফিস,complaint,refund,payment,legal,fraud,otp,password",
 }
 SENSITIVE_PATTERNS = (r"\b\d{4}[-\s]?\d{4}[-\s]?\d{4}\b", r"\b[A-Z]{5}[0-9]{4}[A-Z]\b", r"\b\d{6}\b")
@@ -48,8 +53,16 @@ def save_ai_config(db, payload: dict) -> dict:
     provider = str(data.get("provider", current["provider"]) or "openai").strip().lower()
     if provider not in {"openai", "gemini"}:
         raise ValueError("AI provider must be openai or gemini")
+    try:
+        follow_up_delay_hours = max(1, min(168, int(data.get("follow_up_delay_hours", current.get("follow_up_delay_hours", 24)) or 24)))
+    except (TypeError, ValueError):
+        follow_up_delay_hours = 24
     config = {
         "enabled": bool(data.get("enabled", current["enabled"])),
+        "auto_send_enabled": bool(data.get("auto_send_enabled", current.get("auto_send_enabled", False))),
+        "auto_send_fallback_allowed": bool(data.get("auto_send_fallback_allowed", current.get("auto_send_fallback_allowed", False))),
+        "suppress_static_default_when_ai_enabled": bool(data.get("suppress_static_default_when_ai_enabled", current.get("suppress_static_default_when_ai_enabled", True))),
+        "follow_up_delay_hours": follow_up_delay_hours,
         "provider": provider,
         "model": str(data.get("model", current["model"]) or "").strip()[:80],
         "system_prompt": str(data.get("system_prompt", current["system_prompt"]) or "").strip()[:4000],
@@ -93,6 +106,70 @@ def _crm_context(db, lead: CRMLead) -> str:
         f"Pending admin actions: {', '.join(task.title for task in tasks) or 'none'}",
         f"Recent CRM timeline: {timeline or 'none'}",
     ))
+
+
+def _admin_assignee(db) -> str:
+    configured = ""
+    try:
+        from .whatsapp_cloud import resolve_config
+        configured = str(resolve_config(db).get("default_assignee_id") or "").strip()
+    except Exception:
+        configured = ""
+    if configured:
+        if db.query(User).filter(User.id == configured, User.role.in_(["super_admin", "company_admin", "admin"]), User.is_active.is_(True)).first():
+            return configured
+    admin = db.query(User).filter(User.role.in_(["super_admin", "company_admin", "admin"]), User.is_active.is_(True)).order_by(User.created_at.asc()).first()
+    return admin.id if admin else ""
+
+
+def should_ai_handle_freeform_reply(db) -> bool:
+    config = resolve_ai_config(db)
+    return bool(config.get("enabled") and config.get("suppress_static_default_when_ai_enabled"))
+
+
+def _schedule_ai_follow_up(db, lead: CRMLead, config: dict, reason: str) -> None:
+    try:
+        delay_hours = max(1, min(168, int(config.get("follow_up_delay_hours") or 24)))
+    except (TypeError, ValueError):
+        delay_hours = 24
+    scheduled_at = datetime.now(timezone.utc) + timedelta(hours=delay_hours)
+    lead.next_follow_up_at = scheduled_at
+    lead.follow_up_status = "Pending"
+    existing = db.query(CRMFollowUp).filter(CRMFollowUp.lead_id == lead.id, CRMFollowUp.status == "Pending").order_by(CRMFollowUp.scheduled_at.asc()).first()
+    if existing:
+        existing.scheduled_at = scheduled_at
+        existing.notes = reason
+    else:
+        db.add(CRMFollowUp(lead_id=lead.id, scheduled_at=scheduled_at, status="Pending", notes=reason))
+    assignee_id = lead.assigned_user_id or _admin_assignee(db)
+    if assignee_id:
+        task = db.query(CRMTask).filter(CRMTask.lead_id == lead.id, CRMTask.status.in_(["Pending", "In Progress"]), CRMTask.title == "WhatsApp AI follow-up").first()
+        if task:
+            task.due_at = scheduled_at
+            task.description = reason
+        else:
+            db.add(CRMTask(title="WhatsApp AI follow-up", description=reason, due_at=scheduled_at, status="Pending", priority="Medium", lead_id=lead.id, assigned_user_id=assignee_id, created_by_user_id=assignee_id))
+
+
+def _recent_outgoing_after(db, lead_id: str, created_at) -> bool:
+    if not created_at:
+        return False
+    return db.query(CRMLeadActivity).filter(CRMLeadActivity.lead_id == lead_id, CRMLeadActivity.activity_type == "whatsapp_message_sent", CRMLeadActivity.created_at >= created_at).first() is not None
+
+
+def _auto_send_allowed(config: dict, suggestion: CRMWhatsAppAISuggestion, activity: CRMLeadActivity, provider: str) -> tuple[bool, str]:
+    if not config.get("auto_send_enabled"):
+        return False, "Auto-send disabled"
+    if suggestion.human_handoff_required:
+        return False, suggestion.handoff_reason or "Human handoff required"
+    if provider == "fallback" and not config.get("auto_send_fallback_allowed"):
+        return False, "Fallback reply requires admin review"
+    text = str(suggestion.suggested_reply or "").strip()
+    if not text:
+        return False, "Empty AI reply"
+    if len(text) > 1500:
+        return False, "AI reply too long"
+    return True, ""
 
 
 def _generate_reply(config: dict, message: str, context: str = "", event_type: str = "") -> tuple[str, str, str]:
@@ -139,8 +216,30 @@ def create_suggestion_for_activity(activity_id: str) -> None:
         clean_text, handoff, reason = _guardrail(incoming, config["handoff_keywords"])
         context = _crm_context(db, lead)
         reply, provider, model = _generate_reply(config, clean_text, context, activity.activity_type)
-        db.add(CRMWhatsAppAISuggestion(lead_id=lead.id, activity_id=activity.id, suggested_reply=reply, human_handoff_required=handoff, handoff_reason=reason, provider_used=provider, model_used=model))
-        db.add(CRMLeadActivity(lead_id=lead.id, activity_type="ai_suggestion_created", message=f"AI draft created. Handoff required: {'yes' if handoff else 'no'}. CRM context included: {context.splitlines()[0] if context else 'none'}"))
+        suggestion = CRMWhatsAppAISuggestion(lead_id=lead.id, activity_id=activity.id, suggested_reply=reply, human_handoff_required=handoff, handoff_reason=reason, provider_used=provider, model_used=model)
+        db.add(suggestion)
+        db.flush()
+        allow_auto_send, blocked_reason = _auto_send_allowed(config, suggestion, activity, provider)
+        if allow_auto_send and _recent_outgoing_after(db, lead.id, activity.created_at):
+            allow_auto_send = False
+            blocked_reason = "Outgoing reply already recorded after this message"
+        if allow_auto_send:
+            try:
+                from .whatsapp_cloud import send_whatsapp_message
+                send_whatsapp_message(db, lead.whatsapp_no or lead.phone, text=reply)
+                suggestion.status = "SENT"
+                suggestion.sent_reply = reply
+                suggestion.error_message = ""
+                lead.last_contact_at = datetime.now(timezone.utc)
+                db.add(CRMLeadActivity(lead_id=lead.id, activity_type="whatsapp_message_sent", message=reply))
+                db.add(CRMLeadActivity(lead_id=lead.id, activity_type="ai_suggestion_auto_sent", message=f"AI auto-reply sent with {provider}/{model}."))
+            except Exception as exc:
+                suggestion.status = "FAILED"
+                suggestion.error_message = str(exc)[:500]
+                db.add(CRMLeadActivity(lead_id=lead.id, activity_type="ai_suggestion_auto_send_failed", message=str(exc)[:500]))
+        else:
+            db.add(CRMLeadActivity(lead_id=lead.id, activity_type="ai_suggestion_created", message=f"AI draft created. Auto-send: no. Reason: {blocked_reason}. CRM context included: {context.splitlines()[0] if context else 'none'}"))
+        _schedule_ai_follow_up(db, lead, config, "Review WhatsApp AI response and follow up with the customer if needed.")
         db.commit()
     except IntegrityError:
         db.rollback()

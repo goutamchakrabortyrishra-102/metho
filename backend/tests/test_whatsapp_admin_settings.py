@@ -171,6 +171,22 @@ def test_whatsapp_default_auto_reply_is_sent_without_duplicate_funnel_content(mo
         db.close()
 
 
+def test_whatsapp_freeform_static_default_is_suppressed_when_ai_handles_questions(monkeypatch):
+    from sql_app.whatsapp_ai import save_ai_config
+
+    db = make_session()
+    try:
+        sent = []
+        monkeypatch.setattr("sql_app.whatsapp_cloud.send_whatsapp_message", lambda _db, recipient, text: sent.append((recipient, text)) or {"messages": [{"id": "wamid.reply"}]})
+        update_whatsapp_settings({"phone_number_id": "123456", "access_token": "secret-token", "default_auto_reply": "Old static reply"}, db, admin())
+        save_ai_config(db, {"enabled": True, "auto_send_enabled": True, "suppress_static_default_when_ai_enabled": True})
+        assert ingest_whatsapp_message(db, message_payload("wamid.ai-freeform", "পণ্যের দাম কত?"), None) == "created"
+        assert sent == []
+        assert db.query(CRMLeadActivity).filter(CRMLeadActivity.activity_type == "whatsapp_message_received").count() == 1
+    finally:
+        db.close()
+
+
 def test_same_message_id_is_ignored_but_new_message_from_customer_is_recorded():
     db = make_session()
     try:

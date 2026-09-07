@@ -111,3 +111,41 @@ def test_lifecycle_event_creates_a_specific_manual_send_suggestion(monkeypatch):
         assert "Smart Cycle" in suggestion.suggested_reply
     finally:
         db.close()
+
+
+def test_ai_auto_send_records_reply_and_followup(monkeypatch):
+    db = make_session()
+    try:
+        lead, activity = add_whatsapp_activity(db, "পণ্য সম্পর্কে জানতে চাই")
+        sent = []
+        save_ai_config(db, {"enabled": True, "auto_send_enabled": True, "provider": "gemini", "model": "gemini-1.5-flash", "follow_up_delay_hours": 6})
+        monkeypatch.setattr("sql_app.whatsapp_ai.SessionLocal", lambda: NoCloseSession(db))
+        monkeypatch.setattr("sql_app.whatsapp_ai._generate_reply", lambda *_args, **_kwargs: ("আপনি কোন পণ্যটি জানতে চান? নাম বা ছবি পাঠালে আমরা সঠিক তথ্য দেব।", "gemini", "gemini-1.5-flash"))
+        monkeypatch.setattr("sql_app.whatsapp_cloud.send_whatsapp_message", lambda _db, recipient, text: sent.append((recipient, text)) or {"messages": [{"id": "wamid.ai"}]})
+        create_suggestion_for_activity(activity.id)
+        suggestion = db.query(CRMWhatsAppAISuggestion).one()
+        assert suggestion.status == "SENT"
+        assert suggestion.provider_used == "gemini"
+        assert sent == [("8801712345678", "আপনি কোন পণ্যটি জানতে চান? নাম বা ছবি পাঠালে আমরা সঠিক তথ্য দেব।")]
+        assert db.query(CRMLeadActivity).filter(CRMLeadActivity.activity_type == "ai_suggestion_auto_sent").count() == 1
+        assert lead.next_follow_up_at is not None
+    finally:
+        db.close()
+
+
+def test_ai_auto_send_does_not_send_handoff(monkeypatch):
+    db = make_session()
+    try:
+        _lead, activity = add_whatsapp_activity(db, "I need refund and human agent")
+        sent = []
+        save_ai_config(db, {"enabled": True, "auto_send_enabled": True})
+        monkeypatch.setattr("sql_app.whatsapp_ai.SessionLocal", lambda: NoCloseSession(db))
+        monkeypatch.setattr("sql_app.whatsapp_ai._generate_reply", lambda *_args, **_kwargs: ("A team member will help.", "openai", "gpt-4.1-mini"))
+        monkeypatch.setattr("sql_app.whatsapp_cloud.send_whatsapp_message", lambda _db, recipient, text: sent.append((recipient, text)) or {"messages": [{"id": "wamid.ai"}]})
+        create_suggestion_for_activity(activity.id)
+        suggestion = db.query(CRMWhatsAppAISuggestion).one()
+        assert suggestion.status == "PENDING"
+        assert suggestion.human_handoff_required is True
+        assert sent == []
+    finally:
+        db.close()
