@@ -314,6 +314,10 @@ export default function MembersPage() {
             <p><span className="font-semibold">Sponsor Code:</span> {profileTarget?.sponsor_code || "-"}</p>
             <p><span className="font-semibold">DOB:</span> {profileTarget?.dob || "-"}</p>
             <p><span className="font-semibold">PAN:</span> {profileTarget?.pan_no || "-"}</p>
+            <p><span className="font-semibold">Address:</span> {profileTarget?.address || "-"}</p>
+            <p><span className="font-semibold">City:</span> {profileTarget?.city || "-"}</p>
+            <p><span className="font-semibold">State:</span> {profileTarget?.state || "-"}</p>
+            <p><span className="font-semibold">Pincode:</span> {profileTarget?.pincode || "-"}</p>
             <p><span className="font-semibold">Status:</span> {profileTarget?.active === false ? "inactive" : "active"}</p>
           </div>
           <DialogFooter>
