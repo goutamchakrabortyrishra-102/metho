@@ -94,3 +94,20 @@ def test_admin_can_send_non_handoff_suggestion_and_reject_pending(monkeypatch):
         assert reject_suggestion(rejected.id, db, admin())["suggestion"]["status"] == "REJECTED"
     finally:
         db.close()
+
+
+def test_lifecycle_event_creates_a_specific_manual_send_suggestion(monkeypatch):
+    db = make_session()
+    try:
+        lead, _activity = add_whatsapp_activity(db)
+        lifecycle = CRMLeadActivity(lead_id=lead.id, activity_type="member_activated", message="Member activated after an approved purchase")
+        db.add(lifecycle)
+        db.commit()
+        save_ai_config(db, {"enabled": True})
+        monkeypatch.setattr("sql_app.whatsapp_ai.SessionLocal", lambda: NoCloseSession(db))
+        create_suggestion_for_activity(lifecycle.id)
+        suggestion = db.query(CRMWhatsAppAISuggestion).filter(CRMWhatsAppAISuggestion.activity_id == lifecycle.id).one()
+        assert suggestion.status == "PENDING"
+        assert "Smart Cycle" in suggestion.suggested_reply
+    finally:
+        db.close()

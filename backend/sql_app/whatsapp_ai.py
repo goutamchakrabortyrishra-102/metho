@@ -21,6 +21,15 @@ DEFAULT_CONFIG = {
 }
 SENSITIVE_PATTERNS = (r"\b\d{4}[-\s]?\d{4}[-\s]?\d{4}\b", r"\b[A-Z]{5}[0-9]{4}[A-Z]\b", r"\b\d{6}\b")
 SEARCH_TERMS = ("price", "cost", "benefit", "use", "detail", "product", "দাম", "কত", "উপকারিতা", "ব্যবহার", "বিস্তারিত", "পণ্য")
+LIFECYCLE_SUGGESTIONS = {
+    "registration_form_opened": "আপনি registration form খুলেছেন। Form পূরণ করতে কোনো সাহায্য লাগলে এখানেই লিখুন।",
+    "registration_form_submitted": "আপনার registration form জমা হয়েছে। পরবর্তী ধাপ সম্পন্ন করতে কোনো সাহায্য লাগলে এখানে reply করুন।",
+    "member_registration_completed": "আপনার Member registration সম্পন্ন হয়েছে। Account activation ও প্রথম purchase-এর পরবর্তী ধাপে সহায়তা লাগলে এখানে reply করুন।",
+    "member_activated": "আপনার Member account active হয়েছে। Smart Cycle, reward rules এবং product purchase নিয়ে সাহায্য লাগলে এখানে reply করুন।",
+    "partner_registration_submitted": "আপনার Partner registration জমা হয়েছে। KYC ও approval-এর পরবর্তী ধাপে সহায়তা লাগলে এখানে reply করুন।",
+    "partner_activated": "আপনার Partner account approved হয়েছে। Shop/service onboarding ও প্রথম listing-এর সাহায্য লাগলে এখানে reply করুন।",
+    "metho_move_booking_created": "আপনার METHO Move booking request পাওয়া গেছে। Payment বা rider assignment বিষয়ে সাহায্য লাগলে এখানে reply করুন।",
+}
 
 
 def resolve_ai_config(db) -> dict:
@@ -86,9 +95,9 @@ def _crm_context(db, lead: CRMLead) -> str:
     ))
 
 
-def _generate_reply(config: dict, message: str, context: str = "") -> tuple[str, str, str]:
+def _generate_reply(config: dict, message: str, context: str = "", event_type: str = "") -> tuple[str, str, str]:
     search_context = search_web_context(f"METHO AAY-UPAY {message}") if any(term in message.lower() for term in SEARCH_TERMS) else ""
-    prompt = f"{config['system_prompt']}\n\nOperational rules: Use the CRM context to answer the next action clearly. If registration is submitted, explain the pending activation or approval step. If a follow-up is due, offer help and state that a human agent will follow up. Never claim an account is activated, a reward is paid, or an approval is complete unless the CRM context says so.\n\nCRM context:\n{context or 'No CRM context available.'}\n\nKnowledge base:\n{config['knowledge_base']}\n\nOptional public search context (use only as background; do not invent facts):\n{search_context or 'No search context available.'}\n\nCustomer message:\n{message}"
+    prompt = f"{config['system_prompt']}\n\nOperational rules: Use the CRM context to answer the next action clearly. If registration is submitted, explain the pending activation or approval step. If a follow-up is due, offer help and state that a human agent will follow up. Never claim an account is activated, a reward is paid, or an approval is complete unless the CRM context says so. For lifecycle event reminders, write one concise, actionable message and invite the customer to reply for help.\n\nTrigger event: {event_type or 'incoming_whatsapp_message'}\n\nCRM context:\n{context or 'No CRM context available.'}\n\nKnowledge base:\n{config['knowledge_base']}\n\nOptional public search context (use only as background; do not invent facts):\n{search_context or 'No search context available.'}\n\nCustomer message/event:\n{message}"
     preferred = config["provider"]
     openai_key = os.getenv("OPENAI_API_KEY", "").strip()
     gemini_key = (os.getenv("GEMINI_API_KEY", "") or os.getenv("GOOGLE_API_KEY", "")).strip()
@@ -111,14 +120,14 @@ def _generate_reply(config: dict, message: str, context: str = "") -> tuple[str,
                 return text[:1500], "gemini", config["model"]
         except Exception as exc:
             logger.warning("WhatsApp AI Gemini draft failed: %s", exc)
-    return "ধন্যবাদ আপনার বার্তার জন্য। মেঠো প্রতিনিধি শীঘ্রই আপনার সাথে যোগাযোগ করবেন।", "fallback", "local"
+    return LIFECYCLE_SUGGESTIONS.get(event_type, "ধন্যবাদ আপনার বার্তার জন্য। মেঠো প্রতিনিধি শীঘ্রই আপনার সাথে যোগাযোগ করবেন।"), "fallback", "local"
 
 
 def create_suggestion_for_activity(activity_id: str) -> None:
     db = SessionLocal()
     try:
         activity = db.get(CRMLeadActivity, activity_id)
-        if not activity or activity.activity_type != "whatsapp_message_received":
+        if not activity or activity.activity_type not in {"whatsapp_message_received", *LIFECYCLE_SUGGESTIONS}:
             return
         if db.query(CRMWhatsAppAISuggestion).filter(CRMWhatsAppAISuggestion.activity_id == activity.id).first():
             return
@@ -129,7 +138,7 @@ def create_suggestion_for_activity(activity_id: str) -> None:
         incoming = activity.message.split("]: ", 1)[-1]
         clean_text, handoff, reason = _guardrail(incoming, config["handoff_keywords"])
         context = _crm_context(db, lead)
-        reply, provider, model = _generate_reply(config, clean_text, context)
+        reply, provider, model = _generate_reply(config, clean_text, context, activity.activity_type)
         db.add(CRMWhatsAppAISuggestion(lead_id=lead.id, activity_id=activity.id, suggested_reply=reply, human_handoff_required=handoff, handoff_reason=reason, provider_used=provider, model_used=model))
         db.add(CRMLeadActivity(lead_id=lead.id, activity_type="ai_suggestion_created", message=f"AI draft created. Handoff required: {'yes' if handoff else 'no'}. CRM context included: {context.splitlines()[0] if context else 'none'}"))
         db.commit()

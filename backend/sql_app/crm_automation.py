@@ -22,7 +22,8 @@ def record_lifecycle_event(
     ).first()
     if duplicate:
         return lead
-    db.add(CRMLeadActivity(lead_id=lead.id, activity_type=event_type, message=message))
+    activity = CRMLeadActivity(lead_id=lead.id, activity_type=event_type, message=message)
+    db.add(activity)
     if followup_notes:
         pending = db.query(CRMFollowUp).filter(
             CRMFollowUp.lead_id == lead.id,
@@ -48,6 +49,11 @@ def record_lifecycle_event(
                 created_by_user_id=assignee_id,
             ))
     db.commit()
+    if lead.source == "whatsapp":
+        from .whatsapp_ai import create_suggestion_for_activity
+        # The caller's request session remains open; use the activity ID after commit
+        # so the AI worker can read the durable event in its own session.
+        create_suggestion_for_activity(activity.id)
     return lead
 
 
