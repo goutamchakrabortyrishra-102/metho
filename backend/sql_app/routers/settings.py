@@ -705,6 +705,14 @@ def list_shipments(status: str = "", db: Session = Depends(get_db), current_user
         except json.JSONDecodeError:
             stored = {}
         item = _shipment_payload(order, stored if isinstance(stored, dict) else {})
+        contact = _load_order_contact_details(db, order.id)
+        item.update({
+            "shipping_city": contact.get("shipping_city", ""),
+            "shipping_state": contact.get("shipping_state", ""),
+            "shipping_pincode": contact.get("shipping_pincode", ""),
+            "customer_phone": contact.get("customer_phone", ""),
+            "customer_email": contact.get("customer_email", ""),
+        })
         if not status or item["shipment_status"] == status:
             result.append(item)
     return {"items": result, "provider": get_shipping_provider_settings(db, current_user)}
@@ -748,6 +756,27 @@ def update_shipment(order_id: str, payload: dict, db: Session = Depends(get_db),
     if not order:
         raise HTTPException(status_code=404, detail="Order not found")
     data = payload if isinstance(payload, dict) else {}
+    if "shipping_address" in data:
+        order.shipping_address = str(data.get("shipping_address") or "").strip()
+    contact_values = {
+        "customer_phone": "".join(ch for ch in str(data.get("customer_phone") or "") if ch.isdigit()),
+        "shipping_city": str(data.get("shipping_city") or "").strip(),
+        "shipping_state": str(data.get("shipping_state") or "").strip(),
+        "shipping_pincode": "".join(ch for ch in str(data.get("shipping_pincode") or "") if ch.isdigit())[-6:],
+        "customer_email": str(data.get("customer_email") or "").strip(),
+    }
+    contact_row = db.query(AppSetting).filter(AppSetting.key == f"order_contact:{order.id}").first()
+    if contact_row:
+        try:
+            existing_contact = json.loads(contact_row.value_json or "{}")
+        except json.JSONDecodeError:
+            existing_contact = {}
+        existing_contact = existing_contact if isinstance(existing_contact, dict) else {}
+        existing_contact.update(contact_values)
+        contact_row.value_json = json.dumps(existing_contact)
+        contact_row.updated_at = datetime.now(timezone.utc)
+    elif any(contact_values.values()):
+        db.add(AppSetting(key=f"order_contact:{order.id}", value_json=json.dumps(contact_values), updated_at=datetime.now(timezone.utc)))
     status = str(data.get("shipment_status") or "NOT_CREATED").strip().upper()
     if status not in SHIPMENT_STATUSES:
         raise HTTPException(status_code=400, detail="Invalid shipment status")
