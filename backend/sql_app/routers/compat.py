@@ -648,6 +648,8 @@ def _serialize_public_order_list_row(row: PublicOrder, db: Session | None = None
         "payer_name": row.payer_name,
         "customer_name": row.payer_name or (buyer.name if buyer else ""),
         "customer_phone": contact_phone or (buyer.phone if buyer else ""),
+        "payment_method": str(row.payment_method or "").strip(),
+        "is_paid": str(row.status or "").strip().lower() in {"paid", "delivered", "approved"},
         "member_code": member_code_for_user(buyer.id) if buyer and str(buyer.role or "").lower() == "member" else row.member_ref,
         "items": [
             {
@@ -8638,14 +8640,34 @@ def generate_product_description(payload: dict, current_user=Depends(get_current
     name = str(payload.get("name") or "Product").strip()
     category = str(payload.get("category") or "General").strip()
     product_type = str(payload.get("product_type") or "metho").strip()
+    unit_type = str(payload.get("unit_type") or "piece").strip() or "piece"
+    price = payload.get("price")
+    mrp = payload.get("mrp")
+    discount_percent = payload.get("discount_percent")
+    price_line = ""
+    try:
+        if price not in (None, ""):
+            price_line = f"Selling price: INR {float(price):.2f} per {unit_type}."
+            if mrp not in (None, "") and float(mrp) > float(price):
+                price_line += f" MRP: INR {float(mrp):.2f}."
+            if discount_percent not in (None, "") and float(discount_percent) > 0:
+                price_line += f" Discount: {float(discount_percent):.0f}%."
+    except (TypeError, ValueError):
+        price_line = ""
     search_context = search_web_context(f"METHO AAY-UPAY {name} {category}")
     prompt = (
-        "Write a concise ecommerce product description in simple English. "
-        "Length 45-70 words, no markdown, no emojis, no fake medical claims. "
-        "Use public search context only as background and do not invent price, availability, medical, or performance claims. "
+        "Write a customer-facing ecommerce product description for the METHO AAY-UPAY marketplace. "
+        "Output exactly two parts separated by a blank line: first an English paragraph (60-90 words), "
+        "then a Bangla paragraph (60-90 words) conveying the same information in natural Bangla. "
+        "No markdown, no emojis, no headings, no bullet points. "
+        "Mention practical use, who it is for, and what makes it a good daily-use choice. "
+        "Do not invent price, availability, medical claims, certifications, or performance numbers beyond what is given below. "
+        "Use the public search context only as background, and never present it as a guaranteed fact.\n\n"
         f"Product Name: {name}\n"
         f"Category: {category}\n"
-        f"Type: {product_type}\n"
+        f"Product Type: {product_type}\n"
+        f"Unit: {unit_type}\n"
+        f"{price_line}\n"
         f"Optional public search context:\n{search_context or 'No search context available.'}\n"
     )
 
@@ -8660,7 +8682,7 @@ def generate_product_description(payload: dict, current_user=Depends(get_current
             resp = client.responses.create(
                 model="gpt-4.1-mini",
                 input=prompt,
-                max_output_tokens=180,
+                max_output_tokens=360,
             )
             text = (resp.output_text or "").strip()
             if text:

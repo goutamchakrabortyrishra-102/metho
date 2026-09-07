@@ -118,8 +118,12 @@ def record_public_registration_event(payload: dict, db: Session = Depends(get_db
         return {"ok": True, "linked": False}
     if event_type == "registration_form_submitted" and lead.status == "NEW":
         lead.status = "APPLICATION"
-    db.add(CRMLeadActivity(lead_id=lead.id, activity_type=event_type, message=f"Registration form {('submitted' if event_type.endswith('submitted') else 'opened')} from {phone or 'tracked CRM link'}"))
+    activity = CRMLeadActivity(lead_id=lead.id, activity_type=event_type, message=f"Registration form {('submitted' if event_type.endswith('submitted') else 'opened')} from {phone or 'tracked CRM link'}")
+    db.add(activity)
     db.commit()
+    if lead.source == "whatsapp":
+        from ..whatsapp_ai import create_suggestion_for_activity
+        create_suggestion_for_activity(activity.id)
     if event_type == "registration_form_submitted":
         record_lifecycle_event(db, lead, "registration_form_followup_started", "Registration form submitted; waiting for account activation or partner approval.", "Confirm registration status and next activation/approval step", 1)
     return {"ok": True, "linked": True, "lead_id": lead.id, "status": lead.status}

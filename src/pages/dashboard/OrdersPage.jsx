@@ -242,6 +242,13 @@ export default function OrdersPage() {
                 </div>
               )}
 
+              <div className="mt-3 grid grid-cols-1 gap-2 rounded-lg border border-slate-200 bg-slate-50 p-3 text-xs sm:grid-cols-2 lg:grid-cols-4" data-testid={`order-customer-details-${i}`}>
+                <div><p className="uppercase text-slate-500 font-semibold">Customer</p><p className="mt-0.5 font-medium text-slate-900">{o.customer_name || o.payer_name || "Customer"}</p></div>
+                <div><p className="uppercase text-slate-500 font-semibold">Mobile</p><p className="mt-0.5 font-medium text-slate-900">{o.customer_phone || "Not provided"}</p></div>
+                <div><p className="uppercase text-slate-500 font-semibold">Address</p><p className="mt-0.5 font-medium text-slate-900">{o.shipping_address || "-"}</p></div>
+                <div><p className="uppercase text-slate-500 font-semibold">Payment</p><p className={`mt-0.5 font-semibold ${o.is_paid ? "text-emerald-700" : "text-amber-700"}`}>{String(o.payment_method || "-").toUpperCase()} · {o.is_paid ? "Paid" : "Unpaid"}</p></div>
+              </div>
+
               <div className="mt-4 divide-y divide-border border-t border-border">
                 {o.items?.map((it, j) => (
                   <div key={j} className="py-2 flex justify-between text-sm">

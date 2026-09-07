@@ -1221,7 +1221,7 @@ export default function SettingsPage() {
     setShippingBusy(true); setShippingMessage("");
     try {
       const payload = {};
-      ["enabled", "provider", "api_base_url", "test_endpoint_url", "test_http_method", "auth_type", "auth_header_name", "shipment_request_template", "tracking_response_path"].forEach((key) => { payload[key] = shippingForm[key]; });
+      ["enabled", "provider", "api_base_url", "test_endpoint_url", "test_http_method", "auth_type", "auth_header_name", "shipment_request_template", "tracking_response_path", "return_address_id"].forEach((key) => { payload[key] = shippingForm[key]; });
       ["api_key", "secret_key"].forEach((key) => { if (String(shippingForm[key] || "").trim()) payload[key] = String(shippingForm[key]).trim(); });
       const { data } = await api.put("/admin/settings/shipping-provider", payload);
       setShippingForm({ ...data, api_key: "", secret_key: "" }); setShippingMessage("Shipping provider configuration saved.");
@@ -1804,6 +1804,7 @@ export default function SettingsPage() {
               <div><Label>Test HTTP Method</Label><select value={shippingForm.test_http_method || "GET"} onChange={updateShippingField("test_http_method")} className="mt-1.5 h-11 w-full rounded-md border border-input px-3"><option value="GET">GET</option><option value="POST">POST</option></select></div>
               <div><Label>Authentication Type</Label><select value={shippingForm.auth_type || "bearer_token"} onChange={updateShippingField("auth_type")} className="mt-1.5 h-11 w-full rounded-md border border-input px-3"><option value="bearer_token">Bearer Token</option><option value="custom_header">Custom Header</option><option value="api_key_query_param">API Key Query Param</option></select></div>
               <Field label="Authentication Header / Query Name" value={shippingForm.auth_header_name || ""} onChange={updateShippingField("auth_header_name")} type="text" placeholder="Authorization or X-API-Key" />
+              <Field label="Return/Pickup Address ID (iThink)" value={shippingForm.return_address_id || ""} onChange={updateShippingField("return_address_id")} type="text" placeholder="Warehouse/pickup address ID from iThink dashboard" />
               <div className="md:col-span-2"><Label>Shipment Request JSON Template</Label><textarea value={shippingForm.shipment_request_template || ""} onChange={updateShippingField("shipment_request_template")} placeholder='Provider-specific shipment request JSON; stored for a future shipment action.' className="mt-1.5 min-h-20 w-full rounded-md border border-input px-3 py-2 font-mono text-xs" /></div>
               <Field label="Tracking Response Path" value={shippingForm.tracking_response_path || ""} onChange={updateShippingField("tracking_response_path")} type="text" placeholder="data.awb_number" />
               <div className="md:col-span-2 flex flex-wrap gap-2"><Button type="button" onClick={saveShipping} disabled={shippingBusy}>Save Shipping Provider</Button><Button type="button" variant="outline" onClick={testShipping} disabled={shippingBusy}>Test Connection</Button>{shippingMessage ? <span className="self-center text-xs text-slate-600">{shippingMessage}</span> : null}</div>

@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
-import { Search, Plus, RefreshCw, ArrowUpRight, CircleAlert, Eye, Phone, PhoneCall, MessageSquareText, ArrowRightLeft, Trash2 } from "lucide-react";
+import { Search, Plus, RefreshCw, ArrowUpRight, CircleAlert, Eye, Phone, PhoneCall, MessageSquareText, ArrowRightLeft, Trash2, Printer } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
@@ -214,6 +214,40 @@ export default function CRMLeadsPage() {
     }
   };
 
+  const printLeads = () => {
+    const escapeHtml = (value) => String(value ?? "").replace(/[&<>"']/g, (ch) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[ch]));
+    const rows = items.map((lead) => `
+      <tr>
+        <td>${escapeHtml(lead.business_name)}<br/><span class="muted">${escapeHtml(lead.business_type || "-")}</span></td>
+        <td>${escapeHtml(lead.contact_person || "-")}<br/>${escapeHtml(lead.phone || lead.whatsapp_no || "-")}</td>
+        <td>${escapeHtml(lead.city || "-")}</td>
+        <td>${escapeHtml(lead.score || 0)}</td>
+        <td>${escapeHtml(lead.status || "NEW")}</td>
+        <td>${escapeHtml(lead.priority_bucket || "-")}</td>
+        <td>${escapeHtml(lead.next_follow_up_at ? new Date(lead.next_follow_up_at).toLocaleString() : "-")}<br/><span class="muted">${escapeHtml(lead.follow_up_status || "Pending")}</span></td>
+      </tr>`).join("");
+    const html = `<!doctype html><html><head><meta charset="utf-8"/><title>METHO CRM Leads</title><style>
+      body{font-family:Arial,Helvetica,sans-serif;padding:16px;color:#111;}
+      h1{font-size:18px;margin:0 0 4px;}
+      p.meta{font-size:12px;color:#555;margin:0 0 14px;}
+      table{width:100%;border-collapse:collapse;font-size:12px;}
+      th,td{border:1px solid #ccc;padding:6px 8px;text-align:left;vertical-align:top;}
+      th{background:#f1f5f9;}
+      .muted{color:#666;font-size:11px;}
+      @media print { button{ display:none; } }
+    </style></head><body>
+      <h1>METHO CRM Leads</h1>
+      <p class="meta">Stage: ${escapeHtml(status)} · Assignee: ${escapeHtml(assignedUserId)} · Source: ${escapeHtml(source)} · Total: ${items.length} · Printed: ${new Date().toLocaleString()}</p>
+      <table><thead><tr><th>Business</th><th>Contact</th><th>City</th><th>Score</th><th>Stage</th><th>Priority</th><th>Next follow-up</th></tr></thead><tbody>${rows || '<tr><td colspan="7">No leads found</td></tr>'}</tbody></table>
+    </body></html>`;
+    const printWindow = window.open("", "_blank", "noopener,noreferrer,width=1000,height=800");
+    if (!printWindow) { setError("Popup blocked. Allow popups to print CRM leads."); return; }
+    printWindow.document.write(html);
+    printWindow.document.close();
+    printWindow.focus();
+    printWindow.print();
+  };
+
   return (
     <div className="space-y-5">
       <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
@@ -222,6 +256,7 @@ export default function CRMLeadsPage() {
           <h1 className="text-2xl font-bold text-slate-900">CRM Leads</h1>
         </div>
         <div className="flex gap-2">
+          <Button variant="outline" onClick={printLeads} className="rounded-full"><Printer className="w-4 h-4 mr-2" /> Print</Button>
           <Button variant="outline" onClick={loadLeads} className="rounded-full"><RefreshCw className="w-4 h-4 mr-2" /> Refresh</Button>
         </div>
       </div>

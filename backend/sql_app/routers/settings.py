@@ -329,7 +329,7 @@ def _voice_test_request(config: dict) -> Request:
 
 
 SHIPPING_CONFIG_KEY = "shipping_provider_integration"
-SHIPPING_FIELDS = ("enabled", "provider", "api_base_url", "test_endpoint_url", "test_http_method", "auth_type", "auth_header_name", "shipment_request_template", "tracking_response_path")
+SHIPPING_FIELDS = ("enabled", "provider", "api_base_url", "test_endpoint_url", "test_http_method", "auth_type", "auth_header_name", "shipment_request_template", "tracking_response_path", "return_address_id")
 SHIPMENT_STATUSES = {"NOT_CREATED", "READY_TO_SHIP", "PICKED_UP", "IN_TRANSIT", "OUT_FOR_DELIVERY", "DELIVERED", "RTO", "CANCELLED"}
 DEFAULT_ITHINK_SHIPMENT_TEMPLATE = json.dumps(
     {
@@ -363,7 +363,7 @@ DEFAULT_ITHINK_SHIPMENT_TEMPLATE = json.dumps(
                     "billing_phone": "{{phone}}",
                     "billing_email": "{{email}}",
                     "payment_mode": "{{payment_mode}}",
-                    "return_address_id": "",
+                    "return_address_id": "{{return_address_id}}",
                     "products": "{{products}}",
                     "shipment_height": "10",
                     "shipment_width": "10",
@@ -613,9 +613,12 @@ def _build_shipment_request_payload(order: PublicOrder, config: dict, db: Sessio
     if not phone:
         user = db.query(User).filter(User.id == order.customer_user_id).first() if str(order.customer_user_id or "").strip() else None
         phone = "".join(ch for ch in str(getattr(user, "phone", "") or "") if ch.isdigit()) if user else ""
+    phone = phone[-10:] if len(phone) > 10 else phone
     pincode = contact.get("shipping_pincode") or _first_pincode(address)
     city = contact.get("shipping_city")
     state = contact.get("shipping_state") or "West Bengal"
+    provider = str(config.get("provider") or "").strip().lower()
+    return_address_id = str(config.get("return_address_id") or "").strip()
     context = {
         "order_id": order.id,
         "order_date": (order.created_at or datetime.now(timezone.utc)).strftime("%d-%m-%Y"),
@@ -628,9 +631,20 @@ def _build_shipment_request_payload(order: PublicOrder, config: dict, db: Sessio
         "phone": phone,
         "email": contact.get("customer_email", ""),
         "payment_mode": "COD" if str(order.payment_method or "").lower() == "cod" else "Prepaid",
+        "return_address_id": return_address_id,
         "products": _order_products(order),
     }
-    missing = [field for field in ("address", "pincode", "city", "state", "phone") if not context[field]]
+    missing = [field for field in ("address", "city", "state") if not context[field]]
+    if not pincode:
+        missing.append("pincode")
+    elif len(pincode) != 6:
+        missing.append("pincode (must be exactly 6 digits)")
+    if not phone:
+        missing.append("phone")
+    elif len(phone) != 10:
+        missing.append("phone (must be exactly 10 digits)")
+    if provider == "ithink" and not return_address_id:
+        missing.append("return_address_id (configure Return/Pickup Address ID in Shipping Provider settings)")
     if missing:
         raise ValueError(f"Order is missing shipment data: {', '.join(missing)}")
     return _render_template_value(template, context)
