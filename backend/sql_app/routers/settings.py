@@ -386,6 +386,10 @@ def _has_shipments_template(value: str) -> bool:
     return isinstance(shipments, list) and bool(shipments)
 
 
+def _is_ithink_provider(value: str) -> bool:
+    return "ithink" in str(value or "").strip().lower().replace("-", "").replace("_", "")
+
+
 def _shipping_config(db: Session) -> dict:
     row = db.query(AppSetting).filter(AppSetting.key == SHIPPING_CONFIG_KEY).first()
     try:
@@ -395,7 +399,7 @@ def _shipping_config(db: Session) -> dict:
     stored = stored if isinstance(stored, dict) else {}
     from ..meta_ads import decrypt_secret
     result = {field: stored.get(field, False if field == "enabled" else "") for field in SHIPPING_FIELDS}
-    if str(result.get("provider") or "").strip().lower() == "ithink" and not _has_shipments_template(str(result.get("shipment_request_template") or "")):
+    if _is_ithink_provider(result.get("provider")) and not _has_shipments_template(str(result.get("shipment_request_template") or "")):
         result["shipment_request_template"] = DEFAULT_ITHINK_SHIPMENT_TEMPLATE
     elif not str(result.get("shipment_request_template") or "").strip():
         result["shipment_request_template"] = DEFAULT_ITHINK_SHIPMENT_TEMPLATE
@@ -452,7 +456,7 @@ def test_shipping_provider_settings(db: Session = Depends(get_db), current_user=
     if missing:
         return {"ok": False, "missing": missing, "message": f"Shipping provider configuration is incomplete: {', '.join(missing)}"}
     try:
-        if str(config.get("provider") or "").strip().lower() == "ithink" and "order/add.json" in str(config.get("test_endpoint_url") or ""):
+        if _is_ithink_provider(config.get("provider")) and "order/add.json" in str(config.get("test_endpoint_url") or ""):
             return JSONResponse(status_code=400, content={"ok": False, "message": "Use an iThink serviceability or account-balance endpoint for Test Connection, not order/add.json."})
         request = _shipping_request(config, config["test_endpoint_url"], method=config.get("test_http_method") or "GET")
         with urlopen(request, timeout=10) as response:
@@ -643,7 +647,7 @@ def _build_shipment_request_payload(order: PublicOrder, config: dict, db: Sessio
         missing.append("phone")
     elif len(phone) != 10:
         missing.append("phone (must be exactly 10 digits)")
-    if provider == "ithink" and not return_address_id:
+    if _is_ithink_provider(provider) and not return_address_id:
         missing.append("return_address_id (configure Return/Pickup Address ID in Shipping Provider settings)")
     if missing:
         raise ValueError(f"Order is missing shipment data: {', '.join(missing)}")
@@ -705,7 +709,7 @@ def create_provider_shipment(order_id: str, db: Session = Depends(get_db), curre
         raise HTTPException(status_code=404, detail="Order not found")
     config = _shipping_config(db)
     missing = [field for field in ("api_base_url", "api_key", "auth_type", "auth_header_name") if not config.get(field)]
-    if str(config.get("provider") or "").strip().lower() == "ithink" and not config.get("secret_key"):
+    if _is_ithink_provider(config.get("provider")) and not config.get("secret_key"):
         missing.append("secret_key")
     if missing:
         raise HTTPException(status_code=400, detail=f"Shipping provider configuration is incomplete: {', '.join(missing)}")
