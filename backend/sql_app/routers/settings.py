@@ -363,6 +363,7 @@ DEFAULT_ITHINK_SHIPMENT_TEMPLATE = json.dumps(
                     "billing_phone": "{{phone}}",
                     "billing_email": "{{email}}",
                     "payment_mode": "{{payment_mode}}",
+                    "shipping_mode": "Surface",
                     "return_address_id": "{{return_address_id}}",
                     "products": "{{products}}",
                     "shipment_height": "10",
@@ -651,7 +652,15 @@ def _build_shipment_request_payload(order: PublicOrder, config: dict, db: Sessio
         missing.append("return_address_id (configure Return/Pickup Address ID in Shipping Provider settings)")
     if missing:
         raise ValueError(f"Order is missing shipment data: {', '.join(missing)}")
-    return _render_template_value(template, context)
+    rendered = _render_template_value(template, context)
+    if _is_ithink_provider(provider) and isinstance(rendered, dict):
+        data = rendered.get("data")
+        shipments = data.get("shipments") if isinstance(data, dict) else None
+        if isinstance(shipments, list):
+            for shipment in shipments:
+                if isinstance(shipment, dict):
+                    shipment.setdefault("shipping_mode", "Surface")
+    return rendered
 
 
 def _shipment_endpoint(config: dict) -> str:
