@@ -258,7 +258,27 @@ def test_whatsapp_bengali_earning_question_goes_to_ai_not_preset(monkeypatch):
         assert sent_text == []
         assert sent_images == []
         assert db.query(CRMLeadActivity).filter(CRMLeadActivity.activity_type == "whatsapp_auto_reply_dispatched").count() == 0
+        assert db.query(CRMLeadActivity).filter(CRMLeadActivity.activity_type == "whatsapp_image_sent").count() == 0
         assert db.query(CRMLeadActivity).filter(CRMLeadActivity.activity_type == "whatsapp_message_received").count() == 1
+    finally:
+        db.close()
+
+
+def test_whatsapp_info_questions_skip_posters_with_matching_production_keywords(monkeypatch):
+    from sql_app.whatsapp_ai import save_ai_config
+
+    db = make_session()
+    try:
+        sent_images = []
+        monkeypatch.setattr("sql_app.whatsapp_cloud.send_whatsapp_image", lambda _db, recipient, image_url, caption="": sent_images.append((recipient, image_url, caption)) or {"messages": [{"id": "wamid.image"}]})
+        update_whatsapp_settings({"phone_number_id": "123456", "access_token": "secret-token", "default_auto_reply_image_url": "/api/files/whatsapp_posters/default.png", "rider_registration_keywords": "3,rider,রাইডার,METHO,AAY,UPAY,কাজ,আয়,কাজ করে আয়,আয় করা", "rider_registration_reply_image_url": "/api/files/whatsapp_posters/rider.png"}, db, admin())
+        save_ai_config(db, {"enabled": True, "auto_send_enabled": True, "suppress_static_default_when_ai_enabled": True})
+        for index, text in enumerate(("কীভাবে কাজ করে আয় করা যায়", "METHO AAY-UPAY কাজ করে আয় করা যায়?"), start=1):
+            assert _registration_role_for_text(resolve_config(db), text) is None
+            assert ingest_whatsapp_message(db, message_payload(f"wamid.info-{index}", text, sender=f"88017123456{index}"), None) == "created"
+        assert sent_images == []
+        assert db.query(CRMLeadActivity).filter(CRMLeadActivity.activity_type == "whatsapp_auto_reply_dispatched").count() == 0
+        assert db.query(CRMLeadActivity).filter(CRMLeadActivity.activity_type == "whatsapp_image_sent").count() == 0
     finally:
         db.close()
 

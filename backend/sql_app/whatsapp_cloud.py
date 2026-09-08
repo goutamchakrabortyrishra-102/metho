@@ -732,13 +732,14 @@ def ingest_whatsapp_message(db, payload: dict, request=None) -> str:
         if ai_handles_freeform and not auto_reply and not reply_text and not role_hint:
             statuses.append(status)
             continue
+        allow_preset_dispatch = not (is_ai_freeform_query and not role_hint)
         reply_mode = get_registration_welcome_mode(db) if reply_text else get_configured_whatsapp_reply_mode(db, role_hint)
-        if auto_reply and reply_mode == "text":
+        if allow_preset_dispatch and auto_reply and reply_mode == "text":
             reply_status = _send_auto_reply_if_configured(db, normalized["phone"], text=auto_reply)
             if reply_status == "sent":
                 db.add(CRMLeadActivity(lead_id=lead.id, activity_type="whatsapp_message_sent", message=auto_reply))
                 db.add(CRMLeadActivity(lead_id=lead.id, activity_type="whatsapp_auto_reply_dispatched", message=f"{dispatch_marker}:text"))
-        if reply_mode == "image":
+        if allow_preset_dispatch and reply_mode == "image":
             image_url = get_registration_welcome_image(db) if reply_text else get_configured_whatsapp_reply_image(db, role_hint)
             if image_url:
                 try:
