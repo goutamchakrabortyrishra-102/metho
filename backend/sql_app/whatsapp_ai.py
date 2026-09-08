@@ -244,6 +244,31 @@ def _auto_send_allowed(config: dict, suggestion: CRMWhatsAppAISuggestion, activi
     return True, ""
 
 
+def _send_preset_fallback(db, lead: CRMLead, role: str | None) -> tuple[str, str]:
+    from .whatsapp_cloud import (
+        get_configured_whatsapp_reply,
+        get_configured_whatsapp_reply_image,
+        get_configured_whatsapp_reply_mode,
+        public_whatsapp_image_url,
+        send_whatsapp_image,
+        send_whatsapp_message,
+    )
+
+    mode = get_configured_whatsapp_reply_mode(db, role)
+    text = get_configured_whatsapp_reply(db, role, LIFECYCLE_SUGGESTIONS.get("crm_followup_due", ""))
+    recipient = str(lead.whatsapp_no or lead.phone or "").strip()
+    if not recipient:
+        raise ValueError("WhatsApp phone number is missing")
+    if mode == "image":
+        image_url = get_configured_whatsapp_reply_image(db, role)
+        if not image_url:
+            raise ValueError("Preset is set to poster only but no poster is attached")
+        send_whatsapp_image(db, recipient, public_whatsapp_image_url(image_url), caption=text[:1024])
+        return image_url, "preset-image"
+    send_whatsapp_message(db, recipient, text=text)
+    return text, "preset-text"
+
+
 def _generate_reply(config: dict, message: str, context: str = "", event_type: str = "") -> tuple[str, str, str]:
     search_context = search_web_context(f"METHO AAY-UPAY {message}") if any(term in message.lower() for term in SEARCH_TERMS) else ""
     prompt = f"{config['system_prompt']}\n\nYou are a helpful METHO customer-care teammate, not a generic chatbot. Reply like a real person: acknowledge the customer's exact question, answer directly, and give one practical next step. Detect the language of the customer's latest message and reply in that language; preserve familiar product names and links. Use the CRM context and previous conversation so you do not repeat questions or contradict earlier replies. Explain products, prices, delivery, business opportunities, and how to join only from verified context. If a fact is missing or sensitive, say that a human METHO team member will verify it and create a follow-up instead of guessing. Never claim an account is activated, a reward is paid, a purchase is completed, stock is available, or an approval is complete unless the context says so. For a pre-registration follow-up, ask whether help is needed and include executive contacts 9339566110 / 9163530078. For reminders, be warm and specific, never spammy, and keep the reply under 900 characters.\n\nTrigger event: {event_type or 'incoming_whatsapp_message'}\n\nCRM and conversation context:\n{context or 'No CRM context available.'}\n\nKnowledge base:\n{config['knowledge_base']}\n\nOptional public search context (use only as background; do not copy source wording or invent facts):\n{search_context or 'No search context available.'}\n\nCustomer message/event:\n{message}"
@@ -294,10 +319,33 @@ def create_suggestion_for_activity(activity_id: str) -> None:
         suggestion = CRMWhatsAppAISuggestion(lead_id=lead.id, activity_id=activity.id, suggested_reply=reply, human_handoff_required=handoff, handoff_reason=reason, provider_used=provider, model_used=model)
         db.add(suggestion)
         db.flush()
+        role_hint = None
+        lowered_message = clean_text.lower()
+        for candidate in ("member", "partner", "rider"):
+            if candidate in lowered_message:
+                role_hint = candidate
+                break
         allow_auto_send, blocked_reason = _auto_send_allowed(config, suggestion, activity, provider)
         if allow_auto_send and _recent_outgoing_after(db, lead.id, activity.created_at):
             allow_auto_send = False
             blocked_reason = "Outgoing reply already recorded after this message"
+        if provider == "fallback" and config.get("auto_send_enabled") and not handoff and not _recent_outgoing_after(db, lead.id, activity.created_at):
+            try:
+                preset_reply, preset_kind = _send_preset_fallback(db, lead, role_hint)
+                suggestion.status = "SENT"
+                suggestion.provider_used = preset_kind
+                suggestion.model_used = "admin-configured"
+                suggestion.suggested_reply = preset_reply
+                suggestion.sent_reply = preset_reply
+                suggestion.error_message = ""
+                lead.last_contact_at = datetime.now(timezone.utc)
+                db.add(CRMLeadActivity(lead_id=lead.id, activity_type="whatsapp_message_sent" if preset_kind == "preset-text" else "whatsapp_image_sent", message=preset_reply))
+                db.add(CRMLeadActivity(lead_id=lead.id, activity_type="ai_suggestion_auto_sent", message="Admin preset auto-sent because AI provider fallback was used."))
+                allow_auto_send = False
+                blocked_reason = "Admin preset sent after AI fallback"
+            except Exception as exc:
+                suggestion.error_message = str(exc)[:500]
+                db.add(CRMLeadActivity(lead_id=lead.id, activity_type="preset_auto_send_failed", message=str(exc)[:500]))
         if allow_auto_send:
             try:
                 from .whatsapp_cloud import send_whatsapp_message

@@ -165,3 +165,21 @@ def test_ai_auto_send_does_not_send_handoff(monkeypatch):
         assert sent == []
     finally:
         db.close()
+
+
+def test_ai_fallback_auto_sends_admin_preset(monkeypatch):
+    db = make_session()
+    try:
+        lead, activity = add_whatsapp_activity(db, "Hello, I want more info")
+        sent = []
+        save_ai_config(db, {"enabled": True, "auto_send_enabled": True, "provider": "openai"})
+        monkeypatch.setattr("sql_app.whatsapp_ai.SessionLocal", lambda: NoCloseSession(db))
+        monkeypatch.setattr("sql_app.whatsapp_ai._generate_reply", lambda *_args, **_kwargs: ("local fallback", "fallback", "local"))
+        monkeypatch.setattr("sql_app.whatsapp_cloud.send_whatsapp_message", lambda _db, recipient, text: sent.append((recipient, text)) or {"messages": [{"id": "wamid.preset"}]})
+        create_suggestion_for_activity(activity.id)
+        suggestion = db.query(CRMWhatsAppAISuggestion).one()
+        assert suggestion.status == "SENT"
+        assert suggestion.provider_used == "preset-text"
+        assert sent and sent[0][0] == lead.whatsapp_no
+    finally:
+        db.close()
