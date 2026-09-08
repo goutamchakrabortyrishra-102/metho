@@ -1,4 +1,5 @@
 import json
+import logging
 import os
 import uuid
 from datetime import datetime, timezone
@@ -16,6 +17,7 @@ from ..webhook_idempotency import claim_webhook_event, mark_webhook_event
 from .auth import get_current_user
 
 router = APIRouter(prefix="/api", tags=["whatsapp"])
+logger = logging.getLogger(__name__)
 WHATSAPP_POSTER_DIR = UPLOADED_OBJECTS_DIR / "whatsapp_posters"
 WHATSAPP_POSTER_DIR.mkdir(parents=True, exist_ok=True)
 ADMIN_ROLES = {"super_admin", "company_admin", "admin"}
@@ -282,7 +284,12 @@ async def receive_whatsapp_webhook(request: Request, background_tasks: Backgroun
     except Exception as exc:
         db.rollback()
         for message_id in locals().get("claimed_message_ids", []):
-            mark_webhook_event(db, message_id, "failed")
+            try:
+                mark_webhook_event(db, message_id, "failed")
+            except Exception:
+                db.rollback()
+                logger.exception("WhatsApp webhook idempotency failure marker failed: message_id=%s", message_id)
+        logger.exception("WhatsApp webhook ingestion failed: message_ids=%s", locals().get("claimed_message_ids", []))
         raise HTTPException(status_code=503, detail=f"WhatsApp lead could not be stored: {str(exc)}") from exc
     for message_id in claimed_message_ids:
         mark_webhook_event(db, message_id, "processed")
