@@ -183,6 +183,7 @@ def _to_lead_payload(lead: CRMLead) -> dict:
         "follow_up_status": lead.follow_up_status,
         "created_by_user_id": lead.created_by_user_id,
         "created_at": _iso(lead.created_at),
+        "first_message_at": _iso(lead.created_at) if str(lead.source or "").lower() in {"whatsapp", "facebook"} else None,
         "updated_at": _iso(lead.updated_at),
     }
 

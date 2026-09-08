@@ -241,8 +241,8 @@ export default function CRMLeadsPage() {
 
   const printLeads = () => {
     const escapeHtml = (value) => String(value ?? "").replace(/[&<>"']/g, (ch) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[ch]));
-    const rows = items.map((lead) => `<tr><td>${escapeHtml(lead.contact_person || lead.business_name || "-")}</td><td>${escapeHtml(lead.phone || lead.whatsapp_no || "-")}</td></tr>`).join("");
-    const html = `<!doctype html><html><head><meta charset="utf-8"/><title>METHO Contact List</title><style>body{font-family:Arial,Helvetica,sans-serif;padding:16px;color:#111}h1{font-size:18px;margin:0 0 4px}p.meta{font-size:12px;color:#555;margin:0 0 14px}table{width:100%;border-collapse:collapse;font-size:12px}th,td{border:1px solid #ccc;padding:8px;text-align:left}th{background:#f1f5f9}@media print{button{display:none}}</style></head><body><h1>METHO Contact List</h1><p class="meta">Name and mobile number · Total: ${items.length} · Printed: ${new Date().toLocaleString()}</p><table><thead><tr><th>Name</th><th>Mobile Number</th></tr></thead><tbody>${rows || '<tr><td colspan="2">No contacts found</td></tr>'}</tbody></table></body></html>`;
+    const rows = items.map((lead) => `<tr><td>${escapeHtml(lead.contact_person || lead.business_name || "-")}</td><td>${escapeHtml(lead.phone || lead.whatsapp_no || "-")}</td><td>${escapeHtml(lead.first_message_at ? new Date(lead.first_message_at).toLocaleString() : "-")}</td></tr>`).join("");
+    const html = `<!doctype html><html><head><meta charset="utf-8"/><title>METHO Contact List</title><style>body{font-family:Arial,Helvetica,sans-serif;padding:16px;color:#111}h1{font-size:18px;margin:0 0 4px}p.meta{font-size:12px;color:#555;margin:0 0 14px}table{width:100%;border-collapse:collapse;font-size:12px}th,td{border:1px solid #ccc;padding:8px;text-align:left}th{background:#f1f5f9}@media print{button{display:none}}</style></head><body><h1>METHO Contact List</h1><p class="meta">Name, mobile number and first message date · Total: ${items.length} · Printed: ${new Date().toLocaleString()}</p><table><thead><tr><th>Name</th><th>Mobile Number</th><th>First Message Date</th></tr></thead><tbody>${rows || '<tr><td colspan="3">No contacts found</td></tr>'}</tbody></table></body></html>`;
     openPrintableReport(html, "Popup blocked. Allow popups to print CRM contacts.");
   };
 
@@ -258,7 +258,8 @@ export default function CRMLeadsPage() {
     doc.setTextColor(6, 78, 59);
     doc.setFontSize(11);
     doc.text("Name", 15, y);
-    doc.text("Mobile Number", 115, y);
+    doc.text("Mobile Number", 95, y);
+    doc.text("First Message Date", 145, y);
     y += 8;
     doc.setTextColor(20, 20, 20);
     items.forEach((lead) => {
@@ -267,7 +268,8 @@ export default function CRMLeadsPage() {
         y = 20;
       }
       doc.text(String(lead.contact_person || lead.business_name || "-").slice(0, 55), 15, y);
-      doc.text(String(lead.phone || lead.whatsapp_no || "-"), 115, y);
+      doc.text(String(lead.phone || lead.whatsapp_no || "-"), 95, y);
+      doc.text(lead.first_message_at ? new Date(lead.first_message_at).toLocaleDateString("en-IN") : "-", 145, y);
       y += 8;
     });
     doc.save(`metho-contacts-${new Date().toISOString().slice(0, 10)}.pdf`);
