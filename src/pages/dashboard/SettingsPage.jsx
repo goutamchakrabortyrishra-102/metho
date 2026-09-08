@@ -1369,7 +1369,7 @@ export default function SettingsPage() {
       const body = new FormData();
       body.append("file", file);
       const { data } = await api.post("/admin/settings/whatsapp/poster", body, { headers: { "Content-Type": "multipart/form-data" } });
-      setWhatsappForm((current) => ({ ...current, [`${key}_image_url`]: data.url }));
+      setWhatsappForm((current) => ({ ...current, [`${key}_image_url`]: data.url, [`${key}_mode`]: "image" }));
       setWhatsappMessage("Template poster uploaded. Save Configuration to attach it.");
     } catch (err) { setWhatsappMessage(err?.response?.data?.detail || "Template poster upload failed"); }
     finally { setWhatsappPosterBusy(false); event.target.value = ""; }
@@ -1380,7 +1380,7 @@ export default function SettingsPage() {
     if (!url) return;
     try {
       await api.delete("/admin/settings/whatsapp/poster", { data: { url } });
-      setWhatsappForm((current) => ({ ...current, [`${key}_image_url`]: "" }));
+      setWhatsappForm((current) => ({ ...current, [`${key}_image_url`]: "", [`${key}_mode`]: "text" }));
       setWhatsappMessage("Template poster deleted. Save Configuration to remove the attachment.");
     } catch (err) { setWhatsappMessage(err?.response?.data?.detail || "Template poster could not be deleted"); }
   };
