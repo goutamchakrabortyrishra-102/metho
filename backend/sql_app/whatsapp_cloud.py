@@ -78,6 +78,14 @@ DEFAULT_REGISTRATION_ROLE_KEYWORDS = {
     "partner": "2,partner,পার্টনার,দোকান,ব্যবসা",
     "rider": "3,rider,রাইডার,ডেলিভারি,গাড়ি",
 }
+ROLE_IDENTITY_KEYWORDS = {
+    "member": ("1", "member", "মেম্বার"),
+    "partner": ("2", "partner", "পার্টনার"),
+    "rider": ("3", "rider", "রাইডার"),
+}
+INFORMATIONAL_QUESTION_MARKERS = ("?", "কীভাবে", "কিভাবে", "কি ভাবে", "কী ভাবে", "কেমন করে", "what", "how")
+BROAD_EARNING_KEYWORDS = ("কাজ", "আয়", "আয়", "income", "earn", "earning", "work")
+REGISTRATION_INTENT_MARKERS = ("রেজিস্ট", "register", "registration", "যুক্ত", "join", "হতে চাই", "করতে চাই", "হব", "চালু", "interested")
 
 
 def _setting(name: str) -> str:
@@ -512,9 +520,21 @@ def _role_registration_reply(db, role: str) -> str:
 
 def _registration_role_for_text(config: dict, text: str) -> str | None:
     lowered = str(text or "").lower()
+    role_matches = []
     for role in REGISTRATION_ROLE_SETTINGS:
         keywords = (keyword.strip().lower() for keyword in str(config.get(f"{role}_registration_keywords") or "").split(","))
-        if any(keyword and keyword in lowered for keyword in keywords):
+        for keyword in keywords:
+            if keyword and keyword in lowered:
+                if keyword in ROLE_IDENTITY_KEYWORDS[role]:
+                    return role
+                role_matches.append((role, keyword))
+    if not role_matches:
+        return None
+    is_informational_question = any(marker in lowered for marker in INFORMATIONAL_QUESTION_MARKERS)
+    has_registration_intent = any(marker in lowered for marker in REGISTRATION_INTENT_MARKERS)
+    if is_informational_question and not has_registration_intent and all(keyword in BROAD_EARNING_KEYWORDS for _role, keyword in role_matches):
+        return None
+    for role, _keyword in role_matches:
             return role
     return None
 

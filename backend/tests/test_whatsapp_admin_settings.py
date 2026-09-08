@@ -239,6 +239,39 @@ def test_whatsapp_freeform_static_default_is_suppressed_when_ai_handles_question
         db.close()
 
 
+def test_whatsapp_bengali_earning_question_goes_to_ai_not_preset(monkeypatch):
+    from sql_app.whatsapp_ai import save_ai_config
+
+    db = make_session()
+    try:
+        sent_text = []
+        sent_images = []
+        monkeypatch.setattr("sql_app.whatsapp_cloud.send_whatsapp_message", lambda _db, recipient, text: sent_text.append((recipient, text)) or {"messages": [{"id": "wamid.reply"}]})
+        monkeypatch.setattr("sql_app.whatsapp_cloud.send_whatsapp_image", lambda _db, recipient, image_url, caption="": sent_images.append((recipient, image_url, caption)) or {"messages": [{"id": "wamid.image"}]})
+        update_whatsapp_settings({"phone_number_id": "123456", "access_token": "secret-token", "rider_registration_keywords": "3,rider,রাইডার,কাজ,আয়", "rider_registration_reply_image_url": "/api/files/whatsapp_posters/rider.png"}, db, admin())
+        save_ai_config(db, {"enabled": True, "auto_send_enabled": True, "suppress_static_default_when_ai_enabled": True})
+        assert ingest_whatsapp_message(db, message_payload("wamid.ai-earning", "METHO AAY-UPAY-এ কীভাবে কাজ করে আয় করা যায়?"), None) == "created"
+        assert sent_text == []
+        assert sent_images == []
+        assert db.query(CRMLeadActivity).filter(CRMLeadActivity.activity_type == "whatsapp_auto_reply_dispatched").count() == 0
+        assert db.query(CRMLeadActivity).filter(CRMLeadActivity.activity_type == "whatsapp_message_received").count() == 1
+    finally:
+        db.close()
+
+
+def test_whatsapp_explicit_bengali_work_intent_still_triggers_preset(monkeypatch):
+    db = make_session()
+    try:
+        sent_images = []
+        monkeypatch.setattr("sql_app.whatsapp_cloud.send_whatsapp_image", lambda _db, recipient, image_url, caption="": sent_images.append((recipient, image_url, caption)) or {"messages": [{"id": "wamid.image"}]})
+        update_whatsapp_settings({"phone_number_id": "123456", "access_token": "secret-token", "rider_registration_keywords": "3,rider,রাইডার,কাজ,আয়", "rider_registration_reply_image_url": "/api/files/whatsapp_posters/rider.png"}, db, admin())
+        assert ingest_whatsapp_message(db, message_payload("wamid.rider-work", "আমি কাজ করতে চাই"), None) == "created"
+        assert sent_images and sent_images[0][1].endswith("/api/files/whatsapp_posters/rider.png")
+        assert db.query(CRMLeadActivity).filter(CRMLeadActivity.activity_type == "whatsapp_auto_reply_dispatched").count() == 1
+    finally:
+        db.close()
+
+
 def test_same_message_id_is_ignored_but_new_message_from_customer_is_recorded():
     db = make_session()
     try:
