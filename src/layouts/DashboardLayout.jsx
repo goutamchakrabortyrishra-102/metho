@@ -10,13 +10,13 @@ import api from "@/services/api";
 const ownerRoles = ["store_owner", "metho_store_owner", "owner"];
 
 const links = [
-  { to: "/app", icon: LayoutDashboard, label: "Overview", end: true, testId: "nav-overview" },
+  { to: "/app", icon: LayoutDashboard, label: "Overview", end: true, testId: "nav-overview", section: "Overview" },
   { to: "/app/smart-cycle", icon: Sparkles, label: "Smart Cycle™", testId: "nav-smart-cycle" },
   { to: "/app/wallet", icon: Wallet, label: "Wallet", testId: "nav-wallet" },
   { to: "/app/members", icon: Users, label: "Members", testId: "nav-members" },
   { to: "/app/genealogy", icon: Network, label: "Genealogy", testId: "nav-genealogy" },
   { to: "/app/leaderboard", icon: Trophy, label: "Leaderboard", testId: "nav-leaderboard" },
-  { to: "/app/business", icon: TrendingUp, label: "Business", testId: "nav-business" },
+  { to: "/app/business", icon: TrendingUp, label: "Business", testId: "nav-business", section: "Member Area" },
   { to: "/app/products", icon: Package, label: "Products", testId: "nav-products" },
   { to: "/app/products?upload=1", icon: Upload, label: "Image Upload", testId: "nav-product-upload", adminOnly: true },
   { to: "/app/metho-vegetable-admin?type=metho_vegetable", icon: Package, label: "METHO Vegetable", testId: "nav-metho-vegetable-admin", adminOnly: true },
@@ -24,29 +24,29 @@ const links = [
   { to: "/directory", icon: Compass, label: "Explore Partners", testId: "nav-explore", external: true },
   { to: "/app/metho-store-admin", icon: Warehouse, label: "Store Owner Admin", testId: "nav-metho-store-admin", adminOnly: true },
   { to: "/app/company-inventory", icon: Boxes, label: "Company Inventory", testId: "nav-company-inventory", adminOnly: true },
-  { to: "/app/partners", icon: Store, label: "Partners", testId: "nav-partners", adminOnly: true },
+  { to: "/app/partners", icon: Store, label: "Partners", testId: "nav-partners", adminOnly: true, section: "Business & CRM" },
   { to: "/app/crm/leads", icon: BriefcaseBusiness, label: "CRM Leads", testId: "nav-crm-leads", adminOnly: true },
   { to: "/app/crm/whatsapp", icon: MessageCircle, label: "WhatsApp Inbox", testId: "nav-crm-whatsapp", adminOnly: true },
   { to: "/app/crm/whatsapp-ai", icon: Bot, label: "WhatsApp AI", testId: "nav-crm-whatsapp-ai", adminOnly: true },
   { to: "/app/crm/pipeline", icon: ClipboardList, label: "CRM Pipeline", testId: "nav-crm-pipeline", adminOnly: true },
   { to: "/app/ceo-dashboard", icon: TrendingUp, label: "CEO Dashboard", testId: "nav-ceo-dashboard", adminOnly: true },
   { to: "/app/partner-approvals", icon: CheckCircle2, label: "Partner Applications", testId: "nav-partner-approvals", adminOnly: true },
-  { to: "/app/product-approvals", icon: Package, label: "Product Approvals", testId: "nav-product-approvals", adminOnly: true },
+  { to: "/app/product-approvals", icon: Package, label: "Product Approvals", testId: "nav-product-approvals", adminOnly: true, section: "Commerce" },
   { to: "/app/orders", icon: ShoppingCart, label: "Orders", testId: "nav-orders" },
   { to: "/app/shipments", icon: Truck, label: "Shipment Control", testId: "nav-shipments", adminOnly: true },
   { to: "/app/pending-payments", icon: BadgeIndianRupee, label: "Pending Payments", testId: "nav-pending-payments", adminOnly: true },
-  { to: "/app/accounts", icon: Calculator, label: "Accounts", testId: "nav-accounts", adminOnly: true },
-  { to: "/app/withdrawals", icon: Send, label: "Withdrawals", testId: "nav-withdrawals", adminOnly: true },
-  { to: "/app/transport-bookings", icon: CarTaxiFront, label: "Transport Bookings", testId: "nav-transport-bookings", adminOnly: true },
+  { to: "/app/transport-bookings", icon: CarTaxiFront, label: "Transport Bookings", testId: "nav-transport-bookings", adminOnly: true, section: "Operations" },
   { to: "/app/active-tracking?sector=transport", icon: MapPin, label: "Active Tracking", testId: "nav-active-tracking", adminOnly: true },
   { to: "/app/stay-dining-bookings", icon: UtensilsCrossed, label: "Stay & Dining Bookings", testId: "nav-stay-dining-bookings", adminOnly: true },
   { to: "/app/tourism-control", icon: Plane, label: "Tourism Control Center", testId: "nav-tourism-control", adminOnly: true },
   { to: "/app/property-buy-sell", icon: Building2, label: "Property Buy & Sell", testId: "nav-property-buy-sell", adminOnly: true },
   { to: "/app/metho-delivery", icon: BriefcaseBusiness, label: "METHO Delivery", testId: "nav-metho-delivery", adminOnly: true },
   { to: "/app/creative-media", icon: BriefcaseBusiness, label: "Creative & Media", testId: "nav-creative-media", adminOnly: true },
+  { to: "/app/accounts", icon: Calculator, label: "Accounts", testId: "nav-accounts", adminOnly: true, section: "Finance" },
+  { to: "/app/withdrawals", icon: Send, label: "Withdrawals", testId: "nav-withdrawals", adminOnly: true },
   { to: "/app/settlement", icon: Calculator, label: "Settlement", testId: "nav-settlement", adminOnly: true },
   { to: "/app/mps-claims", icon: Shield, label: "MPS Claims", testId: "nav-mps-claims", adminOnly: true },
-  { to: "/app/ai-upgrade", icon: Bot, label: "AI Upgrade", testId: "nav-ai-upgrade", adminOnly: true },
+  { to: "/app/ai-upgrade", icon: Bot, label: "AI Upgrade", testId: "nav-ai-upgrade", adminOnly: true, section: "System" },
   { to: "/app/audit-log", icon: ClipboardList, label: "Audit Log", testId: "nav-audit-log", adminOnly: true },
   { to: "/app/system-health", icon: Activity, label: "System Health", testId: "nav-system-health", adminOnly: true },
   { to: "/app/owner-guide", icon: BookOpenCheck, label: "Owner Guide", testId: "nav-owner-guide", adminOnly: true },
@@ -125,6 +125,8 @@ export default function DashboardLayout() {
             if (l.ownerOnly && !ownerRoles.includes(user?.role)) return false;
             return true;
           }).map(l => (
+            <React.Fragment key={l.to}>
+            {l.section ? <p className="px-3 pt-4 pb-1 text-[10px] font-bold uppercase tracking-[0.16em] text-slate-400 first:pt-1">{l.section}</p> : null}
             <NavLink
               key={l.to}
               to={l.to}
@@ -142,6 +144,7 @@ export default function DashboardLayout() {
               <l.icon className="w-4 h-4 shrink-0" />
               {l.label}
             </NavLink>
+            </React.Fragment>
           ))}
         </nav>
         <div className="p-3 border-t border-border">

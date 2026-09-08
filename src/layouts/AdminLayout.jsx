@@ -6,17 +6,17 @@ import { Logo } from "@/components/Logo";
 import { Button } from "@/components/ui/button";
 
 const links = [
-  { to: "/admin", icon: Home, label: "Admin Home", end: true, testId: "admin-nav-home" },
-  { to: "/admin/metho-store-admin", icon: Warehouse, label: "Store Owner Admin", testId: "admin-nav-metho-store-admin" },
+  { to: "/admin", icon: Home, label: "Admin Home", end: true, testId: "admin-nav-home", section: "Overview" },
+  { to: "/admin/metho-store-admin", icon: Warehouse, label: "Store Owner Admin", testId: "admin-nav-metho-store-admin", section: "Business" },
   { to: "/admin/partners", icon: Store, label: "Partners", testId: "admin-nav-partners" },
   { to: "/admin/partner-approvals", icon: CheckCircle2, label: "Partner Applications", testId: "admin-nav-partner-approvals" },
-  { to: "/admin/product-approvals", icon: Package, label: "Product Approvals", testId: "admin-nav-product-approvals" },
+  { to: "/admin/product-approvals", icon: Package, label: "Product Approvals", testId: "admin-nav-product-approvals", section: "Commerce" },
   { to: "/admin/pending-payments", icon: BadgeIndianRupee, label: "Pending Payments", testId: "admin-nav-pending-payments" },
-  { to: "/admin/accounts", icon: Calculator, label: "Accounts", testId: "admin-nav-accounts" },
+  { to: "/admin/accounts", icon: Calculator, label: "Accounts", testId: "admin-nav-accounts", section: "Finance" },
   { to: "/admin/withdrawals", icon: Send, label: "Withdrawals", testId: "admin-nav-withdrawals" },
   { to: "/admin/settlement", icon: Calculator, label: "Settlement", testId: "admin-nav-settlement" },
   { to: "/admin/mps-claims", icon: Shield, label: "MPS Claims", testId: "admin-nav-mps-claims" },
-  { to: "/admin/product-upload", icon: Upload, label: "Image Upload", testId: "admin-nav-product-upload" },
+  { to: "/admin/product-upload", icon: Upload, label: "Image Upload", testId: "admin-nav-product-upload", section: "System" },
   { to: "/admin/ai-upgrade", icon: Bot, label: "AI Upgrade", testId: "admin-nav-ai-upgrade" },
   { to: "/admin/audit-log", icon: ClipboardList, label: "Audit Log", testId: "admin-nav-audit-log" },
   { to: "/admin/system-health", icon: Activity, label: "System Health", testId: "admin-nav-system-health" },
@@ -48,8 +48,9 @@ export default function AdminLayout() {
         </div>
         <nav className="flex-1 p-3 space-y-1 overflow-y-auto">
           {links.map((link) => (
+            <React.Fragment key={link.to}>
+            {link.section ? <p className="px-3 pt-4 pb-1 text-[10px] font-bold uppercase tracking-[0.16em] text-slate-400 first:pt-1">{link.section}</p> : null}
             <NavLink
-              key={link.to}
               to={link.to}
               end={link.end}
               onClick={() => setSidebarOpen(false)}
@@ -65,6 +66,7 @@ export default function AdminLayout() {
               <link.icon className="w-4 h-4 shrink-0" />
               {link.label}
             </NavLink>
+            </React.Fragment>
           ))}
         </nav>
         <div className="p-3 border-t border-border">
