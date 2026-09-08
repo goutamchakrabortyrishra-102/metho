@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 import { Navigate } from "react-router-dom";
-import { Store, CheckCircle2, XCircle, Filter, Phone, MapPin, Mail, Copy, Loader2 } from "lucide-react";
+import { Store, CheckCircle2, XCircle, Filter, Phone, MapPin, Mail, Copy, Loader2, Download, ClipboardCheck } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -62,6 +62,14 @@ const formatSectorLabel = (sectorKey) => {
   return "Others";
 };
 
+const checklistFor = (request) => [
+  { label: "Application received", done: Boolean(request?.created_at) },
+  { label: "Contact details checked", done: Boolean(request?.phone && request?.city) },
+  { label: "Business category selected", done: Boolean(request?.request_sector) },
+  { label: "KYC / business details reviewed", done: Boolean(request?.gst_no || request?.business_description) },
+  { label: request?.status === "approved" ? "Partner activated" : request?.status === "rejected" ? "Decision recorded" : "Approve or reject", done: ["approved", "rejected"].includes(String(request?.status || "").toLowerCase()) },
+];
+
 export default function PartnerApprovalsPage() {
   const { user } = useAuth();
   const isAdmin = user && (user.role === "super_admin" || user.role === "company_admin");
@@ -117,6 +125,14 @@ export default function PartnerApprovalsPage() {
     }, { products: 0, "delivery-partner": 0, "property-buy-sell": 0, doorstep: 0, "other-services": 0 });
   }, [itemsWithSector]);
 
+  const downloadChecklistReport = () => {
+    const rows = visibleItems.map((item) => `<tr><td>${String(item.business_name || "-").replace(/</g, "&lt;")}</td><td>${formatSectorLabel(item.request_sector)}</td><td>${String(item.status || "-")}</td><td>${checklistFor(item).map((step) => `${step.done ? "[x]" : "[ ]"} ${step.label}`).join("<br/>")}</td></tr>`).join("");
+    const html = `<!doctype html><html><head><meta charset="utf-8"/><title>METHO Partner Checklist</title><style>body{font-family:Arial,sans-serif;padding:24px;color:#111}h1{color:#064e3b}table{width:100%;border-collapse:collapse}th,td{border:1px solid #bbb;padding:8px;text-align:left;vertical-align:top}th{background:#e2e8f0}</style></head><body><h1>METHO Partner Onboarding Checklist</h1><p>Generated ${new Date().toLocaleString()}</p><table><thead><tr><th>Business</th><th>Sector</th><th>Status</th><th>Checklist</th></tr></thead><tbody>${rows || "<tr><td colspan=4>No applications found</td></tr>"}</tbody></table><script>window.onload=()=>window.print()</script></body></html>`;
+    const report = window.open("", "_blank", "noopener,noreferrer,width=1000,height=800");
+    if (!report) { toast.error("Popup blocked. Allow popups to download the checklist as PDF."); return; }
+    report.document.write(html); report.document.close(); report.focus();
+  };
+
   if (!isAdmin) return <Navigate to="/app" replace />;
 
   return (
@@ -125,6 +141,11 @@ export default function PartnerApprovalsPage() {
         <p className="text-xs uppercase tracking-[0.2em] text-emerald-800 font-semibold">Admin</p>
         <h1 className="font-display font-black text-3xl md:text-4xl text-emerald-950 tracking-tight mt-1">Partner Applications</h1>
         <p className="text-sm text-muted-foreground font-body mt-1">Public partner registrations pending your review. Approve to auto-create login credentials.</p>
+        <div className="mt-4 flex flex-wrap items-center gap-2 rounded-xl border border-emerald-200 bg-emerald-50 p-3" role="status" aria-label="Partner onboarding instructions">
+          <ClipboardCheck className="h-5 w-5 text-emerald-800" aria-hidden="true" />
+          <p className="flex-1 text-sm text-emerald-950"><strong>Simple process:</strong> Check contact, category, business details, then approve or reject.</p>
+          <Button type="button" variant="outline" onClick={downloadChecklistReport} className="border-emerald-300 text-emerald-900"><Download className="mr-2 h-4 w-4" /> Download / Print PDF</Button>
+        </div>
       </div>
 
       <div className="flex items-center gap-2 flex-wrap">
@@ -188,6 +209,12 @@ export default function PartnerApprovalsPage() {
                   {p.linked_partner_code && <p className="text-[11px] text-emerald-700 font-mono mt-1">Partner Code: {p.linked_partner_code}</p>}
                   {p.rejection_reason && <p className="text-[11px] text-red-700 mt-1">Reason: {p.rejection_reason}</p>}
                   <p className="text-[10px] text-slate-400 mt-2">{new Date(p.created_at).toLocaleString()}</p>
+                  <div className="mt-4 rounded-lg border border-slate-200 bg-slate-50 p-3" aria-label={`Onboarding checklist for ${p.business_name}`}>
+                    <p className="mb-2 text-xs font-bold uppercase tracking-wide text-slate-700">Onboarding checklist</p>
+                    <div className="grid gap-1.5 sm:grid-cols-2">
+                      {checklistFor(p).map((step) => <div key={step.label} className={`flex items-center gap-2 text-xs ${step.done ? "text-emerald-800" : "text-slate-500"}`}><CheckCircle2 className={`h-4 w-4 ${step.done ? "text-emerald-600" : "text-slate-300"}`} aria-hidden="true" /><span>{step.label}</span><span className="sr-only">{step.done ? "complete" : "pending"}</span></div>)}
+                    </div>
+                  </div>
                 </div>
               </div>
               {p.status === "pending" && (

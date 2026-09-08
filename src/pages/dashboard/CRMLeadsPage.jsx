@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
-import { Search, Plus, RefreshCw, ArrowUpRight, CircleAlert, Eye, Phone, PhoneCall, MessageSquareText, ArrowRightLeft, Trash2, Printer } from "lucide-react";
+import { Search, Plus, RefreshCw, ArrowUpRight, CircleAlert, Eye, Phone, PhoneCall, MessageSquareText, ArrowRightLeft, Trash2, Printer, Download } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
@@ -61,6 +61,19 @@ export default function CRMLeadsPage() {
     warm: items.filter((item) => item.priority_bucket === "Warm").length,
     cold: items.filter((item) => item.priority_bucket === "Cold").length,
   }), [items]);
+
+  const funnel = useMemo(() => {
+    const sourceLeads = items.filter((lead) => ["facebook", "whatsapp"].includes(String(lead.source || "").toLowerCase()));
+    const registered = items.filter((lead) => Boolean(lead.member_user_id || ["APPLICATION", "APPROVED", "CONVERTED"].includes(lead.status)));
+    const purchased = items.filter((lead) => Boolean(lead.member_user_id && ["APPROVED", "CONVERTED"].includes(lead.status)));
+    const repeat = items.filter((lead) => Boolean(lead.member_user_id && lead.status === "CONVERTED"));
+    return [
+      { key: "lead", label: "Meta / WhatsApp Leads", value: sourceLeads.length, help: "Leads from online campaigns and WhatsApp" },
+      { key: "registered", label: "Registration Started", value: registered.length, help: "Lead linked to a registration or application" },
+      { key: "purchase", label: "First Purchase / Approval", value: purchased.length, help: "Verified member or approved conversion" },
+      { key: "repeat", label: "Repeat / Converted", value: repeat.length, help: "Converted or repeat-business stage" },
+    ];
+  }, [items]);
 
   const loadLeads = useCallback(async () => {
     setLoading(true);
@@ -248,6 +261,14 @@ export default function CRMLeadsPage() {
     printWindow.print();
   };
 
+  const downloadFunnelPdf = () => {
+    const rows = funnel.map((step) => `<tr><td>${step.label}</td><td>${step.value}</td><td>${step.help}</td></tr>`).join("");
+    const html = `<!doctype html><html><head><meta charset="utf-8"/><title>METHO Funnel Report</title><style>body{font-family:Arial,sans-serif;padding:24px;color:#111}h1{color:#064e3b}table{width:100%;border-collapse:collapse}th,td{border:1px solid #bbb;padding:10px;text-align:left}th{background:#e2e8f0}.meta{color:#555}</style></head><body><h1>METHO Business Funnel</h1><p class="meta">Generated ${new Date().toLocaleString()}</p><table><thead><tr><th>Stage</th><th>Count</th><th>Meaning</th></tr></thead><tbody>${rows}</tbody></table><script>window.onload=()=>window.print()</script></body></html>`;
+    const report = window.open("", "_blank", "noopener,noreferrer,width=900,height=700");
+    if (!report) { setError("Popup blocked. Allow popups to download the funnel as PDF."); return; }
+    report.document.write(html); report.document.close(); report.focus();
+  };
+
   return (
     <div className="space-y-5">
       <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
@@ -266,6 +287,16 @@ export default function CRMLeadsPage() {
         <div className="bg-white rounded-xl border border-border p-4"><p className="text-xs uppercase">Hot</p><p className="text-2xl font-bold text-red-600">{summary.hot}</p></div>
         <div className="bg-white rounded-xl border border-border p-4"><p className="text-xs uppercase">Warm/Cold</p><p className="text-2xl font-bold text-amber-600">{summary.warm + summary.cold}</p></div>
       </div>
+
+      <section aria-labelledby="funnel-title" className="rounded-xl border border-emerald-200 bg-emerald-950 p-4 text-white shadow-sm">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div><p className="text-xs uppercase tracking-[0.2em] text-emerald-200">Business Journey</p><h2 id="funnel-title" className="mt-1 text-xl font-bold">Lead to Repeat Business</h2><p className="mt-1 text-sm text-emerald-100">One clear view of where customers are moving next.</p></div>
+          <Button type="button" variant="outline" onClick={downloadFunnelPdf} className="border-emerald-300 bg-white text-emerald-950 hover:bg-emerald-50"><Download className="mr-2 h-4 w-4" /> Download / Print PDF</Button>
+        </div>
+        <div className="mt-4 grid gap-2 md:grid-cols-4" role="list" aria-label="Business funnel stages">
+          {funnel.map((step, index) => <div key={step.key} role="listitem" className="relative rounded-lg bg-white p-4 text-emerald-950"><p className="text-xs font-bold uppercase tracking-wide text-emerald-700">Step {index + 1}</p><p className="mt-2 text-sm font-semibold">{step.label}</p><p className="mt-1 text-3xl font-black" aria-label={`${step.value} ${step.label}`}>{step.value}</p><p className="mt-1 text-xs text-slate-600">{step.help}</p>{index < funnel.length - 1 ? <span className="hidden md:block absolute -right-2 top-1/2 z-10 text-emerald-300" aria-hidden="true">→</span> : null}</div>)}
+        </div>
+      </section>
 
       <div className="grid grid-cols-2 gap-2 md:grid-cols-4 xl:grid-cols-7">
         {classificationOptions.map((option) => {
