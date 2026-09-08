@@ -227,22 +227,28 @@ export default function CRMLeadsPage() {
     }
   };
 
+  const openPrintableReport = (html, errorMessage) => {
+    const printWindow = window.open("", "_blank", "width=800,height=700");
+    if (!printWindow) { setError(errorMessage); return; }
+    printWindow.document.open();
+    printWindow.document.write(html);
+    printWindow.document.close();
+    window.setTimeout(() => {
+      try { printWindow.focus(); printWindow.print(); } catch { setError("Print window could not be opened"); }
+    }, 400);
+  };
+
   const printLeads = () => {
     const escapeHtml = (value) => String(value ?? "").replace(/[&<>"']/g, (ch) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[ch]));
     const rows = items.map((lead) => `<tr><td>${escapeHtml(lead.contact_person || lead.business_name || "-")}</td><td>${escapeHtml(lead.phone || lead.whatsapp_no || "-")}</td></tr>`).join("");
-    const html = `<!doctype html><html><head><meta charset="utf-8"/><title>METHO Contact List</title><style>body{font-family:Arial,Helvetica,sans-serif;padding:16px;color:#111}h1{font-size:18px;margin:0 0 4px}p.meta{font-size:12px;color:#555;margin:0 0 14px}table{width:100%;border-collapse:collapse;font-size:12px}th,td{border:1px solid #ccc;padding:8px;text-align:left}th{background:#f1f5f9}@media print{button{display:none}}</style></head><body><h1>METHO Contact List</h1><p class="meta">Name and mobile number · Total: ${items.length} · Printed: ${new Date().toLocaleString()}</p><table><thead><tr><th>Name</th><th>Mobile Number</th></tr></thead><tbody>${rows || '<tr><td colspan="2">No contacts found</td></tr>'}</tbody></table><script>window.addEventListener("load",function(){window.focus();window.print()})</script></body></html>`;
-    const printWindow = window.open("", "_blank", "width=800,height=700");
-    if (!printWindow) { setError("Popup blocked. Allow popups to print CRM contacts."); return; }
-    printWindow.document.write(html);
-    printWindow.document.close();
+    const html = `<!doctype html><html><head><meta charset="utf-8"/><title>METHO Contact List</title><style>body{font-family:Arial,Helvetica,sans-serif;padding:16px;color:#111}h1{font-size:18px;margin:0 0 4px}p.meta{font-size:12px;color:#555;margin:0 0 14px}table{width:100%;border-collapse:collapse;font-size:12px}th,td{border:1px solid #ccc;padding:8px;text-align:left}th{background:#f1f5f9}@media print{button{display:none}}</style></head><body><h1>METHO Contact List</h1><p class="meta">Name and mobile number · Total: ${items.length} · Printed: ${new Date().toLocaleString()}</p><table><thead><tr><th>Name</th><th>Mobile Number</th></tr></thead><tbody>${rows || '<tr><td colspan="2">No contacts found</td></tr>'}</tbody></table></body></html>`;
+    openPrintableReport(html, "Popup blocked. Allow popups to print CRM contacts.");
   };
 
   const downloadFunnelPdf = () => {
     const rows = funnel.map((step) => `<tr><td>${step.label}</td><td>${step.value}</td><td>${step.help}</td></tr>`).join("");
-    const html = `<!doctype html><html><head><meta charset="utf-8"/><title>METHO Funnel Report</title><style>body{font-family:Arial,sans-serif;padding:24px;color:#111}h1{color:#064e3b}table{width:100%;border-collapse:collapse}th,td{border:1px solid #bbb;padding:10px;text-align:left}th{background:#e2e8f0}.meta{color:#555}</style></head><body><h1>METHO Business Funnel</h1><p class="meta">Generated ${new Date().toLocaleString()}</p><table><thead><tr><th>Stage</th><th>Count</th><th>Meaning</th></tr></thead><tbody>${rows}</tbody></table><script>window.onload=()=>window.print()</script></body></html>`;
-    const report = window.open("", "_blank", "noopener,noreferrer,width=900,height=700");
-    if (!report) { setError("Popup blocked. Allow popups to download the funnel as PDF."); return; }
-    report.document.write(html); report.document.close(); report.focus();
+    const html = `<!doctype html><html><head><meta charset="utf-8"/><title>METHO Funnel Report</title><style>body{font-family:Arial,sans-serif;padding:24px;color:#111}h1{color:#064e3b}table{width:100%;border-collapse:collapse}th,td{border:1px solid #bbb;padding:10px;text-align:left}th{background:#e2e8f0}.meta{color:#555}</style></head><body><h1>METHO Business Funnel</h1><p class="meta">Generated ${new Date().toLocaleString()}</p><table><thead><tr><th>Stage</th><th>Count</th><th>Meaning</th></tr></thead><tbody>${rows}</tbody></table></body></html>`;
+    openPrintableReport(html, "Popup blocked. Allow popups to download the funnel as PDF.");
   };
 
   return (
