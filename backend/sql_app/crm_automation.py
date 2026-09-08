@@ -49,7 +49,7 @@ def record_lifecycle_event(
                 created_by_user_id=assignee_id,
             ))
     db.commit()
-    if lead.source == "whatsapp":
+    if lead.source in {"whatsapp", "facebook"}:
         from .whatsapp_ai import create_suggestion_for_activity
         # The caller's request session remains open; use the activity ID after commit
         # so the AI worker can read the durable event in its own session.

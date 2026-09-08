@@ -5,6 +5,8 @@ from starlette.middleware.trustedhost import TrustedHostMiddleware
 from starlette.responses import JSONResponse
 from collections import defaultdict, deque
 from threading import Lock
+from threading import Thread
+from time import sleep
 import os
 import logging
 import time
@@ -481,3 +483,15 @@ app.include_router(compat.router)
 @app.on_event("startup")
 def startup_db_init():
     _initialize_database_with_retry()
+    Thread(target=_whatsapp_followup_worker, name="whatsapp-followups", daemon=True).start()
+
+
+def _whatsapp_followup_worker():
+    from .whatsapp_ai import process_due_followups
+
+    while True:
+        try:
+            process_due_followups()
+        except Exception:
+            logger.exception("WhatsApp follow-up worker failed")
+        sleep(max(60, _int_env("WHATSAPP_FOLLOWUP_INTERVAL_SECONDS", 300)))

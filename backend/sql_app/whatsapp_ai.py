@@ -33,6 +33,7 @@ LIFECYCLE_SUGGESTIONS = {
     "partner_registration_submitted": "আপনার Partner registration জমা হয়েছে। KYC ও approval-এর পরবর্তী ধাপে সহায়তা লাগলে এখানে reply করুন।",
     "partner_activated": "আপনার Partner account approved হয়েছে। Shop/service onboarding ও প্রথম listing-এর সাহায্য লাগলে এখানে reply করুন।",
     "metho_move_booking_created": "আপনার METHO Move booking request পাওয়া গেছে। Payment বা rider assignment বিষয়ে সাহায্য লাগলে এখানে reply করুন।",
+    "crm_followup_due": "আপনার আগের METHO আপডেটের পরবর্তী ধাপ সম্পন্ন হয়েছে কি? কোনো সাহায্য লাগলে এই WhatsApp-এ reply করুন।",
 }
 
 
@@ -209,7 +210,7 @@ def create_suggestion_for_activity(activity_id: str) -> None:
             return
         lead = db.get(CRMLead, activity.lead_id)
         config = resolve_ai_config(db)
-        if not lead or lead.source != "whatsapp" or not config["enabled"]:
+        if not lead or lead.source not in {"whatsapp", "facebook"} or not config["enabled"]:
             return
         incoming = activity.message.split("]: ", 1)[-1]
         clean_text, handoff, reason = _guardrail(incoming, config["handoff_keywords"])
@@ -238,12 +239,73 @@ def create_suggestion_for_activity(activity_id: str) -> None:
                 db.add(CRMLeadActivity(lead_id=lead.id, activity_type="ai_suggestion_auto_send_failed", message=str(exc)[:500]))
         else:
             db.add(CRMLeadActivity(lead_id=lead.id, activity_type="ai_suggestion_created", message=f"AI draft created. Auto-send: no. Reason: {blocked_reason}. CRM context included: {context.splitlines()[0] if context else 'none'}"))
-        _schedule_ai_follow_up(db, lead, config, "Review WhatsApp AI response and follow up with the customer if needed.")
+        if activity.activity_type != "crm_followup_due":
+            _schedule_ai_follow_up(db, lead, config, "Review WhatsApp AI response and follow up with the customer if needed.")
         db.commit()
     except IntegrityError:
         db.rollback()
     except Exception:
         db.rollback()
         logger.exception("WhatsApp AI suggestion generation failed: activity_id=%s", activity_id)
+    finally:
+        db.close()
+
+
+def process_due_followups(limit: int = 20) -> int:
+    db = SessionLocal()
+    processed = 0
+    try:
+        now = datetime.now(timezone.utc)
+        rows = db.query(CRMFollowUp).join(CRMLead, CRMLead.id == CRMFollowUp.lead_id).filter(
+            CRMFollowUp.status == "Pending",
+            CRMFollowUp.scheduled_at <= now,
+            CRMLead.source.in_(["whatsapp", "facebook"]),
+        ).order_by(CRMFollowUp.scheduled_at.asc()).limit(max(1, min(100, int(limit)))).all()
+        for followup in rows:
+            lead = db.get(CRMLead, followup.lead_id)
+            recipient = str((lead.whatsapp_no if lead else "") or (lead.phone if lead else "")).strip()
+            if not lead or not recipient:
+                followup.status = "Skipped"
+                continue
+            followup.status = "Processing"
+            activity = CRMLeadActivity(
+                lead_id=lead.id,
+                activity_type="crm_followup_due",
+                message=f"Scheduled CRM follow-up: {followup.notes or 'Please follow up with this lead.'}",
+            )
+            db.add(activity)
+            db.flush()
+            db.commit()
+            create_suggestion_for_activity(activity.id)
+            suggestion = db.query(CRMWhatsAppAISuggestion).filter(CRMWhatsAppAISuggestion.activity_id == activity.id).first()
+            if suggestion and suggestion.status == "SENT":
+                followup.status = "Sent"
+                lead.last_contact_at = now
+                from .models import PublicOrder
+                paid_orders = db.query(PublicOrder).filter(PublicOrder.status == "paid", PublicOrder.customer_user_id == lead.member_user_id).count() if lead.member_user_id else 0
+                registration_reminder = "activation/payment" in str(followup.notes or "").lower() or "first purchase" in str(followup.notes or "").lower()
+                reorder_reminder = "next product purchase" in str(followup.notes or "").lower()
+                if registration_reminder and lead.member_user_id and paid_orders == 0:
+                    followup.status = "Pending"
+                    followup.scheduled_at = now + timedelta(days=3)
+                    lead.follow_up_status = "Pending"
+                    lead.next_follow_up_at = followup.scheduled_at
+                elif reorder_reminder and paid_orders <= 1:
+                    db.add(CRMFollowUp(lead_id=lead.id, scheduled_at=now + timedelta(days=30), status="Pending", notes=followup.notes))
+                    lead.follow_up_status = "Pending"
+                    lead.next_follow_up_at = now + timedelta(days=30)
+                else:
+                    lead.follow_up_status = "Completed"
+                    lead.next_follow_up_at = None
+                processed += 1
+            else:
+                followup.status = "Pending"
+                followup.scheduled_at = now + timedelta(hours=1)
+            db.commit()
+        return processed
+    except Exception:
+        db.rollback()
+        logger.exception("Due WhatsApp follow-up processing failed")
+        return processed
     finally:
         db.close()
