@@ -83,7 +83,7 @@ ROLE_IDENTITY_KEYWORDS = {
     "partner": ("2", "partner", "পার্টনার"),
     "rider": ("3", "rider", "রাইডার"),
 }
-INFORMATIONAL_QUESTION_MARKERS = ("?", "কীভাবে", "কিভাবে", "কি ভাবে", "কী ভাবে", "কেমন করে", "what", "how")
+INFORMATIONAL_QUESTION_MARKERS = ("?", "কীভাবে", "কিভাবে", "কি ভাবে", "কী ভাবে", "কেমন করে", "জানতে চাই", "জানতে", "প্রোডাক্ট", "পণ্য", "সম্বন্ধে", "সম্পর্কে", "what", "how")
 BROAD_EARNING_KEYWORDS = ("কাজ", "আয়", "আয়", "income", "earn", "earning", "work")
 REGISTRATION_INTENT_MARKERS = ("রেজিস্ট", "register", "registration", "যুক্ত", "join", "হতে চাই", "করতে চাই", "হব", "চালু", "interested")
 

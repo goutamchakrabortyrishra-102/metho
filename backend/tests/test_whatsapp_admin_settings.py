@@ -261,6 +261,48 @@ def test_whatsapp_bengali_earning_question_goes_to_ai_not_preset(monkeypatch):
         db.close()
 
 
+def test_whatsapp_bengali_product_info_query_goes_to_ai_not_default_poster(monkeypatch):
+    from sql_app.whatsapp_ai import save_ai_config
+
+    db = make_session()
+    try:
+        sent_text = []
+        sent_images = []
+        monkeypatch.setattr("sql_app.whatsapp_cloud.send_whatsapp_message", lambda _db, recipient, text: sent_text.append((recipient, text)) or {"messages": [{"id": "wamid.reply"}]})
+        monkeypatch.setattr("sql_app.whatsapp_cloud.send_whatsapp_image", lambda _db, recipient, image_url, caption="": sent_images.append((recipient, image_url, caption)) or {"messages": [{"id": "wamid.image"}]})
+        update_whatsapp_settings({"phone_number_id": "123456", "access_token": "secret-token", "default_auto_reply_image_url": "/api/files/whatsapp_posters/default.png", "member_registration_keywords": "1,member,মেম্বার,প্রোডাক্ট,জানতে চাই", "member_registration_reply_image_url": "/api/files/whatsapp_posters/member.png"}, db, admin())
+        save_ai_config(db, {"enabled": True, "auto_send_enabled": True, "suppress_static_default_when_ai_enabled": True})
+        config = resolve_config(db)
+        assert _registration_role_for_text(config, "আমি প্রোডাক্ট এর সম্বন্ধে জানতে চাই") is None
+        assert ingest_whatsapp_message(db, message_payload("wamid.ai-product-info", "আমি প্রোডাক্ট এর সম্বন্ধে জানতে চাই"), None) == "created"
+        assert sent_text == []
+        assert sent_images == []
+        assert db.query(CRMLeadActivity).filter(CRMLeadActivity.activity_type == "whatsapp_auto_reply_dispatched").count() == 0
+        assert db.query(CRMLeadActivity).filter(CRMLeadActivity.activity_type == "whatsapp_message_received").count() == 1
+    finally:
+        db.close()
+
+
+def test_whatsapp_bengali_product_info_query_remains_ai_queue_eligible(monkeypatch):
+    from sql_app.whatsapp_ai import save_ai_config
+
+    db = make_session()
+    try:
+        monkeypatch.setattr("sql_app.whatsapp_cloud.send_whatsapp_image", lambda *_args, **_kwargs: (_ for _ in ()).throw(AssertionError("preset image should not be sent")))
+        update_whatsapp_settings({"phone_number_id": "123456", "access_token": "secret-token", "default_auto_reply_image_url": "/api/files/whatsapp_posters/default.png", "member_registration_keywords": "1,member,মেম্বার,প্রোডাক্ট,জানতে চাই", "member_registration_reply_image_url": "/api/files/whatsapp_posters/member.png"}, db, admin())
+        save_ai_config(db, {"enabled": True, "auto_send_enabled": True, "suppress_static_default_when_ai_enabled": True})
+        tasks = BackgroundTasks()
+        result = asyncio.run(receive_whatsapp_webhook(RequestStub(json.dumps(message_payload("wamid.ai-product-queue", "আমি প্রোডাক্ট এর সম্বন্ধে জানতে চাই")).encode()), tasks, db))
+        assert result["ok"] is True
+        assert result["message_count"] == 1
+        assert len(tasks.tasks) == 1
+        activity = db.query(CRMLeadActivity).filter(CRMLeadActivity.activity_type == "whatsapp_message_received").one()
+        assert tasks.tasks[0].args == (activity.id,)
+        assert db.query(CRMLeadActivity).filter(CRMLeadActivity.activity_type == "whatsapp_auto_reply_dispatched").count() == 0
+    finally:
+        db.close()
+
+
 def test_whatsapp_bengali_earning_question_remains_ai_queue_eligible(monkeypatch):
     from sql_app.whatsapp_ai import save_ai_config
 
