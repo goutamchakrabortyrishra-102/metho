@@ -248,11 +248,12 @@ def test_whatsapp_bengali_earning_question_goes_to_ai_not_preset(monkeypatch):
         sent_images = []
         monkeypatch.setattr("sql_app.whatsapp_cloud.send_whatsapp_message", lambda _db, recipient, text: sent_text.append((recipient, text)) or {"messages": [{"id": "wamid.reply"}]})
         monkeypatch.setattr("sql_app.whatsapp_cloud.send_whatsapp_image", lambda _db, recipient, image_url, caption="": sent_images.append((recipient, image_url, caption)) or {"messages": [{"id": "wamid.image"}]})
-        update_whatsapp_settings({"phone_number_id": "123456", "access_token": "secret-token", "default_auto_reply_image_url": "/api/files/whatsapp_posters/default.png", "rider_registration_keywords": "3,rider,রাইডার,METHO,AAY,UPAY,কাজ করে আয়,আয় করা,কাজ,আয়", "rider_registration_reply_image_url": "/api/files/whatsapp_posters/rider.png"}, db, admin())
+        update_whatsapp_settings({"phone_number_id": "123456", "access_token": "secret-token", "default_auto_reply_image_url": "/api/files/whatsapp_posters/default.png", "rider_registration_keywords": "3,rider,রাইডার,METHO,AAY,UPAY,কাজ করে আয়,আয় করা,কাজ করে আয়,আয় করা,কাজ,আয়,আয়", "rider_registration_reply_image_url": "/api/files/whatsapp_posters/rider.png"}, db, admin())
         save_ai_config(db, {"enabled": True, "auto_send_enabled": True, "suppress_static_default_when_ai_enabled": True})
         config = resolve_config(db)
         assert _registration_role_for_text(config, "METHO AAY-UPAY-এ কীভাবে কাজ করে আয় করা যায়?") is None
-        assert ingest_whatsapp_message(db, message_payload("wamid.ai-earning", "METHO AAY-UPAY-এ কীভাবে কাজ করে আয় করা যায়?"), None) == "created"
+        assert _registration_role_for_text(config, "METHO AAY-UPAY-এ কীভাবে কাজ করে আয় করা যায়?") is None
+        assert ingest_whatsapp_message(db, message_payload("wamid.ai-earning", "METHO AAY-UPAY-এ কীভাবে কাজ করে আয় করা যায়?"), None) == "created"
         assert sent_text == []
         assert sent_images == []
         assert db.query(CRMLeadActivity).filter(CRMLeadActivity.activity_type == "whatsapp_auto_reply_dispatched").count() == 0
@@ -311,10 +312,10 @@ def test_whatsapp_bengali_earning_question_remains_ai_queue_eligible(monkeypatch
         queued = []
         monkeypatch.setattr("sql_app.whatsapp_cloud.send_whatsapp_image", lambda *_args, **_kwargs: (_ for _ in ()).throw(AssertionError("preset image should not be sent")))
         monkeypatch.setattr("sql_app.routers.whatsapp.create_suggestion_for_activity", lambda activity_id: queued.append(activity_id))
-        update_whatsapp_settings({"phone_number_id": "123456", "access_token": "secret-token", "default_auto_reply_image_url": "/api/files/whatsapp_posters/default.png", "rider_registration_keywords": "3,rider,রাইডার,METHO,AAY,UPAY,কাজ করে আয়,আয় করা,কাজ,আয়", "rider_registration_reply_image_url": "/api/files/whatsapp_posters/rider.png"}, db, admin())
+        update_whatsapp_settings({"phone_number_id": "123456", "access_token": "secret-token", "default_auto_reply_image_url": "/api/files/whatsapp_posters/default.png", "rider_registration_keywords": "3,rider,রাইডার,METHO,AAY,UPAY,কাজ করে আয়,আয় করা,কাজ করে আয়,আয় করা,কাজ,আয়,আয়", "rider_registration_reply_image_url": "/api/files/whatsapp_posters/rider.png"}, db, admin())
         save_ai_config(db, {"enabled": True, "auto_send_enabled": True, "suppress_static_default_when_ai_enabled": True})
         tasks = BackgroundTasks()
-        result = asyncio.run(receive_whatsapp_webhook(RequestStub(json.dumps(message_payload("wamid.ai-queue", "METHO AAY-UPAY-এ কীভাবে কাজ করে আয় করা যায়?")).encode()), tasks, db))
+        result = asyncio.run(receive_whatsapp_webhook(RequestStub(json.dumps(message_payload("wamid.ai-queue", "METHO AAY-UPAY-এ কীভাবে কাজ করে আয় করা যায়?")).encode()), tasks, db))
         assert result["ok"] is True
         assert result["message_count"] == 1
         assert len(tasks.tasks) == 1

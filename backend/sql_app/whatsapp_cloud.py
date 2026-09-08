@@ -85,7 +85,7 @@ ROLE_IDENTITY_KEYWORDS = {
 }
 INFORMATIONAL_QUESTION_MARKERS = ("?", "কীভাবে", "কিভাবে", "কি ভাবে", "কী ভাবে", "কেমন করে", "জানতে চাই", "জানতে", "প্রোডাক্ট", "পণ্য", "সম্বন্ধে", "সম্পর্কে", "what", "how")
 BROAD_EARNING_KEYWORDS = ("কাজ", "আয়", "আয়", "income", "earn", "earning", "work")
-REGISTRATION_INTENT_MARKERS = ("রেজিস্ট", "register", "registration", "যুক্ত", "join", "হতে চাই", "করতে চাই", "হব", "চালু", "interested")
+REGISTRATION_INTENT_MARKERS = ("রেজিস্ট", "register", "registration", "যুক্ত", "join", "হতে চাই", "করতে চাই", "হব", "হবো", "চালু", "অনবোর্ডিং", "onboarding", "interested")
 
 
 def _setting(name: str) -> str:
@@ -520,6 +520,10 @@ def _role_registration_reply(db, role: str) -> str:
 
 def _registration_role_for_text(config: dict, text: str) -> str | None:
     lowered = str(text or "").lower()
+    is_informational_question = any(marker in lowered for marker in INFORMATIONAL_QUESTION_MARKERS)
+    has_registration_intent = any(marker in lowered for marker in REGISTRATION_INTENT_MARKERS)
+    if is_informational_question and not has_registration_intent:
+        return None
     role_matches = []
     for role in REGISTRATION_ROLE_SETTINGS:
         keywords = (keyword.strip().lower() for keyword in str(config.get(f"{role}_registration_keywords") or "").split(","))
@@ -529,10 +533,6 @@ def _registration_role_for_text(config: dict, text: str) -> str | None:
                     return role
                 role_matches.append((role, keyword))
     if not role_matches:
-        return None
-    is_informational_question = any(marker in lowered for marker in INFORMATIONAL_QUESTION_MARKERS)
-    has_registration_intent = any(marker in lowered for marker in REGISTRATION_INTENT_MARKERS)
-    if is_informational_question and not has_registration_intent:
         return None
     for role, _keyword in role_matches:
         return role
