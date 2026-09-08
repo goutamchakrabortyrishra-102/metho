@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useState } from "react";
-import { Bot, Check, CheckCheck, MessageCircle, RefreshCw, Search, Send, Settings2, Trash2, X } from "lucide-react";
+import { Bot, Check, CheckCheck, ImagePlus, MessageCircle, RefreshCw, Search, Send, Settings2, Trash2, X } from "lucide-react";
 import { Link } from "react-router-dom";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -19,6 +19,8 @@ export default function WhatsAppInboxPage() {
   const [suggestions, setSuggestions] = useState([]);
   const [suggestionBusy, setSuggestionBusy] = useState(false);
   const [error, setError] = useState("");
+  const [poster, setPoster] = useState(null);
+  const [posterBusy, setPosterBusy] = useState(false);
 
   const loadConversations = useCallback(async () => {
     setLoading(true);
@@ -88,6 +90,39 @@ export default function WhatsAppInboxPage() {
     }
   };
 
+  const uploadPoster = async (event) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+    setPosterBusy(true);
+    try {
+      const body = new FormData();
+      body.append("file", file);
+      const { data } = await api.post("/admin/settings/whatsapp/poster", body, { headers: { "Content-Type": "multipart/form-data" } });
+      setPoster(data);
+    } catch (err) {
+      setError(err?.response?.data?.detail || "Poster upload failed");
+    } finally { setPosterBusy(false); event.target.value = ""; }
+  };
+
+  const deletePoster = async () => {
+    if (!poster?.url) return;
+    try { await api.delete("/admin/settings/whatsapp/poster", { data: { url: poster.url } }); setPoster(null); }
+    catch (err) { setError(err?.response?.data?.detail || "Poster could not be deleted"); }
+  };
+
+  const sendPoster = async () => {
+    if (!selected || !poster?.url || sending) return;
+    setSending(true);
+    try {
+      await api.post("/admin/settings/whatsapp/send-image", { recipient: selected.phone, image_url: poster.url, caption: draft.trim() });
+      setPoster(null);
+      setDraft("");
+      await loadConversations();
+      toast.success("Poster sent");
+    } catch (err) { setError(err?.response?.data?.detail || "Poster could not be sent"); }
+    finally { setSending(false); }
+  };
+
   const deleteSelectedConversation = async () => {
     if (!selected || !window.confirm("Delete this WhatsApp chat? CRM lead and follow-up data will remain.")) return;
     try { await api.delete(`/admin/crm/whatsapp/conversations/${selected.lead_id}`); setSelected(null); setMessages([]); setSuggestions([]); await loadConversations(); }
@@ -150,6 +185,6 @@ export default function WhatsAppInboxPage() {
         {selected ? <><header className="border-b border-border bg-white px-5 py-4"><h2 className="font-bold text-slate-900">{selected.contact_person || selected.business_name}</h2><p className="text-sm text-slate-500">{selected.phone}</p></header><div className="flex-1 space-y-3 overflow-y-auto p-5">{suggestions.filter((item) => item.status === "PENDING").map((suggestion) => <div key={suggestion.id} className="border border-amber-200 bg-amber-50 p-3 text-sm"><div className="flex items-center gap-2 font-semibold text-amber-900"><Bot className="h-4 w-4" />AI suggested reply</div><p className="mt-2 whitespace-pre-wrap text-slate-800">{suggestion.suggested_reply}</p>{suggestion.human_handoff_required ? <p className="mt-2 text-xs text-red-700">Human handoff required: {suggestion.handoff_reason}</p> : <div className="mt-3 flex gap-2"><Button size="sm" onClick={() => processSuggestion(suggestion, "approve")} disabled={suggestionBusy}><Check className="mr-1 h-3.5 w-3.5" />Send</Button><Button size="sm" variant="outline" onClick={() => processSuggestion(suggestion, "reject")} disabled={suggestionBusy}><X className="mr-1 h-3.5 w-3.5" />Reject</Button></div>}</div>)}{messages.map((message) => <div key={message.id} className={`flex ${message.direction === "outgoing" ? "justify-end" : "justify-start"}`}><div className={`max-w-[85%] rounded-lg px-3 py-2 text-sm ${message.direction === "outgoing" ? "bg-emerald-700 text-white" : "bg-white text-slate-800 shadow-sm"}`}><p className="whitespace-pre-wrap">{message.text}</p><p className={`mt-1 text-[10px] ${message.direction === "outgoing" ? "text-emerald-100" : "text-slate-400"}`}>{formatTime(message.created_at)}</p></div></div>)}</div><div className="border-t border-border bg-white p-3"><div className="flex gap-2"><Input value={draft} onChange={(event) => setDraft(event.target.value)} onKeyDown={(event) => { if (event.key === "Enter" && !event.shiftKey) { event.preventDefault(); sendReply(); } }} placeholder="Write a reply" /><Button onClick={sendReply} disabled={!draft.trim() || sending}><Send className="mr-2 h-4 w-4" />Send</Button></div></div></> : <div className="flex flex-1 flex-col items-center justify-center p-8 text-center text-slate-500"><MessageCircle className="mb-3 h-9 w-9 text-emerald-700" /><p className="font-medium text-slate-700">Select a WhatsApp conversation</p><p className="mt-1 text-sm">Incoming messages stored by the existing webhook appear here.</p></div>}
       </section>
     </div>
-    {selected ? <div data-whatsapp-selection className="fixed bottom-4 right-4 z-50 w-[min(420px,calc(100vw-2rem))] rounded-xl border-2 border-emerald-700 bg-white p-3 shadow-2xl" role="dialog" aria-label={`Reply to ${selected.contact_person || selected.business_name || selected.phone}`}><div className="mb-2 flex items-center justify-between gap-2"><div><p className="text-xs font-bold uppercase tracking-wide text-emerald-800">Reply to selected contact</p><p className="text-sm font-semibold text-slate-900">{selected.contact_person || selected.business_name}</p><p className="text-xs text-slate-500">{selected.phone}</p></div><Check className="h-5 w-5 text-emerald-700" aria-label="Contact selected" /></div><div className="flex gap-2"><Input autoFocus value={draft} onChange={(event) => setDraft(event.target.value)} onKeyDown={(event) => { if (event.key === "Enter" && !event.shiftKey) { event.preventDefault(); sendReply(); } }} placeholder="Write a reply" aria-label="Reply message" /><Button onClick={sendReply} disabled={!draft.trim() || sending}><Send className="mr-2 h-4 w-4" />Send</Button></div></div> : null}
+    {selected ? <div data-whatsapp-selection className="fixed bottom-4 right-4 z-50 w-[min(420px,calc(100vw-2rem))] rounded-xl border-2 border-emerald-700 bg-white p-3 shadow-2xl" role="dialog" aria-label={`Reply to ${selected.contact_person || selected.business_name || selected.phone}`}><div className="mb-2 flex items-center justify-between gap-2"><div><p className="text-xs font-bold uppercase tracking-wide text-emerald-800">Reply to selected contact</p><p className="text-sm font-semibold text-slate-900">{selected.contact_person || selected.business_name}</p><p className="text-xs text-slate-500">{selected.phone}</p></div><Check className="h-5 w-5 text-emerald-700" aria-label="Contact selected" /></div><div className="flex gap-2"><Input autoFocus value={draft} onChange={(event) => setDraft(event.target.value)} onKeyDown={(event) => { if (event.key === "Enter" && !event.shiftKey) { event.preventDefault(); sendReply(); } }} placeholder="Write a reply or image caption" aria-label="Reply message" /><Button onClick={sendReply} disabled={!draft.trim() || sending}><Send className="mr-2 h-4 w-4" />Send</Button></div><div className="mt-2 flex items-center gap-2"><label className="inline-flex cursor-pointer items-center rounded-md border border-emerald-300 px-2 py-1 text-xs font-semibold text-emerald-800"><ImagePlus className="mr-1 h-3.5 w-3.5" />Upload image<input type="file" accept="image/jpeg,image/png,image/webp" className="hidden" onChange={uploadPoster} disabled={posterBusy} /></label>{poster ? <Button size="sm" onClick={sendPoster} disabled={sending || posterBusy}>Send Image</Button> : null}{poster ? <Button size="sm" variant="outline" onClick={deletePoster} disabled={posterBusy}>Delete</Button> : null}</div>{poster ? <img src={poster.url} alt="Poster preview" className="mt-2 h-20 w-20 rounded object-cover" /> : null}</div> : null}
   </div>;
 }

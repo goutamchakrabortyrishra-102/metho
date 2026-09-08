@@ -1280,7 +1280,7 @@ export default function SettingsPage() {
         graph_api_version: String(whatsappForm.graph_api_version || "").trim(),
         default_assignee_id: String(whatsappForm.default_assignee_id || "").trim(),
       };
-      ["default_auto_reply", "customer_auto_reply", "member_auto_reply", "partner_auto_reply", "invoice_template", "order_template", "registration_welcome_message", "registration_url", "registration_help_prompt", "registration_role_question", "member_registration_url", "member_registration_reply", "member_registration_keywords", "partner_registration_url", "partner_registration_reply", "partner_registration_keywords", "rider_registration_url", "rider_registration_reply", "rider_registration_keywords"].forEach((key) => {
+      ["default_auto_reply", "default_auto_reply_image_url", "customer_auto_reply", "customer_auto_reply_image_url", "member_auto_reply", "member_auto_reply_image_url", "partner_auto_reply", "partner_auto_reply_image_url", "invoice_template", "order_template", "registration_welcome_message", "registration_url", "registration_help_prompt", "registration_role_question", "member_registration_url", "member_registration_reply", "member_registration_keywords", "partner_registration_url", "partner_registration_reply", "partner_registration_keywords", "rider_registration_url", "rider_registration_reply", "rider_registration_keywords"].forEach((key) => {
         payload[key] = String(whatsappForm[key] || "").trim();
       });
       ["webhook_verify_token", "app_secret", "access_token"].forEach((key) => {
@@ -1357,6 +1357,30 @@ export default function SettingsPage() {
     } catch (err) {
       setWhatsappMessage(err?.response?.data?.detail || "Poster upload failed");
     } finally { setWhatsappPosterBusy(false); event.target.value = ""; }
+  };
+
+  const uploadPresetPoster = async (key, event) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+    setWhatsappPosterBusy(true);
+    try {
+      const body = new FormData();
+      body.append("file", file);
+      const { data } = await api.post("/admin/settings/whatsapp/poster", body, { headers: { "Content-Type": "multipart/form-data" } });
+      setWhatsappForm((current) => ({ ...current, [`${key}_image_url`]: data.url }));
+      setWhatsappMessage("Template poster uploaded. Save Configuration to attach it.");
+    } catch (err) { setWhatsappMessage(err?.response?.data?.detail || "Template poster upload failed"); }
+    finally { setWhatsappPosterBusy(false); event.target.value = ""; }
+  };
+
+  const deletePresetPoster = async (key) => {
+    const url = whatsappForm?.[`${key}_image_url`];
+    if (!url) return;
+    try {
+      await api.delete("/admin/settings/whatsapp/poster", { data: { url } });
+      setWhatsappForm((current) => ({ ...current, [`${key}_image_url`]: "" }));
+      setWhatsappMessage("Template poster deleted. Save Configuration to remove the attachment.");
+    } catch (err) { setWhatsappMessage(err?.response?.data?.detail || "Template poster could not be deleted"); }
   };
 
   const deleteWhatsappPoster = async () => {
@@ -1792,7 +1816,7 @@ export default function SettingsPage() {
               <div className="md:col-span-2 border-t border-border pt-4">
                 <p className="text-sm font-semibold text-emerald-950">Automatic Replies and Templates</p>
                 <div className="mt-2 grid gap-3 md:grid-cols-2">
-                  {[ ["default_auto_reply", "Default auto-reply"], ["customer_auto_reply", "Customer auto-reply"], ["member_auto_reply", "Member auto-reply"], ["partner_auto_reply", "Partner auto-reply"], ["invoice_template", "Invoice message template"], ["order_template", "Order message template"]].map(([key, label]) => <div key={key}><Label>{label}</Label><textarea value={whatsappForm[key] || ""} onChange={(e) => updateWhatsappField(key)(e.target.value)} placeholder={`Set ${label.toLowerCase()}`} className="mt-1.5 min-h-20 w-full rounded-md border border-input bg-white px-3 py-2 text-sm" /></div>)}
+                  {[ ["default_auto_reply", "Default auto-reply"], ["customer_auto_reply", "Customer auto-reply"], ["member_auto_reply", "Member auto-reply"], ["partner_auto_reply", "Partner auto-reply"], ["invoice_template", "Invoice message template"], ["order_template", "Order message template"]].map(([key, label]) => <div key={key}><Label>{label}</Label><textarea value={whatsappForm[key] || ""} onChange={(e) => updateWhatsappField(key)(e.target.value)} placeholder={`Set ${label.toLowerCase()}`} className="mt-1.5 min-h-20 w-full rounded-md border border-input bg-white px-3 py-2 text-sm" />{["default_auto_reply", "customer_auto_reply", "member_auto_reply", "partner_auto_reply"].includes(key) ? <div className="mt-2 flex flex-wrap items-center gap-2"><label className="inline-flex cursor-pointer items-center rounded border border-emerald-300 px-2 py-1 text-xs font-semibold text-emerald-800"><Upload className="mr-1 h-3.5 w-3.5" />Attach poster<input type="file" accept="image/jpeg,image/png,image/webp" className="hidden" onChange={(e) => uploadPresetPoster(key, e)} disabled={whatsappPosterBusy} /></label>{whatsappForm[`${key}_image_url`] ? <Button type="button" size="sm" variant="outline" onClick={() => deletePresetPoster(key)} disabled={whatsappPosterBusy}>Delete poster</Button> : null}</div> : null}</div>)}
                   <div className="md:col-span-2 border-t border-border pt-3"><p className="text-sm font-semibold text-emerald-950">Registration Funnel</p></div>
                   {[ ["registration_welcome_message", "Welcome message"], ["registration_url", "General registration URL"], ["registration_help_prompt", "Registration help prompt"], ["registration_role_question", "Member / Partner / Rider selection question"]].map(([key, label]) => <div key={key} className={key === "registration_role_question" ? "md:col-span-2" : ""}><Label>{label}</Label><textarea value={whatsappForm[key] || ""} onChange={(e) => updateWhatsappField(key)(e.target.value)} placeholder={`Set ${label.toLowerCase()}`} className="mt-1.5 min-h-20 w-full rounded-md border border-input bg-white px-3 py-2 text-sm" /></div>)}
                   {[ ["Member", "member"], ["Partner", "partner"], ["Rider", "rider"] ].map(([title, role]) => <div key={role} className="md:col-span-2 border-t border-border pt-3"><p className="text-sm font-semibold text-emerald-950">{title} Registration</p><div className="mt-2 grid gap-3 md:grid-cols-2"><div><Label>{title} registration URL</Label><textarea value={whatsappForm[`${role}_registration_url`] || ""} onChange={(e) => updateWhatsappField(`${role}_registration_url`)(e.target.value)} placeholder="https://..." className="mt-1.5 min-h-20 w-full rounded-md border border-input bg-white px-3 py-2 text-sm" /></div><div><Label>{title} reply keywords (comma-separated)</Label><textarea value={whatsappForm[`${role}_registration_keywords`] || ""} onChange={(e) => updateWhatsappField(`${role}_registration_keywords`)(e.target.value)} placeholder="1, member" className="mt-1.5 min-h-20 w-full rounded-md border border-input bg-white px-3 py-2 text-sm" /></div><div className="md:col-span-2"><Label>{title} auto-reply</Label><textarea value={whatsappForm[`${role}_registration_reply`] || ""} onChange={(e) => updateWhatsappField(`${role}_registration_reply`)(e.target.value)} placeholder={`Set ${title.toLowerCase()} auto-reply`} className="mt-1.5 min-h-20 w-full rounded-md border border-input bg-white px-3 py-2 text-sm" /></div></div></div>)}

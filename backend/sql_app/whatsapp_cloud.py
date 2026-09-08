@@ -135,9 +135,13 @@ def load_db_config(db) -> dict:
         "graph_api_version",
         "default_assignee_id",
         "default_auto_reply",
+        "default_auto_reply_image_url",
         "customer_auto_reply",
+        "customer_auto_reply_image_url",
         "member_auto_reply",
+        "member_auto_reply_image_url",
         "partner_auto_reply",
+        "partner_auto_reply_image_url",
         "invoice_template",
         "order_template",
         "registration_welcome_message",
@@ -163,9 +167,13 @@ def resolve_config(db=None) -> dict:
         "graph_api_version": str(db_config.get("graph_api_version") or WHATSAPP_GRAPH_API_VERSION),
         "default_assignee_id": str(db_config.get("default_assignee_id") or _setting("WHATSAPP_CRM_DEFAULT_ASSIGNEE_ID")),
         "default_auto_reply": str(db_config.get("default_auto_reply") or DEFAULT_AUTO_REPLY).strip(),
+        "default_auto_reply_image_url": str(db_config.get("default_auto_reply_image_url") or "").strip(),
         "customer_auto_reply": str(db_config.get("customer_auto_reply") or "").strip(),
+        "customer_auto_reply_image_url": str(db_config.get("customer_auto_reply_image_url") or "").strip(),
         "member_auto_reply": str(db_config.get("member_auto_reply") or "").strip(),
+        "member_auto_reply_image_url": str(db_config.get("member_auto_reply_image_url") or "").strip(),
         "partner_auto_reply": str(db_config.get("partner_auto_reply") or "").strip(),
+        "partner_auto_reply_image_url": str(db_config.get("partner_auto_reply_image_url") or "").strip(),
         "invoice_template": str(db_config.get("invoice_template") or "").strip(),
         "order_template": str(db_config.get("order_template") or "").strip(),
         "registration_welcome_message": str(db_config.get("registration_welcome_message") or DEFAULT_WHATSAPP_WELCOME_MESSAGE).strip(),
@@ -194,6 +202,13 @@ def get_configured_whatsapp_reply(db, role: str | None = None, fallback: str = "
     chosen = key_map.get((role or "default").lower(), "default_auto_reply")
     value = config.get(chosen) or config.get("default_auto_reply") or fallback
     return str(value or "").strip()
+
+
+def get_configured_whatsapp_reply_image(db, role: str | None = None) -> str:
+    role_key = (role or "default").lower()
+    key = {"customer": "customer_auto_reply_image_url", "member": "member_auto_reply_image_url", "partner": "partner_auto_reply_image_url", "default": "default_auto_reply_image_url"}.get(role_key, "default_auto_reply_image_url")
+    config = resolve_config(db)
+    return str(config.get(key) or (config.get("default_auto_reply_image_url") if key != "default_auto_reply_image_url" else "") or "").strip()
 
 
 def verify_webhook_token(token: str, challenge: str, db=None) -> str | None:
@@ -357,6 +372,14 @@ def send_whatsapp_image(db, recipient: str, image_url: str, caption: str = "") -
     if not isinstance(payload, dict):
         raise RuntimeError("WhatsApp API returned an invalid response")
     return payload
+
+
+def public_whatsapp_image_url(value: str) -> str:
+    raw = str(value or "").strip()
+    if raw.startswith("http://") or raw.startswith("https://"):
+        return raw
+    base = str(os.getenv("METHO_PUBLIC_BASE_URL") or "https://metho-backend.onrender.com").strip().rstrip("/")
+    return f"{base}/{raw.lstrip('/')}"
 
 
 def _normalized_whatsapp_messages(payload: dict) -> list[dict]:
@@ -633,6 +656,13 @@ def ingest_whatsapp_message(db, payload: dict, request=None) -> str:
             reply_status = _send_auto_reply_if_configured(db, normalized["phone"], text=auto_reply)
             if reply_status == "sent":
                 db.add(CRMLeadActivity(lead_id=lead.id, activity_type="whatsapp_message_sent", message=auto_reply))
+                image_url = get_configured_whatsapp_reply_image(db, role_hint)
+                if image_url:
+                    try:
+                        send_whatsapp_image(db, normalized["phone"], public_whatsapp_image_url(image_url))
+                        db.add(CRMLeadActivity(lead_id=lead.id, activity_type="whatsapp_image_sent", message=image_url))
+                    except Exception:
+                        logger.exception("WhatsApp preset image auto-reply failed; text reply was already sent")
         statuses.append(status)
     db.commit()
     if "created" in statuses:
