@@ -320,6 +320,17 @@ def test_gemini_invalid_configured_model_selects_available_flash(monkeypatch):
     assert generated and generated[0][0] == "models/gemini-3.6-flash"
 
 
+def test_gemini_legacy_model_alias_maps_to_available_model(monkeypatch):
+    from sql_app.whatsapp_ai import _generate_reply
+
+    generated = install_fake_google_genai(monkeypatch, [("models/gemini-1.5-flash", ["generateContent"]), ("models/gemini-2.5-flash", ["generateContent"])])
+    monkeypatch.setenv("GEMINI_API_KEY", "test-key")
+    monkeypatch.delenv("OPENAI_API_KEY", raising=False)
+    reply, provider, model = _generate_reply({"system_prompt": "help", "knowledge_base": "METHO", "handoff_keywords": "", "provider": "gemini", "model": "gemini_1.5"}, "Hi")
+    assert (reply, provider, model) == ("AI reply", "gemini", "models/gemini-1.5-flash")
+    assert generated and generated[0][0] == "models/gemini-1.5-flash"
+
+
 def test_gemini_unavailable_models_return_fallback(monkeypatch):
     from sql_app.whatsapp_ai import _generate_reply
 
@@ -351,6 +362,29 @@ def test_openai_chat_completions_generates_reply(monkeypatch):
     reply, provider, _model = _generate_reply({"system_prompt": "help", "knowledge_base": "METHO", "handoff_keywords": "", "provider": "openai", "model": "gpt-4.1-mini"}, "Hi")
     assert reply == "OpenAI reply"
     assert provider == "openai"
+
+
+def test_openai_fallback_uses_openai_model_when_configured_model_is_gemini(monkeypatch):
+    from sql_app.whatsapp_ai import _generate_reply
+
+    calls = []
+
+    class FakeCompletions:
+        @staticmethod
+        def create(**kwargs):
+            calls.append(kwargs)
+            return type("Response", (), {"choices": [type("Choice", (), {"message": type("Message", (), {"content": "OpenAI reply"})()})()]})()
+
+    class FakeClient:
+        def __init__(self, **_kwargs):
+            self.chat = SimpleNamespace(completions=FakeCompletions)
+
+    monkeypatch.setitem(sys.modules, "openai", type("FakeOpenAI", (), {"OpenAI": FakeClient}))
+    monkeypatch.setenv("OPENAI_API_KEY", "test-key")
+    monkeypatch.delenv("GEMINI_API_KEY", raising=False)
+    reply, provider, model = _generate_reply({"system_prompt": "help", "knowledge_base": "METHO", "handoff_keywords": "", "provider": "openai", "model": "gemini-1.5-flash"}, "Hi")
+    assert (reply, provider, model) == ("OpenAI reply", "openai", "gpt-4o-mini")
+    assert calls and calls[0]["model"] == "gpt-4o-mini"
 
 
 def test_openai_credit_exhaustion_falls_back_to_gemini(monkeypatch):

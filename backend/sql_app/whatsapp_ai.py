@@ -24,6 +24,13 @@ DEFAULT_CONFIG = {
     "knowledge_base": "METHO AAY-UPAY is an e-commerce, member reward, partner shop/service, METHO Move, and delivery platform. Customers can ask about products, orders, registration, partner opportunities, rider work, payments, delivery, and support. Never ask for OTP, UPI PIN, ATM PIN, CVV, passwords, or full bank details.",
     "handoff_keywords": "agent,human,মানুষ,অফিস,complaint,refund,payment,legal,fraud,otp,password",
 }
+DEFAULT_OPENAI_MODEL = "gpt-4o-mini"
+GEMINI_MODEL_ALIASES = {
+    "gemini_1.5": "gemini-1.5-flash",
+    "gemini-1.5": "gemini-1.5-flash",
+    "models/gemini_1.5": "gemini-1.5-flash",
+    "models/gemini-1.5": "gemini-1.5-flash",
+}
 SENSITIVE_PATTERNS = (r"\b\d{4}[-\s]?\d{4}[-\s]?\d{4}\b", r"\b[A-Z]{5}[0-9]{4}[A-Z]\b", r"\b\d{6}\b")
 SEARCH_TERMS = ("price", "cost", "benefit", "use", "detail", "product", "business", "join", "registration", "দাম", "কত", "উপকারিতা", "ব্যবহার", "বিস্তারিত", "পণ্য", "ব্যবসা", "যোগ", "রেজিস্ট্রেশন")
 PRE_REGISTRATION_FOLLOWUP = "হ্যালো! আপনি METHO সম্পর্কে তথ্য পেয়েছিলেন। Registration করতে কোনো সাহায্য লাগছে কি? চাইলে এই WhatsApp-এ reply করুন অথবা আমাদের executive-এর সঙ্গে যোগাযোগ করুন: 9339566110 / 9163530078। আমরা Member, Partner বা Rider হিসেবে যুক্ত হওয়ার ধাপ বুঝিয়ে দেব।"
@@ -276,7 +283,13 @@ def _gemini_model_name(model) -> str:
 
 
 def _gemini_model_basename(model_name: str) -> str:
-    return _gemini_model_name(model_name).removeprefix("models/").strip().lower()
+    value = _gemini_model_name(model_name).replace("_", "-").strip().lower()
+    return GEMINI_MODEL_ALIASES.get(value, value).removeprefix("models/").strip()
+
+
+def _openai_model_name(configured_model: str) -> str:
+    value = str(configured_model or "").strip()
+    return value if value.startswith(("gpt-", "o1", "o3", "o4")) else DEFAULT_OPENAI_MODEL
 
 
 def _gemini_supports_generate_content(model) -> bool:
@@ -325,14 +338,15 @@ def _generate_reply(config: dict, message: str, context: str = "", event_type: s
             try:
                 from openai import OpenAI
                 client = OpenAI(api_key=openai_key, timeout=10)
+                openai_model = _openai_model_name(config.get("model"))
                 try:
-                    response = client.chat.completions.create(model=config["model"] or "gpt-4.1-mini", messages=[{"role": "user", "content": prompt}], max_tokens=220)
+                    response = client.chat.completions.create(model=openai_model, messages=[{"role": "user", "content": prompt}], max_tokens=220)
                     text = str(response.choices[0].message.content or "").strip()
                 except Exception:
-                    response = client.responses.create(model=config["model"] or "gpt-4.1-mini", input=prompt, max_output_tokens=220)
+                    response = client.responses.create(model=openai_model, input=prompt, max_output_tokens=220)
                     text = str(response.output_text or "").strip()
                 if text:
-                    return text[:1500], "openai", config["model"]
+                    return text[:1500], "openai", openai_model
             except Exception as exc:
                 logger.warning("WhatsApp AI OpenAI reply failed; trying next provider: %s", exc)
         if preferred == "gemini" and gemini_key:
