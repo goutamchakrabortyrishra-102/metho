@@ -8,7 +8,7 @@ from sqlalchemy.exc import IntegrityError
 
 from .database import SessionLocal
 from .google_search import search_web_context
-from .models import AppSetting, CRMFollowUp, CRMLead, CRMLeadActivity, CRMTask, CRMWhatsAppAISuggestion, User
+from .models import AppSetting, CRMFollowUp, CRMLead, CRMLeadActivity, CRMTask, CRMWhatsAppAISuggestion, Product, User
 
 logger = logging.getLogger(__name__)
 SETTING_KEY = "crm_whatsapp_ai"
@@ -25,7 +25,7 @@ DEFAULT_CONFIG = {
     "handoff_keywords": "agent,human,মানুষ,অফিস,complaint,refund,payment,legal,fraud,otp,password",
 }
 SENSITIVE_PATTERNS = (r"\b\d{4}[-\s]?\d{4}[-\s]?\d{4}\b", r"\b[A-Z]{5}[0-9]{4}[A-Z]\b", r"\b\d{6}\b")
-SEARCH_TERMS = ("price", "cost", "benefit", "use", "detail", "product", "দাম", "কত", "উপকারিতা", "ব্যবহার", "বিস্তারিত", "পণ্য")
+SEARCH_TERMS = ("price", "cost", "benefit", "use", "detail", "product", "business", "join", "registration", "দাম", "কত", "উপকারিতা", "ব্যবহার", "বিস্তারিত", "পণ্য", "ব্যবসা", "যোগ", "রেজিস্ট্রেশন")
 LIFECYCLE_SUGGESTIONS = {
     "registration_form_opened": "আপনি registration form খুলেছেন। Form পূরণ করতে কোনো সাহায্য লাগলে এখানেই লিখুন।",
     "registration_form_submitted": "আপনার registration form জমা হয়েছে। পরবর্তী ধাপ সম্পন্ন করতে কোনো সাহায্য লাগলে এখানে reply করুন।",    "registration_form_followup_started": "আপনার Registration Form জমা হয়েছে। Account activation বা approval status নিয়ে কোনো প্রশ্ন থাকলে এখানে reply করুন, আমরা সাহায্য করব।",    "member_registration_completed": "আপনার Member registration সম্পন্ন হয়েছে। Account activation ও প্রথম purchase-এর পরবর্তী ধাপে সহায়তা লাগলে এখানে reply করুন।",
@@ -108,6 +108,24 @@ def _crm_context(db, lead: CRMLead) -> str:
     ))
 
 
+def _conversation_context(db, lead: CRMLead) -> str:
+    activities = db.query(CRMLeadActivity).filter(
+        CRMLeadActivity.lead_id == lead.id,
+        CRMLeadActivity.activity_type.in_(["whatsapp_message_received", "whatsapp_message_sent"]),
+    ).order_by(CRMLeadActivity.created_at.desc()).limit(6).all()
+    return "\n".join(f"{row.activity_type}: {str(row.message or '')[:500]}" for row in reversed(activities)) or "No previous WhatsApp conversation available."
+
+
+def _catalog_context(db) -> str:
+    products = db.query(Product).filter(Product.stock > 0).order_by(Product.created_at.desc()).limit(30).all()
+    if not products:
+        return "No currently stocked product found in the catalog."
+    return "\n".join(
+        f"{product.name} | category: {product.category} | price: INR {product.price:g} | stock: {product.stock}"
+        for product in products
+    )
+
+
 def _admin_assignee(db) -> str:
     configured = ""
     try:
@@ -174,7 +192,7 @@ def _auto_send_allowed(config: dict, suggestion: CRMWhatsAppAISuggestion, activi
 
 def _generate_reply(config: dict, message: str, context: str = "", event_type: str = "") -> tuple[str, str, str]:
     search_context = search_web_context(f"METHO AAY-UPAY {message}") if any(term in message.lower() for term in SEARCH_TERMS) else ""
-    prompt = f"{config['system_prompt']}\n\nOperational rules: Use the CRM context to answer the next action clearly. If registration is submitted, explain the pending activation or approval step. If a follow-up is due, offer help and state that a human agent will follow up. Never claim an account is activated, a reward is paid, or an approval is complete unless the CRM context says so. For lifecycle event reminders, write one concise, actionable message and invite the customer to reply for help.\n\nTrigger event: {event_type or 'incoming_whatsapp_message'}\n\nCRM context:\n{context or 'No CRM context available.'}\n\nKnowledge base:\n{config['knowledge_base']}\n\nOptional public search context (use only as background; do not invent facts):\n{search_context or 'No search context available.'}\n\nCustomer message/event:\n{message}"
+    prompt = f"{config['system_prompt']}\n\nYou are a helpful METHO customer-care teammate, not a generic chatbot. Reply like a real person: acknowledge the customer's exact question, answer directly, and give one practical next step. Detect the language of the customer's latest message and reply in that language; preserve familiar product names and links. Use the CRM context and previous conversation so you do not repeat questions or contradict earlier replies. Explain products, prices, delivery, business opportunities, and how to join only from verified context. If a fact is missing or sensitive, say that a human METHO team member will verify it and create a follow-up instead of guessing. Never claim an account is activated, a reward is paid, a purchase is completed, stock is available, or an approval is complete unless the context says so. For reminders, be warm and specific, never spammy, and keep the reply under 900 characters.\n\nTrigger event: {event_type or 'incoming_whatsapp_message'}\n\nCRM and conversation context:\n{context or 'No CRM context available.'}\n\nKnowledge base:\n{config['knowledge_base']}\n\nOptional public search context (use only as background; do not copy source wording or invent facts):\n{search_context or 'No search context available.'}\n\nCustomer message/event:\n{message}"
     preferred = config["provider"]
     openai_key = os.getenv("OPENAI_API_KEY", "").strip()
     gemini_key = (os.getenv("GEMINI_API_KEY", "") or os.getenv("GOOGLE_API_KEY", "")).strip()
@@ -214,7 +232,7 @@ def create_suggestion_for_activity(activity_id: str) -> None:
             return
         incoming = activity.message.split("]: ", 1)[-1]
         clean_text, handoff, reason = _guardrail(incoming, config["handoff_keywords"])
-        context = _crm_context(db, lead)
+        context = f"{_crm_context(db, lead)}\nPrevious WhatsApp conversation:\n{_conversation_context(db, lead)}\nAvailable METHO catalog:\n{_catalog_context(db)}"
         reply, provider, model = _generate_reply(config, clean_text, context, activity.activity_type)
         suggestion = CRMWhatsAppAISuggestion(lead_id=lead.id, activity_id=activity.id, suggested_reply=reply, human_handoff_required=handoff, handoff_reason=reason, provider_used=provider, model_used=model)
         db.add(suggestion)
