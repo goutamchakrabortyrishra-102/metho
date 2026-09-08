@@ -246,6 +246,33 @@ export default function CRMLeadsPage() {
     openPrintableReport(html, "Popup blocked. Allow popups to print CRM contacts.");
   };
 
+  const downloadLeadsPdf = () => {
+    const doc = new jsPDF();
+    doc.setTextColor(6, 78, 59);
+    doc.setFontSize(18);
+    doc.text("METHO Contact List", 15, 20);
+    doc.setTextColor(90, 90, 90);
+    doc.setFontSize(10);
+    doc.text(`Name and mobile number · Total: ${items.length}`, 15, 28);
+    let y = 42;
+    doc.setTextColor(6, 78, 59);
+    doc.setFontSize(11);
+    doc.text("Name", 15, y);
+    doc.text("Mobile Number", 115, y);
+    y += 8;
+    doc.setTextColor(20, 20, 20);
+    items.forEach((lead) => {
+      if (y > 280) {
+        doc.addPage();
+        y = 20;
+      }
+      doc.text(String(lead.contact_person || lead.business_name || "-").slice(0, 55), 15, y);
+      doc.text(String(lead.phone || lead.whatsapp_no || "-"), 115, y);
+      y += 8;
+    });
+    doc.save(`metho-contacts-${new Date().toISOString().slice(0, 10)}.pdf`);
+  };
+
   const downloadFunnelPdf = () => {
     const doc = new jsPDF();
     doc.setTextColor(6, 78, 59);
@@ -279,6 +306,7 @@ export default function CRMLeadsPage() {
         </div>
         <div className="flex gap-2">
           <Button variant="outline" onClick={printLeads} className="rounded-full"><Printer className="w-4 h-4 mr-2" /> Print</Button>
+          <Button variant="outline" onClick={downloadLeadsPdf} className="rounded-full"><Download className="w-4 h-4 mr-2" /> Download PDF</Button>
           <Button variant="outline" onClick={loadLeads} className="rounded-full"><RefreshCw className="w-4 h-4 mr-2" /> Refresh</Button>
         </div>
       </div>
