@@ -5,6 +5,7 @@ import { Input } from "@/components/ui/input";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import api from "@/services/api";
 import { useSearchParams } from "react-router-dom";
+import { jsPDF } from "jspdf";
 
 const stageOptions = ["NEW", "CONTACTED", "INTERESTED", "QUALIFIED", "APPLICATION", "APPROVED", "CONVERTED", "LOST"];
 const classificationOptions = [
@@ -246,9 +247,27 @@ export default function CRMLeadsPage() {
   };
 
   const downloadFunnelPdf = () => {
-    const rows = funnel.map((step) => `<tr><td>${step.label}</td><td>${step.value}</td><td>${step.help}</td></tr>`).join("");
-    const html = `<!doctype html><html><head><meta charset="utf-8"/><title>METHO Funnel Report</title><style>body{font-family:Arial,sans-serif;padding:24px;color:#111}h1{color:#064e3b}table{width:100%;border-collapse:collapse}th,td{border:1px solid #bbb;padding:10px;text-align:left}th{background:#e2e8f0}.meta{color:#555}</style></head><body><h1>METHO Business Funnel</h1><p class="meta">Generated ${new Date().toLocaleString()}</p><table><thead><tr><th>Stage</th><th>Count</th><th>Meaning</th></tr></thead><tbody>${rows}</tbody></table></body></html>`;
-    openPrintableReport(html, "Popup blocked. Allow popups to download the funnel as PDF.");
+    const doc = new jsPDF();
+    doc.setTextColor(6, 78, 59);
+    doc.setFontSize(18);
+    doc.text("METHO Business Funnel", 15, 20);
+    doc.setTextColor(90, 90, 90);
+    doc.setFontSize(10);
+    doc.text(`Generated: ${new Date().toLocaleString()}`, 15, 28);
+    let y = 44;
+    funnel.forEach((step, index) => {
+      doc.setTextColor(6, 78, 59);
+      doc.setFontSize(12);
+      doc.text(`Step ${index + 1}: ${step.label}`, 15, y);
+      doc.setTextColor(20, 20, 20);
+      doc.setFontSize(16);
+      doc.text(String(step.value), 170, y);
+      doc.setTextColor(90, 90, 90);
+      doc.setFontSize(10);
+      doc.text(step.help, 15, y + 7);
+      y += 22;
+    });
+    doc.save(`metho-business-funnel-${new Date().toISOString().slice(0, 10)}.pdf`);
   };
 
   return (
@@ -273,7 +292,7 @@ export default function CRMLeadsPage() {
       <section aria-labelledby="funnel-title" className="rounded-xl border border-emerald-200 bg-emerald-950 p-4 text-white shadow-sm">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div><p className="text-xs uppercase tracking-[0.2em] text-emerald-200">Business Journey</p><h2 id="funnel-title" className="mt-1 text-xl font-bold">Lead to Repeat Business</h2><p className="mt-1 text-sm text-emerald-100">One clear view of where customers are moving next.</p></div>
-          <Button type="button" variant="outline" onClick={downloadFunnelPdf} className="border-emerald-300 bg-white text-emerald-950 hover:bg-emerald-50"><Download className="mr-2 h-4 w-4" /> Download / Print PDF</Button>
+          <Button type="button" variant="outline" onClick={downloadFunnelPdf} className="border-emerald-300 bg-white text-emerald-950 hover:bg-emerald-50"><Download className="mr-2 h-4 w-4" /> Download PDF</Button>
         </div>
         <div className="mt-4 grid gap-2 md:grid-cols-4" role="list" aria-label="Business funnel stages">
           {funnel.map((step, index) => <div key={step.key} role="listitem" className="relative rounded-lg bg-white p-4 text-emerald-950"><p className="text-xs font-bold uppercase tracking-wide text-emerald-700">Step {index + 1}</p><p className="mt-2 text-sm font-semibold">{step.label}</p><p className="mt-1 text-3xl font-black" aria-label={`${step.value} ${step.label}`}>{step.value}</p><p className="mt-1 text-xs text-slate-600">{step.help}</p>{index < funnel.length - 1 ? <span className="hidden md:block absolute -right-2 top-1/2 z-10 text-emerald-300" aria-hidden="true">→</span> : null}</div>)}
