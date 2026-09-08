@@ -183,3 +183,17 @@ def test_ai_fallback_auto_sends_admin_preset(monkeypatch):
         assert sent and sent[0][0] == lead.whatsapp_no
     finally:
         db.close()
+
+
+def test_ai_worker_skips_when_webhook_already_sent_a_preset(monkeypatch):
+    db = make_session()
+    try:
+        lead, activity = add_whatsapp_activity(db, "1")
+        db.add(CRMLeadActivity(lead_id=lead.id, activity_type="whatsapp_auto_reply_dispatched", message="auto-reply-for:wamid.test:text"))
+        db.commit()
+        save_ai_config(db, {"enabled": True, "auto_send_enabled": True})
+        monkeypatch.setattr("sql_app.whatsapp_ai.SessionLocal", lambda: NoCloseSession(db))
+        create_suggestion_for_activity(activity.id)
+        assert db.query(CRMWhatsAppAISuggestion).filter(CRMWhatsAppAISuggestion.activity_id == activity.id).count() == 0
+    finally:
+        db.close()

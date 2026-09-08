@@ -312,6 +312,14 @@ def create_suggestion_for_activity(activity_id: str) -> None:
         config = resolve_ai_config(db)
         if not lead or lead.source not in {"whatsapp", "facebook"} or not config["enabled"]:
             return
+        if activity.activity_type == "whatsapp_message_received":
+            message_id = str(activity.message or "").split("]:", 1)[0].removeprefix("WhatsApp message received [").strip()
+            if message_id and db.query(CRMLeadActivity).filter(
+                CRMLeadActivity.lead_id == lead.id,
+                CRMLeadActivity.activity_type == "whatsapp_auto_reply_dispatched",
+                CRMLeadActivity.message.like(f"auto-reply-for:{message_id}%"),
+            ).first():
+                return
         incoming = activity.message.split("]: ", 1)[-1]
         clean_text, handoff, reason = _guardrail(incoming, config["handoff_keywords"])
         context = f"{_crm_context(db, lead)}\nPrevious WhatsApp conversation:\n{_conversation_context(db, lead)}\nAvailable METHO catalog:\n{_catalog_context(db)}"
