@@ -595,7 +595,8 @@ def ingest_whatsapp_message(db, payload: dict, request=None) -> str:
                 ai_handles_freeform = should_ai_handle_freeform_reply(db)
             except Exception:
                 ai_handles_freeform = False
-            auto_reply = "" if ai_handles_freeform else _localized_default_reply(db, language)
+            configured_default_reply = str(load_db_config(db).get("default_auto_reply") or "").strip()
+            auto_reply = _localized_default_reply(db, language) if configured_default_reply or not ai_handles_freeform else ""
         body = normalized["metadata"].get("raw_body") or ""
         db.add(CRMLeadActivity(lead_id=lead.id, activity_type="whatsapp_message_received", message=f"{activity_prefix}: {body}"))
         if auto_reply:
