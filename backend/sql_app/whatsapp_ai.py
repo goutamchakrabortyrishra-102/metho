@@ -288,15 +288,21 @@ def _generate_reply(config: dict, message: str, context: str = "", event_type: s
             except Exception as exc:
                 logger.warning("WhatsApp AI OpenAI reply failed; trying next provider: %s", exc)
         if preferred == "gemini" and gemini_key:
-            try:
-                import google.generativeai as genai
-                genai.configure(api_key=gemini_key)
-                response = genai.GenerativeModel(config["model"] or "gemini-1.5-flash").generate_content(prompt)
-                text = str(getattr(response, "text", "") or "").strip()
-                if text:
-                    return text[:1500], "gemini", config["model"]
-            except Exception as exc:
-                logger.warning("WhatsApp AI Gemini reply failed; trying next provider: %s", exc)
+            import google.generativeai as genai
+            genai.configure(api_key=gemini_key)
+            gemini_models = []
+            for model_name in (config["model"], "gemini-2.0-flash", "gemini-1.5-flash-latest"):
+                normalized_model = str(model_name or "").strip()
+                if normalized_model and normalized_model not in gemini_models:
+                    gemini_models.append(normalized_model)
+            for model_name in gemini_models:
+                try:
+                    response = genai.GenerativeModel(model_name).generate_content(prompt)
+                    text = str(getattr(response, "text", "") or "").strip()
+                    if text:
+                        return text[:1500], "gemini", model_name
+                except Exception as exc:
+                    logger.warning("WhatsApp AI Gemini model failed: model=%s error=%s", model_name, exc)
     return LIFECYCLE_SUGGESTIONS.get(event_type, "ধন্যবাদ আপনার বার্তার জন্য। মেঠো প্রতিনিধি শীঘ্রই আপনার সাথে যোগাযোগ করবেন।"), "fallback", "local"
 
 

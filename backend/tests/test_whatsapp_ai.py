@@ -218,3 +218,25 @@ def test_saved_role_poster_takes_priority_over_stale_text_mode():
         assert get_configured_whatsapp_reply_mode(db, "member") == "image"
     finally:
         db.close()
+
+
+def test_gemini_model_fallback_tries_current_model(monkeypatch):
+    from sql_app.whatsapp_ai import _generate_reply
+    calls = []
+
+    class FakeModel:
+        def __init__(self, model):
+            calls.append(model)
+
+        def generate_content(self, _prompt):
+            if calls[-1] == "gemini-1.5-flash":
+                raise RuntimeError("model not found")
+            return type("Response", (), {"text": "AI reply"})()
+
+    fake_genai = type("FakeGenAI", (), {"configure": staticmethod(lambda **_kwargs: None), "GenerativeModel": FakeModel})
+    monkeypatch.setitem(__import__("sys").modules, "google.generativeai", fake_genai)
+    monkeypatch.setenv("GEMINI_API_KEY", "test-key")
+    monkeypatch.delenv("OPENAI_API_KEY", raising=False)
+    reply, provider, model = _generate_reply({"system_prompt": "help", "knowledge_base": "METHO", "handoff_keywords": "", "provider": "gemini", "model": "gemini-1.5-flash"}, "Hi")
+    assert (reply, provider, model) == ("AI reply", "gemini", "gemini-2.0-flash")
+    assert calls == ["gemini-1.5-flash", "gemini-2.0-flash"]
