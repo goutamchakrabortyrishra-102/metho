@@ -1,4 +1,4 @@
-const CURRENT_MAIN = "https://www.methoaayupay.com/static/js/main.b12a57a6.js";
+const CURRENT_MAIN = "https://www.methoaayupay.com/static/js/main.c547a7e7.js";
 
 export default {
   async fetch(request) {

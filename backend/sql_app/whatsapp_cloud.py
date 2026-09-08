@@ -136,20 +136,27 @@ def load_db_config(db) -> dict:
         "default_assignee_id",
         "default_auto_reply",
         "default_auto_reply_image_url",
+        "default_auto_reply_mode",
         "customer_auto_reply",
         "customer_auto_reply_image_url",
+        "customer_auto_reply_mode",
         "member_auto_reply",
         "member_auto_reply_image_url",
+        "member_auto_reply_mode",
         "partner_auto_reply",
         "partner_auto_reply_image_url",
+        "partner_auto_reply_mode",
         "invoice_template",
         "order_template",
         "registration_welcome_message",
+        "registration_welcome_message_image_url",
+        "registration_welcome_message_mode",
         "registration_url",
         "registration_help_prompt",
         "registration_role_question",
         *[f"{role}_registration_url" for role in REGISTRATION_ROLE_SETTINGS],
         *[f"{role}_registration_reply" for role in REGISTRATION_ROLE_SETTINGS],
+        *[f"{role}_registration_reply_image_url" for role in REGISTRATION_ROLE_SETTINGS],
         *[f"{role}_registration_keywords" for role in REGISTRATION_ROLE_SETTINGS],
     ) if key in payload}
     for key in ("webhook_verify_token", "app_secret", "access_token"):
@@ -168,15 +175,21 @@ def resolve_config(db=None) -> dict:
         "default_assignee_id": str(db_config.get("default_assignee_id") or _setting("WHATSAPP_CRM_DEFAULT_ASSIGNEE_ID")),
         "default_auto_reply": str(db_config.get("default_auto_reply") or DEFAULT_AUTO_REPLY).strip(),
         "default_auto_reply_image_url": str(db_config.get("default_auto_reply_image_url") or "").strip(),
+        "default_auto_reply_mode": str(db_config.get("default_auto_reply_mode") or "text").strip().lower(),
         "customer_auto_reply": str(db_config.get("customer_auto_reply") or "").strip(),
         "customer_auto_reply_image_url": str(db_config.get("customer_auto_reply_image_url") or "").strip(),
+        "customer_auto_reply_mode": str(db_config.get("customer_auto_reply_mode") or "text").strip().lower(),
         "member_auto_reply": str(db_config.get("member_auto_reply") or "").strip(),
         "member_auto_reply_image_url": str(db_config.get("member_auto_reply_image_url") or "").strip(),
+        "member_auto_reply_mode": str(db_config.get("member_auto_reply_mode") or "text").strip().lower(),
         "partner_auto_reply": str(db_config.get("partner_auto_reply") or "").strip(),
         "partner_auto_reply_image_url": str(db_config.get("partner_auto_reply_image_url") or "").strip(),
+        "partner_auto_reply_mode": str(db_config.get("partner_auto_reply_mode") or "text").strip().lower(),
         "invoice_template": str(db_config.get("invoice_template") or "").strip(),
         "order_template": str(db_config.get("order_template") or "").strip(),
         "registration_welcome_message": str(db_config.get("registration_welcome_message") or DEFAULT_WHATSAPP_WELCOME_MESSAGE).strip(),
+        "registration_welcome_message_image_url": str(db_config.get("registration_welcome_message_image_url") or "").strip(),
+        "registration_welcome_message_mode": str(db_config.get("registration_welcome_message_mode") or "text").strip().lower(),
         "registration_url": str(db_config.get("registration_url") or DEFAULT_WHATSAPP_REGISTRATION_URL).strip(),
         "registration_help_prompt": str(db_config.get("registration_help_prompt") or DEFAULT_WHATSAPP_REGISTRATION_HELP_PROMPT).strip(),
         "registration_role_question": str(db_config.get("registration_role_question") or DEFAULT_REGISTRATION_ROLE_QUESTION).strip(),
@@ -184,6 +197,8 @@ def resolve_config(db=None) -> dict:
         "partner_registration_url": str(db_config.get("partner_registration_url") or DEFAULT_PARTNER_REGISTRATION_URL).strip(),
         "rider_registration_url": str(db_config.get("rider_registration_url") or DEFAULT_RIDER_REGISTRATION_URL).strip(),
         **{f"{role}_registration_reply": str(db_config.get(f"{role}_registration_reply") or DEFAULT_ROLE_REGISTRATION_REPLIES[role]).strip() for role in REGISTRATION_ROLE_SETTINGS},
+        **{f"{role}_registration_reply_image_url": str(db_config.get(f"{role}_registration_reply_image_url") or "").strip() for role in REGISTRATION_ROLE_SETTINGS},
+        **{f"{role}_registration_reply_mode": str(db_config.get(f"{role}_registration_reply_mode") or "text").strip().lower() for role in REGISTRATION_ROLE_SETTINGS},
         **{f"{role}_registration_keywords": str(db_config.get(f"{role}_registration_keywords") or DEFAULT_REGISTRATION_ROLE_KEYWORDS[role]).strip() for role in REGISTRATION_ROLE_SETTINGS},
         "webhook_verify_token": str(db_config.get("webhook_verify_token") or _setting("WHATSAPP_WEBHOOK_VERIFY_TOKEN")),
         "app_secret": str(db_config.get("app_secret") or _setting("WHATSAPP_APP_SECRET")),
@@ -206,9 +221,25 @@ def get_configured_whatsapp_reply(db, role: str | None = None, fallback: str = "
 
 def get_configured_whatsapp_reply_image(db, role: str | None = None) -> str:
     role_key = (role or "default").lower()
-    key = {"customer": "customer_auto_reply_image_url", "member": "member_auto_reply_image_url", "partner": "partner_auto_reply_image_url", "default": "default_auto_reply_image_url"}.get(role_key, "default_auto_reply_image_url")
+    key = {"customer": "customer_auto_reply_image_url", "member": "member_registration_reply_image_url", "partner": "partner_registration_reply_image_url", "rider": "rider_registration_reply_image_url", "default": "default_auto_reply_image_url"}.get(role_key, "default_auto_reply_image_url")
     config = resolve_config(db)
     return str(config.get(key) or (config.get("default_auto_reply_image_url") if key != "default_auto_reply_image_url" else "") or "").strip()
+
+
+def get_configured_whatsapp_reply_mode(db, role: str | None = None) -> str:
+    role_key = (role or "default").lower()
+    key = {"customer": "customer_auto_reply_mode", "member": "member_registration_reply_mode", "partner": "partner_registration_reply_mode", "rider": "rider_registration_reply_mode", "default": "default_auto_reply_mode"}.get(role_key, "default_auto_reply_mode")
+    mode = str(resolve_config(db).get(key) or "text").strip().lower()
+    return mode if mode in {"text", "image"} else "text"
+
+
+def get_registration_welcome_image(db) -> str:
+    return str(resolve_config(db).get("registration_welcome_message_image_url") or "").strip()
+
+
+def get_registration_welcome_mode(db) -> str:
+    mode = str(resolve_config(db).get("registration_welcome_message_mode") or "text").strip().lower()
+    return mode if mode in {"text", "image"} else "text"
 
 
 def verify_webhook_token(token: str, challenge: str, db=None) -> str | None:
@@ -652,17 +683,21 @@ def ingest_whatsapp_message(db, payload: dict, request=None) -> str:
             auto_reply = "" if ai_handles_freeform else _localized_default_reply(db, language)
         body = normalized["metadata"].get("raw_body") or ""
         db.add(CRMLeadActivity(lead_id=lead.id, activity_type="whatsapp_message_received", message=f"{activity_prefix}: {body}"))
-        if auto_reply:
+        reply_mode = get_configured_whatsapp_reply_mode(db, role_hint)
+        if auto_reply and reply_mode == "text":
             reply_status = _send_auto_reply_if_configured(db, normalized["phone"], text=auto_reply)
             if reply_status == "sent":
                 db.add(CRMLeadActivity(lead_id=lead.id, activity_type="whatsapp_message_sent", message=auto_reply))
-                image_url = get_configured_whatsapp_reply_image(db, role_hint)
-                if image_url:
-                    try:
-                        send_whatsapp_image(db, normalized["phone"], public_whatsapp_image_url(image_url))
-                        db.add(CRMLeadActivity(lead_id=lead.id, activity_type="whatsapp_image_sent", message=image_url))
-                    except Exception:
-                        logger.exception("WhatsApp preset image auto-reply failed; text reply was already sent")
+        if reply_mode == "image":
+            image_url = get_configured_whatsapp_reply_image(db, role_hint)
+            if reply_text or role_hint in REGISTRATION_ROLE_SETTINGS:
+                image_url = image_url or get_registration_welcome_image(db)
+            if image_url:
+                try:
+                    send_whatsapp_image(db, normalized["phone"], public_whatsapp_image_url(image_url))
+                    db.add(CRMLeadActivity(lead_id=lead.id, activity_type="whatsapp_image_sent", message=image_url))
+                except Exception:
+                    logger.exception("WhatsApp preset image auto-reply failed")
         statuses.append(status)
     db.commit()
     if "created" in statuses:
