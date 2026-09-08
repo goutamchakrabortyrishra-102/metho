@@ -266,7 +266,7 @@ def get_whatsapp_conversation(lead_id: str, db: Session = Depends(get_db), curre
 def _delete_whatsapp_activities(db: Session, lead_ids: list[str]) -> int:
     if not lead_ids:
         return 0
-    activity_ids = [row.id for row in db.query(CRMLeadActivity.id).filter(CRMLeadActivity.lead_id.in_(lead_ids), CRMLeadActivity.activity_type.in_(["whatsapp_message_received", "whatsapp_message_sent", "whatsapp_image_sent", "whatsapp_conversation_read", "ai_suggestion_rejected", "ai_suggestion_approved"])).all()]
+    activity_ids = [row.id for row in db.query(CRMLeadActivity.id).filter(CRMLeadActivity.lead_id.in_(lead_ids), CRMLeadActivity.activity_type.in_(["whatsapp_message_received", "whatsapp_message_sent", "whatsapp_image_sent", "whatsapp_auto_reply_dispatched", "whatsapp_conversation_read", "ai_suggestion_rejected", "ai_suggestion_approved"])).all()]
     if activity_ids:
         db.query(CRMWhatsAppAISuggestion).filter(CRMWhatsAppAISuggestion.activity_id.in_(activity_ids)).delete(synchronize_session=False)
     deleted = db.query(CRMLeadActivity).filter(CRMLeadActivity.id.in_(activity_ids)).delete(synchronize_session=False) if activity_ids else 0

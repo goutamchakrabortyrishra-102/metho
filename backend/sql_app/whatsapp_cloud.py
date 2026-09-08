@@ -680,24 +680,40 @@ def ingest_whatsapp_message(db, payload: dict, request=None) -> str:
                 ai_handles_freeform = should_ai_handle_freeform_reply(db)
             except Exception:
                 ai_handles_freeform = False
-            auto_reply = "" if ai_handles_freeform else _localized_default_reply(db, language)
+            default_mode = get_configured_whatsapp_reply_mode(db, "default")
+            default_image = get_configured_whatsapp_reply_image(db, "default")
+            if ai_handles_freeform and default_mode == "image" and default_image:
+                auto_reply = _localized_default_reply(db, language)
+            else:
+                auto_reply = "" if ai_handles_freeform else _localized_default_reply(db, language)
         body = normalized["metadata"].get("raw_body") or ""
         db.add(CRMLeadActivity(lead_id=lead.id, activity_type="whatsapp_message_received", message=f"{activity_prefix}: {body}"))
-        reply_mode = get_configured_whatsapp_reply_mode(db, role_hint)
+        dispatch_marker = f"auto-reply-for:{message_id}"
+        already_dispatched = db.query(CRMLeadActivity).filter(
+            CRMLeadActivity.lead_id == lead.id,
+            CRMLeadActivity.activity_type == "whatsapp_auto_reply_dispatched",
+            CRMLeadActivity.message.like(f"{dispatch_marker}%"),
+        ).first()
+        if already_dispatched:
+            statuses.append(status)
+            continue
+        reply_mode = get_registration_welcome_mode(db) if reply_text else get_configured_whatsapp_reply_mode(db, role_hint)
         if auto_reply and reply_mode == "text":
             reply_status = _send_auto_reply_if_configured(db, normalized["phone"], text=auto_reply)
             if reply_status == "sent":
                 db.add(CRMLeadActivity(lead_id=lead.id, activity_type="whatsapp_message_sent", message=auto_reply))
+                db.add(CRMLeadActivity(lead_id=lead.id, activity_type="whatsapp_auto_reply_dispatched", message=f"{dispatch_marker}:text"))
         if reply_mode == "image":
-            image_url = get_configured_whatsapp_reply_image(db, role_hint)
-            if reply_text or role_hint in REGISTRATION_ROLE_SETTINGS:
-                image_url = image_url or get_registration_welcome_image(db)
+            image_url = get_registration_welcome_image(db) if reply_text else get_configured_whatsapp_reply_image(db, role_hint)
             if image_url:
                 try:
-                        send_whatsapp_image(db, normalized["phone"], public_whatsapp_image_url(image_url), caption=auto_reply[:1024])
-                        db.add(CRMLeadActivity(lead_id=lead.id, activity_type="whatsapp_image_sent", message=f"{image_url} | caption: {auto_reply[:1024]}"))
+                    send_whatsapp_image(db, normalized["phone"], public_whatsapp_image_url(image_url), caption=auto_reply[:1024])
+                    db.add(CRMLeadActivity(lead_id=lead.id, activity_type="whatsapp_image_sent", message=f"{image_url} | caption: {auto_reply[:1024]}"))
+                    db.add(CRMLeadActivity(lead_id=lead.id, activity_type="whatsapp_auto_reply_dispatched", message=f"{dispatch_marker}:image"))
                 except Exception:
                     logger.exception("WhatsApp preset image auto-reply failed")
+        if reply_mode not in {"text", "image"}:
+            logger.warning("Unknown WhatsApp reply mode; no auto-reply dispatched: mode=%s message_id=%s", reply_mode, message_id)
         statuses.append(status)
     db.commit()
     if "created" in statuses:
