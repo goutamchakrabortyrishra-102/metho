@@ -135,6 +135,14 @@ export default function WhatsAppInboxPage() {
     catch (err) { setError(err?.response?.data?.detail || "All chats could not be deleted"); }
   };
 
+  const deleteAllPosters = async () => {
+    if (!window.confirm("Delete all uploaded WhatsApp posters? Chat messages and CRM leads will remain.")) return;
+    try {
+      const { data } = await api.delete("/admin/settings/whatsapp/posters");
+      toast.success(`${Number(data?.deleted || 0)} poster(s) deleted`);
+    } catch (err) { setError(err?.response?.data?.detail || "Posters could not be deleted"); }
+  };
+
   const markRead = async () => {
     if (!selected) return;
     try { await api.post(`/admin/crm/whatsapp/conversations/${selected.lead_id}/read`); toast.success("Chat marked read"); }
@@ -171,7 +179,7 @@ export default function WhatsAppInboxPage() {
   return <div className="space-y-5">
     <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
       <div><p className="text-xs font-semibold uppercase tracking-[0.2em] text-emerald-800">METHO Business CRM</p><h1 className="text-2xl font-bold text-slate-900">WhatsApp Inbox</h1></div>
-      <div className="flex flex-wrap gap-2"><Button asChild variant="outline"><Link to="/app/crm/whatsapp-ai"><Settings2 className="mr-2 h-4 w-4" />AI settings</Link></Button><Button variant="outline" onClick={markAllRead}><CheckCheck className="mr-2 h-4 w-4" />Mark all read</Button><Button variant="outline" onClick={deleteAllConversations}><Trash2 className="mr-2 h-4 w-4" />Delete all chats</Button><Button variant="outline" onClick={loadConversations} disabled={loading}><RefreshCw className="mr-2 h-4 w-4" />Refresh</Button></div>
+      <div className="flex flex-wrap gap-2"><Button asChild variant="outline"><Link to="/app/crm/whatsapp-ai"><Settings2 className="mr-2 h-4 w-4" />AI settings</Link></Button><Button variant="outline" onClick={markAllRead}><CheckCheck className="mr-2 h-4 w-4" />Mark all read</Button><Button variant="outline" onClick={deleteAllConversations}><Trash2 className="mr-2 h-4 w-4" />Delete all chats</Button><Button variant="outline" onClick={deleteAllPosters}><Trash2 className="mr-2 h-4 w-4" />Delete all posters</Button><Button variant="outline" onClick={loadConversations} disabled={loading}><RefreshCw className="mr-2 h-4 w-4" />Refresh</Button></div>
     </div>
     {error ? <p className="text-sm text-red-600">{error}</p> : null}
     <div className="grid min-h-[600px] grid-cols-1 overflow-hidden border border-border bg-white md:grid-cols-[330px_minmax(0,1fr)]">

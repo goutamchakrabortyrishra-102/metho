@@ -18,6 +18,7 @@ from ..models import (
     CRMWhatsAppAISuggestion,
     CRMLeadSnapshot,
     CRMTask,
+    WhatsAppMessageOutbox,
     Order,
     PartnerRequest,
     PublicOrder,
@@ -265,12 +266,13 @@ def get_whatsapp_conversation(lead_id: str, db: Session = Depends(get_db), curre
 def _delete_whatsapp_activities(db: Session, lead_ids: list[str]) -> int:
     if not lead_ids:
         return 0
-    activity_ids = [row.id for row in db.query(CRMLeadActivity.id).filter(CRMLeadActivity.lead_id.in_(lead_ids), CRMLeadActivity.activity_type.in_(["whatsapp_message_received", "whatsapp_message_sent", "whatsapp_conversation_read"])).all()]
+    activity_ids = [row.id for row in db.query(CRMLeadActivity.id).filter(CRMLeadActivity.lead_id.in_(lead_ids), CRMLeadActivity.activity_type.in_(["whatsapp_message_received", "whatsapp_message_sent", "whatsapp_image_sent", "whatsapp_conversation_read", "ai_suggestion_rejected", "ai_suggestion_approved"])).all()]
     if activity_ids:
         db.query(CRMWhatsAppAISuggestion).filter(CRMWhatsAppAISuggestion.activity_id.in_(activity_ids)).delete(synchronize_session=False)
     deleted = db.query(CRMLeadActivity).filter(CRMLeadActivity.id.in_(activity_ids)).delete(synchronize_session=False) if activity_ids else 0
+    deleted_outbox = db.query(WhatsAppMessageOutbox).filter(WhatsAppMessageOutbox.lead_id.in_(lead_ids)).delete(synchronize_session=False)
     db.commit()
-    return deleted
+    return {"messages": deleted, "queued_messages": deleted_outbox}
 
 
 @router.delete("/admin/crm/whatsapp/conversations/{lead_id}")
@@ -278,14 +280,16 @@ def delete_whatsapp_conversation(lead_id: str, db: Session = Depends(get_db), cu
     _require_admin_user(current_user)
     if not db.query(CRMLead).filter(CRMLead.id == lead_id).first():
         raise HTTPException(status_code=404, detail="WhatsApp conversation not found")
-    return {"ok": True, "deleted_messages": _delete_whatsapp_activities(db, [lead_id])}
+    deleted = _delete_whatsapp_activities(db, [lead_id])
+    return {"ok": True, "deleted_messages": deleted["messages"], "deleted_queued_messages": deleted["queued_messages"]}
 
 
 @router.delete("/admin/crm/whatsapp/conversations")
 def delete_all_whatsapp_conversations(db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     _require_admin_user(current_user)
     lead_ids = [row.id for row in db.query(CRMLead.id).filter(CRMLead.source == "whatsapp").all()]
-    return {"ok": True, "deleted_messages": _delete_whatsapp_activities(db, lead_ids)}
+    deleted = _delete_whatsapp_activities(db, lead_ids)
+    return {"ok": True, "deleted_messages": deleted["messages"], "deleted_queued_messages": deleted["queued_messages"]}
 
 
 @router.post("/admin/crm/whatsapp/conversations/{lead_id}/read")

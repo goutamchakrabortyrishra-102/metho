@@ -179,6 +179,17 @@ def delete_whatsapp_poster(payload: dict, current_user=Depends(get_current_user)
     return {"ok": True, "deleted": name}
 
 
+@router.delete("/admin/settings/whatsapp/posters")
+def delete_all_whatsapp_posters(current_user=Depends(get_current_user)):
+    _require_admin(current_user)
+    deleted = 0
+    for poster in WHATSAPP_POSTER_DIR.glob("whatsapp-poster-*"):
+        if poster.is_file():
+            poster.unlink()
+            deleted += 1
+    return {"ok": True, "deleted": deleted}
+
+
 @router.post("/admin/settings/whatsapp/send-image")
 def send_admin_whatsapp_image(payload: dict, db: Session = Depends(get_db), current_user=Depends(get_current_user)):
     _require_admin(current_user)
