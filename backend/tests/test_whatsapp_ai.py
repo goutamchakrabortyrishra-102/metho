@@ -158,7 +158,7 @@ def test_ai_auto_send_records_reply_and_followup(monkeypatch):
     try:
         lead, activity = add_whatsapp_activity(db, "পণ্য সম্পর্কে জানতে চাই")
         sent = []
-        generated = install_fake_google_genai(monkeypatch, [("models/gemini-3.6-flash", ["generateContent"])], "আপনি কোন পণ্যটি জানতে চান? নাম বা ছবি পাঠালে আমরা সঠিক তথ্য দেব।")
+        generated = install_fake_google_genai(monkeypatch, [("models/gemini-1.5-flash", ["generateContent"])], "আপনি কোন পণ্যটি জানতে চান? নাম বা ছবি পাঠালে আমরা সঠিক তথ্য দেব।")
         save_ai_config(db, {"enabled": True, "auto_send_enabled": True, "provider": "gemini", "model": "gpt-4.1-mini", "follow_up_delay_hours": 6})
         monkeypatch.setattr("sql_app.whatsapp_ai.SessionLocal", lambda: NoCloseSession(db))
         monkeypatch.setattr("sql_app.whatsapp_ai.search_web_context", lambda *_args, **_kwargs: "")
@@ -169,8 +169,8 @@ def test_ai_auto_send_records_reply_and_followup(monkeypatch):
         suggestion = db.query(CRMWhatsAppAISuggestion).one()
         assert suggestion.status == "SENT"
         assert suggestion.provider_used == "gemini"
-        assert suggestion.model_used == "models/gemini-3.6-flash"
-        assert generated and generated[0][0] == "models/gemini-3.6-flash"
+        assert suggestion.model_used == "gemini-1.5-flash"
+        assert generated and generated[0][0] == "gemini-1.5-flash"
         assert sent == [("8801712345678", "আপনি কোন পণ্যটি জানতে চান? নাম বা ছবি পাঠালে আমরা সঠিক তথ্য দেব।")]
         assert db.query(CRMLeadActivity).filter(CRMLeadActivity.activity_type == "ai_suggestion_auto_sent").count() == 1
         assert lead.next_follow_up_at is not None
@@ -301,23 +301,34 @@ def test_saved_role_poster_takes_priority_over_stale_text_mode():
 def test_gemini_freeform_generation_uses_valid_configured_model(monkeypatch):
     from sql_app.whatsapp_ai import _generate_reply
 
-    generated = install_fake_google_genai(monkeypatch, [("models/gemini-3.6-flash", ["generateContent"]), ("models/gemini-3.6-pro", ["generateContent"])])
+    generated = install_fake_google_genai(monkeypatch, [("models/gemini-1.5-flash", ["generateContent"]), ("models/gemini-1.5-pro", ["generateContent"])])
     monkeypatch.setenv("GEMINI_API_KEY", "test-key")
     monkeypatch.delenv("OPENAI_API_KEY", raising=False)
-    reply, provider, model = _generate_reply({"system_prompt": "help", "knowledge_base": "METHO", "handoff_keywords": "", "provider": "gemini", "model": "gemini-3.6-flash"}, "Hi")
-    assert (reply, provider, model) == ("AI reply", "gemini", "models/gemini-3.6-flash")
-    assert generated and generated[0][0] == "models/gemini-3.6-flash"
+    reply, provider, model = _generate_reply({"system_prompt": "help", "knowledge_base": "METHO", "handoff_keywords": "", "provider": "gemini", "model": "gemini-1.5-flash"}, "Hi")
+    assert (reply, provider, model) == ("AI reply", "gemini", "gemini-1.5-flash")
+    assert generated and generated[0][0] == "gemini-1.5-flash"
 
 
 def test_gemini_invalid_configured_model_selects_available_flash(monkeypatch):
     from sql_app.whatsapp_ai import _generate_reply
 
-    generated = install_fake_google_genai(monkeypatch, [("models/gemini-3.6-flash", ["generateContent"])])
+    generated = install_fake_google_genai(monkeypatch, [("models/gemini-1.5-flash", ["generateContent"])])
     monkeypatch.setenv("GEMINI_API_KEY", "test-key")
     monkeypatch.delenv("OPENAI_API_KEY", raising=False)
     reply, provider, model = _generate_reply({"system_prompt": "help", "knowledge_base": "METHO", "handoff_keywords": "", "provider": "gemini", "model": "gpt-4.1-mini"}, "Hi")
-    assert (reply, provider, model) == ("AI reply", "gemini", "models/gemini-3.6-flash")
-    assert generated and generated[0][0] == "models/gemini-3.6-flash"
+    assert (reply, provider, model) == ("AI reply", "gemini", "gemini-1.5-flash")
+    assert generated and generated[0][0] == "gemini-1.5-flash"
+
+
+def test_gemini_25_model_maps_to_15_flash(monkeypatch):
+    from sql_app.whatsapp_ai import _generate_reply
+
+    generated = install_fake_google_genai(monkeypatch, [("models/gemini-1.5-flash", ["generateContent"]), ("models/gemini-2.5-flash", ["generateContent"])])
+    monkeypatch.setenv("GEMINI_API_KEY", "test-key")
+    monkeypatch.delenv("OPENAI_API_KEY", raising=False)
+    reply, provider, model = _generate_reply({"system_prompt": "help", "knowledge_base": "METHO", "handoff_keywords": "", "provider": "gemini", "model": "gemini-2.5-flash"}, "Hi")
+    assert (reply, provider, model) == ("AI reply", "gemini", "gemini-1.5-flash")
+    assert generated and generated[0][0] == "gemini-1.5-flash"
 
 
 def test_gemini_legacy_model_alias_maps_to_available_model(monkeypatch):
@@ -327,8 +338,8 @@ def test_gemini_legacy_model_alias_maps_to_available_model(monkeypatch):
     monkeypatch.setenv("GEMINI_API_KEY", "test-key")
     monkeypatch.delenv("OPENAI_API_KEY", raising=False)
     reply, provider, model = _generate_reply({"system_prompt": "help", "knowledge_base": "METHO", "handoff_keywords": "", "provider": "gemini", "model": "gemini_1.5"}, "Hi")
-    assert (reply, provider, model) == ("AI reply", "gemini", "models/gemini-1.5-flash")
-    assert generated and generated[0][0] == "models/gemini-1.5-flash"
+    assert (reply, provider, model) == ("AI reply", "gemini", "gemini-1.5-flash")
+    assert generated and generated[0][0] == "gemini-1.5-flash"
 
 
 def test_gemini_unavailable_models_return_fallback(monkeypatch):
@@ -405,10 +416,10 @@ def test_openai_credit_exhaustion_falls_back_to_gemini(monkeypatch):
             self.chat = SimpleNamespace(completions=FakeCompletions)
             self.responses = FakeResponses
 
-    generated = install_fake_google_genai(monkeypatch, [("models/gemini-3.6-flash", ["generateContent"])], "Gemini reply")
+    generated = install_fake_google_genai(monkeypatch, [("models/gemini-1.5-flash", ["generateContent"])], "Gemini reply")
     monkeypatch.setitem(sys.modules, "openai", type("FakeOpenAI", (), {"OpenAI": FakeClient}))
     monkeypatch.setenv("OPENAI_API_KEY", "openai-key")
     monkeypatch.setenv("GEMINI_API_KEY", "gemini-key")
     reply, provider, model = _generate_reply({"system_prompt": "help", "knowledge_base": "METHO", "handoff_keywords": "", "provider": "openai", "model": "gpt-4.1-mini"}, "Hi")
-    assert (reply, provider, model) == ("Gemini reply", "gemini", "models/gemini-3.6-flash")
-    assert generated and generated[0][0] == "models/gemini-3.6-flash"
+    assert (reply, provider, model) == ("Gemini reply", "gemini", "gemini-1.5-flash")
+    assert generated and generated[0][0] == "gemini-1.5-flash"

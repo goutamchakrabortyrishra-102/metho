@@ -25,11 +25,16 @@ DEFAULT_CONFIG = {
     "handoff_keywords": "agent,human,মানুষ,অফিস,complaint,refund,payment,legal,fraud,otp,password",
 }
 DEFAULT_OPENAI_MODEL = "gpt-4o-mini"
+SUPPORTED_GEMINI_MODELS = ("gemini-1.5-flash", "gemini-1.5-pro")
 GEMINI_MODEL_ALIASES = {
     "gemini_1.5": "gemini-1.5-flash",
     "gemini-1.5": "gemini-1.5-flash",
+    "gemini-2.0-flash": "gemini-1.5-flash",
+    "gemini-2.5-flash": "gemini-1.5-flash",
     "models/gemini_1.5": "gemini-1.5-flash",
     "models/gemini-1.5": "gemini-1.5-flash",
+    "models/gemini-2.0-flash": "gemini-1.5-flash",
+    "models/gemini-2.5-flash": "gemini-1.5-flash",
 }
 SENSITIVE_PATTERNS = (r"\b\d{4}[-\s]?\d{4}[-\s]?\d{4}\b", r"\b[A-Z]{5}[0-9]{4}[A-Z]\b", r"\b\d{6}\b")
 SEARCH_TERMS = ("price", "cost", "benefit", "use", "detail", "product", "business", "join", "registration", "দাম", "কত", "উপকারিতা", "ব্যবহার", "বিস্তারিত", "পণ্য", "ব্যবসা", "যোগ", "রেজিস্ট্রেশন")
@@ -317,12 +322,13 @@ def _choose_gemini_model(client, configured_model: str) -> str:
     if not available_models:
         raise RuntimeError("No Gemini generateContent-capable models are available for the configured API key")
     configured_base = _gemini_model_basename(configured_model)
-    if configured_base.startswith("gemini-"):
+    if configured_base not in SUPPORTED_GEMINI_MODELS:
+        configured_base = "gemini-1.5-flash"
+    for desired_model in (configured_base, *SUPPORTED_GEMINI_MODELS):
         for model_name in available_models:
-            if _gemini_model_basename(model_name) == configured_base:
-                return model_name
-    flash_models = [model_name for model_name in available_models if "flash" in _gemini_model_basename(model_name)]
-    return flash_models[0] if flash_models else available_models[0]
+            if _gemini_model_basename(model_name) == desired_model:
+                return desired_model
+    raise RuntimeError("No supported Gemini chat model is available for the configured API key")
 
 
 def _generate_reply(config: dict, message: str, context: str = "", event_type: str = "") -> tuple[str, str, str]:
