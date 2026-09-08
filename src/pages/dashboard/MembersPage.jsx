@@ -134,7 +134,7 @@ export default function MembersPage() {
       id: m.id || "",
       member_code: m.member_code || "",
       name: m.name || "",
-      email: memberId,
+      email: m.email || memberId,
       phone: m.phone || "",
       sponsor_code: m.sponsor_code || "",
       dob: m.dob || "",
@@ -156,7 +156,7 @@ export default function MembersPage() {
       const memberId = String(editTarget?.member_code || editTarget?.email || editForm.member_code || editForm.email || "").trim();
       const payload = {
         name: editForm.name,
-        email: memberId,
+        email: String(editForm.email || "").trim().toLowerCase(),
         username: memberId,
         member_code: memberId,
         phone: editForm.phone,
@@ -360,6 +360,14 @@ export default function MembersPage() {
                 <span className="font-semibold text-slate-700">Pincode:</span>
                 <p className="text-slate-900">{profileTarget?.pincode || "-"}</p>
               </div>
+              <div>
+                <span className="font-semibold text-slate-700">Purchase activation:</span>
+                <p className="text-slate-900">{profileTarget?.purchase_active ? "Active" : "Not activated"}</p>
+              </div>
+              <div>
+                <span className="font-semibold text-slate-700">Registered:</span>
+                <p className="text-slate-900">{profileTarget?.created_at ? new Date(profileTarget.created_at).toLocaleString() : "-"}</p>
+              </div>
             </div>
           </div>
           <DialogFooter className="gap-2 flex-wrap">
@@ -398,6 +406,10 @@ export default function MembersPage() {
             <div>
               <Label>Phone</Label>
               <Input value={editForm.phone} onChange={(e) => setEditForm({ ...editForm, phone: e.target.value })} className="mt-1.5 h-11" />
+            </div>
+            <div>
+              <Label>Email (editable)</Label>
+              <Input type="email" value={editForm.email} onChange={(e) => setEditForm({ ...editForm, email: e.target.value })} className="mt-1.5 h-11" />
             </div>
             <div>
               <Label>Sponsor Code (Required)</Label>

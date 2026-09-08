@@ -4030,6 +4030,13 @@ def admin_update_user(user_id: str, payload: dict, db: Session = Depends(get_db)
         user.name = str(payload.get("name") or user.name).strip() or user.name
     if payload.get("phone") is not None:
         user.phone = str(payload.get("phone") or "").strip()
+    if payload.get("email") is not None:
+        next_email = str(payload.get("email") or "").strip().lower()
+        if next_email and next_email != str(user.email or "").strip().lower():
+            email_owner = db.query(User).filter(User.email == next_email, User.id != user.id).first()
+            if email_owner:
+                raise HTTPException(status_code=409, detail="Email already belongs to another user")
+            user.email = next_email
     if payload.get("role") is not None:
         user.role = str(payload.get("role") or user.role).strip() or user.role
     if payload.get("active") is not None:
