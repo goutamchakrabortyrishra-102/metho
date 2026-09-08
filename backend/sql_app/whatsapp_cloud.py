@@ -694,8 +694,8 @@ def ingest_whatsapp_message(db, payload: dict, request=None) -> str:
                 image_url = image_url or get_registration_welcome_image(db)
             if image_url:
                 try:
-                    send_whatsapp_image(db, normalized["phone"], public_whatsapp_image_url(image_url))
-                    db.add(CRMLeadActivity(lead_id=lead.id, activity_type="whatsapp_image_sent", message=image_url))
+                        send_whatsapp_image(db, normalized["phone"], public_whatsapp_image_url(image_url), caption=auto_reply[:1024])
+                        db.add(CRMLeadActivity(lead_id=lead.id, activity_type="whatsapp_image_sent", message=f"{image_url} | caption: {auto_reply[:1024]}"))
                 except Exception:
                     logger.exception("WhatsApp preset image auto-reply failed")
         statuses.append(status)
