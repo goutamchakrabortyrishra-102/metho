@@ -79,6 +79,7 @@ def sync_company_inventory(db: Session, product: Product, purchase_cost=None) ->
     company_stock = max(0, int(product.stock or 0))
     record = {
         "product_id": product.id,
+        "product_type": str(meta.product_type if meta else "metho").strip().lower() or "metho",
         "sku": _product_code(db, product.id),
         "name": product.name,
         "category": product.category,
@@ -107,7 +108,14 @@ def _require_admin(current_user) -> None:
 def list_company_inventory(db: Session = Depends(get_db), current_user=Depends(get_current_user)):
     _require_admin(current_user)
     rows = []
-    for product in db.query(Product).filter(Product.product_type == "metho").order_by(Product.created_at.desc()).all():
+    products = (
+        db.query(Product)
+        .outerjoin(ProductMeta, ProductMeta.product_id == Product.id)
+        .filter((ProductMeta.product_type == "metho") | (ProductMeta.product_id.is_(None)))
+        .order_by(Product.created_at.desc())
+        .all()
+    )
+    for product in products:
         rows.append(sync_company_inventory(db, product))
     db.commit()
     total_units = sum(int(row["company_stock"]) for row in rows)
