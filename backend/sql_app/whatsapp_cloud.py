@@ -328,6 +328,37 @@ def send_whatsapp_message(
     return payload
 
 
+def send_whatsapp_image(db, recipient: str, image_url: str, caption: str = "") -> dict:
+    config = resolve_config(db)
+    token = config.get("access_token")
+    phone_number_id = config.get("phone_number_id")
+    if not token or not phone_number_id:
+        raise RuntimeError("WhatsApp Cloud API is not configured")
+    to = str(recipient or "").strip()
+    link = str(image_url or "").strip()
+    if not to or not link or not link.startswith(("https://", "http://")):
+        raise ValueError("recipient and a public image URL are required")
+    image = {"link": link}
+    if str(caption or "").strip():
+        image["caption"] = str(caption).strip()
+    message = {"messaging_product": "whatsapp", "to": to, "type": "image", "image": image}
+    endpoint = f"https://graph.facebook.com/{config['graph_api_version']}/{phone_number_id}/messages"
+    request = Request(endpoint, data=json.dumps(message).encode("utf-8"), headers={"Accept": "application/json", "Content-Type": "application/json", "Authorization": f"Bearer {token}", "User-Agent": "metho-crm-whatsapp-image/1.0"}, method="POST")
+    from urllib.error import HTTPError
+    try:
+        with urlopen(request, timeout=10) as response:
+            payload = json.loads(response.read().decode("utf-8"))
+    except HTTPError as exc:
+        try:
+            detail = json.loads(exc.read().decode("utf-8")).get("error", {}).get("message", str(exc))
+        except Exception:
+            detail = str(exc)
+        raise RuntimeError(f"WhatsApp API error: {detail}") from exc
+    if not isinstance(payload, dict):
+        raise RuntimeError("WhatsApp API returned an invalid response")
+    return payload
+
+
 def _normalized_whatsapp_messages(payload: dict) -> list[dict]:
     if not isinstance(payload, dict):
         raise ValueError("WhatsApp payload must be an object")

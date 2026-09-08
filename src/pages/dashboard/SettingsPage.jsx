@@ -705,6 +705,8 @@ export default function SettingsPage() {
   const [whatsappMessage, setWhatsappMessage] = useState("");
   const [whatsappReplyRecipient, setWhatsappReplyRecipient] = useState("");
   const [whatsappReplyText, setWhatsappReplyText] = useState("");
+  const [whatsappPoster, setWhatsappPoster] = useState(null);
+  const [whatsappPosterBusy, setWhatsappPosterBusy] = useState(false);
   const [voiceCallerForm, setVoiceCallerForm] = useState(null);
   const [voiceCallerBusy, setVoiceCallerBusy] = useState(false);
   const [voiceCallerMessage, setVoiceCallerMessage] = useState("");
@@ -1342,6 +1344,49 @@ export default function SettingsPage() {
     }
   };
 
+  const uploadWhatsappPoster = async (event) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+    setWhatsappPosterBusy(true);
+    try {
+      const body = new FormData();
+      body.append("file", file);
+      const { data } = await api.post("/admin/settings/whatsapp/poster", body, { headers: { "Content-Type": "multipart/form-data" } });
+      setWhatsappPoster(data);
+      setWhatsappMessage("Poster uploaded. Add a caption and send it to the selected number.");
+    } catch (err) {
+      setWhatsappMessage(err?.response?.data?.detail || "Poster upload failed");
+    } finally { setWhatsappPosterBusy(false); event.target.value = ""; }
+  };
+
+  const deleteWhatsappPoster = async () => {
+    if (!whatsappPoster?.url || !window.confirm("Delete this WhatsApp poster?")) return;
+    setWhatsappPosterBusy(true);
+    try {
+      await api.delete("/admin/settings/whatsapp/poster", { data: { url: whatsappPoster.url } });
+      setWhatsappPoster(null);
+      setWhatsappMessage("Poster deleted.");
+    } catch (err) {
+      setWhatsappMessage(err?.response?.data?.detail || "Poster could not be deleted");
+    } finally { setWhatsappPosterBusy(false); }
+  };
+
+  const sendWhatsappPoster = async () => {
+    if (!whatsappReplyRecipient.trim() || !whatsappPoster?.url) {
+      setWhatsappMessage("Enter a recipient number and upload a poster first.");
+      return;
+    }
+    setWhatsappBusy(true);
+    try {
+      const { data } = await api.post("/admin/settings/whatsapp/send-image", { recipient: whatsappReplyRecipient.trim(), image_url: whatsappPoster.url, caption: whatsappReplyText.trim() });
+      if (!data?.ok) throw new Error(data?.error || "Poster could not be sent");
+      setWhatsappReplyText("");
+      setWhatsappMessage("WhatsApp poster sent through Meta Cloud API.");
+    } catch (err) {
+      setWhatsappMessage(err?.response?.data?.detail || err?.message || "Poster send failed");
+    } finally { setWhatsappBusy(false); }
+  };
+
   return (
     <div className="space-y-6" data-testid="settings-page">
       <div className="flex items-start justify-between gap-4">
@@ -1760,6 +1805,19 @@ export default function SettingsPage() {
                   <Input value={whatsappReplyRecipient} onChange={(e) => setWhatsappReplyRecipient(e.target.value)} placeholder="Customer WhatsApp number" className="h-11" data-testid="settings-whatsapp-reply-recipient" />
                   <Input value={whatsappReplyText} onChange={(e) => setWhatsappReplyText(e.target.value)} placeholder="Write a reply" className="h-11" data-testid="settings-whatsapp-reply-text" />
                   <Button type="button" onClick={sendWhatsappReply} disabled={whatsappBusy} data-testid="settings-whatsapp-send-reply">Send Reply</Button>
+                </div>
+                <div className="mt-3 rounded-lg border border-emerald-200 bg-emerald-50 p-3">
+                  <p className="text-sm font-semibold text-emerald-950">Poster / Image Reply</p>
+                  <p className="mt-1 text-xs text-emerald-800">Upload a poster, write an optional caption, then send it to the same WhatsApp number.</p>
+                  <div className="mt-3 flex flex-wrap items-center gap-2">
+                    <label className="inline-flex cursor-pointer items-center rounded-md border border-emerald-300 bg-white px-3 py-2 text-sm font-semibold text-emerald-900 hover:bg-emerald-100">
+                      <Upload className="mr-2 h-4 w-4" /> Upload Poster
+                      <input type="file" accept="image/jpeg,image/png,image/webp" className="hidden" onChange={uploadWhatsappPoster} disabled={whatsappPosterBusy} />
+                    </label>
+                    {whatsappPoster ? <Button type="button" variant="outline" onClick={deleteWhatsappPoster} disabled={whatsappPosterBusy}>Delete Poster</Button> : null}
+                    {whatsappPoster ? <Button type="button" onClick={sendWhatsappPoster} disabled={whatsappBusy || whatsappPosterBusy}>Send Image</Button> : null}
+                  </div>
+                  {whatsappPoster ? <div className="mt-3 flex items-start gap-3 rounded-md border border-white bg-white p-2"><img src={resolveAssetUrl(whatsappPoster.url)} alt="WhatsApp poster preview" className="h-20 w-20 rounded object-cover" /><p className="text-xs text-slate-600">Poster ready. The text above will be sent as the image caption.</p></div> : null}
                 </div>
               </div>
             </Section>

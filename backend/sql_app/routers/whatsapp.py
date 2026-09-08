@@ -1,18 +1,23 @@
 import json
 import os
+import uuid
 from datetime import datetime, timezone
+from pathlib import Path
 
-from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query, Request
+from fastapi import APIRouter, BackgroundTasks, Depends, File, HTTPException, Query, Request, UploadFile
 from sqlalchemy.orm import Session
 
 from ..database import get_db
 from ..models import AppSetting, CRMLeadActivity
 from ..whatsapp_ai import create_suggestion_for_activity
-from ..whatsapp_cloud import encrypt_secret, resolve_config, test_whatsapp_config, verify_signature, verify_webhook_token, ingest_whatsapp_message
+from ..storage import UPLOADED_OBJECTS_DIR
+from ..whatsapp_cloud import encrypt_secret, resolve_config, send_whatsapp_image, test_whatsapp_config, verify_signature, verify_webhook_token, ingest_whatsapp_message
 from ..webhook_idempotency import claim_webhook_event, mark_webhook_event
 from .auth import get_current_user
 
 router = APIRouter(prefix="/api", tags=["whatsapp"])
+WHATSAPP_POSTER_DIR = UPLOADED_OBJECTS_DIR / "whatsapp_posters"
+WHATSAPP_POSTER_DIR.mkdir(parents=True, exist_ok=True)
 ADMIN_ROLES = {"super_admin", "company_admin", "admin"}
 
 
@@ -138,6 +143,48 @@ def send_admin_whatsapp_reply(payload: dict, db: Session = Depends(get_db), curr
         from ..whatsapp_cloud import send_whatsapp_message
 
         result = send_whatsapp_message(db, recipient, text=message)
+        return {"ok": True, "message_id": ((result.get("messages") or [{}])[0]).get("id") if isinstance(result, dict) else None}
+    except Exception as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
+
+
+@router.post("/admin/settings/whatsapp/poster")
+async def upload_whatsapp_poster(file: UploadFile = File(...), current_user=Depends(get_current_user)):
+    _require_admin(current_user)
+    from .compat import _read_validated_image_upload
+    ext, content, _mime = _read_validated_image_upload(file, 5 * 1024 * 1024)
+    name = f"whatsapp-poster-{uuid.uuid4().hex}{ext}"
+    (WHATSAPP_POSTER_DIR / name).write_bytes(content)
+    return {"ok": True, "name": name, "url": f"/api/files/whatsapp_posters/{name}"}
+
+
+@router.delete("/admin/settings/whatsapp/poster")
+def delete_whatsapp_poster(payload: dict, current_user=Depends(get_current_user)):
+    _require_admin(current_user)
+    raw = str((payload or {}).get("url") or "").strip()
+    name = Path(raw.split("?", 1)[0]).name
+    if not name.startswith("whatsapp-poster-"):
+        raise HTTPException(status_code=400, detail="Only WhatsApp posters can be deleted")
+    target = WHATSAPP_POSTER_DIR / name
+    if target.exists():
+        target.unlink()
+    return {"ok": True, "deleted": name}
+
+
+@router.post("/admin/settings/whatsapp/send-image")
+def send_admin_whatsapp_image(payload: dict, db: Session = Depends(get_db), current_user=Depends(get_current_user)):
+    _require_admin(current_user)
+    data = payload if isinstance(payload, dict) else {}
+    recipient = str(data.get("recipient") or "").strip()
+    image_url = str(data.get("image_url") or "").strip()
+    caption = str(data.get("caption") or "").strip()
+    if image_url.startswith("/"):
+        public_base = str(os.getenv("METHO_PUBLIC_BASE_URL") or "https://metho-backend.onrender.com").strip().rstrip("/")
+        if not public_base:
+            raise HTTPException(status_code=503, detail="METHO_PUBLIC_BASE_URL is required for poster sending")
+        image_url = f"{public_base}{image_url}"
+    try:
+        result = send_whatsapp_image(db, recipient, image_url, caption)
         return {"ok": True, "message_id": ((result.get("messages") or [{}])[0]).get("id") if isinstance(result, dict) else None}
     except Exception as exc:
         raise HTTPException(status_code=503, detail=str(exc)) from exc
