@@ -25,7 +25,7 @@ DEFAULT_CONFIG = {
     "handoff_keywords": "agent,human,মানুষ,অফিস,complaint,refund,payment,legal,fraud,otp,password",
 }
 DEFAULT_OPENAI_MODEL = "gpt-4o-mini"
-SUPPORTED_GEMINI_MODELS = ("gemini-1.5-flash", "gemini-1.5-pro")
+SUPPORTED_GEMINI_MODELS = ("gemini-1.5-flash", "gemini-1.5-pro", "gemini-pro")
 GEMINI_MODEL_ALIASES = {
     "gemini_1.5": "gemini-1.5-flash",
     "gemini-1.5": "gemini-1.5-flash",
@@ -318,17 +318,25 @@ def _gemini_available_generate_models(client) -> list[str]:
 
 
 def _choose_gemini_model(client, configured_model: str) -> str:
+    candidates = _gemini_candidate_models(client, configured_model)
+    if not candidates:
+        raise RuntimeError("No supported Gemini chat model is available for the configured API key")
+    return candidates[0]
+
+
+def _gemini_candidate_models(client, configured_model: str) -> list[str]:
     available_models = _gemini_available_generate_models(client)
     if not available_models:
         raise RuntimeError("No Gemini generateContent-capable models are available for the configured API key")
+    available_bases = {_gemini_model_basename(model_name) for model_name in available_models}
     configured_base = _gemini_model_basename(configured_model)
     if configured_base not in SUPPORTED_GEMINI_MODELS:
         configured_base = "gemini-1.5-flash"
+    candidates = []
     for desired_model in (configured_base, *SUPPORTED_GEMINI_MODELS):
-        for model_name in available_models:
-            if _gemini_model_basename(model_name) == desired_model:
-                return desired_model
-    raise RuntimeError("No supported Gemini chat model is available for the configured API key")
+        if desired_model in available_bases and desired_model not in candidates:
+            candidates.append(desired_model)
+    return candidates
 
 
 def _generate_reply(config: dict, message: str, context: str = "", event_type: str = "") -> tuple[str, str, str]:
@@ -359,11 +367,18 @@ def _generate_reply(config: dict, message: str, context: str = "", event_type: s
             try:
                 from google import genai
                 client = genai.Client(api_key=gemini_key)
-                model_name = _choose_gemini_model(client, str(config.get("model") or ""))
-                response = client.models.generate_content(model=model_name, contents=prompt)
-                text = str(getattr(response, "text", "") or "").strip()
-                if text:
-                    return text[:1500], "gemini", model_name
+                gemini_error = None
+                for model_name in _gemini_candidate_models(client, str(config.get("model") or "")):
+                    try:
+                        response = client.models.generate_content(model=model_name, contents=prompt)
+                        text = str(getattr(response, "text", "") or "").strip()
+                        if text:
+                            return text[:1500], "gemini", model_name
+                    except Exception as exc:
+                        gemini_error = exc
+                        logger.warning("WhatsApp AI Gemini model failed: model=%s error=%s", model_name, exc)
+                if gemini_error:
+                    raise gemini_error
             except Exception as exc:
                 logger.warning("WhatsApp AI Gemini reply failed; trying next provider: %s", exc)
         elif preferred == "gemini" and not gemini_key:

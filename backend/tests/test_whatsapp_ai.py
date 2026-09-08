@@ -331,6 +331,37 @@ def test_gemini_25_model_maps_to_15_flash(monkeypatch):
     assert generated and generated[0][0] == "gemini-1.5-flash"
 
 
+def test_gemini_generate_content_404_falls_back_to_pro_without_models_prefix(monkeypatch):
+    from sql_app.whatsapp_ai import _generate_reply
+
+    generated = []
+
+    class FakeModels:
+        @staticmethod
+        def list():
+            return [SimpleNamespace(name="models/gemini-1.5-flash", supported_actions=["generateContent"]), SimpleNamespace(name="models/gemini-1.5-pro", supported_actions=["generateContent"])]
+
+        @staticmethod
+        def generate_content(model, contents):
+            generated.append((model, contents))
+            if model == "gemini-1.5-flash":
+                raise RuntimeError("404 NOT_FOUND")
+            return SimpleNamespace(text="Gemini pro reply")
+
+    class FakeClient:
+        def __init__(self, **_kwargs):
+            self.models = FakeModels()
+
+    fake_genai = SimpleNamespace(Client=FakeClient)
+    monkeypatch.setitem(sys.modules, "google", SimpleNamespace(genai=fake_genai))
+    monkeypatch.setitem(sys.modules, "google.genai", fake_genai)
+    monkeypatch.setenv("GEMINI_API_KEY", "test-key")
+    monkeypatch.delenv("OPENAI_API_KEY", raising=False)
+    reply, provider, model = _generate_reply({"system_prompt": "help", "knowledge_base": "METHO", "handoff_keywords": "", "provider": "gemini", "model": "models/gemini-1.5-flash"}, "Hi")
+    assert (reply, provider, model) == ("Gemini pro reply", "gemini", "gemini-1.5-pro")
+    assert [call[0] for call in generated] == ["gemini-1.5-flash", "gemini-1.5-pro"]
+
+
 def test_gemini_legacy_model_alias_maps_to_available_model(monkeypatch):
     from sql_app.whatsapp_ai import _generate_reply
 
