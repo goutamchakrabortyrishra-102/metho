@@ -1,7 +1,7 @@
 import json
 import sys
 from pathlib import Path
-from types import SimpleNamespace
+from types import ModuleType, SimpleNamespace
 
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
@@ -35,26 +35,26 @@ class NoCloseSession:
         pass
 
 
-def install_fake_google_genai(monkeypatch, models, text="AI reply"):
+def install_fake_google_genai(monkeypatch, models=None, text="AI reply", failures=None):
     generated = []
+    failures = set(failures or [])
 
-    class FakeModels:
-        @staticmethod
-        def list():
-            return [SimpleNamespace(name=name, supported_actions=actions) for name, actions in models]
+    class FakeModel:
+        def __init__(self, model):
+            self.model = model
 
-        @staticmethod
-        def generate_content(model, contents):
-            generated.append((model, contents))
+        def generate_content(self, contents):
+            generated.append((self.model, contents))
+            if self.model in failures:
+                raise RuntimeError("404 NOT_FOUND")
             return SimpleNamespace(text=text)
 
-    class FakeClient:
-        def __init__(self, **_kwargs):
-            self.models = FakeModels()
-
-    fake_genai = SimpleNamespace(Client=FakeClient)
-    monkeypatch.setitem(sys.modules, "google", SimpleNamespace(genai=fake_genai))
-    monkeypatch.setitem(sys.modules, "google.genai", fake_genai)
+    fake_genai = SimpleNamespace(configure=lambda **_kwargs: None, GenerativeModel=FakeModel)
+    fake_google = ModuleType("google")
+    fake_google.__path__ = []
+    fake_google.generativeai = fake_genai
+    monkeypatch.setitem(sys.modules, "google", fake_google)
+    monkeypatch.setitem(sys.modules, "google.generativeai", fake_genai)
     return generated
 
 
@@ -334,27 +334,7 @@ def test_gemini_25_model_maps_to_15_flash(monkeypatch):
 def test_gemini_generate_content_404_falls_back_to_pro_without_models_prefix(monkeypatch):
     from sql_app.whatsapp_ai import _generate_reply
 
-    generated = []
-
-    class FakeModels:
-        @staticmethod
-        def list():
-            return [SimpleNamespace(name="models/gemini-1.5-flash", supported_actions=["generateContent"]), SimpleNamespace(name="models/gemini-1.5-pro", supported_actions=["generateContent"])]
-
-        @staticmethod
-        def generate_content(model, contents):
-            generated.append((model, contents))
-            if model == "gemini-1.5-flash":
-                raise RuntimeError("404 NOT_FOUND")
-            return SimpleNamespace(text="Gemini pro reply")
-
-    class FakeClient:
-        def __init__(self, **_kwargs):
-            self.models = FakeModels()
-
-    fake_genai = SimpleNamespace(Client=FakeClient)
-    monkeypatch.setitem(sys.modules, "google", SimpleNamespace(genai=fake_genai))
-    monkeypatch.setitem(sys.modules, "google.genai", fake_genai)
+    generated = install_fake_google_genai(monkeypatch, text="Gemini pro reply", failures={"gemini-1.5-flash"})
     monkeypatch.setenv("GEMINI_API_KEY", "test-key")
     monkeypatch.delenv("OPENAI_API_KEY", raising=False)
     reply, provider, model = _generate_reply({"system_prompt": "help", "knowledge_base": "METHO", "handoff_keywords": "", "provider": "gemini", "model": "models/gemini-1.5-flash"}, "Hi")
@@ -376,80 +356,21 @@ def test_gemini_legacy_model_alias_maps_to_available_model(monkeypatch):
 def test_gemini_unavailable_models_return_fallback(monkeypatch):
     from sql_app.whatsapp_ai import _generate_reply
 
-    generated = install_fake_google_genai(monkeypatch, [("models/gemini-embedding", ["embedContent"])])
+    generated = install_fake_google_genai(monkeypatch, failures={"gemini-1.5-flash", "gemini-1.5-pro", "gemini-pro"})
     monkeypatch.setenv("GEMINI_API_KEY", "test-key")
     monkeypatch.delenv("OPENAI_API_KEY", raising=False)
     reply, provider, model = _generate_reply({"system_prompt": "help", "knowledge_base": "METHO", "handoff_keywords": "", "provider": "gemini", "model": "gemini-2.0-flash"}, "Hi")
     assert provider == "fallback"
     assert model == "local"
     assert "মেঠো প্রতিনিধি" in reply
-    assert generated == []
+    assert [call[0] for call in generated] == ["gemini-1.5-flash", "gemini-1.5-pro", "gemini-pro"]
 
 
-def test_openai_chat_completions_generates_reply(monkeypatch):
+def test_openai_config_is_ignored_when_gemini_key_is_available(monkeypatch):
     from sql_app.whatsapp_ai import _generate_reply
 
-    class FakeCompletions:
-        @staticmethod
-        def create(**_kwargs):
-            return type("Response", (), {"choices": [type("Choice", (), {"message": type("Message", (), {"content": "OpenAI reply"})()})()]})()
-
-    class FakeClient:
-        def __init__(self, **_kwargs):
-            self.chat = type("Chat", (), {"completions": FakeCompletions})()
-
-    monkeypatch.setitem(__import__("sys").modules, "openai", type("FakeOpenAI", (), {"OpenAI": FakeClient}))
-    monkeypatch.setenv("OPENAI_API_KEY", "test-key")
-    monkeypatch.delenv("GEMINI_API_KEY", raising=False)
-    reply, provider, _model = _generate_reply({"system_prompt": "help", "knowledge_base": "METHO", "handoff_keywords": "", "provider": "openai", "model": "gpt-4.1-mini"}, "Hi")
-    assert reply == "OpenAI reply"
-    assert provider == "openai"
-
-
-def test_openai_fallback_uses_openai_model_when_configured_model_is_gemini(monkeypatch):
-    from sql_app.whatsapp_ai import _generate_reply
-
-    calls = []
-
-    class FakeCompletions:
-        @staticmethod
-        def create(**kwargs):
-            calls.append(kwargs)
-            return type("Response", (), {"choices": [type("Choice", (), {"message": type("Message", (), {"content": "OpenAI reply"})()})()]})()
-
-    class FakeClient:
-        def __init__(self, **_kwargs):
-            self.chat = SimpleNamespace(completions=FakeCompletions)
-
-    monkeypatch.setitem(sys.modules, "openai", type("FakeOpenAI", (), {"OpenAI": FakeClient}))
-    monkeypatch.setenv("OPENAI_API_KEY", "test-key")
-    monkeypatch.delenv("GEMINI_API_KEY", raising=False)
-    reply, provider, model = _generate_reply({"system_prompt": "help", "knowledge_base": "METHO", "handoff_keywords": "", "provider": "openai", "model": "gemini-1.5-flash"}, "Hi")
-    assert (reply, provider, model) == ("OpenAI reply", "openai", "gpt-4o-mini")
-    assert calls and calls[0]["model"] == "gpt-4o-mini"
-
-
-def test_openai_credit_exhaustion_falls_back_to_gemini(monkeypatch):
-    from sql_app.whatsapp_ai import _generate_reply
-
-    class FakeCompletions:
-        @staticmethod
-        def create(**_kwargs):
-            raise RuntimeError("HTTP 429 credit_balance_exhausted")
-
-    class FakeResponses:
-        @staticmethod
-        def create(**_kwargs):
-            raise RuntimeError("HTTP 429 credit_balance_exhausted")
-
-    class FakeClient:
-        def __init__(self, **_kwargs):
-            self.chat = SimpleNamespace(completions=FakeCompletions)
-            self.responses = FakeResponses
-
-    generated = install_fake_google_genai(monkeypatch, [("models/gemini-1.5-flash", ["generateContent"])], "Gemini reply")
-    monkeypatch.setitem(sys.modules, "openai", type("FakeOpenAI", (), {"OpenAI": FakeClient}))
-    monkeypatch.setenv("OPENAI_API_KEY", "openai-key")
+    generated = install_fake_google_genai(monkeypatch, text="Gemini reply")
+    monkeypatch.delenv("OPENAI_API_KEY", raising=False)
     monkeypatch.setenv("GEMINI_API_KEY", "gemini-key")
     reply, provider, model = _generate_reply({"system_prompt": "help", "knowledge_base": "METHO", "handoff_keywords": "", "provider": "openai", "model": "gpt-4.1-mini"}, "Hi")
     assert (reply, provider, model) == ("Gemini reply", "gemini", "gemini-1.5-flash")

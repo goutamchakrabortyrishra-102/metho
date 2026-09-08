@@ -8687,31 +8687,24 @@ def generate_product_description(payload: dict, current_user=Depends(get_current
 
     if openai_key:
         try:
-            from openai import OpenAI
-
-            client = OpenAI(api_key=openai_key)
-            resp = client.responses.create(
-                model="gpt-4.1-mini",
-                input=prompt,
-                max_output_tokens=360,
-            )
-            text = (resp.output_text or "").strip()
-            if text:
-                return {"description": text, "provider": "openai"}
+            logger.info("OpenAI product description generation is disabled; using Gemini/fallback")
         except Exception:
             pass
 
     if gemini_key:
         try:
-            from google import genai
-            from ..whatsapp_ai import _choose_gemini_model
+            import google.generativeai as genai
+            from ..whatsapp_ai import _gemini_candidate_models
 
-            client = genai.Client(api_key=gemini_key)
-            model_name = _choose_gemini_model(client, "")
-            resp = client.models.generate_content(model=model_name, contents=prompt)
-            text = (getattr(resp, "text", "") or "").strip()
-            if text:
-                return {"description": text, "provider": "gemini"}
+            genai.configure(api_key=gemini_key)
+            for model_name in _gemini_candidate_models(""):
+                try:
+                    resp = genai.GenerativeModel(model_name).generate_content(prompt)
+                    text = (getattr(resp, "text", "") or "").strip()
+                    if text:
+                        return {"description": text, "provider": "gemini"}
+                except Exception:
+                    pass
         except Exception:
             pass
 

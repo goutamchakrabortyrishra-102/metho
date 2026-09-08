@@ -24,7 +24,6 @@ DEFAULT_CONFIG = {
     "knowledge_base": "METHO AAY-UPAY is an e-commerce, member reward, partner shop/service, METHO Move, and delivery platform. Customers can ask about products, orders, registration, partner opportunities, rider work, payments, delivery, and support. Never ask for OTP, UPI PIN, ATM PIN, CVV, passwords, or full bank details.",
     "handoff_keywords": "agent,human,মানুষ,অফিস,complaint,refund,payment,legal,fraud,otp,password",
 }
-DEFAULT_OPENAI_MODEL = "gpt-4o-mini"
 SUPPORTED_GEMINI_MODELS = ("gemini-1.5-flash", "gemini-1.5-pro", "gemini-pro")
 GEMINI_MODEL_ALIASES = {
     "gemini_1.5": "gemini-1.5-flash",
@@ -292,49 +291,13 @@ def _gemini_model_basename(model_name: str) -> str:
     return GEMINI_MODEL_ALIASES.get(value, value).removeprefix("models/").strip()
 
 
-def _openai_model_name(configured_model: str) -> str:
-    value = str(configured_model or "").strip()
-    return value if value.startswith(("gpt-", "o1", "o3", "o4")) else DEFAULT_OPENAI_MODEL
-
-
-def _gemini_supports_generate_content(model) -> bool:
-    supported = (
-        getattr(model, "supported_actions", None)
-        or getattr(model, "supportedActions", None)
-        or getattr(model, "supported_generation_methods", None)
-        or getattr(model, "supportedGenerationMethods", None)
-        or []
-    )
-    return any(str(action).replace("_", "").lower() == "generatecontent" for action in supported)
-
-
-def _gemini_available_generate_models(client) -> list[str]:
-    models = []
-    for model in client.models.list():
-        model_name = _gemini_model_name(model)
-        if model_name and _gemini_supports_generate_content(model):
-            models.append(model_name)
-    return models
-
-
-def _choose_gemini_model(client, configured_model: str) -> str:
-    candidates = _gemini_candidate_models(client, configured_model)
-    if not candidates:
-        raise RuntimeError("No supported Gemini chat model is available for the configured API key")
-    return candidates[0]
-
-
-def _gemini_candidate_models(client, configured_model: str) -> list[str]:
-    available_models = _gemini_available_generate_models(client)
-    if not available_models:
-        raise RuntimeError("No Gemini generateContent-capable models are available for the configured API key")
-    available_bases = {_gemini_model_basename(model_name) for model_name in available_models}
+def _gemini_candidate_models(configured_model: str) -> list[str]:
     configured_base = _gemini_model_basename(configured_model)
     if configured_base not in SUPPORTED_GEMINI_MODELS:
         configured_base = "gemini-1.5-flash"
     candidates = []
     for desired_model in (configured_base, *SUPPORTED_GEMINI_MODELS):
-        if desired_model in available_bases and desired_model not in candidates:
+        if desired_model not in candidates:
             candidates.append(desired_model)
     return candidates
 
@@ -342,47 +305,28 @@ def _gemini_candidate_models(client, configured_model: str) -> list[str]:
 def _generate_reply(config: dict, message: str, context: str = "", event_type: str = "") -> tuple[str, str, str]:
     search_context = search_web_context(f"METHO AAY-UPAY {message}") if any(term in message.lower() for term in SEARCH_TERMS) else ""
     prompt = f"{config['system_prompt']}\n\nYou are a helpful METHO customer-care teammate, not a generic chatbot. Reply like a real person: acknowledge the customer's exact question, answer directly, and give one practical next step. Detect the language of the customer's latest message and reply in that language; preserve familiar product names and links. Use the CRM context and previous conversation so you do not repeat questions or contradict earlier replies. Explain products, prices, delivery, business opportunities, and how to join only from verified context. If a fact is missing or sensitive, say that a human METHO team member will verify it and create a follow-up instead of guessing. Never claim an account is activated, a reward is paid, a purchase is completed, stock is available, or an approval is complete unless the context says so. For a pre-registration follow-up, ask whether help is needed and include executive contacts 9339566110 / 9163530078. For reminders, be warm and specific, never spammy, and keep the reply under 900 characters.\n\nTrigger event: {event_type or 'incoming_whatsapp_message'}\n\nCRM and conversation context:\n{context or 'No CRM context available.'}\n\nKnowledge base:\n{config['knowledge_base']}\n\nOptional public search context (use only as background; do not copy source wording or invent facts):\n{search_context or 'No search context available.'}\n\nCustomer message/event:\n{message}"
-    openai_key = os.getenv("OPENAI_API_KEY", "").strip()
     gemini_key = (os.getenv("GEMINI_API_KEY", "") or os.getenv("GOOGLE_API_KEY", "")).strip()
 
-    providers = [config["provider"]]
-    providers.extend(provider for provider in ("openai", "gemini") if provider not in providers)
-    for preferred in providers:
-        if preferred == "openai" and openai_key:
-            try:
-                from openai import OpenAI
-                client = OpenAI(api_key=openai_key, timeout=10)
-                openai_model = _openai_model_name(config.get("model"))
+    if gemini_key:
+        try:
+            import google.generativeai as genai
+            genai.configure(api_key=gemini_key)
+            gemini_error = None
+            for model_name in _gemini_candidate_models(str(config.get("model") or "")):
                 try:
-                    response = client.chat.completions.create(model=openai_model, messages=[{"role": "user", "content": prompt}], max_tokens=220)
-                    text = str(response.choices[0].message.content or "").strip()
-                except Exception:
-                    response = client.responses.create(model=openai_model, input=prompt, max_output_tokens=220)
-                    text = str(response.output_text or "").strip()
-                if text:
-                    return text[:1500], "openai", openai_model
-            except Exception as exc:
-                logger.warning("WhatsApp AI OpenAI reply failed; trying next provider: %s", exc)
-        if preferred == "gemini" and gemini_key:
-            try:
-                from google import genai
-                client = genai.Client(api_key=gemini_key)
-                gemini_error = None
-                for model_name in _gemini_candidate_models(client, str(config.get("model") or "")):
-                    try:
-                        response = client.models.generate_content(model=model_name, contents=prompt)
-                        text = str(getattr(response, "text", "") or "").strip()
-                        if text:
-                            return text[:1500], "gemini", model_name
-                    except Exception as exc:
-                        gemini_error = exc
-                        logger.warning("WhatsApp AI Gemini model failed: model=%s error=%s", model_name, exc)
-                if gemini_error:
-                    raise gemini_error
-            except Exception as exc:
-                logger.warning("WhatsApp AI Gemini reply failed; trying next provider: %s", exc)
-        elif preferred == "gemini" and not gemini_key:
-            logger.error("WhatsApp AI Gemini provider selected but GEMINI_API_KEY/GOOGLE_API_KEY is not configured")
+                    response = genai.GenerativeModel(model_name).generate_content(prompt)
+                    text = str(getattr(response, "text", "") or "").strip()
+                    if text:
+                        return text[:1500], "gemini", model_name
+                except Exception as exc:
+                    gemini_error = exc
+                    logger.warning("WhatsApp AI Gemini model failed: model=%s error=%s", model_name, exc)
+            if gemini_error:
+                raise gemini_error
+        except Exception as exc:
+            logger.warning("WhatsApp AI Gemini reply failed; using local fallback: %s", exc)
+    else:
+        logger.error("WhatsApp AI Gemini provider selected but GEMINI_API_KEY/GOOGLE_API_KEY is not configured")
     return LIFECYCLE_SUGGESTIONS.get(event_type, "ধন্যবাদ আপনার বার্তার জন্য। মেঠো প্রতিনিধি শীঘ্রই আপনার সাথে যোগাযোগ করবেন।"), "fallback", "local"
 
 
