@@ -12,6 +12,7 @@ from ..database import get_db
 from ..crm_identity import enrich_lead_from_contact, ensure_pending_followup, find_lead_by_phone
 from ..meta_ads import MetaGraphAPIError, fetch_lead, normalize_lead, resolve_config, verify_signature, verify_webhook_token, webhook_lead_ids
 from ..models import CRMFollowUp, CRMLead, CRMLeadActivity, CRMTask, User
+from ..webhook_idempotency import claim_webhook_event, mark_webhook_event
 
 router = APIRouter(prefix="/api", tags=["meta-ads"])
 logger = logging.getLogger(__name__)
@@ -151,6 +152,9 @@ async def receive_meta_webhook(request: Request, db: Session = Depends(get_db)):
             lead_id = str(event.get("leadgen_id") or "").strip()
             if not lead_id:
                 continue
+            if not claim_webhook_event(db, "meta", lead_id):
+                results.append({"lead_id": lead_id, "status": "duplicate"})
+                continue
             try:
                 meta_payload = fetch_lead(lead_id, db)
             except MetaGraphAPIError as exc:
@@ -161,11 +165,15 @@ async def receive_meta_webhook(request: Request, db: Session = Depends(get_db)):
                     str(exc),
                     exc.response_body or "unavailable",
                 )
+                mark_webhook_event(db, lead_id, "failed")
                 results.append({"lead_id": lead_id, "status": "fetch_failed"})
                 continue
             try:
-                results.append({"lead_id": lead_id, "status": _ingest_lead(db, meta_payload, event)})
+                result = _ingest_lead(db, meta_payload, event)
+                mark_webhook_event(db, lead_id, "processed")
+                results.append({"lead_id": lead_id, "status": result})
             except Exception as exc:
                 db.rollback()
+                mark_webhook_event(db, lead_id, "failed")
                 raise HTTPException(status_code=503, detail="Meta lead could not be stored") from exc
     return {"ok": True, "results": results}

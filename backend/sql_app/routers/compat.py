@@ -841,7 +841,7 @@ def _activate_member_purchase(db: Session, user: User | None, order_id: str, sou
     })
     _set_member_payment_state(db, user.id, "paid", source, order_id)
     db.commit()
-    record_lifecycle_event_by_phone(db, user.phone, "member_activated", f"Member activated after approved purchase {order_id}.", "Explain Smart Cycle start, reward rules, and next product purchase", 1)
+    record_lifecycle_event_by_phone(db, user.phone, "member_activated", f"Member activated after approved purchase {order_id}.", "Explain Smart Cycle start, reward rules, product education, and next product purchase", 7)
     return True
 
 

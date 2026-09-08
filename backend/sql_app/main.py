@@ -487,10 +487,11 @@ def startup_db_init():
 
 
 def _whatsapp_followup_worker():
-    from .whatsapp_ai import process_birthday_reminders, process_due_followups
+    from .whatsapp_ai import process_birthday_reminders, process_due_followups, process_message_outbox
 
     while True:
         try:
+            process_message_outbox()
             process_due_followups()
             process_birthday_reminders()
         except Exception:

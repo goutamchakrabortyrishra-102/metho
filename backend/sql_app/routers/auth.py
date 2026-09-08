@@ -1,12 +1,14 @@
 from pathlib import Path
 import os
 import json
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
+import logging
 import smtplib
+import uuid
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 
-from fastapi import APIRouter, Depends, Header, HTTPException
+from fastapi import APIRouter, Depends, Header, HTTPException, Request
 from sqlalchemy.orm import Session
 from reportlab.lib.pagesizes import A4
 from reportlab.pdfgen import canvas
@@ -14,12 +16,13 @@ from reportlab.pdfgen import canvas
 from ..database import get_db
 from ..crm_automation import record_lifecycle_event_by_phone
 from ..crm_identity import link_lead_to_registration
-from ..models import AppSetting, User, UserReferral
+from ..models import AppSetting, CRMFollowUp, User, UserReferral
 from ..schemas import LoginRequest, RegisterRequest
 from ..security import create_token, decode_token, hash_password, verify_password
 from ..storage import UPLOADED_OBJECTS_DIR
 
 router = APIRouter(prefix="/api", tags=["auth"])
+logger = logging.getLogger(__name__)
 
 WELCOME_DIR = UPLOADED_OBJECTS_DIR / "welcome_letters"
 WELCOME_DIR.mkdir(parents=True, exist_ok=True)
@@ -264,7 +267,10 @@ def get_current_user_optional(
 
 
 @router.post("/register")
-def register(payload: RegisterRequest, db: Session = Depends(get_db)):
+def register(payload: RegisterRequest, request: Request, db: Session = Depends(get_db)):
+    if isinstance(request, Session) and not isinstance(db, Session):
+        request, db = None, request
+    correlation_id = str(getattr(request, "headers", {}).get("X-Request-ID") or uuid.uuid4().hex[:16])
     requested_member_id = str(payload.email or "").strip().upper()
     if len(str(payload.password or "")) < 6:
         raise HTTPException(status_code=400, detail="Password must be at least 6 characters")
@@ -291,33 +297,63 @@ def register(payload: RegisterRequest, db: Session = Depends(get_db)):
         role="member",
         is_active=False,
     )
-    db.add(user)
-    db.commit()
-    link_lead_to_registration(db, phone=user.phone, email=user.email, user_id=user.id)
-    db.commit()
-    record_lifecycle_event_by_phone(db, user.phone, "member_registration_completed", f"Member registration completed: {user.id}. Activation/payment is pending.", "Complete member activation/payment and explain first purchase steps", 1)
-    db.add(AppSetting(
-        key=f"member_payment_state:{user.id}",
-        value_json=json.dumps({
-            "approval_status": "pending",
-            "payment_status": "pending",
-            "payment_method": "",
-            "order_id": "",
-            "registered_at": datetime.now(timezone.utc).isoformat(),
-        }),
-        updated_at=datetime.now(timezone.utc),
-    ))
-    db.commit()
+    try:
+        db.add(user)
+        db.commit()
+    except Exception as exc:
+        db.rollback()
+        logger.exception("Member registration failed before CRM linking: correlation_id=%s member_id=%s", correlation_id, member_id)
+        raise HTTPException(status_code=503, detail=f"Registration could not be completed. Reference: {correlation_id}") from exc
+    registration_lead = None
+    try:
+        link_lead_to_registration(db, phone=user.phone, email=user.email, user_id=user.id)
+        db.commit()
+        registration_lead = record_lifecycle_event_by_phone(db, user.phone, "member_registration_completed", f"Member registration completed: {user.id}. Activation/payment is pending.", "Complete member activation/payment and explain first purchase steps", 1)
+        if registration_lead:
+            welcome_due = datetime.now(timezone.utc) + timedelta(hours=1)
+            welcome_notes = "Welcome message and explain how to complete registration and get help"
+            existing_welcome = db.query(CRMFollowUp).filter(CRMFollowUp.lead_id == registration_lead.id, CRMFollowUp.status == "Pending", CRMFollowUp.notes == welcome_notes).first()
+            if not existing_welcome:
+                db.add(CRMFollowUp(lead_id=registration_lead.id, scheduled_at=welcome_due, status="Pending", notes=welcome_notes))
+                registration_lead.next_follow_up_at = min(registration_lead.next_follow_up_at or welcome_due, welcome_due)
+                registration_lead.follow_up_status = "Pending"
+                db.commit()
+        db.add(AppSetting(
+            key=f"member_payment_state:{user.id}",
+            value_json=json.dumps({
+                "approval_status": "pending",
+                "payment_status": "pending",
+                "payment_method": "",
+                "order_id": "",
+                "registered_at": datetime.now(timezone.utc).isoformat(),
+            }),
+            updated_at=datetime.now(timezone.utc),
+        ))
+        db.commit()
+    except Exception:
+        db.rollback()
+        logger.exception("Registration side effect failed after member creation: correlation_id=%s member_id=%s", correlation_id, user.id)
 
     sponsor_code = member_code_for_user(sponsor_user.id)
-    existing_rel = db.query(UserReferral).filter(UserReferral.user_id == user.id).first()
-    if not existing_rel:
-        db.add(UserReferral(user_id=user.id, sponsor_user_id=sponsor_user.id, sponsor_code=sponsor_code))
-        db.commit()
+    try:
+        existing_rel = db.query(UserReferral).filter(UserReferral.user_id == user.id).first()
+        if not existing_rel:
+            db.add(UserReferral(user_id=user.id, sponsor_user_id=sponsor_user.id, sponsor_code=sponsor_code))
+            db.commit()
+    except Exception:
+        db.rollback()
+        logger.exception("Registration referral link failed after member creation: correlation_id=%s member_id=%s", correlation_id, user.id)
 
-    welcome_letter_url = build_welcome_pdf(user)
+    welcome_letter_url = ""
+    try:
+        welcome_letter_url = build_welcome_pdf(user)
+    except Exception:
+        logger.exception("Welcome letter generation failed: correlation_id=%s member_id=%s", correlation_id, user.id)
     member_code = member_code_for_user(user.id)
-    send_welcome_email(user.email, user.name, member_code, welcome_letter_url)
+    try:
+        send_welcome_email(user.email, user.name, member_code, welcome_letter_url)
+    except Exception:
+        logger.exception("Welcome email failed after member creation: correlation_id=%s member_id=%s", correlation_id, user.id)
 
     token = create_token(user.id, user.role)
     return {
@@ -339,8 +375,8 @@ def register(payload: RegisterRequest, db: Session = Depends(get_db)):
 
 
 @router.post("/auth/register")
-def register_alias(payload: RegisterRequest, db: Session = Depends(get_db)):
-    return register(payload, db)
+def register_alias(payload: RegisterRequest, request: Request, db: Session = Depends(get_db)):
+    return register(payload, request, db)
 
 
 @router.post("/login")

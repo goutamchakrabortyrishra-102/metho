@@ -9,6 +9,7 @@ from ..database import get_db
 from ..models import AppSetting, CRMLeadActivity
 from ..whatsapp_ai import create_suggestion_for_activity
 from ..whatsapp_cloud import encrypt_secret, resolve_config, test_whatsapp_config, verify_signature, verify_webhook_token, ingest_whatsapp_message
+from ..webhook_idempotency import claim_webhook_event, mark_webhook_event
 from .auth import get_current_user
 
 router = APIRouter(prefix="/api", tags=["whatsapp"])
@@ -183,10 +184,21 @@ async def receive_whatsapp_webhook(request: Request, background_tasks: Backgroun
                     messages.extend(value.get("messages") or [])
         if not messages:
             raise ValueError("No WhatsApp message event found")
+        claimed_message_ids = [
+            str((message or {}).get("id") or "").strip()
+            for message in messages
+            if claim_webhook_event(db, "whatsapp", str((message or {}).get("id") or "").strip())
+        ]
+        if not claimed_message_ids:
+            return {"ok": True, "status": "duplicate", "message_count": len(messages)}
         result = ingest_whatsapp_message(db, payload)
     except Exception as exc:
         db.rollback()
+        for message_id in locals().get("claimed_message_ids", []):
+            mark_webhook_event(db, message_id, "failed")
         raise HTTPException(status_code=503, detail=f"WhatsApp lead could not be stored: {str(exc)}") from exc
+    for message_id in claimed_message_ids:
+        mark_webhook_event(db, message_id, "processed")
     for message in messages:
         message_id = str((message or {}).get("id") or "").strip()
         if not message_id:

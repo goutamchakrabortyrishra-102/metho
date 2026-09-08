@@ -8,7 +8,7 @@ from sqlalchemy.exc import IntegrityError
 
 from .database import SessionLocal
 from .google_search import search_web_context
-from .models import AppSetting, CRMFollowUp, CRMLead, CRMLeadActivity, CRMTask, CRMWhatsAppAISuggestion, Product, User
+from .models import AppSetting, CRMFollowUp, CRMLead, CRMLeadActivity, CRMTask, CRMWhatsAppAISuggestion, Product, User, WhatsAppMessageOutbox
 
 logger = logging.getLogger(__name__)
 SETTING_KEY = "crm_whatsapp_ai"
@@ -124,6 +124,58 @@ def _catalog_context(db) -> str:
         f"{product.name} | category: {product.category} | price: INR {product.price:g} | stock: {product.stock}"
         for product in products
     )
+
+
+def enqueue_whatsapp_message(db, dedupe_key: str, recipient: str, message: str, lead_id: str = "", activity_type: str = "whatsapp_message_sent") -> bool:
+    if not str(recipient or "").strip() or not str(message or "").strip():
+        return False
+    try:
+        db.add(WhatsAppMessageOutbox(
+            dedupe_key=str(dedupe_key).strip(),
+            recipient=str(recipient).strip(),
+            message=str(message).strip(),
+            lead_id=str(lead_id or "").strip() or None,
+            activity_type=str(activity_type or "whatsapp_message_sent").strip()[:60],
+        ))
+        db.commit()
+        return True
+    except IntegrityError:
+        db.rollback()
+        return False
+
+
+def process_message_outbox(limit: int = 20) -> int:
+    db = SessionLocal()
+    sent_count = 0
+    try:
+        now = datetime.now(timezone.utc)
+        rows = db.query(WhatsAppMessageOutbox).filter(
+            WhatsAppMessageOutbox.status.in_(["pending", "retry"]),
+            WhatsAppMessageOutbox.next_attempt_at <= now,
+        ).order_by(WhatsAppMessageOutbox.created_at.asc()).limit(max(1, min(100, int(limit)))).all()
+        for row in rows:
+            row.status = "processing"
+            row.attempts += 1
+            db.commit()
+            try:
+                from .whatsapp_cloud import send_whatsapp_message
+                send_whatsapp_message(db, row.recipient, text=row.message)
+                row.status = "sent"
+                row.sent_at = datetime.now(timezone.utc)
+                row.last_error = ""
+                if row.lead_id:
+                    db.add(CRMLeadActivity(lead_id=row.lead_id, activity_type=row.activity_type, message=row.message))
+                db.commit()
+                sent_count += 1
+            except Exception as exc:
+                row.last_error = str(exc)[:1000]
+                row.status = "failed" if row.attempts >= 5 else "retry"
+                row.next_attempt_at = datetime.now(timezone.utc) + timedelta(minutes=min(60, 2 ** row.attempts))
+                db.commit()
+                logger.exception("WhatsApp outbox delivery failed: outbox_id=%s", row.id)
+        return sent_count
+    finally:
+        db.close()
 
 
 def _admin_assignee(db) -> str:
@@ -330,9 +382,18 @@ def process_due_followups(limit: int = 20) -> int:
                     lead.follow_up_status = "Pending"
                     lead.next_follow_up_at = followup.scheduled_at
                 elif reorder_reminder and paid_orders <= 1:
-                    db.add(CRMFollowUp(lead_id=lead.id, scheduled_at=now + timedelta(days=30), status="Pending", notes=followup.notes))
+                    next_due = now + timedelta(days=30)
+                    existing_reorder = db.query(CRMFollowUp).filter(
+                        CRMFollowUp.lead_id == lead.id,
+                        CRMFollowUp.status == "Pending",
+                        CRMFollowUp.notes == followup.notes,
+                    ).first()
+                    if existing_reorder:
+                        existing_reorder.scheduled_at = next_due
+                    else:
+                        db.add(CRMFollowUp(lead_id=lead.id, scheduled_at=next_due, status="Pending", notes=followup.notes))
                     lead.follow_up_status = "Pending"
-                    lead.next_follow_up_at = now + timedelta(days=30)
+                    lead.next_follow_up_at = next_due
                 else:
                     lead.follow_up_status = "Completed"
                     lead.next_follow_up_at = None
@@ -379,12 +440,9 @@ def process_birthday_reminders(limit: int = 50) -> int:
             if db.query(CRMLeadActivity).filter(CRMLeadActivity.lead_id == lead.id, CRMLeadActivity.activity_type == marker).first():
                 continue
             try:
-                from .whatsapp_cloud import send_whatsapp_message
                 message = f"শুভ জন্মদিন, {user.name}! METHO পরিবারের পক্ষ থেকে আপনার জন্য আন্তরিক শুভেচ্ছা। আপনার পছন্দের product, business বা registration নিয়ে কোনো সাহায্য লাগলে এই WhatsApp-এ লিখুন।"
-                send_whatsapp_message(db, lead.whatsapp_no or lead.phone, text=message)
-                db.add(CRMLeadActivity(lead_id=lead.id, activity_type=marker, message=message))
-                db.commit()
-                sent_count += 1
+                if enqueue_whatsapp_message(db, f"birthday:{lead.id}:{year}", lead.whatsapp_no or lead.phone, message, lead.id, marker):
+                    sent_count += 1
             except Exception:
                 db.rollback()
                 logger.exception("Birthday WhatsApp reminder failed: user_id=%s", user.id)
