@@ -310,4 +310,7 @@ async def receive_whatsapp_webhook(request: Request, background_tasks: Backgroun
         ).first()
         if activity:
             background_tasks.add_task(create_suggestion_for_activity, activity.id)
+            logger.info("WhatsApp AI background task queued: message_id=%s activity_id=%s lead_id=%s", message_id, activity.id, activity.lead_id)
+        else:
+            logger.warning("WhatsApp AI task not queued: received activity missing: message_id=%s", message_id)
     return {"ok": True, "status": result, "message_count": len(messages)}

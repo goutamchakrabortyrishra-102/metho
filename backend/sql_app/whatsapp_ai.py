@@ -281,8 +281,13 @@ def _generate_reply(config: dict, message: str, context: str = "", event_type: s
         if preferred == "openai" and openai_key:
             try:
                 from openai import OpenAI
-                response = OpenAI(api_key=openai_key, timeout=10).responses.create(model=config["model"] or "gpt-4.1-mini", input=prompt, max_output_tokens=220)
-                text = str(response.output_text or "").strip()
+                client = OpenAI(api_key=openai_key, timeout=10)
+                try:
+                    response = client.responses.create(model=config["model"] or "gpt-4.1-mini", input=prompt, max_output_tokens=220)
+                    text = str(response.output_text or "").strip()
+                except Exception:
+                    response = client.chat.completions.create(model=config["model"] or "gpt-4.1-mini", messages=[{"role": "user", "content": prompt}], max_tokens=220)
+                    text = str(response.choices[0].message.content or "").strip()
                 if text:
                     return text[:1500], "openai", config["model"]
             except Exception as exc:
@@ -311,12 +316,15 @@ def create_suggestion_for_activity(activity_id: str) -> None:
     try:
         activity = db.get(CRMLeadActivity, activity_id)
         if not activity or activity.activity_type not in {"whatsapp_message_received", *LIFECYCLE_SUGGESTIONS}:
+            logger.info("WhatsApp AI skipped: invalid activity activity_id=%s", activity_id)
             return
         if db.query(CRMWhatsAppAISuggestion).filter(CRMWhatsAppAISuggestion.activity_id == activity.id).first():
             return
         lead = db.get(CRMLead, activity.lead_id)
         config = resolve_ai_config(db)
+        logger.info("WhatsApp AI activity accepted: activity_id=%s lead_id=%s source=%s enabled=%s auto_send=%s provider=%s model=%s", activity.id, activity.lead_id, getattr(lead, "source", "missing"), config.get("enabled"), config.get("auto_send_enabled"), config.get("provider"), config.get("model"))
         if not lead or lead.source not in {"whatsapp", "facebook"} or not config["enabled"]:
+            logger.info("WhatsApp AI skipped: missing lead/source or disabled: activity_id=%s lead_id=%s", activity.id, activity.lead_id)
             return
         if activity.activity_type == "whatsapp_message_received":
             message_id = str(activity.message or "").split("]:", 1)[0].removeprefix("WhatsApp message received [").strip()
@@ -325,11 +333,13 @@ def create_suggestion_for_activity(activity_id: str) -> None:
                 CRMLeadActivity.activity_type == "whatsapp_auto_reply_dispatched",
                 CRMLeadActivity.message.like(f"auto-reply-for:{message_id}%"),
             ).first():
+                logger.info("WhatsApp AI skipped: webhook preset already dispatched: activity_id=%s message_id=%s", activity.id, message_id)
                 return
         incoming = activity.message.split("]: ", 1)[-1]
         clean_text, handoff, reason = _guardrail(incoming, config["handoff_keywords"])
         context = f"{_crm_context(db, lead)}\nPrevious WhatsApp conversation:\n{_conversation_context(db, lead)}\nAvailable METHO catalog:\n{_catalog_context(db)}"
         reply, provider, model = _generate_reply(config, clean_text, context, activity.activity_type)
+        logger.info("WhatsApp AI reply generated: activity_id=%s lead_id=%s provider=%s model=%s handoff=%s", activity.id, lead.id, provider, model, handoff)
         suggestion = CRMWhatsAppAISuggestion(lead_id=lead.id, activity_id=activity.id, suggested_reply=reply, human_handoff_required=handoff, handoff_reason=reason, provider_used=provider, model_used=model)
         db.add(suggestion)
         db.flush()
@@ -355,11 +365,13 @@ def create_suggestion_for_activity(activity_id: str) -> None:
                 lead.last_contact_at = datetime.now(timezone.utc)
                 db.add(CRMLeadActivity(lead_id=lead.id, activity_type="whatsapp_message_sent" if preset_kind == "preset-text" else "whatsapp_image_sent", message=preset_reply))
                 db.add(CRMLeadActivity(lead_id=lead.id, activity_type="ai_suggestion_auto_sent", message="Admin preset auto-sent because AI provider fallback was used."))
+                logger.info("WhatsApp preset fallback sent: activity_id=%s lead_id=%s kind=%s", activity.id, lead.id, preset_kind)
                 allow_auto_send = False
                 blocked_reason = "Admin preset sent after AI fallback"
             except Exception as exc:
                 suggestion.error_message = str(exc)[:500]
                 db.add(CRMLeadActivity(lead_id=lead.id, activity_type="preset_auto_send_failed", message=str(exc)[:500]))
+                logger.exception("WhatsApp preset fallback failed: activity_id=%s lead_id=%s", activity.id, lead.id)
         if allow_auto_send:
             try:
                 from .whatsapp_cloud import send_whatsapp_message
@@ -370,10 +382,12 @@ def create_suggestion_for_activity(activity_id: str) -> None:
                 lead.last_contact_at = datetime.now(timezone.utc)
                 db.add(CRMLeadActivity(lead_id=lead.id, activity_type="whatsapp_message_sent", message=reply))
                 db.add(CRMLeadActivity(lead_id=lead.id, activity_type="ai_suggestion_auto_sent", message=f"AI auto-reply sent with {provider}/{model}."))
+                logger.info("WhatsApp AI reply sent: activity_id=%s lead_id=%s provider=%s model=%s", activity.id, lead.id, provider, model)
             except Exception as exc:
                 suggestion.status = "FAILED"
                 suggestion.error_message = str(exc)[:500]
                 db.add(CRMLeadActivity(lead_id=lead.id, activity_type="ai_suggestion_auto_send_failed", message=str(exc)[:500]))
+                logger.exception("WhatsApp AI reply send failed: activity_id=%s lead_id=%s provider=%s model=%s", activity.id, lead.id, provider, model)
         else:
             db.add(CRMLeadActivity(lead_id=lead.id, activity_type="ai_suggestion_created", message=f"AI draft created. Auto-send: no. Reason: {blocked_reason}. CRM context included: {context.splitlines()[0] if context else 'none'}"))
         if activity.activity_type != "crm_followup_due":
@@ -381,6 +395,7 @@ def create_suggestion_for_activity(activity_id: str) -> None:
         db.commit()
     except IntegrityError:
         db.rollback()
+        logger.info("WhatsApp AI suggestion duplicate prevented: activity_id=%s", activity_id)
     except Exception:
         db.rollback()
         logger.exception("WhatsApp AI suggestion generation failed: activity_id=%s", activity_id)
