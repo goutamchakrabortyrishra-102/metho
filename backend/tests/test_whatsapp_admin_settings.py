@@ -1,4 +1,5 @@
 import json
+import asyncio
 import sys
 from pathlib import Path
 from types import SimpleNamespace
@@ -15,6 +16,16 @@ from sql_app.models import AppSetting, CRMLead, CRMLeadActivity
 from sql_app.routers.crm import get_whatsapp_conversation, list_whatsapp_conversations, send_whatsapp_conversation_message
 from sql_app.routers.whatsapp import get_whatsapp_settings, receive_whatsapp_webhook, run_whatsapp_settings_test, update_whatsapp_settings
 from sql_app.whatsapp_cloud import ingest_whatsapp_message, normalize_whatsapp_message, send_whatsapp_message
+from fastapi import BackgroundTasks, HTTPException
+
+
+class RequestStub:
+    def __init__(self, body):
+        self._body = body
+        self.headers = {}
+
+    async def body(self):
+        return self._body
 
 
 def make_session():
@@ -141,6 +152,47 @@ def test_whatsapp_webhook_normalizes_incoming_message_to_crm_lead(monkeypatch):
         assert "Reply in this WhatsApp chat if you need help with registration." in sent[0][1]
         assert db.query(CRMLead).count() == 1
         assert db.query(CRMLeadActivity).filter(CRMLeadActivity.activity_type == "whatsapp_message_received").count() == 1
+    finally:
+        db.close()
+
+
+def test_whatsapp_webhook_acknowledges_status_only_event():
+    db = make_session()
+    try:
+        payload = {"object": "whatsapp_business_account", "entry": [{"id": "business-account-1", "changes": [{"value": {"statuses": [{"id": "wamid.status", "status": "delivered"}]}}]}]}
+        result = asyncio.run(receive_whatsapp_webhook(RequestStub(json.dumps(payload).encode()), BackgroundTasks(), db))
+        assert result == {"ok": True, "status": "acknowledged", "message_count": 0}
+    finally:
+        db.close()
+
+
+def test_whatsapp_webhook_rejects_malformed_payload():
+    db = make_session()
+    try:
+        with pytest.raises(HTTPException, match="Malformed webhook payload"):
+            asyncio.run(receive_whatsapp_webhook(RequestStub(b"not-json"), BackgroundTasks(), db))
+    finally:
+        db.close()
+
+
+def test_whatsapp_webhook_accepts_message_and_queues_ai_failure_safely(monkeypatch):
+    db = make_session()
+    try:
+        def fake_ingest(session, _payload):
+            lead = CRMLead(lead_id="WA-8801712345678", business_name="WhatsApp-Ayesha", contact_person="Ayesha", phone="8801712345678", whatsapp_no="8801712345678", source="whatsapp")
+            session.add(lead)
+            session.flush()
+            session.add(CRMLeadActivity(lead_id=lead.id, activity_type="whatsapp_message_received", message="WhatsApp message received [wamid.ai-failure]: Need help"))
+            session.commit()
+            return "created"
+
+        monkeypatch.setattr("sql_app.routers.whatsapp.ingest_whatsapp_message", fake_ingest)
+        monkeypatch.setattr("sql_app.routers.whatsapp.create_suggestion_for_activity", lambda _activity_id: (_ for _ in ()).throw(RuntimeError("AI failed")))
+        tasks = BackgroundTasks()
+        result = asyncio.run(receive_whatsapp_webhook(RequestStub(json.dumps(message_payload("wamid.ai-failure")).encode()), tasks, db))
+        assert result["ok"] is True
+        assert result["message_count"] == 1
+        assert len(tasks.tasks) == 1
     finally:
         db.close()
 

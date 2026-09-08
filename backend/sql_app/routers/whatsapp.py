@@ -272,11 +272,18 @@ async def receive_whatsapp_webhook(request: Request, background_tasks: Backgroun
                 if value.get("messages"):
                     messages.extend(value.get("messages") or [])
         if not messages:
-            raise ValueError("No WhatsApp message event found")
+            logger.info(
+                "Acknowledging WhatsApp webhook without messages: entries=%s changes=%s has_statuses=%s has_errors=%s",
+                len(normalized),
+                sum(len((entry or {}).get("changes") or []) for entry in normalized if isinstance(entry, dict)),
+                any(bool(((change or {}).get("value") or {}).get("statuses")) for entry in normalized if isinstance(entry, dict) for change in (entry or {}).get("changes") or []),
+                any(bool(((change or {}).get("value") or {}).get("errors")) for entry in normalized if isinstance(entry, dict) for change in (entry or {}).get("changes") or []),
+            )
+            return {"ok": True, "status": "acknowledged", "message_count": 0}
         claimed_message_ids = [
             str((message or {}).get("id") or "").strip()
             for message in messages
-            if claim_webhook_event(db, "whatsapp", str((message or {}).get("id") or "").strip())
+            if str((message or {}).get("id") or "").strip() and claim_webhook_event(db, "whatsapp", str((message or {}).get("id") or "").strip())
         ]
         if not claimed_message_ids:
             return {"ok": True, "status": "duplicate", "message_count": len(messages)}
