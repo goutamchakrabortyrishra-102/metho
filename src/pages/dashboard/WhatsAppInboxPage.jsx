@@ -112,6 +112,13 @@ export default function WhatsAppInboxPage() {
   };
 
   useEffect(() => { loadConversations(); }, [loadConversations]);
+  useEffect(() => {
+    if (!selected) return;
+    const focusReplyBox = window.setTimeout(() => {
+      document.querySelector('input[placeholder="Write a reply"]')?.focus();
+    }, 0);
+    return () => window.clearTimeout(focusReplyBox);
+  }, [selected]);
 
   return <div className="space-y-5">
     <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
@@ -122,7 +129,7 @@ export default function WhatsAppInboxPage() {
     <div className="grid min-h-[600px] grid-cols-1 overflow-hidden border border-border bg-white md:grid-cols-[330px_minmax(0,1fr)]">
       <aside className="border-b border-border md:border-b-0 md:border-r">
         <div className="border-b border-border p-3"><div className="relative"><Search className="absolute left-3 top-3 h-4 w-4 text-slate-400" /><Input value={search} onChange={(event) => setSearch(event.target.value)} onKeyDown={(event) => event.key === "Enter" && loadConversations()} placeholder="Search contacts" className="pl-9" /></div></div>
-        <div className="max-h-[500px] overflow-y-auto md:max-h-[620px]">{conversations.map((conversation) => <button key={conversation.lead_id} onClick={() => openConversation(conversation)} className={`w-full border-b border-slate-100 px-4 py-3 text-left hover:bg-emerald-50 ${selected?.lead_id === conversation.lead_id ? "bg-emerald-50" : ""}`}><div className="flex items-center justify-between gap-3"><span className="truncate font-semibold text-slate-900">{conversation.contact_person || conversation.business_name}</span><span className="shrink-0 text-[11px] text-slate-500">{formatTime(conversation.latest_message_at)}</span></div><p className="mt-0.5 text-xs text-slate-500">{conversation.phone}</p><p className="mt-1 truncate text-sm text-slate-600">{conversation.latest_message}</p></button>)}{!loading && !conversations.length ? <p className="p-5 text-sm text-slate-500">No incoming WhatsApp conversations found.</p> : null}</div>
+        <div className="max-h-[500px] overflow-y-auto md:max-h-[620px]">{conversations.map((conversation) => { const isSelected = selected?.lead_id === conversation.lead_id; return <button key={conversation.lead_id} type="button" aria-pressed={isSelected} aria-label={`Select conversation with ${conversation.contact_person || conversation.business_name || conversation.phone}`} onClick={() => openConversation(conversation)} className={`w-full border-b border-slate-100 px-4 py-3 text-left hover:bg-emerald-50 ${isSelected ? "bg-emerald-50 ring-2 ring-inset ring-emerald-600" : ""}`}><div className="flex items-center justify-between gap-3"><span className="flex min-w-0 items-center gap-2 truncate font-semibold text-slate-900">{isSelected ? <Check className="h-4 w-4 shrink-0 text-emerald-700" aria-label="Selected" /> : null}<span className="truncate">{conversation.contact_person || conversation.business_name}</span></span><span className="shrink-0 text-[11px] text-slate-500">{formatTime(conversation.latest_message_at)}</span></div><p className="mt-0.5 text-xs text-slate-500">{conversation.phone}</p><p className="mt-1 truncate text-sm text-slate-600">{conversation.latest_message}</p></button>; })}{!loading && !conversations.length ? <p className="p-5 text-sm text-slate-500">No incoming WhatsApp conversations found.</p> : null}</div>
       </aside>
       {selected ? <div className="border-b border-border bg-white px-5 py-3 text-xs text-slate-600 md:col-span-2"><span className="mr-3 font-semibold text-emerald-800">Stage: {selected.status || "NEW"}</span><span className="mr-3">Follow-up: {selected.follow_up_status || "Pending"}</span>{selected.next_follow_up_at ? <span className="mr-3">Next: {formatTime(selected.next_follow_up_at)}</span> : null}{selected.member_user_id || selected.partner_request_id || selected.converted_partner_id ? <span className="text-blue-700">Registration linked</span> : null}</div> : null}
       <section className="flex min-h-[500px] flex-col bg-slate-50">
