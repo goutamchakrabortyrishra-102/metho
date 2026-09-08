@@ -222,8 +222,9 @@ def get_configured_whatsapp_reply(db, role: str | None = None, fallback: str = "
 def get_configured_whatsapp_reply_image(db, role: str | None = None) -> str:
     role_key = (role or "default").lower()
     key = {"customer": "customer_auto_reply_image_url", "member": "member_registration_reply_image_url", "partner": "partner_registration_reply_image_url", "rider": "rider_registration_reply_image_url", "default": "default_auto_reply_image_url"}.get(role_key, "default_auto_reply_image_url")
+    alternate_key = {"member": "member_auto_reply_image_url", "partner": "partner_auto_reply_image_url", "customer": "customer_auto_reply_image_url", "rider": "default_auto_reply_image_url"}.get(role_key, "default_auto_reply_image_url")
     config = resolve_config(db)
-    return str(config.get(key) or (config.get("default_auto_reply_image_url") if key != "default_auto_reply_image_url" else "") or "").strip()
+    return str(config.get(key) or config.get(alternate_key) or (config.get("default_auto_reply_image_url") if key != "default_auto_reply_image_url" else "") or "").strip()
 
 
 def get_configured_whatsapp_reply_mode(db, role: str | None = None) -> str:
@@ -712,6 +713,8 @@ def ingest_whatsapp_message(db, payload: dict, request=None) -> str:
                     db.add(CRMLeadActivity(lead_id=lead.id, activity_type="whatsapp_auto_reply_dispatched", message=f"{dispatch_marker}:image"))
                 except Exception:
                     logger.exception("WhatsApp preset image auto-reply failed")
+            else:
+                logger.error("WhatsApp reply mode is image but no poster URL is configured: role=%s message_id=%s", role_hint or "default", message_id)
         if reply_mode not in {"text", "image"}:
             logger.warning("Unknown WhatsApp reply mode; no auto-reply dispatched: mode=%s message_id=%s", reply_mode, message_id)
         statuses.append(status)
