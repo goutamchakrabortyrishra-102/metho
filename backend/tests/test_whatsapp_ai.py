@@ -96,6 +96,22 @@ def test_admin_can_send_non_handoff_suggestion_and_reject_pending(monkeypatch):
         db.close()
 
 
+def test_rejecting_same_suggestion_twice_is_idempotent():
+    db = make_session()
+    try:
+        lead, activity = add_whatsapp_activity(db)
+        suggestion = CRMWhatsAppAISuggestion(lead_id=lead.id, activity_id=activity.id, suggested_reply="Later reply")
+        db.add(suggestion)
+        db.commit()
+        first = reject_suggestion(suggestion.id, db, admin())
+        second = reject_suggestion(suggestion.id, db, admin())
+        assert first["suggestion"]["status"] == "REJECTED"
+        assert second["already_rejected"] is True
+        assert db.query(CRMLeadActivity).filter(CRMLeadActivity.activity_type == "ai_suggestion_rejected").count() == 1
+    finally:
+        db.close()
+
+
 def test_lifecycle_event_creates_a_specific_manual_send_suggestion(monkeypatch):
     db = make_session()
     try:

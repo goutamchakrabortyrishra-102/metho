@@ -104,7 +104,11 @@ def approve_suggestion(suggestion_id: str, payload: dict, db: Session = Depends(
 def reject_suggestion(suggestion_id: str, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     _require_admin(current_user)
     suggestion = db.get(CRMWhatsAppAISuggestion, suggestion_id)
-    if not suggestion or suggestion.status != "PENDING":
+    if not suggestion:
+        raise HTTPException(status_code=404, detail="Suggestion not found")
+    if suggestion.status == "REJECTED":
+        return {"ok": True, "already_rejected": True, "suggestion": _suggestion_payload(suggestion, db)}
+    if suggestion.status != "PENDING":
         raise HTTPException(status_code=400, detail="Suggestion is not pending")
     suggestion.status = "REJECTED"
     lead = db.get(CRMLead, suggestion.lead_id)
