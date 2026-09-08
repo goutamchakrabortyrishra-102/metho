@@ -532,10 +532,10 @@ def _registration_role_for_text(config: dict, text: str) -> str | None:
         return None
     is_informational_question = any(marker in lowered for marker in INFORMATIONAL_QUESTION_MARKERS)
     has_registration_intent = any(marker in lowered for marker in REGISTRATION_INTENT_MARKERS)
-    if is_informational_question and not has_registration_intent and all(keyword in BROAD_EARNING_KEYWORDS for _role, keyword in role_matches):
+    if is_informational_question and not has_registration_intent:
         return None
     for role, _keyword in role_matches:
-            return role
+        return role
     return None
 
 
