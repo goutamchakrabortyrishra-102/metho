@@ -130,6 +130,10 @@ const normalizeFacebookUrl = (value) => {
   if (/^(www\.)?facebook\.com\//i.test(raw) || /^fb\.com\//i.test(raw)) return `https://${raw}`;
   return "";
 };
+const normalizeMeetingUrl = (value) => {
+  const raw = String(value || "").trim();
+  return /^https?:\/\//i.test(raw) ? raw : "";
+};
 const DEFAULT_POLICY = {
   mission_statement: "To build a trusted, product-driven smart earning ecosystem that delivers fair and sustainable income opportunities for everyone.",
   vision_statement: "Our vision is to empower marginalized people, transform small businesses from local to global, and build sustainable financial freedom with a special focus on women.",
@@ -342,6 +346,8 @@ const Hero = () => {
   const HERO_IMG = settings?.landing_hero_image_url_full || DEFAULT_HERO_IMG;
   const tagline = settings?.landing_tagline;
   const companyVideoUrl = normalizeYoutubeUrl(settings?.company_youtube_url);
+  const memberMeetingUrl = normalizeMeetingUrl(settings?.member_meeting_url);
+  const leaderMeetingUrl = normalizeMeetingUrl(settings?.leader_meeting_url);
 
   useEffect(() => {
     let active = true;
@@ -733,6 +739,8 @@ const Hero = () => {
                         icon: Users,
                         testId: "landing-quick-member-registration",
                       },
+                      ...(memberMeetingUrl ? [{ title: "Join Member Meeting", href: memberMeetingUrl, icon: CalendarDays, testId: "landing-quick-member-meeting", external: true }] : []),
+                      ...(leaderMeetingUrl ? [{ title: "Join Leader Meeting", href: leaderMeetingUrl, icon: CalendarDays, testId: "landing-quick-leader-meeting", external: true }] : []),
                       {
                         title: "Partner Registration",
                         href: "/partner-register",
@@ -770,19 +778,15 @@ const Hero = () => {
                         testId: "landing-quick-member-login",
                       },
                     ].map((item) => (
-                      <Link
-                        key={item.title}
-                        to={item.href}
-                        className="group rounded-xl bg-white/95 border border-emerald-100/30 px-3.5 py-2.5 text-emerald-950 shadow-sm hover:bg-emerald-50 hover:border-amber-200/70 transition-colors"
-                        data-testid={item.testId}
-                      >
-                        <div className="flex items-center justify-between gap-3">
-                          <p className="font-display font-bold text-sm leading-tight tracking-tight">{item.title}</p>
-                          <div className="w-8 h-8 rounded-xl bg-emerald-50 border border-emerald-200 flex items-center justify-center text-emerald-900 group-hover:bg-emerald-100 transition-colors shrink-0">
-                            <item.icon className="w-4 h-4" />
-                          </div>
-                        </div>
-                      </Link>
+                      item.external ? (
+                        <a key={item.title} href={item.href} target="_blank" rel="noreferrer" className="group rounded-xl bg-white/95 border border-emerald-100/30 px-3.5 py-2.5 text-emerald-950 shadow-sm hover:bg-emerald-50 hover:border-amber-200/70 transition-colors" data-testid={item.testId}>
+                          <div className="flex items-center justify-between gap-3"><p className="font-display font-bold text-sm leading-tight tracking-tight">{item.title}</p><div className="w-8 h-8 rounded-xl bg-emerald-50 border border-emerald-200 flex items-center justify-center text-emerald-900 group-hover:bg-emerald-100 transition-colors shrink-0"><item.icon className="w-4 h-4" /></div></div>
+                        </a>
+                      ) : (
+                        <Link key={item.title} to={item.href} className="group rounded-xl bg-white/95 border border-emerald-100/30 px-3.5 py-2.5 text-emerald-950 shadow-sm hover:bg-emerald-50 hover:border-amber-200/70 transition-colors" data-testid={item.testId}>
+                          <div className="flex items-center justify-between gap-3"><p className="font-display font-bold text-sm leading-tight tracking-tight">{item.title}</p><div className="w-8 h-8 rounded-xl bg-emerald-50 border border-emerald-200 flex items-center justify-center text-emerald-900 group-hover:bg-emerald-100 transition-colors shrink-0"><item.icon className="w-4 h-4" /></div></div>
+                        </Link>
+                      )
                     ))}
 
                     {companyVideoUrl ? (
@@ -893,7 +897,7 @@ const Hero = () => {
                           className="w-full h-full object-cover"
                           loading="lazy"
                           onError={(e) => { applyLandingImageFallback(e, [pickProductImageSrc(p)]); }}
-                        />
+                        />}
                         <span className="absolute top-2 left-2 pointer-events-none text-[9px] font-bold uppercase tracking-widest px-2 py-1 rounded-full bg-amber-500 text-emerald-950">
                           {String(p?.product_type || "metho").toLowerCase() === "metho_vegetable" ? "METHO VEGETABLE" : "METHO"}
                         </span>

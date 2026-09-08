@@ -1031,6 +1031,8 @@ export default function SettingsPage() {
     landing_subheading: source.landing_subheading || "",
     company_youtube_url: source.company_youtube_url || "",
     company_facebook_url: source.company_facebook_url || "",
+    member_meeting_url: source.member_meeting_url || "",
+    leader_meeting_url: source.leader_meeting_url || "",
     // Landing product/partner/store picks are managed from dedicated pages.
     // Do not overwrite those lists from Settings save to avoid stale page-state clobber.
     landing_featured_partner_ids: normalizeIdList(source.landing_featured_partner_ids, 12),
@@ -1705,6 +1707,22 @@ export default function SettingsPage() {
               onChange={setF("company_facebook_url")}
               type="text"
               hint="Landing footer-এ Facebook button show করার জন্য আপনার page/profile link দিন।"
+            />
+            <Field
+              label="Member Webinar / Meeting URL"
+              testId="settings-member-meeting-url"
+              value={form.member_meeting_url ?? ""}
+              onChange={setF("member_meeting_url")}
+              type="url"
+              hint="Set করলে landing page-এ Member Join Meeting button দেখাবে।"
+            />
+            <Field
+              label="Leader Webinar / Meeting URL"
+              testId="settings-leader-meeting-url"
+              value={form.leader_meeting_url ?? ""}
+              onChange={setF("leader_meeting_url")}
+              type="url"
+              hint="Set করলে landing page-এ Leader Join Meeting button দেখাবে।"
             />
             <div className="md:col-span-2">
               <Label className="text-emerald-950 font-semibold">Invoice Terms & Conditions</Label>

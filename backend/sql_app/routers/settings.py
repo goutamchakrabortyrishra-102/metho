@@ -147,6 +147,8 @@ DEFAULT_SETTINGS = {
     "landing_subheading": "",
     "company_youtube_url": "",
     "company_facebook_url": "",
+    "member_meeting_url": "",
+    "leader_meeting_url": "",
     "landing_top_product_ids": [],
     "landing_featured_partner_ids": [],
     "landing_featured_store_ids": [],
