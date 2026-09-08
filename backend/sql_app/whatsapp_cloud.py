@@ -518,11 +518,19 @@ def _role_registration_reply(db, role: str) -> str:
     ))
 
 
+def _is_informational_question(text: str) -> bool:
+    lowered = str(text or "").lower()
+    return any(marker in lowered for marker in INFORMATIONAL_QUESTION_MARKERS)
+
+
+def _has_registration_intent(text: str) -> bool:
+    lowered = str(text or "").lower()
+    return any(marker in lowered for marker in REGISTRATION_INTENT_MARKERS)
+
+
 def _registration_role_for_text(config: dict, text: str) -> str | None:
     lowered = str(text or "").lower()
-    is_informational_question = any(marker in lowered for marker in INFORMATIONAL_QUESTION_MARKERS)
-    has_registration_intent = any(marker in lowered for marker in REGISTRATION_INTENT_MARKERS)
-    if is_informational_question and not has_registration_intent:
+    if _is_informational_question(text) and not _has_registration_intent(text):
         return None
     role_matches = []
     for role in REGISTRATION_ROLE_SETTINGS:
@@ -607,7 +615,8 @@ def ingest_whatsapp_message(db, payload: dict, request=None) -> str:
         config = resolve_config(db)
         role_hint = _registration_role_for_text(config, incoming_text)
         lowered = incoming_text.lower()
-        if not role_hint and any(word in lowered for word in ("customer", "product", "order", "price")):
+        is_ai_freeform_query = _is_informational_question(incoming_text) and not _has_registration_intent(incoming_text)
+        if not role_hint and not is_ai_freeform_query and any(word in lowered for word in ("customer", "product", "order", "price")):
             role_hint = "customer"
 
         if (
@@ -715,6 +724,9 @@ def ingest_whatsapp_message(db, payload: dict, request=None) -> str:
             CRMLeadActivity.message.like(f"{dispatch_marker}%"),
         ).first()
         if already_dispatched:
+            statuses.append(status)
+            continue
+        if is_ai_freeform_query and not role_hint:
             statuses.append(status)
             continue
         if ai_handles_freeform and not auto_reply and not reply_text and not role_hint:
