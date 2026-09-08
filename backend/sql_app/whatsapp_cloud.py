@@ -230,7 +230,9 @@ def get_configured_whatsapp_reply_image(db, role: str | None = None) -> str:
 def get_configured_whatsapp_reply_mode(db, role: str | None = None) -> str:
     role_key = (role or "default").lower()
     key = {"customer": "customer_auto_reply_mode", "member": "member_registration_reply_mode", "partner": "partner_registration_reply_mode", "rider": "rider_registration_reply_mode", "default": "default_auto_reply_mode"}.get(role_key, "default_auto_reply_mode")
-    mode = str(resolve_config(db).get(key) or "text").strip().lower()
+    config = resolve_config(db)
+    image_key = {"customer": "customer_auto_reply_image_url", "member": "member_registration_reply_image_url", "partner": "partner_registration_reply_image_url", "rider": "rider_registration_reply_image_url", "default": "default_auto_reply_image_url"}.get(role_key, "default_auto_reply_image_url")
+    mode = "image" if str(config.get(image_key) or "").strip() else str(config.get(key) or "text").strip().lower()
     return mode if mode in {"text", "image"} else "text"
 
 
@@ -239,7 +241,8 @@ def get_registration_welcome_image(db) -> str:
 
 
 def get_registration_welcome_mode(db) -> str:
-    mode = str(resolve_config(db).get("registration_welcome_message_mode") or "text").strip().lower()
+    config = resolve_config(db)
+    mode = "image" if str(config.get("registration_welcome_message_image_url") or "").strip() else str(config.get("registration_welcome_message_mode") or "text").strip().lower()
     return mode if mode in {"text", "image"} else "text"
 
 

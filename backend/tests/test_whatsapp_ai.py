@@ -1,3 +1,4 @@
+import json
 import sys
 from pathlib import Path
 from types import SimpleNamespace
@@ -8,7 +9,7 @@ from sqlalchemy.orm import sessionmaker
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from sql_app.database import Base
-from sql_app.models import CRMLead, CRMLeadActivity, CRMWhatsAppAISuggestion
+from sql_app.models import AppSetting, CRMLead, CRMLeadActivity, CRMWhatsAppAISuggestion
 from sql_app.routers.whatsapp_ai import approve_suggestion, reject_suggestion
 from sql_app.whatsapp_ai import create_suggestion_for_activity, save_ai_config
 
@@ -195,5 +196,25 @@ def test_ai_worker_skips_when_webhook_already_sent_a_preset(monkeypatch):
         monkeypatch.setattr("sql_app.whatsapp_ai.SessionLocal", lambda: NoCloseSession(db))
         create_suggestion_for_activity(activity.id)
         assert db.query(CRMWhatsAppAISuggestion).filter(CRMWhatsAppAISuggestion.activity_id == activity.id).count() == 0
+    finally:
+        db.close()
+
+
+def test_saved_role_poster_takes_priority_over_stale_text_mode():
+    from sql_app.whatsapp_cloud import get_configured_whatsapp_reply_mode
+    db = make_session()
+    try:
+        update_row = db.query(AppSetting).filter(AppSetting.key == "whatsapp_cloud_integration").first()
+        if update_row:
+            payload = json.loads(update_row.value_json or "{}")
+        else:
+            payload = {}
+        payload.update({"member_registration_reply_mode": "text", "member_registration_reply_image_url": "/api/files/whatsapp_posters/test.png"})
+        if update_row:
+            update_row.value_json = json.dumps(payload)
+        else:
+            db.add(AppSetting(key="whatsapp_cloud_integration", value_json=json.dumps(payload)))
+        db.commit()
+        assert get_configured_whatsapp_reply_mode(db, "member") == "image"
     finally:
         db.close()
