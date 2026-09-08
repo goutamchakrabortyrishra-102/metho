@@ -9,9 +9,9 @@ from sqlalchemy.orm import sessionmaker
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from sql_app.database import Base
-from sql_app.models import AppSetting, CRMLead, CRMLeadActivity, CRMWhatsAppAISuggestion
+from sql_app.models import AppSetting, CRMLead, CRMLeadActivity, CRMWhatsAppAISuggestion, WhatsAppMessageOutbox
 from sql_app.routers.whatsapp_ai import approve_suggestion, reject_suggestion
-from sql_app.whatsapp_ai import create_suggestion_for_activity, save_ai_config
+from sql_app.whatsapp_ai import create_suggestion_for_activity, process_pending_whatsapp_ai_activities, save_ai_config
 
 
 def make_session():
@@ -196,6 +196,25 @@ def test_ai_auto_send_does_not_send_handoff(monkeypatch):
         db.close()
 
 
+def test_ai_auto_send_failure_queues_outbox_retry(monkeypatch):
+    db = make_session()
+    try:
+        _lead, activity = add_whatsapp_activity(db, "পণ্য সম্পর্কে জানতে চাই")
+        save_ai_config(db, {"enabled": True, "auto_send_enabled": True})
+        monkeypatch.setattr("sql_app.whatsapp_ai.SessionLocal", lambda: NoCloseSession(db))
+        monkeypatch.setattr("sql_app.whatsapp_ai._generate_reply", lambda *_args, **_kwargs: ("AI reply", "gemini", "models/gemini-3.6-flash"))
+        monkeypatch.setattr("sql_app.whatsapp_cloud.send_whatsapp_message", lambda *_args, **_kwargs: (_ for _ in ()).throw(RuntimeError("temporary network error")))
+        create_suggestion_for_activity(activity.id)
+        suggestion = db.query(CRMWhatsAppAISuggestion).one()
+        outbox = db.query(WhatsAppMessageOutbox).one()
+        assert suggestion.status == "PENDING"
+        assert "queued for retry" in suggestion.error_message
+        assert outbox.dedupe_key == f"ai-autosend:{suggestion.id}"
+        assert outbox.message == "AI reply"
+    finally:
+        db.close()
+
+
 def test_ai_fallback_auto_sends_admin_preset(monkeypatch):
     db = make_session()
     try:
@@ -223,6 +242,37 @@ def test_ai_worker_skips_when_webhook_already_sent_a_preset(monkeypatch):
         save_ai_config(db, {"enabled": True, "auto_send_enabled": True})
         monkeypatch.setattr("sql_app.whatsapp_ai.SessionLocal", lambda: NoCloseSession(db))
         create_suggestion_for_activity(activity.id)
+        assert db.query(CRMWhatsAppAISuggestion).filter(CRMWhatsAppAISuggestion.activity_id == activity.id).count() == 0
+    finally:
+        db.close()
+
+
+def test_pending_whatsapp_ai_worker_recovers_missed_background_task(monkeypatch):
+    db = make_session()
+    try:
+        _lead, activity = add_whatsapp_activity(db, "METHO AAY-UPAY-এ কীভাবে কাজ করে আয় করা যায়?")
+        save_ai_config(db, {"enabled": True, "auto_send_enabled": False, "provider": "gemini"})
+        monkeypatch.setattr("sql_app.whatsapp_ai.SessionLocal", lambda: NoCloseSession(db))
+        monkeypatch.setattr("sql_app.whatsapp_ai._generate_reply", lambda *_args, **_kwargs: ("AI draft reply", "gemini", "models/gemini-3.6-flash"))
+        processed = process_pending_whatsapp_ai_activities()
+        assert processed == 1
+        suggestion = db.query(CRMWhatsAppAISuggestion).filter(CRMWhatsAppAISuggestion.activity_id == activity.id).one()
+        assert suggestion.suggested_reply == "AI draft reply"
+        assert suggestion.provider_used == "gemini"
+    finally:
+        db.close()
+
+
+def test_pending_whatsapp_ai_worker_skips_preset_dispatched_message(monkeypatch):
+    db = make_session()
+    try:
+        lead, activity = add_whatsapp_activity(db, "1")
+        db.add(CRMLeadActivity(lead_id=lead.id, activity_type="whatsapp_auto_reply_dispatched", message="auto-reply-for:wamid.test:image"))
+        db.commit()
+        save_ai_config(db, {"enabled": True, "auto_send_enabled": False})
+        monkeypatch.setattr("sql_app.whatsapp_ai.SessionLocal", lambda: NoCloseSession(db))
+        processed = process_pending_whatsapp_ai_activities()
+        assert processed == 0
         assert db.query(CRMWhatsAppAISuggestion).filter(CRMWhatsAppAISuggestion.activity_id == activity.id).count() == 0
     finally:
         db.close()

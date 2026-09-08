@@ -424,8 +424,9 @@ def create_suggestion_for_activity(activity_id: str) -> None:
                 db.add(CRMLeadActivity(lead_id=lead.id, activity_type="ai_suggestion_auto_sent", message=f"AI auto-reply sent with {provider}/{model}."))
                 logger.info("WhatsApp AI reply sent: activity_id=%s lead_id=%s provider=%s model=%s", activity.id, lead.id, provider, model)
             except Exception as exc:
-                suggestion.status = "FAILED"
-                suggestion.error_message = str(exc)[:500]
+                queued = enqueue_whatsapp_message(db, f"ai-autosend:{suggestion.id}", lead.whatsapp_no or lead.phone, reply, lead.id, "ai_suggestion_auto_sent")
+                suggestion.status = "PENDING" if queued else "FAILED"
+                suggestion.error_message = ("AI reply queued for retry after WhatsApp send failure" if queued else str(exc))[:500]
                 db.add(CRMLeadActivity(lead_id=lead.id, activity_type="ai_suggestion_auto_send_failed", message=str(exc)[:500]))
                 logger.exception("WhatsApp AI reply send failed: activity_id=%s lead_id=%s provider=%s model=%s", activity.id, lead.id, provider, model)
         else:
@@ -441,6 +442,36 @@ def create_suggestion_for_activity(activity_id: str) -> None:
         logger.exception("WhatsApp AI suggestion generation failed: activity_id=%s", activity_id)
     finally:
         db.close()
+
+
+def process_pending_whatsapp_ai_activities(limit: int = 20, lookback_hours: int = 24) -> int:
+    db = SessionLocal()
+    try:
+        config = resolve_ai_config(db)
+        if not config.get("enabled"):
+            return 0
+        since = datetime.now(timezone.utc) - timedelta(hours=max(1, min(168, int(lookback_hours or 24))))
+        rows = db.query(CRMLeadActivity).join(CRMLead, CRMLead.id == CRMLeadActivity.lead_id).filter(
+            CRMLeadActivity.activity_type == "whatsapp_message_received",
+            CRMLeadActivity.created_at >= since,
+            CRMLead.source.in_(["whatsapp", "facebook"]),
+            ~db.query(CRMWhatsAppAISuggestion.id).filter(CRMWhatsAppAISuggestion.activity_id == CRMLeadActivity.id).exists(),
+        ).order_by(CRMLeadActivity.created_at.asc()).limit(max(1, min(100, int(limit or 20)))).all()
+        activity_ids = []
+        for activity in rows:
+            message_id = str(activity.message or "").split("]:", 1)[0].removeprefix("WhatsApp message received [").strip()
+            if message_id and db.query(CRMLeadActivity).filter(
+                CRMLeadActivity.lead_id == activity.lead_id,
+                CRMLeadActivity.activity_type == "whatsapp_auto_reply_dispatched",
+                CRMLeadActivity.message.like(f"auto-reply-for:{message_id}%"),
+            ).first():
+                continue
+            activity_ids.append(activity.id)
+    finally:
+        db.close()
+    for activity_id in activity_ids:
+        create_suggestion_for_activity(activity_id)
+    return len(activity_ids)
 
 
 def process_due_followups(limit: int = 20) -> int:
