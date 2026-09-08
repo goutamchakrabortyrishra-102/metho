@@ -8693,14 +8693,11 @@ def generate_product_description(payload: dict, current_user=Depends(get_current
 
     if gemini_key:
         try:
-            import google.generativeai as genai
-            from ..whatsapp_ai import _gemini_candidate_models
+            from ..whatsapp_ai import _gemini_candidate_models, _gemini_generate_content
 
-            genai.configure(api_key=gemini_key)
             for model_name in _gemini_candidate_models(""):
                 try:
-                    resp = genai.GenerativeModel(model_name).generate_content(prompt)
-                    text = (getattr(resp, "text", "") or "").strip()
+                    text = _gemini_generate_content(gemini_key, model_name, prompt)
                     if text:
                         return {"description": text, "provider": "gemini"}
                 except Exception:

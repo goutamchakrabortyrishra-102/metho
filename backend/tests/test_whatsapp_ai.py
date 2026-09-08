@@ -1,7 +1,7 @@
 import json
 import sys
 from pathlib import Path
-from types import ModuleType, SimpleNamespace
+from types import SimpleNamespace
 
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
@@ -35,26 +35,27 @@ class NoCloseSession:
         pass
 
 
-def install_fake_google_genai(monkeypatch, models=None, text="AI reply", failures=None):
+def install_fake_gemini_rest(monkeypatch, text="AI reply", failures=None):
     generated = []
     failures = set(failures or [])
 
-    class FakeModel:
+    class FakeResponse:
         def __init__(self, model):
             self.model = model
 
-        def generate_content(self, contents):
-            generated.append((self.model, contents))
+        def raise_for_status(self):
             if self.model in failures:
                 raise RuntimeError("404 NOT_FOUND")
-            return SimpleNamespace(text=text)
 
-    fake_genai = SimpleNamespace(configure=lambda **_kwargs: None, GenerativeModel=FakeModel)
-    fake_google = ModuleType("google")
-    fake_google.__path__ = []
-    fake_google.generativeai = fake_genai
-    monkeypatch.setitem(sys.modules, "google", fake_google)
-    monkeypatch.setitem(sys.modules, "google.generativeai", fake_genai)
+        def json(self):
+            return {"candidates": [{"content": {"parts": [{"text": text}]}}]}
+
+    def fake_post(url, params=None, json=None, timeout=None):
+        model = url.rsplit("/", 1)[-1].split(":", 1)[0]
+        generated.append((model, url, params, json, timeout))
+        return FakeResponse(model)
+
+    monkeypatch.setattr("sql_app.whatsapp_ai.requests.post", fake_post)
     return generated
 
 
@@ -158,7 +159,7 @@ def test_ai_auto_send_records_reply_and_followup(monkeypatch):
     try:
         lead, activity = add_whatsapp_activity(db, "পণ্য সম্পর্কে জানতে চাই")
         sent = []
-        generated = install_fake_google_genai(monkeypatch, [("models/gemini-1.5-flash", ["generateContent"])], "আপনি কোন পণ্যটি জানতে চান? নাম বা ছবি পাঠালে আমরা সঠিক তথ্য দেব।")
+        generated = install_fake_gemini_rest(monkeypatch, "আপনি কোন পণ্যটি জানতে চান? নাম বা ছবি পাঠালে আমরা সঠিক তথ্য দেব।")
         save_ai_config(db, {"enabled": True, "auto_send_enabled": True, "provider": "gemini", "model": "gpt-4.1-mini", "follow_up_delay_hours": 6})
         monkeypatch.setattr("sql_app.whatsapp_ai.SessionLocal", lambda: NoCloseSession(db))
         monkeypatch.setattr("sql_app.whatsapp_ai.search_web_context", lambda *_args, **_kwargs: "")
@@ -301,18 +302,22 @@ def test_saved_role_poster_takes_priority_over_stale_text_mode():
 def test_gemini_freeform_generation_uses_valid_configured_model(monkeypatch):
     from sql_app.whatsapp_ai import _generate_reply
 
-    generated = install_fake_google_genai(monkeypatch, [("models/gemini-1.5-flash", ["generateContent"]), ("models/gemini-1.5-pro", ["generateContent"])])
+    generated = install_fake_gemini_rest(monkeypatch)
     monkeypatch.setenv("GEMINI_API_KEY", "test-key")
     monkeypatch.delenv("OPENAI_API_KEY", raising=False)
     reply, provider, model = _generate_reply({"system_prompt": "help", "knowledge_base": "METHO", "handoff_keywords": "", "provider": "gemini", "model": "gemini-1.5-flash"}, "Hi")
     assert (reply, provider, model) == ("AI reply", "gemini", "gemini-1.5-flash")
     assert generated and generated[0][0] == "gemini-1.5-flash"
+    assert generated[0][1] == "https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash:generateContent"
+    assert generated[0][2] == {"key": "test-key"}
+    assert generated[0][3]["contents"][0]["parts"][0]["text"]
+    assert generated[0][4] == 15
 
 
 def test_gemini_invalid_configured_model_selects_available_flash(monkeypatch):
     from sql_app.whatsapp_ai import _generate_reply
 
-    generated = install_fake_google_genai(monkeypatch, [("models/gemini-1.5-flash", ["generateContent"])])
+    generated = install_fake_gemini_rest(monkeypatch)
     monkeypatch.setenv("GEMINI_API_KEY", "test-key")
     monkeypatch.delenv("OPENAI_API_KEY", raising=False)
     reply, provider, model = _generate_reply({"system_prompt": "help", "knowledge_base": "METHO", "handoff_keywords": "", "provider": "gemini", "model": "gpt-4.1-mini"}, "Hi")
@@ -323,7 +328,7 @@ def test_gemini_invalid_configured_model_selects_available_flash(monkeypatch):
 def test_gemini_25_model_maps_to_15_flash(monkeypatch):
     from sql_app.whatsapp_ai import _generate_reply
 
-    generated = install_fake_google_genai(monkeypatch, [("models/gemini-1.5-flash", ["generateContent"]), ("models/gemini-2.5-flash", ["generateContent"])])
+    generated = install_fake_gemini_rest(monkeypatch)
     monkeypatch.setenv("GEMINI_API_KEY", "test-key")
     monkeypatch.delenv("OPENAI_API_KEY", raising=False)
     reply, provider, model = _generate_reply({"system_prompt": "help", "knowledge_base": "METHO", "handoff_keywords": "", "provider": "gemini", "model": "gemini-2.5-flash"}, "Hi")
@@ -334,7 +339,7 @@ def test_gemini_25_model_maps_to_15_flash(monkeypatch):
 def test_gemini_generate_content_404_falls_back_to_pro_without_models_prefix(monkeypatch):
     from sql_app.whatsapp_ai import _generate_reply
 
-    generated = install_fake_google_genai(monkeypatch, text="Gemini pro reply", failures={"gemini-1.5-flash"})
+    generated = install_fake_gemini_rest(monkeypatch, text="Gemini pro reply", failures={"gemini-1.5-flash"})
     monkeypatch.setenv("GEMINI_API_KEY", "test-key")
     monkeypatch.delenv("OPENAI_API_KEY", raising=False)
     reply, provider, model = _generate_reply({"system_prompt": "help", "knowledge_base": "METHO", "handoff_keywords": "", "provider": "gemini", "model": "models/gemini-1.5-flash"}, "Hi")
@@ -345,7 +350,7 @@ def test_gemini_generate_content_404_falls_back_to_pro_without_models_prefix(mon
 def test_gemini_legacy_model_alias_maps_to_available_model(monkeypatch):
     from sql_app.whatsapp_ai import _generate_reply
 
-    generated = install_fake_google_genai(monkeypatch, [("models/gemini-1.5-flash", ["generateContent"]), ("models/gemini-2.5-flash", ["generateContent"])])
+    generated = install_fake_gemini_rest(monkeypatch)
     monkeypatch.setenv("GEMINI_API_KEY", "test-key")
     monkeypatch.delenv("OPENAI_API_KEY", raising=False)
     reply, provider, model = _generate_reply({"system_prompt": "help", "knowledge_base": "METHO", "handoff_keywords": "", "provider": "gemini", "model": "gemini_1.5"}, "Hi")
@@ -356,7 +361,7 @@ def test_gemini_legacy_model_alias_maps_to_available_model(monkeypatch):
 def test_gemini_unavailable_models_return_fallback(monkeypatch):
     from sql_app.whatsapp_ai import _generate_reply
 
-    generated = install_fake_google_genai(monkeypatch, failures={"gemini-1.5-flash", "gemini-1.5-pro", "gemini-pro"})
+    generated = install_fake_gemini_rest(monkeypatch, failures={"gemini-1.5-flash", "gemini-1.5-pro", "gemini-pro"})
     monkeypatch.setenv("GEMINI_API_KEY", "test-key")
     monkeypatch.delenv("OPENAI_API_KEY", raising=False)
     reply, provider, model = _generate_reply({"system_prompt": "help", "knowledge_base": "METHO", "handoff_keywords": "", "provider": "gemini", "model": "gemini-2.0-flash"}, "Hi")
@@ -369,7 +374,7 @@ def test_gemini_unavailable_models_return_fallback(monkeypatch):
 def test_openai_config_is_ignored_when_gemini_key_is_available(monkeypatch):
     from sql_app.whatsapp_ai import _generate_reply
 
-    generated = install_fake_google_genai(monkeypatch, text="Gemini reply")
+    generated = install_fake_gemini_rest(monkeypatch, text="Gemini reply")
     monkeypatch.delenv("OPENAI_API_KEY", raising=False)
     monkeypatch.setenv("GEMINI_API_KEY", "gemini-key")
     reply, provider, model = _generate_reply({"system_prompt": "help", "knowledge_base": "METHO", "handoff_keywords": "", "provider": "openai", "model": "gpt-4.1-mini"}, "Hi")

@@ -9,7 +9,7 @@
  python-multipart==0.0.32
  pillow==12.3.0
  reportlab==4.5.1
-google-generativeai==0.8.6
+requests==2.32.3
 watchfiles==1.2.0
 webencodings==0.5.1
 websockets==16.1
