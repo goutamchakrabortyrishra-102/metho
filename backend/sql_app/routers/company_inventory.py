@@ -107,7 +107,7 @@ def _require_admin(current_user) -> None:
 def list_company_inventory(db: Session = Depends(get_db), current_user=Depends(get_current_user)):
     _require_admin(current_user)
     rows = []
-    for product in db.query(Product).filter(Product.product_type != "metho_vegetable").order_by(Product.created_at.desc()).all():
+    for product in db.query(Product).filter(Product.product_type == "metho").order_by(Product.created_at.desc()).all():
         rows.append(sync_company_inventory(db, product))
     db.commit()
     total_units = sum(int(row["company_stock"]) for row in rows)
