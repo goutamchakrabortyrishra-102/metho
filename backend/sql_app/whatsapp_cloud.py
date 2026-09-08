@@ -690,6 +690,7 @@ def ingest_whatsapp_message(db, payload: dict, request=None) -> str:
             status = "created"
         else:
             status = "updated"
+        ai_handles_freeform = False
         if reply_text:
             auto_reply = _registration_reply(db, reply_text, lead.id, normalized["phone"])
         elif role_hint:
@@ -714,6 +715,9 @@ def ingest_whatsapp_message(db, payload: dict, request=None) -> str:
             CRMLeadActivity.message.like(f"{dispatch_marker}%"),
         ).first()
         if already_dispatched:
+            statuses.append(status)
+            continue
+        if ai_handles_freeform and not auto_reply and not reply_text and not role_hint:
             statuses.append(status)
             continue
         reply_mode = get_registration_welcome_mode(db) if reply_text else get_configured_whatsapp_reply_mode(db, role_hint)
