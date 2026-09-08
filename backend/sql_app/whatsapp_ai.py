@@ -283,11 +283,11 @@ def _generate_reply(config: dict, message: str, context: str = "", event_type: s
                 from openai import OpenAI
                 client = OpenAI(api_key=openai_key, timeout=10)
                 try:
-                    response = client.responses.create(model=config["model"] or "gpt-4.1-mini", input=prompt, max_output_tokens=220)
-                    text = str(response.output_text or "").strip()
-                except Exception:
                     response = client.chat.completions.create(model=config["model"] or "gpt-4.1-mini", messages=[{"role": "user", "content": prompt}], max_tokens=220)
                     text = str(response.choices[0].message.content or "").strip()
+                except Exception:
+                    response = client.responses.create(model=config["model"] or "gpt-4.1-mini", input=prompt, max_output_tokens=220)
+                    text = str(response.output_text or "").strip()
                 if text:
                     return text[:1500], "openai", config["model"]
             except Exception as exc:

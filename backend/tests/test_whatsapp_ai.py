@@ -240,3 +240,23 @@ def test_gemini_model_fallback_tries_current_model(monkeypatch):
     reply, provider, model = _generate_reply({"system_prompt": "help", "knowledge_base": "METHO", "handoff_keywords": "", "provider": "gemini", "model": "gemini-1.5-flash"}, "Hi")
     assert (reply, provider, model) == ("AI reply", "gemini", "gemini-2.0-flash")
     assert calls == ["gemini-1.5-flash", "gemini-2.0-flash"]
+
+
+def test_openai_chat_completions_generates_reply(monkeypatch):
+    from sql_app.whatsapp_ai import _generate_reply
+
+    class FakeCompletions:
+        @staticmethod
+        def create(**_kwargs):
+            return type("Response", (), {"choices": [type("Choice", (), {"message": type("Message", (), {"content": "OpenAI reply"})()})()]})()
+
+    class FakeClient:
+        def __init__(self, **_kwargs):
+            self.chat = type("Chat", (), {"completions": FakeCompletions})()
+
+    monkeypatch.setitem(__import__("sys").modules, "openai", type("FakeOpenAI", (), {"OpenAI": FakeClient}))
+    monkeypatch.setenv("OPENAI_API_KEY", "test-key")
+    monkeypatch.delenv("GEMINI_API_KEY", raising=False)
+    reply, provider, _model = _generate_reply({"system_prompt": "help", "knowledge_base": "METHO", "handoff_keywords": "", "provider": "openai", "model": "gpt-4.1-mini"}, "Hi")
+    assert reply == "OpenAI reply"
+    assert provider == "openai"
