@@ -35,6 +35,7 @@ SMTP_FROM_EMAIL = os.getenv("SMTP_FROM_EMAIL", SMTP_USERNAME or "no-reply@metho.
 SMTP_FROM_NAME = os.getenv("SMTP_FROM_NAME", "METHO AAY-UPAY")
 SMTP_USE_TLS = str(os.getenv("SMTP_USE_TLS", "true")).lower() in {"1", "true", "yes", "y"}
 MEMBER_ID_PREFIX = "MAU"
+METHO_SUPPORT_WHATSAPP = "+91 9163530078"
 DEFAULT_ADMIN_SPONSOR_ID = os.getenv("DEFAULT_ADMIN_SPONSOR_ID", "MAU00001").strip().upper()
 ADMIN_ROLES = {"super_admin", "company_admin", "admin"}
 ADMIN_LOGIN_ID = str(os.getenv("ADMIN_LOGIN_ID", "admin@metho.com") or "admin@metho.com").strip()
@@ -196,8 +197,9 @@ def build_welcome_pdf(user: User) -> str:
     c.drawString(50, h - 100, f"Name: {user.name}")
     c.drawString(50, h - 118, f"Email: {user.email}")
     c.drawString(50, h - 136, f"Member Code: {member_code_for_user(user.id)}")
-    c.drawString(50, h - 170, "Thank you for registering. Keep this letter for your records.")
-    c.drawString(50, h - 188, "For support, contact METHO admin team.")
+    c.drawString(50, h - 154, f"WhatsApp: {user.phone or METHO_SUPPORT_WHATSAPP}")
+    c.drawString(50, h - 188, "Thank you for registering. Keep this letter for your records.")
+    c.drawString(50, h - 206, f"For support, WhatsApp us at {METHO_SUPPORT_WHATSAPP}.")
     c.showPage()
     c.save()
     return f"/api/files/welcome_letters/{file_name}"
@@ -228,6 +230,29 @@ def send_welcome_email(to_email: str, user_name: str, member_code: str, welcome_
         return True
     except Exception:
         return False
+
+
+def _send_registration_whatsapp_welcome(db: Session, user: User, member_code: str) -> None:
+    try:
+        from ..whatsapp_cloud import public_whatsapp_image_url, send_whatsapp_image, send_whatsapp_message
+
+        text = (
+            f"🌿 Welcome to METHO AAY-UPAY™! 🎉\n\nDear {user.name},\n\n"
+            "Congratulations! Your Member Registration has been successfully completed. "
+            "Welcome to the METHO AAY-UPAY™ family! 🤝\n\n"
+            "You can now explore opportunities to Shop, Save, Earn & Grow with METHO.\n\n"
+            "🎓 Next Step: Our team will guide you through free training and help you get started.\n\n"
+            f"📩 Need any help? Reply to this chat or contact our WhatsApp executive: {METHO_SUPPORT_WHATSAPP}.\n\n"
+            "METHO AAY-UPAY™ — Better People | Stronger Communities | Brighter Tomorrow 🌿"
+        )
+        send_whatsapp_message(db, user.phone, text=text)
+        row = db.query(AppSetting).filter(AppSetting.key == "global").first()
+        settings = json.loads(row.value_json or "{}") if row and row.value_json else {}
+        logo_url = str(settings.get("site_logo_url") or "").strip()
+        if logo_url:
+            send_whatsapp_image(db, user.phone, public_whatsapp_image_url(logo_url), caption=text[:1024])
+    except Exception:
+        logger.exception("Registration WhatsApp welcome failed: member_id=%s", member_code)
 
 
 def get_current_user(
@@ -285,6 +310,8 @@ def register(payload: RegisterRequest, request: Request, db: Session = Depends(g
         raise HTTPException(status_code=400, detail="Sponsor code not found")
     if not sponsor_user:
         raise HTTPException(status_code=503, detail="Default METHO Admin sponsor is not configured")
+    if requested_sponsor and not bool(sponsor_user.is_active):
+        raise HTTPException(status_code=400, detail="Sponsor ID is inactive. Activate your ID first before sponsoring.")
     if sponsor_user.id == member_id:
         raise HTTPException(status_code=400, detail="A member cannot sponsor themselves")
 
@@ -354,6 +381,7 @@ def register(payload: RegisterRequest, request: Request, db: Session = Depends(g
         send_welcome_email(user.email, user.name, member_code, welcome_letter_url)
     except Exception:
         logger.exception("Welcome email failed after member creation: correlation_id=%s member_id=%s", correlation_id, user.id)
+    _send_registration_whatsapp_welcome(db, user, member_code)
 
     token = create_token(user.id, user.role)
     return {
