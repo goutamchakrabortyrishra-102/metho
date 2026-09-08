@@ -456,12 +456,16 @@ def member_code_for_user(user_id: str) -> str:
 
 
 def _fallback_product_description(name: str, category: str, product_type: str) -> str:
-    line = (
-        f"{name} is a quality {category} offering from METHO designed for daily use. "
-        f"Carefully curated benefits, reliable quality, and consistent value for families."
-    )
+    category_hint = {
+        "health & wellness": "everyday wellness routines and mindful self-care",
+        "beauty & personal care": "simple personal-care routines at home",
+        "nutrition": "daily meals, balanced choices, and family use",
+        "home & kitchen": "practical home tasks and comfortable everyday living",
+        "utilities": "regular household needs and convenient daily use",
+    }.get(str(category or "").strip().lower(), "regular everyday use")
+    line = f"{name} is a METHO {category} product for {category_hint}. It is a practical choice for customers who want dependable value, easy use, and a product that fits naturally into their routine. Check the product details, quantity, price, and availability before ordering."
     if product_type == "associate_partner":
-        line = f"{name} is an associate partner listing in {category}, reviewed for quality and customer trust."
+        line = f"{name} is an associate partner listing in {category}, presented for customers looking for a useful local product or service. Review the partner details, price, availability, and delivery terms before ordering."
     return line
 
 
@@ -8654,7 +8658,7 @@ def generate_product_description(payload: dict, current_user=Depends(get_current
                 price_line += f" Discount: {float(discount_percent):.0f}%."
     except (TypeError, ValueError):
         price_line = ""
-    search_context = search_web_context(f"METHO AAY-UPAY {name} {category}")
+    search_context = search_web_context(f"{name} {category} product uses ingredients features customer reviews India", max_results=5)
     prompt = (
         "Write a customer-facing ecommerce product description for the METHO AAY-UPAY marketplace. "
         "Output exactly two parts separated by a blank line: first an English paragraph (60-90 words), "
@@ -8662,7 +8666,7 @@ def generate_product_description(payload: dict, current_user=Depends(get_current
         "No markdown, no emojis, no headings, no bullet points. "
         "Mention practical use, who it is for, and what makes it a good daily-use choice. "
         "Do not invent price, availability, medical claims, certifications, or performance numbers beyond what is given below. "
-        "Use the public search context only as background, and never present it as a guaranteed fact.\n\n"
+        "Use the public Google search context to identify product-specific uses, features, ingredients, or buying considerations. Cross-check it against the supplied product data, avoid copying any source wording, and never present uncertain claims as facts. If search context is absent, write from the supplied name, category, unit, price, and product type without repeating a generic company slogan.\n\n"
         f"Product Name: {name}\n"
         f"Category: {category}\n"
         f"Product Type: {product_type}\n"

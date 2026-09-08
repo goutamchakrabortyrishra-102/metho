@@ -278,6 +278,24 @@ def process_due_followups(limit: int = 20) -> int:
             db.commit()
             create_suggestion_for_activity(activity.id)
             suggestion = db.query(CRMWhatsAppAISuggestion).filter(CRMWhatsAppAISuggestion.activity_id == activity.id).first()
+            if not suggestion and not resolve_ai_config(db).get("enabled"):
+                from .whatsapp_cloud import get_configured_whatsapp_reply, send_whatsapp_message
+                fallback_text = get_configured_whatsapp_reply(db, "default") or LIFECYCLE_SUGGESTIONS["crm_followup_due"]
+                try:
+                    send_whatsapp_message(db, recipient, text=fallback_text)
+                    suggestion = CRMWhatsAppAISuggestion(
+                        lead_id=lead.id,
+                        activity_id=activity.id,
+                        suggested_reply=fallback_text,
+                        provider_used="preset",
+                        model_used="configured",
+                        status="SENT",
+                        sent_reply=fallback_text,
+                    )
+                    db.add(suggestion)
+                    db.commit()
+                except Exception:
+                    db.rollback()
             if suggestion and suggestion.status == "SENT":
                 followup.status = "Sent"
                 lead.last_contact_at = now
@@ -307,5 +325,48 @@ def process_due_followups(limit: int = 20) -> int:
         db.rollback()
         logger.exception("Due WhatsApp follow-up processing failed")
         return processed
+    finally:
+        db.close()
+
+
+def process_birthday_reminders(limit: int = 50) -> int:
+    db = SessionLocal()
+    sent_count = 0
+    try:
+        today = datetime.now(timezone.utc).date()
+        year = today.year
+        users = db.query(User).filter(User.is_active.is_(True), User.phone != "").limit(max(1, min(200, int(limit)))).all()
+        for user in users:
+            row = db.query(AppSetting).filter(AppSetting.key == f"user_profile:{user.id}").first()
+            try:
+                profile = json.loads(row.value_json or "{}") if row else {}
+            except json.JSONDecodeError:
+                profile = {}
+            dob = str((profile if isinstance(profile, dict) else {}).get("dob") or "").strip()
+            if not dob:
+                continue
+            try:
+                birth_date = datetime.fromisoformat(dob[:10]).date()
+            except ValueError:
+                continue
+            if (birth_date.month, birth_date.day) != (today.month, today.day):
+                continue
+            lead = db.query(CRMLead).filter((CRMLead.phone == user.phone) | (CRMLead.whatsapp_no == user.phone)).first()
+            if not lead or lead.source not in {"whatsapp", "facebook"}:
+                continue
+            marker = f"birthday_message_sent:{year}"
+            if db.query(CRMLeadActivity).filter(CRMLeadActivity.lead_id == lead.id, CRMLeadActivity.activity_type == marker).first():
+                continue
+            try:
+                from .whatsapp_cloud import send_whatsapp_message
+                message = f"শুভ জন্মদিন, {user.name}! METHO পরিবারের পক্ষ থেকে আপনার জন্য আন্তরিক শুভেচ্ছা। আপনার পছন্দের product, business বা registration নিয়ে কোনো সাহায্য লাগলে এই WhatsApp-এ লিখুন।"
+                send_whatsapp_message(db, lead.whatsapp_no or lead.phone, text=message)
+                db.add(CRMLeadActivity(lead_id=lead.id, activity_type=marker, message=message))
+                db.commit()
+                sent_count += 1
+            except Exception:
+                db.rollback()
+                logger.exception("Birthday WhatsApp reminder failed: user_id=%s", user.id)
+        return sent_count
     finally:
         db.close()

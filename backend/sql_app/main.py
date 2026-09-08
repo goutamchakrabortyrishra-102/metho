@@ -487,11 +487,12 @@ def startup_db_init():
 
 
 def _whatsapp_followup_worker():
-    from .whatsapp_ai import process_due_followups
+    from .whatsapp_ai import process_birthday_reminders, process_due_followups
 
     while True:
         try:
             process_due_followups()
+            process_birthday_reminders()
         except Exception:
             logger.exception("WhatsApp follow-up worker failed")
         sleep(max(60, _int_env("WHATSAPP_FOLLOWUP_INTERVAL_SECONDS", 300)))
