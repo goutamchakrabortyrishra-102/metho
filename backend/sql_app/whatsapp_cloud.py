@@ -1458,7 +1458,7 @@ def ingest_whatsapp_message(db, payload: dict, request=None) -> str:
             native_member_handled = _request_whatsapp_human_handoff(db, lead, registration_session, normalized["phone"])
         elif lead.member_user_id or lead.partner_request_id or lead.rider_user_id:
             native_member_handled = _route_existing_identity(db, lead, normalized["phone"], incoming_text)
-        elif registration_session and registration_session.state in {WHATSAPP_INTRODUCTION, WHATSAPP_ROLE_SELECTION} and not (is_ai_freeform_query and not role_hint):
+        elif registration_session and registration_session.state in {WHATSAPP_INTRODUCTION, WHATSAPP_ROLE_SELECTION}:
             native_member_handled = _continue_introduction(db, registration_session, lead, incoming_text, normalized["phone"])
         elif registration_session and registration_session.role == "member" and registration_session.state in {WHATSAPP_MEMBER_REGISTERED, WHATSAPP_MEMBER_ACTIVATION_PENDING, WHATSAPP_MEMBER_ACTIVE, WHATSAPP_MEMBER_ONBOARDING}:
             native_member_handled = _route_registered_member(db, registration_session, lead, normalized["phone"], incoming_text)
@@ -1486,7 +1486,6 @@ def ingest_whatsapp_message(db, payload: dict, request=None) -> str:
             statuses.append(status)
             continue
 
-        ai_handles_freeform = False
         if reply_text:
             auto_reply = _registration_reply(db, reply_text, lead.id, normalized["phone"])
         elif role_hint:
@@ -1495,17 +1494,14 @@ def ingest_whatsapp_message(db, payload: dict, request=None) -> str:
             else:
                 configured_reply = get_configured_whatsapp_reply(db, role_hint)
                 auto_reply = _registration_reply(db, configured_reply, lead.id, normalized["phone"])
+        elif any(keyword in incoming_text.lower() for keyword in BROAD_EARNING_KEYWORDS):
+            auto_reply = get_configured_whatsapp_reply(db, "default", DEFAULT_AUTO_REPLY)
         else:
-            try:
-                from .whatsapp_ai import should_ai_handle_freeform_reply
-                ai_handles_freeform = should_ai_handle_freeform_reply(db)
-            except Exception:
-                ai_handles_freeform = False
-            auto_reply = "" if ai_handles_freeform else _localized_default_reply(db, language)
+            auto_reply = get_configured_whatsapp_reply(db, "default", DEFAULT_AUTO_REPLY)
         logger.info(
             "WhatsApp AI routing decision: message_id=%s ai_handles_freeform=%s",
             message_id,
-            ai_handles_freeform,
+            False,
         )
         db.add(CRMLeadActivity(lead_id=lead.id, activity_type="whatsapp_message_received", message=f"{activity_prefix}: {body}"))
         already_dispatched = db.query(CRMLeadActivity).filter(
@@ -1516,11 +1512,7 @@ def ingest_whatsapp_message(db, payload: dict, request=None) -> str:
         if already_dispatched:
             statuses.append(status)
             continue
-        if ai_handles_freeform and not auto_reply and not reply_text and not role_hint:
-            logger.info("WhatsApp final reply path: AI message_id=%s", message_id)
-            statuses.append(status)
-            continue
-        allow_preset_dispatch = not (is_ai_freeform_query and not role_hint and ai_handles_freeform)
+        allow_preset_dispatch = True
         reply_mode = get_registration_welcome_mode(db) if reply_text else get_configured_whatsapp_reply_mode(db, role_hint)
         if auto_reply or reply_text:
             logger.info("WhatsApp final reply path: %s message_id=%s", "configured fallback" if is_ai_freeform_query and not role_hint else "static default", message_id)

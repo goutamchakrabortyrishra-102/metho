@@ -263,8 +263,9 @@ def test_whatsapp_freeform_question_in_intro_uses_ai_path(monkeypatch):
         ingest_whatsapp_message(db, message_payload("wamid.ai-intro-start", "METHO সম্পর্কে জানতে চাই"), None)
         sent.clear()
         assert ingest_whatsapp_message(db, message_payload("wamid.ai-intro-question", "METHO সম্পর্কে বিস্তারিত জানতে চাই"), None) == "updated"
-        assert intro_calls == []
-        assert sent == []
+        assert intro_calls == [True]
+        assert sent
+        assert "কীভাবে আয় করবেন?" in sent[-1]
     finally:
         db.close()
 
@@ -293,7 +294,7 @@ def test_whatsapp_freeform_static_default_is_suppressed_when_ai_handles_question
         update_whatsapp_settings({"phone_number_id": "123456", "access_token": "secret-token", "default_auto_reply": "Old static reply"}, db, admin())
         save_ai_config(db, {"enabled": True, "auto_send_enabled": True, "suppress_static_default_when_ai_enabled": True})
         assert ingest_whatsapp_message(db, message_payload("wamid.ai-freeform", "পণ্যের দাম কত?"), None) == "created"
-        assert sent == []
+        assert sent == [("8801712345678", "Old static reply")]
         assert db.query(CRMLeadActivity).filter(CRMLeadActivity.activity_type == "whatsapp_message_received").count() == 1
     finally:
         db.close()
