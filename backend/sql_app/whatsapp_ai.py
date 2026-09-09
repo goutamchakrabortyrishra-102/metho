@@ -9,7 +9,7 @@ from sqlalchemy.exc import IntegrityError
 
 from .database import SessionLocal
 from .google_search import search_web_context
-from .models import AppSetting, CRMFollowUp, CRMLead, CRMLeadActivity, CRMTask, CRMWhatsAppAISuggestion, Product, User, WhatsAppMessageOutbox
+from .models import AppSetting, CRMFollowUp, CRMLead, CRMLeadActivity, CRMTask, CRMWhatsAppAISuggestion, PartnerRequest, Product, PublicOrder, User, WhatsAppMessageOutbox, WhatsAppRegistrationSession
 
 logger = logging.getLogger(__name__)
 SETTING_KEY = "crm_whatsapp_ai"
@@ -485,6 +485,11 @@ def process_due_followups(limit: int = 20) -> int:
             if not lead or not recipient:
                 followup.status = "Skipped"
                 continue
+            lifecycle_state = _whatsapp_followup_state(db, lead, followup)
+            if lifecycle_state == "completed":
+                followup.status = "Completed"
+                _complete_followup_task_rows(db, lead, followup.notes)
+                continue
             followup.status = "Processing"
             is_pre_registration = not lead.member_user_id and any(marker in str(followup.notes or "") for marker in ("Initial Meta", "Initial WhatsApp", "Follow-up for WhatsApp", "linked Meta/Facebook"))
             activity = CRMLeadActivity(
@@ -520,7 +525,7 @@ def process_due_followups(limit: int = 20) -> int:
                 lead.last_contact_at = now
                 from .models import PublicOrder
                 paid_orders = db.query(PublicOrder).filter(PublicOrder.status == "paid", PublicOrder.customer_user_id == lead.member_user_id).count() if lead.member_user_id else 0
-                registration_reminder = "activation/payment" in str(followup.notes or "").lower() or "first purchase" in str(followup.notes or "").lower()
+                registration_reminder = "activation/payment" in str(followup.notes or "").lower() or "first purchase" in str(followup.notes or "").lower() or "member activation" in str(followup.notes or "").lower()
                 reorder_reminder = "next product purchase" in str(followup.notes or "").lower()
                 if registration_reminder and lead.member_user_id and paid_orders == 0:
                     followup.status = "Pending"
@@ -555,6 +560,40 @@ def process_due_followups(limit: int = 20) -> int:
         return processed
     finally:
         db.close()
+
+
+def _complete_followup_task_rows(db, lead: CRMLead, notes: str) -> None:
+    for task in db.query(CRMTask).filter(CRMTask.lead_id == lead.id, CRMTask.status.in_(["Pending", "In Progress"])).all():
+        if str(notes or "").lower() in str(task.title or "").lower() or str(task.title or "").lower() in str(notes or "").lower():
+            task.status = "Completed"
+
+
+def _whatsapp_followup_state(db, lead: CRMLead, followup: CRMFollowUp) -> str:
+    notes = str(followup.notes or "").lower()
+    session = db.query(WhatsAppRegistrationSession).filter(WhatsAppRegistrationSession.lead_id == lead.id).first()
+    if "member activation" in notes or "activation/payment" in notes or "first purchase" in notes:
+        user = db.query(User).filter(User.id == lead.member_user_id, User.role == "member").first() if lead.member_user_id else None
+        if user and user.is_active:
+            try:
+                from .routers.compat import _member_purchase_active
+                return "pending" if not _member_purchase_active(db, user.id) else "completed"
+            except Exception:
+                return "pending"
+        return "pending"
+    if "partner approval" in notes:
+        request = db.query(PartnerRequest).filter(PartnerRequest.id == lead.partner_request_id).first() if lead.partner_request_id else None
+        return "completed" if request and str(request.status or "").lower() in {"approved", "rejected"} else "pending"
+    if "rider approval" in notes:
+        rider = db.query(User).filter(User.id == lead.rider_user_id, User.role == "rider").first() if lead.rider_user_id else None
+        profile = db.query(AppSetting).filter(AppSetting.key == f"rider_profile:{rider.id}").first() if rider else None
+        try:
+            status = str((json.loads(profile.value_json or "{}") if profile else {}).get("approval_status") or "pending").lower()
+        except (TypeError, ValueError):
+            status = "pending"
+        return "completed" if status in {"approved", "rejected"} else "pending"
+    if session and session.state in {"MEMBER_NAME", "MEMBER_ADDRESS", "MEMBER_PAN", "MEMBER_DOB", "PARTNER_BUSINESS_TYPE", "RIDER_NAME"}:
+        return "pending"
+    return "pending"
 
 
 def process_birthday_reminders(limit: int = 50) -> int:

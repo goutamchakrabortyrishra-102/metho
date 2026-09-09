@@ -374,6 +374,15 @@ def _initialize_database_with_retry(max_attempts: int = 8, delay_seconds: int = 
     for attempt in range(1, max_attempts + 1):
         try:
             Base.metadata.create_all(bind=engine)
+            with engine.begin() as connection:
+                try:
+                    connection.exec_driver_sql("ALTER TABLE whatsapp_registration_sessions ADD COLUMN data_json TEXT NOT NULL DEFAULT '{}'")
+                except Exception:
+                    pass
+                try:
+                    connection.exec_driver_sql("ALTER TABLE crm_leads ADD COLUMN rider_user_id VARCHAR(36)")
+                except Exception:
+                    pass
             logger.info("SQL starter DB initialization complete")
             return True
         except Exception as exc:
