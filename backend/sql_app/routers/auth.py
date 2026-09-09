@@ -5,10 +5,12 @@ from datetime import datetime, timedelta, timezone
 import logging
 import smtplib
 import uuid
+import re
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 
 from fastapi import APIRouter, Depends, Header, HTTPException, Request
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 from reportlab.lib.pagesizes import A4
 from reportlab.pdfgen import canvas
@@ -38,6 +40,37 @@ MEMBER_ID_PREFIX = "MAU"
 METHO_SUPPORT_WHATSAPP = "+91 9163530078"
 DEFAULT_ADMIN_SPONSOR_ID = os.getenv("DEFAULT_ADMIN_SPONSOR_ID", "MAU00001").strip().upper()
 ADMIN_ROLES = {"super_admin", "company_admin", "admin"}
+
+
+def _normalize_member_phone(value: str) -> str:
+    return re.sub(r"\D", "", str(value or ""))
+
+
+def _normalize_member_pan(value: str) -> str:
+    return re.sub(r"\s+", "", str(value or "")).upper()
+
+
+def _member_identity_setting_key(kind: str, value: str) -> str:
+    return f"member_registration_identity:{kind}:{value}"
+
+
+def _member_phone_exists(db: Session, phone: str) -> bool:
+    if not phone:
+        return False
+    candidates = {phone}
+    if len(phone) >= 10:
+        candidates.add(phone[-10:])
+    for user in db.query(User).filter(User.role == "member", User.phone != "").all():
+        existing = _normalize_member_phone(user.phone)
+        if existing in candidates or (len(existing) >= 10 and existing[-10:] in candidates):
+            return True
+    return db.query(AppSetting).filter(AppSetting.key == _member_identity_setting_key("phone", phone)).first() is not None
+
+
+def _member_pan_exists(db: Session, pan_no: str) -> bool:
+    if not pan_no:
+        return False
+    return db.query(AppSetting).filter(AppSetting.key == _member_identity_setting_key("pan", pan_no)).first() is not None
 ADMIN_LOGIN_ID = str(os.getenv("ADMIN_LOGIN_ID", "admin@metho.com") or "admin@metho.com").strip()
 
 
@@ -297,8 +330,18 @@ def register(payload: RegisterRequest, request: Request, db: Session = Depends(g
         request, db = None, request
     correlation_id = str(getattr(request, "headers", {}).get("X-Request-ID") or uuid.uuid4().hex[:16])
     requested_member_id = str(payload.email or "").strip().upper()
+    normalized_phone = _normalize_member_phone(payload.phone)
+    normalized_pan = _normalize_member_pan(payload.pan_no)
     if len(str(payload.password or "")) < 6:
         raise HTTPException(status_code=400, detail="Password must be at least 6 characters")
+    if len(normalized_phone) < 10 or len(normalized_phone) > 15:
+        raise HTTPException(status_code=400, detail="Phone number is required and must be 10 to 15 digits")
+    if not re.fullmatch(r"[A-Z]{5}[0-9]{4}[A-Z]", normalized_pan):
+        raise HTTPException(status_code=400, detail="PAN number is required and must be in format ABCDE1234F")
+    if _member_phone_exists(db, normalized_phone):
+        raise HTTPException(status_code=400, detail="Phone number already registered")
+    if _member_pan_exists(db, normalized_pan):
+        raise HTTPException(status_code=400, detail="PAN number already registered")
 
     member_id = requested_member_id if _is_member_id(requested_member_id) else _next_member_id(db)
     if db.query(User).filter(User.id == member_id).first() or db.query(User).filter(User.email == member_id).first():
@@ -319,14 +362,33 @@ def register(payload: RegisterRequest, request: Request, db: Session = Depends(g
         id=member_id,
         name=payload.name,
         email=member_id,
-        phone=payload.phone,
+        phone=normalized_phone,
         password=hash_password(payload.password),
         role="member",
         is_active=False,
     )
     try:
         db.add(user)
+        db.add(AppSetting(
+            key=_member_identity_setting_key("phone", normalized_phone),
+            value_json=json.dumps({"user_id": member_id, "registered_at": datetime.now(timezone.utc).isoformat()}),
+            updated_at=datetime.now(timezone.utc),
+        ))
+        db.add(AppSetting(
+            key=_member_identity_setting_key("pan", normalized_pan),
+            value_json=json.dumps({"user_id": member_id, "registered_at": datetime.now(timezone.utc).isoformat()}),
+            updated_at=datetime.now(timezone.utc),
+        ))
         db.commit()
+    except IntegrityError as exc:
+        db.rollback()
+        message = str(exc).lower()
+        if f"member_registration_identity:phone:{normalized_phone}".lower() in message:
+            raise HTTPException(status_code=400, detail="Phone number already registered") from exc
+        if f"member_registration_identity:pan:{normalized_pan}".lower() in message:
+            raise HTTPException(status_code=400, detail="PAN number already registered") from exc
+        logger.exception("Member registration duplicate guard failed: correlation_id=%s member_id=%s", correlation_id, member_id)
+        raise HTTPException(status_code=503, detail=f"Registration could not be completed. Reference: {correlation_id}") from exc
     except Exception as exc:
         db.rollback()
         logger.exception("Member registration failed before CRM linking: correlation_id=%s member_id=%s", correlation_id, member_id)

@@ -38,7 +38,7 @@ def test_registration_defaults_to_admin_sponsor(monkeypatch):
         monkeypatch.setattr("sql_app.routers.auth.hash_password", lambda value: "hashed")
         monkeypatch.setattr("sql_app.routers.auth.build_welcome_pdf", lambda user: "")
         monkeypatch.setattr("sql_app.routers.auth.send_welcome_email", lambda *args: False)
-        result = register(RegisterRequest(name="New", email="MAU12345", phone="9999999999", password="secret1"), db)
+        result = register(RegisterRequest(name="New", email="MAU12345", phone="9999999999", pan_no="ABCDE1234F", password="secret1"), db)
         created = db.query(User).filter(User.id == "MAU12345").one()
         relation = db.query(UserReferral).filter(UserReferral.user_id == created.id).one()
         assert result["user"]["sponsor_code"] == "MAU00001"
@@ -56,7 +56,7 @@ def test_registration_accepts_valid_custom_sponsor_code(monkeypatch):
         monkeypatch.setattr("sql_app.routers.auth.hash_password", lambda value: "hashed")
         monkeypatch.setattr("sql_app.routers.auth.build_welcome_pdf", lambda user: "")
         monkeypatch.setattr("sql_app.routers.auth.send_welcome_email", lambda *args: False)
-        result = register(RegisterRequest(name="Custom Sponsor", email="MAU12346", phone="9999999998", password="secret1", sponsor_code="MAU10001"), db)
+        result = register(RegisterRequest(name="Custom Sponsor", email="MAU12346", phone="9999999998", pan_no="BCDEF1234G", password="secret1", sponsor_code="MAU10001"), db)
         relation = db.query(UserReferral).filter(UserReferral.user_id == "MAU12346").one()
         assert result["user"]["sponsor_code"] == sponsor.id
         assert relation.sponsor_user_id == sponsor.id
@@ -71,8 +71,52 @@ def test_registration_rejects_unknown_sponsor_code_before_creating_member():
         add_user(db, "MAU00001", "super_admin")
         db.commit()
         with pytest.raises(Exception, match="Sponsor code not found"):
-            register(RegisterRequest(name="Invalid Sponsor", email="MAU12347", phone="9999999997", password="secret1", sponsor_code="MAU99999"), db)
+            register(RegisterRequest(name="Invalid Sponsor", email="MAU12347", phone="9999999997", pan_no="CDEFG1234H", password="secret1", sponsor_code="MAU99999"), db)
         assert db.query(User).filter(User.id == "MAU12347").count() == 0
+    finally:
+        db.close()
+
+
+def test_member_registration_rejects_duplicate_phone(monkeypatch):
+    db = make_session()
+    try:
+        add_user(db, "MAU00001", "super_admin")
+        db.commit()
+        monkeypatch.setattr("sql_app.routers.auth.hash_password", lambda value: "hashed")
+        monkeypatch.setattr("sql_app.routers.auth.build_welcome_pdf", lambda user: "")
+        monkeypatch.setattr("sql_app.routers.auth.send_welcome_email", lambda *args: False)
+        register(RegisterRequest(name="First", email="MAU22345", phone="9999999999", pan_no="DEFGH1234I", password="secret1"), db)
+        with pytest.raises(Exception, match="Phone number already registered"):
+            register(RegisterRequest(name="Second", email="MAU22346", phone="+91 99999 99999", pan_no="EFGHI1234J", password="secret1"), db)
+        assert db.query(User).filter(User.id == "MAU22346").count() == 0
+    finally:
+        db.close()
+
+
+def test_member_registration_rejects_duplicate_pan(monkeypatch):
+    db = make_session()
+    try:
+        add_user(db, "MAU00001", "super_admin")
+        db.commit()
+        monkeypatch.setattr("sql_app.routers.auth.hash_password", lambda value: "hashed")
+        monkeypatch.setattr("sql_app.routers.auth.build_welcome_pdf", lambda user: "")
+        monkeypatch.setattr("sql_app.routers.auth.send_welcome_email", lambda *args: False)
+        register(RegisterRequest(name="First", email="MAU32345", phone="9888888888", pan_no="FGHIJ1234K", password="secret1"), db)
+        with pytest.raises(Exception, match="PAN number already registered"):
+            register(RegisterRequest(name="Second", email="MAU32346", phone="9777777777", pan_no="fghij1234k", password="secret1"), db)
+        assert db.query(User).filter(User.id == "MAU32346").count() == 0
+    finally:
+        db.close()
+
+
+def test_member_registration_requires_valid_pan_before_creating_member():
+    db = make_session()
+    try:
+        add_user(db, "MAU00001", "super_admin")
+        db.commit()
+        with pytest.raises(Exception, match="PAN number is required"):
+            register(RegisterRequest(name="Invalid PAN", email="MAU32347", phone="9666666666", pan_no="", password="secret1"), db)
+        assert db.query(User).filter(User.id == "MAU32347").count() == 0
     finally:
         db.close()
 

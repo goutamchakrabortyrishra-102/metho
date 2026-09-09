@@ -5,6 +5,7 @@ class RegisterRequest(BaseModel):
     name: str
     email: str
     phone: str
+    pan_no: str = ""
     password: str
     sponsor_code: str | None = None
 

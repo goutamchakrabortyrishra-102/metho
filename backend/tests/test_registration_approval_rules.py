@@ -33,7 +33,7 @@ def test_member_registration_stays_inactive_and_login_is_denied(monkeypatch):
     try:
         db.add(User(id="MAU00001", name="METHO Admin", email="admin@test.local", phone="9000000000", password="hashed", role="super_admin", is_active=True))
         db.commit()
-        result = register(RegisterRequest(name="Member", email="MAU12345", phone="9999999999", password="secret1"), db)
+        result = register(RegisterRequest(name="Member", email="MAU12345", phone="9999999999", pan_no="ABCDE1234F", password="secret1"), db)
         member = db.query(User).filter(User.id == result["user"]["id"]).one()
         assert member.is_active is False
         with pytest.raises(Exception, match="pending payment verification"):
