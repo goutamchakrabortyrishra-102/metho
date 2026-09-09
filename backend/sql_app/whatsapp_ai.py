@@ -328,7 +328,9 @@ def _generate_reply(config: dict, message: str, context: str = "", event_type: s
             gemini_error = None
             for model_name in _gemini_candidate_models(str(config.get("model") or "")):
                 try:
+                    logger.info("WhatsApp AI Gemini generation start: model=%s message_length=%s", model_name, len(message))
                     text = _gemini_generate_content(gemini_key, model_name, prompt)
+                    logger.info("WhatsApp AI Gemini generation complete: model=%s usable_output=%s", model_name, bool(text and text.strip()))
                     if text:
                         return text[:1500], "gemini", model_name
                 except Exception as exc:
