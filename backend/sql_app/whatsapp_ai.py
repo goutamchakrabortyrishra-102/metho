@@ -10,6 +10,7 @@ from sqlalchemy.exc import IntegrityError
 from .database import SessionLocal
 from .google_search import search_web_context
 from .models import AppSetting, CRMFollowUp, CRMLead, CRMLeadActivity, CRMTask, CRMWhatsAppAISuggestion, PartnerRequest, Product, PublicOrder, User, WhatsAppMessageOutbox, WhatsAppRegistrationSession
+from .whatsapp_cloud import WHATSAPP_PRESET_MESSAGE_DEFAULTS, get_whatsapp_preset_message
 
 logger = logging.getLogger(__name__)
 SETTING_KEY = "crm_whatsapp_ai"
@@ -39,15 +40,17 @@ GEMINI_MODEL_ALIASES = {
 }
 SENSITIVE_PATTERNS = (r"\b\d{4}[-\s]?\d{4}[-\s]?\d{4}\b", r"\b[A-Z]{5}[0-9]{4}[A-Z]\b", r"\b\d{6}\b")
 SEARCH_TERMS = ("price", "cost", "benefit", "use", "detail", "product", "business", "join", "registration", "দাম", "কত", "উপকারিতা", "ব্যবহার", "বিস্তারিত", "পণ্য", "ব্যবসা", "যোগ", "রেজিস্ট্রেশন")
-PRE_REGISTRATION_FOLLOWUP = "হ্যালো! আপনি METHO সম্পর্কে তথ্য পেয়েছিলেন। Registration করতে কোনো সাহায্য লাগছে কি? চাইলে এই WhatsApp-এ reply করুন। আমরা Member, Partner বা Rider হিসেবে যুক্ত হওয়ার ধাপ বুঝিয়ে দেব।"
+PRE_REGISTRATION_FOLLOWUP = WHATSAPP_PRESET_MESSAGE_DEFAULTS["preset_pre_registration_followup"]
 LIFECYCLE_SUGGESTIONS = {
-    "registration_form_opened": "আপনি registration form খুলেছেন। Form পূরণ করতে কোনো সাহায্য লাগলে এখানেই লিখুন।",
-    "registration_form_submitted": "আপনার registration form জমা হয়েছে। পরবর্তী ধাপ সম্পন্ন করতে কোনো সাহায্য লাগলে এখানে reply করুন।",    "registration_form_followup_started": "আপনার Registration Form জমা হয়েছে। Account activation বা approval status নিয়ে কোনো প্রশ্ন থাকলে এখানে reply করুন, আমরা সাহায্য করব।",    "member_registration_completed": "আপনার Member registration সম্পন্ন হয়েছে। Account activation ও প্রথম purchase-এর পরবর্তী ধাপে সহায়তা লাগলে এখানে reply করুন।",
-    "member_activated": "আপনার Member account active হয়েছে। Smart Cycle, reward rules এবং product purchase নিয়ে সাহায্য লাগলে এখানে reply করুন।",
-    "partner_registration_submitted": "আপনার Partner registration জমা হয়েছে। KYC ও approval-এর পরবর্তী ধাপে সহায়তা লাগলে এখানে reply করুন।",
-    "partner_activated": "আপনার Partner account approved হয়েছে। Shop/service onboarding ও প্রথম listing-এর সাহায্য লাগলে এখানে reply করুন।",
-    "metho_move_booking_created": "আপনার METHO Move booking request পাওয়া গেছে। Payment বা rider assignment বিষয়ে সাহায্য লাগলে এখানে reply করুন।",
-    "crm_followup_due": "আপনার আগের METHO আপডেটের পরবর্তী ধাপ সম্পন্ন হয়েছে কি? কোনো সাহায্য লাগলে এই WhatsApp-এ reply করুন।",
+    "registration_form_opened": WHATSAPP_PRESET_MESSAGE_DEFAULTS["preset_lifecycle_registration_form_opened"],
+    "registration_form_submitted": WHATSAPP_PRESET_MESSAGE_DEFAULTS["preset_lifecycle_registration_form_submitted"],
+    "registration_form_followup_started": WHATSAPP_PRESET_MESSAGE_DEFAULTS["preset_lifecycle_registration_form_followup_started"],
+    "member_registration_completed": WHATSAPP_PRESET_MESSAGE_DEFAULTS["preset_lifecycle_member_registration_completed"],
+    "member_activated": WHATSAPP_PRESET_MESSAGE_DEFAULTS["preset_lifecycle_member_activated"],
+    "partner_registration_submitted": WHATSAPP_PRESET_MESSAGE_DEFAULTS["preset_lifecycle_partner_registration_submitted"],
+    "partner_activated": WHATSAPP_PRESET_MESSAGE_DEFAULTS["preset_lifecycle_partner_activated"],
+    "metho_move_booking_created": WHATSAPP_PRESET_MESSAGE_DEFAULTS["preset_lifecycle_metho_move_booking_created"],
+    "crm_followup_due": WHATSAPP_PRESET_MESSAGE_DEFAULTS["preset_crm_followup_due"],
     "pre_registration_followup": PRE_REGISTRATION_FOLLOWUP,
 }
 
@@ -318,7 +321,7 @@ def _gemini_generate_content(api_key: str, model_name: str, prompt: str) -> str:
     return str(payload["candidates"][0]["content"]["parts"][0]["text"] or "").strip()
 
 
-def _generate_reply(config: dict, message: str, context: str = "", event_type: str = "") -> tuple[str, str, str]:
+def _generate_reply(config: dict, message: str, context: str = "", event_type: str = "", db=None) -> tuple[str, str, str]:
     search_context = search_web_context(f"METHO AAY-UPAY {message}") if any(term in message.lower() for term in SEARCH_TERMS) else ""
     prompt = f"{config['system_prompt']}\n\nYou are a helpful METHO customer-care teammate, not a generic chatbot. Reply like a real person: acknowledge the customer's exact question, answer directly, and give one practical next step. Detect the language of the customer's latest message and reply in that language; preserve familiar product names and links. Use the CRM context and previous conversation so you do not repeat questions or contradict earlier replies. Explain products, prices, delivery, business opportunities, and how to join only from verified context. If a fact is missing or sensitive, say that a human METHO team member will verify it and create a follow-up instead of guessing. Never claim an account is activated, a reward is paid, a purchase is completed, stock is available, or an approval is complete unless the context says so. Never include an executive/support phone number unless it is present in the verified CRM/config context. For reminders, be warm and specific, never spammy, and keep the reply under 900 characters.\n\nTrigger event: {event_type or 'incoming_whatsapp_message'}\n\nCRM and conversation context:\n{context or 'No CRM context available.'}\n\nKnowledge base:\n{config['knowledge_base']}\n\nOptional public search context (use only as background; do not copy source wording or invent facts):\n{search_context or 'No search context available.'}\n\nCustomer message/event:\n{message}"
     gemini_key = (os.getenv("GEMINI_API_KEY", "") or os.getenv("GOOGLE_API_KEY", "")).strip()
@@ -342,7 +345,9 @@ def _generate_reply(config: dict, message: str, context: str = "", event_type: s
             logger.warning("WhatsApp AI Gemini reply failed; using local fallback: %s", exc)
     else:
         logger.error("WhatsApp AI Gemini provider selected but GEMINI_API_KEY/GOOGLE_API_KEY is not configured")
-    return LIFECYCLE_SUGGESTIONS.get(event_type, "ধন্যবাদ আপনার বার্তার জন্য। মেঠো প্রতিনিধি শীঘ্রই আপনার সাথে যোগাযোগ করবেন।"), "fallback", "local"
+    if event_type in LIFECYCLE_SUGGESTIONS:
+        return get_whatsapp_preset_message(db, f"preset_lifecycle_{event_type}", LIFECYCLE_SUGGESTIONS[event_type]), "fallback", "local"
+    return get_whatsapp_preset_message(db, "preset_ai_local_fallback", WHATSAPP_PRESET_MESSAGE_DEFAULTS["preset_ai_local_fallback"]), "fallback", "local"
 
 
 def create_suggestion_for_activity(activity_id: str) -> None:
@@ -372,7 +377,7 @@ def create_suggestion_for_activity(activity_id: str) -> None:
         incoming = activity.message.split("]: ", 1)[-1]
         clean_text, handoff, reason = _guardrail(incoming, config["handoff_keywords"])
         context = f"{_crm_context(db, lead)}\nPrevious WhatsApp conversation:\n{_conversation_context(db, lead)}\nAvailable METHO catalog:\n{_catalog_context(db)}"
-        reply, provider, model = _generate_reply(config, clean_text, context, activity.activity_type)
+        reply, provider, model = _generate_reply(config, clean_text, context, activity.activity_type, db)
         logger.info("WhatsApp AI reply generated: activity_id=%s lead_id=%s provider=%s model=%s handoff=%s", activity.id, lead.id, provider, model, handoff)
         db.query(CRMWhatsAppAISuggestion).filter(
             CRMWhatsAppAISuggestion.lead_id == lead.id,
@@ -503,7 +508,7 @@ def process_due_followups(limit: int = 20) -> int:
             db.add(activity)
             db.flush()
             from .whatsapp_cloud import get_configured_whatsapp_reply, send_whatsapp_message
-            fallback_text = PRE_REGISTRATION_FOLLOWUP if is_pre_registration else (get_configured_whatsapp_reply(db, "default") or LIFECYCLE_SUGGESTIONS["crm_followup_due"])
+            fallback_text = get_whatsapp_preset_message(db, "preset_pre_registration_followup", PRE_REGISTRATION_FOLLOWUP) if is_pre_registration else (get_configured_whatsapp_reply(db, "default") or get_whatsapp_preset_message(db, "preset_crm_followup_due", LIFECYCLE_SUGGESTIONS["crm_followup_due"]))
             suggestion = None
             try:
                 send_whatsapp_message(db, recipient, text=fallback_text)

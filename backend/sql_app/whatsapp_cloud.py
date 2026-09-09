@@ -141,6 +141,97 @@ WHATSAPP_MEMBER_ACTIVE_STATES = {WHATSAPP_MEMBER_NAME, WHATSAPP_MEMBER_ADDRESS, 
 WHATSAPP_RESET_COMMANDS = {"cancel", "reset", "বাতিল"}
 WHATSAPP_HANDOFF_COMMANDS = {"agent", "support", "মানুষের সাথে কথা বলতে চাই"}
 WHATSAPP_RESUME_COMMANDS = {"hi", "hello", "হাই", "হ্যালো", "নমস্কার", "start"}
+WHATSAPP_PRESET_MESSAGE_DEFAULTS = {
+    "preset_registration_intro": "নমস্কার! METHO AAY-UPAY-এ স্বাগতম।\nMETHO-তে Customer, Member, Business Partner অথবা Rider হিসেবে যুক্ত হতে পারেন।\nআপনি জানতে চান:\n1. Member\n2. Partner\n3. Rider\n4. METHO সম্পর্কে আরও জানতে চাই",
+    "preset_metho_info": "METHO AAY-UPAY একটি ডিজিটাল platform যেখানে Customer, Member, Partner ও Rider হিসেবে যুক্ত হওয়ার পথ আছে।\n\n{introduction}",
+    "preset_member_role_explanation": "Member হিসেবে METHO-র পণ্য ও সদস্য সুবিধা ব্যবহার করতে পারবেন। রেজিস্ট্রেশন করতে চাইলে 1 লিখুন।",
+    "preset_partner_role_explanation": "Partner হিসেবে Shop বা Service business application জমা দিতে পারবেন। রেজিস্ট্রেশন করতে চাইলে 1 লিখুন।",
+    "preset_rider_role_explanation": "Rider হিসেবে delivery কাজের জন্য application জমা দিতে পারবেন। রেজিস্ট্রেশন করতে চাইলে 1 লিখুন।",
+    "preset_role_selection_fallback": "METHO AAY-UPAY সম্পর্কে আরও জানতে পারেন। যুক্ত হওয়ার জন্য একটি option বেছে নিন:\n1. Member\n2. Partner\n3. Rider",
+    "preset_support_fallback": "আপনার প্রশ্নটি আমাদের support team দেখবে। METHO WhatsApp executive: {support_number}",
+    "preset_handoff_requested": "আপনার অনুরোধটি আমাদের support team-কে পাঠানো হয়েছে। একজন representative শীঘ্রই যোগাযোগ করবেন।",
+    "preset_icebreaker_metho_info": "METHO AAY-UPAY is a smart e-commerce platform by Metho Logistics Pvt. Ltd. Browse quality daily essentials, kitchenware, & direct farm produce easily!\n\nমেঠো আয়-উপায় হলো মেঠো লজিস্টিকস প্রাইভেট লিমিটেডের একটি ডিজিটাল প্ল্যাটফর্ম। এখান থেকে সহজেই দৈনন্দিন প্রয়োজনীয় সামগ্রী, কিচেন অ্যাপ্লায়েন্স ও সেরা দেশি পণ্য অর্ডার করতে পারবেন।",
+    "preset_icebreaker_shop_partner": "Looking to shop or grow your business with us? Visit our portal to place orders or register as an authorized partner/vendor.\n\nপণ্য কিনতে চান নাকি আমাদের সাথে বিজনেসে যুক্ত হতে চান? অর্ডার করতে বা অথরাইজড বিজনেস পার্টনার/ভেন্ডর হিসেবে রেজিস্টার করতে আমাদের পোর্টালে ভিজিট করুন।",
+    "preset_icebreaker_customer_support": "We are here to help! For product details or business support, call or WhatsApp us at {support_number}.\n\nআমরা আপনাকে সাহায্য করতে প্রস্তুত! পণ্য অর্ডার বা বিজনেসের যেকোনো সহায়তার জন্য কল বা মেসেজ করুন: {support_number}।",
+    "preset_lifecycle_registration_form_opened": "আপনি registration form খুলেছেন। Form পূরণ করতে কোনো সাহায্য লাগলে এখানেই লিখুন।",
+    "preset_lifecycle_registration_form_submitted": "আপনার registration form জমা হয়েছে। পরবর্তী ধাপ সম্পন্ন করতে কোনো সাহায্য লাগলে এখানে reply করুন।",
+    "preset_lifecycle_registration_form_followup_started": "আপনার Registration Form জমা হয়েছে। Account activation বা approval status নিয়ে কোনো প্রশ্ন থাকলে এখানে reply করুন, আমরা সাহায্য করব।",
+    "preset_lifecycle_member_registration_completed": "আপনার Member registration সম্পন্ন হয়েছে। Account activation ও প্রথম purchase-এর পরবর্তী ধাপে সহায়তা লাগলে এখানে reply করুন।",
+    "preset_lifecycle_member_activated": "আপনার Member account active হয়েছে। Smart Cycle, reward rules এবং product purchase নিয়ে সাহায্য লাগলে এখানে reply করুন।",
+    "preset_lifecycle_partner_registration_submitted": "আপনার Partner registration জমা হয়েছে। KYC ও approval-এর পরবর্তী ধাপে সহায়তা লাগলে এখানে reply করুন।",
+    "preset_lifecycle_partner_activated": "আপনার Partner account approved হয়েছে। Shop/service onboarding ও প্রথম listing-এর সাহায্য লাগলে এখানে reply করুন।",
+    "preset_lifecycle_metho_move_booking_created": "আপনার METHO Move booking request পাওয়া গেছে। Payment বা rider assignment বিষয়ে সাহায্য লাগলে এখানে reply করুন।",
+    "preset_ai_local_fallback": "ধন্যবাদ আপনার বার্তার জন্য। মেঠো প্রতিনিধি শীঘ্রই আপনার সাথে যোগাযোগ করবেন।",
+    "preset_member_active_reply": "আপনার METHO Member ID {member_code} Active।\nপ্রথম ধাপ: METHO products, wallet ও support সম্পর্কে জানতে এখানে প্রশ্ন করুন।",
+    "preset_member_onboarding_started": "আপনার Member ID {member_code} এখন Active।\nMember onboarding শুরু হয়েছে। Products, wallet, rewards এবং support সম্পর্কে জানতে এখানে reply করুন।",
+    "preset_member_activation_pending": "আপনার Member registration সম্পন্ন হয়েছে।\nMember ID: {member_code}\n\nআপনার ID এখনও Active হয়নি। Activation সম্পন্ন করার পর আপনার ID Active হবে।\nSecure action: {activation_url}\n\nশুধু payment সম্পন্ন করলেই Active ধরে নেওয়া হবে না; backend verification-এর পর status বদলাবে।",
+    "preset_order_status_header": "আপনার সাম্প্রতিক order status:",
+    "preset_no_orders_found": "আপনার Member account-এ কোনো order পাওয়া যায়নি।",
+    "preset_partner_approved_reply": "আপনার Partner application approved হয়েছে। Repository-তে Partner profile, products/catalogue, inventory, orders, ledger এবং reports-এর APIs আছে; account action-এর জন্য secure Partner dashboard ব্যবহার করুন।",
+    "preset_partner_rejected_reply": "আপনার Partner application rejected হয়েছে। বিস্তারিত সহায়তার জন্য support লিখুন।",
+    "preset_partner_status_reply": "আপনার Partner application এখন {status} অবস্থায় আছে। Approval হলে আমরা জানাব।",
+    "preset_rider_approved_reply": "আপনার Rider application approved হয়েছে। Repository-তে Rider profile ও availability APIs আছে; কাজ শুরু করার আগে secure Rider dashboard-এ availability সেট করুন। Assigned delivery/earnings-এর আলাদা WhatsApp flow পাওয়া যায়নি।",
+    "preset_rider_status_reply": "আপনার Rider application এখন {status} অবস্থায় আছে। Approval হলে আমরা জানাব।",
+    "preset_member_registration_start": "স্বাগতম METHO AAY-UPAY-এ।\nMember registration WhatsApp-এর মাধ্যমেই শুরু করছি।\n\nআপনার নাম লিখুন।",
+    "preset_partner_registration_start": "Partner registration শুরু করছি। আপনার business type লিখুন: 1 = Shop, 2 = Service",
+    "preset_rider_registration_start": "Rider registration শুরু করছি। আপনার পূর্ণ নাম লিখুন।",
+    "preset_registration_continue": "ঠিক আছে, আগের জায়গা থেকেই continue করছি। প্রয়োজনীয় তথ্য লিখুন।",
+    "preset_registration_continue_invalid": "Continue করতে 1, আবার শুরু করতে 2, বাতিল করতে 0 লিখুন।",
+    "preset_registration_cancelled": "আপনার registration বাতিল করা হয়েছে।",
+    "preset_member_registration_cancelled": "আপনার active Member registration flow বাতিল করা হয়েছে। আবার শুরু করতে চাইলে লিখুন: আমি মেম্বার হতে চাই",
+    "preset_member_registration_incomplete": "আপনার Member registration এখনও অসম্পূর্ণ। শেষবার যেখানে থেমেছিলাম সেখান থেকে continue করতে 1, আবার শুরু করতে 2, বাতিল করতে 0 লিখুন।",
+    "preset_role_registration_incomplete": "আপনার {role} registration এখনও অসম্পূর্ণ। Continue করতে 1, আবার শুরু করতে 2, বাতিল করতে 0 লিখুন।",
+    "preset_member_name_required": "নাম খালি রাখা যাবে না। আপনার নাম লিখুন।",
+    "preset_member_address_prompt": "ধন্যবাদ।\nআপনার ঠিকানা লিখুন।",
+    "preset_member_address_required": "ঠিকানা খালি রাখা যাবে না। আপনার সম্পূর্ণ ঠিকানা লিখুন।",
+    "preset_member_pan_prompt": "ধন্যবাদ। আপনার PAN নম্বর লিখুন।",
+    "preset_member_pan_invalid": "PAN নম্বর 10 অক্ষরের হতে হবে। আবার লিখুন।",
+    "preset_member_dob_prompt": "আপনার জন্মতারিখ লিখুন (যেমন 1990-01-31)।",
+    "preset_member_dob_required": "জন্মতারিখ প্রয়োজন। আবার লিখুন।",
+    "preset_member_edit_restart": "ঠিক আছে। আবার আপনার নাম লিখুন।",
+    "preset_member_registration_success": "আপনার Member registration সফল হয়েছে।\nMember ID: {member_code}\n\nআপনার ID এখনও Active হয়নি। Activation সম্পন্ন করার পর আপনার ID Active হবে।\nSecure action: {activation_url}\n\nPayment বা purchase status backend verify না হওয়া পর্যন্ত Active ধরা হবে না।",
+    "preset_member_registration_failed": "রেজিস্ট্রেশন সম্পন্ন করা যায়নি: {detail}\nদয়া করে support লিখুন।",
+    "preset_member_confirmation": "আপনার তথ্যগুলো যাচাই করুন:\nনাম: {name}\nঠিকানা: {address}\nPAN: {pan}\nজন্মতারিখ: {dob}\n\nReply:\n1 - Confirm\n2 - Edit\n0 - Cancel",
+    "preset_partner_business_type_invalid": "শুধু 1 = Shop অথবা 2 = Service লিখুন।",
+    "preset_partner_business_name_prompt": "আপনার business/shop/service-এর নাম লিখুন।",
+    "preset_partner_contact_prompt": "Contact person-এর নাম লিখুন।",
+    "preset_partner_email_prompt": "Email বা login ID লিখুন।",
+    "preset_partner_email_required": "Email বা login ID প্রয়োজন। আবার লিখুন।",
+    "preset_partner_address_prompt": "Business address লিখুন।",
+    "preset_partner_city_prompt": "City লিখুন।",
+    "preset_partner_state_prompt": "State লিখুন।",
+    "preset_partner_pincode_prompt": "Pincode লিখুন।",
+    "preset_partner_pincode_invalid": "সঠিক 6 digit pincode লিখুন।",
+    "preset_partner_pan_prompt": "PAN নম্বর লিখুন। এটি encrypted ভাবে রাখা হবে।",
+    "preset_partner_pan_invalid": "সঠিক PAN নম্বর লিখুন।",
+    "preset_partner_aadhaar_prompt": "12 digit Aadhaar নম্বর লিখুন। এটি confirmation-এ দেখানো হবে না।",
+    "preset_partner_aadhaar_invalid": "Aadhaar অবশ্যই 12 digit হতে হবে।",
+    "preset_partner_edit_prompt": "কোন field edit করবেন? 1 Business name, 2 Contact, 3 Email, 4 Address, 5 Location, 6 PAN, 7 Aadhaar",
+    "preset_registration_edit_value_prompt": "ঠিক আছে, নতুন value লিখুন।",
+    "preset_partner_submit_failed": "Partner application জমা দেওয়া যায়নি: {detail}",
+    "preset_partner_submitted": "আপনার Partner application জমা হয়েছে। Reference ID: {request_id}\nStatus: pending approval। Approval হলে আমরা জানাব।",
+    "preset_partner_pending_status": "আপনার Partner application status: {status}.",
+    "preset_partner_pending_approved": "আপনার Partner application approved হয়েছে। Partner onboarding শুরু করা যাবে।",
+    "preset_rider_name_prompt": "Vehicle/service type লিখুন, যেমন delivery বা e-bike।",
+    "preset_rider_address_prompt": "আপনার সম্পূর্ণ address লিখুন।",
+    "preset_rider_city_prompt": "City লিখুন।",
+    "preset_rider_state_prompt": "State লিখুন।",
+    "preset_rider_pincode_prompt": "Pincode লিখুন।",
+    "preset_rider_pincode_invalid": "সঠিক 6 digit pincode লিখুন।",
+    "preset_rider_pan_prompt": "PAN নম্বর লিখুন। এটি encrypted ভাবে রাখা হবে।",
+    "preset_rider_pan_invalid": "সঠিক PAN নম্বর লিখুন।",
+    "preset_rider_aadhaar_prompt": "12 digit Aadhaar নম্বর লিখুন।",
+    "preset_rider_aadhaar_invalid": "Aadhaar অবশ্যই 12 digit হতে হবে।",
+    "preset_rider_edit_prompt": "কোন field edit করবেন? 1 নাম, 2 Vehicle, 3 Address, 4 City, 5 State, 6 Pincode, 7 PAN, 8 Aadhaar",
+    "preset_rider_submit_failed": "Rider application জমা দেওয়া যায়নি: {detail}",
+    "preset_rider_submitted": "আপনার Rider application জমা হয়েছে। Status: pending approval। Approval হলে আমরা জানাব।",
+    "preset_rider_pending_status": "আপনার Rider application status: {status}.",
+    "preset_rider_pending_approved": "আপনার Rider application approved হয়েছে। Rider onboarding শুরু করা যাবে।",
+    "preset_partner_confirmation": "Partner application-এর তথ্য যাচাই করুন:\nBusiness type: {business_type}\nBusiness name: {business_name}\nContact person: {contact_person}\nEmail/Login ID: {email}\nAddress: {address}\nCity/State/Pincode: {city}, {state}, {pincode}\nPAN: {pan}\nAadhaar: {aadhaar}\n\n1 - Confirm\n2 - Edit\n0 - Cancel",
+    "preset_rider_confirmation": "Rider application-এর তথ্য যাচাই করুন:\nনাম: {name}\nVehicle/service: {vehicle_type}\nAddress: {address}\nCity/State/Pincode: {city}, {state}, {pincode}\nPAN: {pan}\nAadhaar: {aadhaar}\n\n1 - Confirm\n2 - Edit\n0 - Cancel",
+    "preset_pre_registration_followup": "হ্যালো! আপনি METHO সম্পর্কে তথ্য পেয়েছিলেন। Registration করতে কোনো সাহায্য লাগছে কি? চাইলে এই WhatsApp-এ reply করুন। আমরা Member, Partner বা Rider হিসেবে যুক্ত হওয়ার ধাপ বুঝিয়ে দেব।",
+    "preset_crm_followup_due": "আপনার আগের METHO আপডেটের পরবর্তী ধাপ সম্পন্ন হয়েছে কি? কোনো সাহায্য লাগলে এই WhatsApp-এ reply করুন।",
+}
 
 
 def _setting(name: str) -> str:
@@ -221,6 +312,7 @@ def load_db_config(db) -> dict:
         *[f"{role}_registration_reply" for role in REGISTRATION_ROLE_SETTINGS],
         *[f"{role}_registration_reply_image_url" for role in REGISTRATION_ROLE_SETTINGS],
         *[f"{role}_registration_keywords" for role in REGISTRATION_ROLE_SETTINGS],
+        *WHATSAPP_PRESET_MESSAGE_DEFAULTS.keys(),
     ) if key in payload}
     for key in ("webhook_verify_token", "app_secret", "access_token"):
         if payload.get(key):
@@ -263,10 +355,24 @@ def resolve_config(db=None) -> dict:
         **{f"{role}_registration_reply_image_url": str(db_config.get(f"{role}_registration_reply_image_url") or "").strip() for role in REGISTRATION_ROLE_SETTINGS},
         **{f"{role}_registration_reply_mode": str(db_config.get(f"{role}_registration_reply_mode") or "text").strip().lower() for role in REGISTRATION_ROLE_SETTINGS},
         **{f"{role}_registration_keywords": str(db_config.get(f"{role}_registration_keywords") or DEFAULT_REGISTRATION_ROLE_KEYWORDS[role]).strip() for role in REGISTRATION_ROLE_SETTINGS},
+        **{key: str(db_config[key]).strip() if key in db_config else value for key, value in WHATSAPP_PRESET_MESSAGE_DEFAULTS.items()},
         "webhook_verify_token": str(db_config.get("webhook_verify_token") or _setting("WHATSAPP_WEBHOOK_VERIFY_TOKEN")),
         "app_secret": str(db_config.get("app_secret") or _setting("WHATSAPP_APP_SECRET")),
         "access_token": str(db_config.get("access_token") or _setting("WHATSAPP_ACCESS_TOKEN")),
     }
+
+
+def get_whatsapp_preset_message(db, key: str, fallback: str = "", **values) -> str:
+    config = resolve_config(db)
+    template = str(config.get(key, fallback) or "").strip()
+    if not template:
+        return ""
+    safe_values = {name: "" if value is None else str(value) for name, value in values.items()}
+    try:
+        return template.format(**safe_values)
+    except (KeyError, ValueError):
+        logger.warning("WhatsApp preset template could not be formatted: key=%s", key)
+        return template
 
 
 def get_configured_whatsapp_reply(db, role: str | None = None, fallback: str = "") -> str:
@@ -317,7 +423,7 @@ def _configured_executive_fallback(db) -> str:
     except Exception:
         support_number = ""
     if support_number:
-        return f"আপনার প্রশ্নটি আমাদের support team দেখবে। METHO WhatsApp executive: {support_number}"
+        return get_whatsapp_preset_message(db, "preset_support_fallback", WHATSAPP_PRESET_MESSAGE_DEFAULTS["preset_support_fallback"], support_number=support_number)
     return ""
 
 
@@ -676,6 +782,8 @@ def _localized_default_reply(db, language: str) -> str:
 
 def _send_auto_reply_if_configured(db, recipient: str, text: str) -> str:
     config = resolve_config(db)
+    if not str(text or "").strip():
+        return "skipped"
     if not config["enabled"] or not config["access_token"] or not config["phone_number_id"]:
         return "skipped"
     try:
@@ -747,21 +855,10 @@ def _save_session_data(session: WhatsAppRegistrationSession, value: dict) -> Non
     session.data_json = json.dumps(safe, ensure_ascii=False)
 
 
-def _member_registration_confirmation(data: dict) -> str:
+def _member_registration_confirmation(db, data: dict) -> str:
     pan = str(data.get("pan_no", ""))
     masked_pan = f"{'*' * max(0, len(pan) - 4)}{pan[-4:]}" if pan else ""
-    return "\n".join((
-        "আপনার তথ্যগুলো যাচাই করুন:",
-        f"নাম: {data.get('name', '')}",
-        f"ঠিকানা: {data.get('address', '')}",
-        f"PAN: {masked_pan}",
-        f"জন্মতারিখ: {data.get('dob', '')}",
-        "",
-        "Reply:",
-        "1 - Confirm",
-        "2 - Edit",
-        "0 - Cancel",
-    ))
+    return get_whatsapp_preset_message(db, "preset_member_confirmation", WHATSAPP_PRESET_MESSAGE_DEFAULTS["preset_member_confirmation"], name=data.get("name", ""), address=data.get("address", ""), pan=masked_pan, dob=data.get("dob", ""))
 
 
 def _masked(value: str, visible: int = 4) -> str:
@@ -769,30 +866,10 @@ def _masked(value: str, visible: int = 4) -> str:
     return f"{'*' * max(0, len(text) - visible)}{text[-visible:]}" if text else ""
 
 
-def _registration_confirmation(role: str, data: dict) -> str:
+def _registration_confirmation(role: str, data: dict, db=None) -> str:
     if role == "partner":
-        lines = [
-            "Partner application-এর তথ্য যাচাই করুন:",
-            f"Business type: {data.get('business_type', '')}",
-            f"Business name: {data.get('business_name', '')}",
-            f"Contact person: {data.get('contact_person', '')}",
-            f"Email/Login ID: {data.get('email', '')}",
-            f"Address: {data.get('address', '')}",
-            f"City/State/Pincode: {data.get('city', '')}, {data.get('state', '')}, {data.get('pincode', '')}",
-            f"PAN: {_masked(data.get('pan_no', ''))}",
-            f"Aadhaar: {_masked(data.get('aadhaar_no', ''), 4)}",
-        ]
-    else:
-        lines = [
-            "Rider application-এর তথ্য যাচাই করুন:",
-            f"নাম: {data.get('name', '')}",
-            f"Vehicle/service: {data.get('vehicle_type', '')}",
-            f"Address: {data.get('address', '')}",
-            f"City/State/Pincode: {data.get('city', '')}, {data.get('state', '')}, {data.get('pincode', '')}",
-            f"PAN: {_masked(data.get('pan_no', ''))}",
-            f"Aadhaar: {_masked(data.get('aadhaar_no', ''), 4)}",
-        ]
-    return "\n".join((*lines, "", "1 - Confirm", "2 - Edit", "0 - Cancel"))
+        return get_whatsapp_preset_message(db, "preset_partner_confirmation", WHATSAPP_PRESET_MESSAGE_DEFAULTS["preset_partner_confirmation"], business_type=data.get("business_type", ""), business_name=data.get("business_name", ""), contact_person=data.get("contact_person", ""), email=data.get("email", ""), address=data.get("address", ""), city=data.get("city", ""), state=data.get("state", ""), pincode=data.get("pincode", ""), pan=_masked(data.get("pan_no", "")), aadhaar=_masked(data.get("aadhaar_no", ""), 4))
+    return get_whatsapp_preset_message(db, "preset_rider_confirmation", WHATSAPP_PRESET_MESSAGE_DEFAULTS["preset_rider_confirmation"], name=data.get("name", ""), vehicle_type=data.get("vehicle_type", ""), address=data.get("address", ""), city=data.get("city", ""), state=data.get("state", ""), pincode=data.get("pincode", ""), pan=_masked(data.get("pan_no", "")), aadhaar=_masked(data.get("aadhaar_no", ""), 4))
 
 
 def _send_member_registration_reply(db, recipient: str, text: str) -> bool:
@@ -830,30 +907,21 @@ def _add_lifecycle_activity_once(db, lead: CRMLead, activity_type: str, message:
 
 
 def _introduction_message() -> str:
-    return "\n".join((
-        "নমস্কার! METHO AAY-UPAY-এ স্বাগতম।",
-        "METHO-তে Customer, Member, Business Partner অথবা Rider হিসেবে যুক্ত হতে পারেন।",
-        "আপনি জানতে চান:",
-        "1. Member",
-        "2. Partner",
-        "3. Rider",
-        "4. METHO সম্পর্কে আরও জানতে চাই",
-    ))
+    return WHATSAPP_PRESET_MESSAGE_DEFAULTS["preset_registration_intro"]
 
 
-def _role_explanation(role: str) -> str:
-    messages = {
-        "member": "Member হিসেবে METHO-র পণ্য ও সদস্য সুবিধা ব্যবহার করতে পারবেন। রেজিস্ট্রেশন করতে চাইলে 1 লিখুন।",
-        "partner": "Partner হিসেবে Shop বা Service business application জমা দিতে পারবেন। রেজিস্ট্রেশন করতে চাইলে 1 লিখুন।",
-        "rider": "Rider হিসেবে delivery কাজের জন্য application জমা দিতে পারবেন। রেজিস্ট্রেশন করতে চাইলে 1 লিখুন।",
-    }
-    return messages[role]
+def _configured_introduction_message(db) -> str:
+    return get_whatsapp_preset_message(db, "preset_registration_intro", WHATSAPP_PRESET_MESSAGE_DEFAULTS["preset_registration_intro"])
+
+
+def _role_explanation(db, role: str) -> str:
+    return get_whatsapp_preset_message(db, f"preset_{role}_role_explanation", WHATSAPP_PRESET_MESSAGE_DEFAULTS[f"preset_{role}_role_explanation"])
 
 
 def _send_introduction(db, session: WhatsAppRegistrationSession, lead: CRMLead, recipient: str) -> bool:
     session.state = WHATSAPP_INTRODUCTION
     session.role = ""
-    reply = _introduction_message()
+    reply = _configured_introduction_message(db)
     if not _send_member_registration_reply(db, recipient, reply):
         return False
     db.add(CRMLeadActivity(lead_id=lead.id, activity_type="whatsapp_introduction_started", message="WhatsApp METHO introduction started"))
@@ -865,7 +933,7 @@ def _continue_introduction(db, session: WhatsAppRegistrationSession, lead: CRMLe
     normalized = _whatsapp_command_text(text)
     choices = {"1": "member", "2": "partner", "3": "rider"}
     if normalized == "4":
-        reply = "METHO AAY-UPAY একটি ডিজিটাল platform যেখানে Customer, Member, Partner ও Rider হিসেবে যুক্ত হওয়ার পথ আছে।\n\n" + _introduction_message()
+        reply = get_whatsapp_preset_message(db, "preset_metho_info", WHATSAPP_PRESET_MESSAGE_DEFAULTS["preset_metho_info"], introduction=_configured_introduction_message(db))
         session.state = WHATSAPP_ROLE_SELECTION
     elif session.state == WHATSAPP_ROLE_SELECTION and normalized in {"1", "yes", "হ্যাঁ", "হ্যা", "register", "রেজিস্টার"} and session.role:
         if session.role == "member":
@@ -874,10 +942,10 @@ def _continue_introduction(db, session: WhatsAppRegistrationSession, lead: CRMLe
     elif normalized in choices:
         session.role = choices[normalized]
         session.state = WHATSAPP_ROLE_SELECTION
-        reply = _role_explanation(session.role)
+        reply = _role_explanation(db, session.role)
     else:
         session.state = WHATSAPP_ROLE_SELECTION
-        reply = "METHO AAY-UPAY সম্পর্কে আরও জানতে পারেন। যুক্ত হওয়ার জন্য একটি option বেছে নিন:\n1. Member\n2. Partner\n3. Rider"
+        reply = get_whatsapp_preset_message(db, "preset_role_selection_fallback", WHATSAPP_PRESET_MESSAGE_DEFAULTS["preset_role_selection_fallback"])
     if not _send_member_registration_reply(db, recipient, reply):
         return False
     db.add(CRMLeadActivity(lead_id=lead.id, activity_type="whatsapp_message_sent", message=reply))
@@ -903,11 +971,11 @@ def _route_registered_member(db, session: WhatsAppRegistrationSession, lead: CRM
         if "order" in normalized or "অর্ডার" in normalized:
             orders = db.query(PublicOrder).filter(PublicOrder.customer_user_id == user.id).order_by(PublicOrder.created_at.desc()).limit(5).all()
             if orders:
-                reply = "আপনার সাম্প্রতিক order status:\n" + "\n".join(f"{order.id}: {order.status}" for order in orders)
+                reply = get_whatsapp_preset_message(db, "preset_order_status_header", WHATSAPP_PRESET_MESSAGE_DEFAULTS["preset_order_status_header"]) + "\n" + "\n".join(f"{order.id}: {order.status}" for order in orders)
             else:
-                reply = "আপনার Member account-এ কোনো order পাওয়া যায়নি।"
+                reply = get_whatsapp_preset_message(db, "preset_no_orders_found", WHATSAPP_PRESET_MESSAGE_DEFAULTS["preset_no_orders_found"])
         else:
-            reply = f"আপনার METHO Member ID {data.get('member_code') or user.id} Active।\nপ্রথম ধাপ: METHO products, wallet ও support সম্পর্কে জানতে এখানে প্রশ্ন করুন।"
+            reply = get_whatsapp_preset_message(db, "preset_member_active_reply", WHATSAPP_PRESET_MESSAGE_DEFAULTS["preset_member_active_reply"], member_code=data.get("member_code") or user.id)
         for followup in db.query(CRMFollowUp).filter(CRMFollowUp.lead_id == lead.id, CRMFollowUp.status == "Pending").all():
             if "activation" in str(followup.notes or "").lower() or "member" in str(followup.notes or "").lower():
                 followup.status = "Completed"
@@ -916,7 +984,7 @@ def _route_registered_member(db, session: WhatsAppRegistrationSession, lead: CRM
         _complete_lifecycle_followups(db, lead, "activation")
         if not was_onboarded:
             db.add(CRMLeadActivity(lead_id=lead.id, activity_type="onboarding_started", message="Member onboarding started after backend activation confirmation"))
-            activation_reply = f"আপনার Member ID {data.get('member_code') or user.id} এখন Active।\nMember onboarding শুরু হয়েছে। Products, wallet, rewards এবং support সম্পর্কে জানতে এখানে reply করুন।"
+            activation_reply = get_whatsapp_preset_message(db, "preset_member_onboarding_started", WHATSAPP_PRESET_MESSAGE_DEFAULTS["preset_member_onboarding_started"], member_code=data.get("member_code") or user.id)
             if not _send_member_registration_reply(db, recipient, activation_reply):
                 return False
             db.add(CRMLeadActivity(lead_id=lead.id, activity_type="whatsapp_message_sent", message=activation_reply))
@@ -926,7 +994,7 @@ def _route_registered_member(db, session: WhatsAppRegistrationSession, lead: CRM
             db.add(CRMLeadActivity(lead_id=lead.id, activity_type="whatsapp_message_sent", message=reply))
     else:
         session.state = WHATSAPP_MEMBER_ACTIVATION_PENDING
-        reply = f"আপনার Member registration সম্পন্ন হয়েছে।\nMember ID: {data.get('member_code') or user.id}\n\nআপনার ID এখনও Active হয়নি। Activation সম্পন্ন করার পর আপনার ID Active হবে।\nSecure action: {DEFAULT_MEMBER_ACTIVATION_URL}\n\nশুধু payment সম্পন্ন করলেই Active ধরে নেওয়া হবে না; backend verification-এর পর status বদলাবে।"
+        reply = get_whatsapp_preset_message(db, "preset_member_activation_pending", WHATSAPP_PRESET_MESSAGE_DEFAULTS["preset_member_activation_pending"], member_code=data.get("member_code") or user.id, activation_url=DEFAULT_MEMBER_ACTIVATION_URL)
         db.add(CRMLeadActivity(lead_id=lead.id, activity_type="activation_pending", message="WhatsApp member asked while activation is pending"))
         db.add(CRMLeadActivity(lead_id=lead.id, activity_type="whatsapp_message_sent", message=reply))
         return _send_member_registration_reply(db, recipient, reply)
@@ -952,11 +1020,11 @@ def _route_existing_identity(db, lead: CRMLead, recipient: str, incoming_text: s
         else:
             _schedule_lifecycle_followup(db, lead, "Partner approval follow-up", 2)
         reply = (
-            "আপনার Partner application approved হয়েছে। Repository-তে Partner profile, products/catalogue, inventory, orders, ledger এবং reports-এর APIs আছে; account action-এর জন্য secure Partner dashboard ব্যবহার করুন।"
+            get_whatsapp_preset_message(db, "preset_partner_approved_reply", WHATSAPP_PRESET_MESSAGE_DEFAULTS["preset_partner_approved_reply"])
             if status == "approved"
-            else "আপনার Partner application rejected হয়েছে। বিস্তারিত সহায়তার জন্য support লিখুন।"
+            else get_whatsapp_preset_message(db, "preset_partner_rejected_reply", WHATSAPP_PRESET_MESSAGE_DEFAULTS["preset_partner_rejected_reply"])
             if status == "rejected"
-            else f"আপনার Partner application এখন {status} অবস্থায় আছে। Approval হলে আমরা জানাব।"
+            else get_whatsapp_preset_message(db, "preset_partner_status_reply", WHATSAPP_PRESET_MESSAGE_DEFAULTS["preset_partner_status_reply"], status=status)
         )
         db.add(CRMLeadActivity(lead_id=lead.id, activity_type="partner_approved" if status == "approved" else "partner_application_pending", message=f"WhatsApp status check: {status}"))
         return _send_member_registration_reply(db, recipient, reply)
@@ -977,7 +1045,7 @@ def _route_existing_identity(db, lead: CRMLead, recipient: str, incoming_text: s
             _add_lifecycle_activity_once(db, lead, "onboarding_started", "Rider onboarding started after approval")
         else:
             _schedule_lifecycle_followup(db, lead, "Rider approval follow-up", 2)
-        reply = "আপনার Rider application approved হয়েছে। Repository-তে Rider profile ও availability APIs আছে; কাজ শুরু করার আগে secure Rider dashboard-এ availability সেট করুন। Assigned delivery/earnings-এর আলাদা WhatsApp flow পাওয়া যায়নি।" if status == "approved" else f"আপনার Rider application এখন {status} অবস্থায় আছে। Approval হলে আমরা জানাব।"
+        reply = get_whatsapp_preset_message(db, "preset_rider_approved_reply", WHATSAPP_PRESET_MESSAGE_DEFAULTS["preset_rider_approved_reply"]) if status == "approved" else get_whatsapp_preset_message(db, "preset_rider_status_reply", WHATSAPP_PRESET_MESSAGE_DEFAULTS["preset_rider_status_reply"], status=status)
         db.add(CRMLeadActivity(lead_id=lead.id, activity_type="rider_approved" if status == "approved" else "rider_application_pending", message=f"WhatsApp status check: {status}"))
         return _send_member_registration_reply(db, recipient, reply)
     return False
@@ -991,12 +1059,7 @@ def _start_member_registration_flow(db, session: WhatsAppRegistrationSession, le
     _save_session_data(session, {})
     session.completed_at = None
     lead.status = "APPLICATION" if lead.status == "NEW" else lead.status
-    text = "\n".join((
-        "স্বাগতম METHO AAY-UPAY-এ।",
-        "Member registration WhatsApp-এর মাধ্যমেই শুরু করছি।",
-        "",
-        "আপনার নাম লিখুন।",
-    ))
+    text = get_whatsapp_preset_message(db, "preset_member_registration_start", WHATSAPP_PRESET_MESSAGE_DEFAULTS["preset_member_registration_start"])
     if not _send_member_registration_reply(db, recipient, text):
         _clear_member_registration_session(session)
         return False
@@ -1011,10 +1074,10 @@ def _start_role_registration_flow(db, session: WhatsAppRegistrationSession, lead
     _save_session_data(session, {})
     if role == "partner":
         session.state = WHATSAPP_PARTNER_BUSINESS_TYPE
-        reply = "Partner registration শুরু করছি। আপনার business type লিখুন: 1 = Shop, 2 = Service"
+        reply = get_whatsapp_preset_message(db, "preset_partner_registration_start", WHATSAPP_PRESET_MESSAGE_DEFAULTS["preset_partner_registration_start"])
     else:
         session.state = WHATSAPP_RIDER_NAME
-        reply = "Rider registration শুরু করছি। আপনার পূর্ণ নাম লিখুন।"
+        reply = get_whatsapp_preset_message(db, "preset_rider_registration_start", WHATSAPP_PRESET_MESSAGE_DEFAULTS["preset_rider_registration_start"])
     lead.status = "APPLICATION" if lead.status == "NEW" else lead.status
     return _send_member_registration_reply(db, recipient, reply)
 
@@ -1062,85 +1125,85 @@ def _continue_role_registration_flow(db, session: WhatsAppRegistrationSession, l
     role = session.role
     if data.pop("_resume_prompt", False):
         if normalized == "1":
-            reply = "ঠিক আছে, আগের জায়গা থেকেই continue করছি। প্রয়োজনীয় তথ্য লিখুন।"
+            reply = get_whatsapp_preset_message(db, "preset_registration_continue", WHATSAPP_PRESET_MESSAGE_DEFAULTS["preset_registration_continue"])
         elif normalized == "2":
             return _start_role_registration_flow(db, session, lead, role, recipient)
         elif normalized in {"0", "cancel", "বাতিল"}:
             _clear_member_registration_session(session)
-            reply = "আপনার registration বাতিল করা হয়েছে।"
+            reply = get_whatsapp_preset_message(db, "preset_registration_cancelled", WHATSAPP_PRESET_MESSAGE_DEFAULTS["preset_registration_cancelled"])
         else:
-            reply = "Continue করতে 1, আবার শুরু করতে 2, বাতিল করতে 0 লিখুন।"
+            reply = get_whatsapp_preset_message(db, "preset_registration_continue_invalid", WHATSAPP_PRESET_MESSAGE_DEFAULTS["preset_registration_continue_invalid"])
     elif normalized in WHATSAPP_RESUME_COMMANDS and session.state not in {WHATSAPP_PARTNER_CONFIRMATION, WHATSAPP_RIDER_CONFIRMATION, WHATSAPP_PARTNER_APPLICATION_PENDING, WHATSAPP_RIDER_APPLICATION_PENDING}:
         data["_resume_prompt"] = True
-        reply = f"আপনার {role.title()} registration এখনও অসম্পূর্ণ। Continue করতে 1, আবার শুরু করতে 2, বাতিল করতে 0 লিখুন।"
+        reply = get_whatsapp_preset_message(db, "preset_role_registration_incomplete", WHATSAPP_PRESET_MESSAGE_DEFAULTS["preset_role_registration_incomplete"], role=role.title())
     elif normalized in {"0", "cancel", "বাতিল"}:
         _clear_member_registration_session(session)
-        reply = f"আপনার {role.title()} registration বাতিল করা হয়েছে।"
+        reply = get_whatsapp_preset_message(db, "preset_registration_cancelled", WHATSAPP_PRESET_MESSAGE_DEFAULTS["preset_registration_cancelled"])
     elif role == "partner":
         if session.state == WHATSAPP_PARTNER_BUSINESS_TYPE:
             if normalized not in {"1", "2", "shop", "service"}:
-                reply = "শুধু 1 = Shop অথবা 2 = Service লিখুন।"
+                reply = get_whatsapp_preset_message(db, "preset_partner_business_type_invalid", WHATSAPP_PRESET_MESSAGE_DEFAULTS["preset_partner_business_type_invalid"])
             else:
                 data["business_type"] = "Service" if normalized in {"2", "service"} else "Shop"
                 session.state = WHATSAPP_PARTNER_BUSINESS_NAME
-                reply = "আপনার business/shop/service-এর নাম লিখুন।"
+                reply = get_whatsapp_preset_message(db, "preset_partner_business_name_prompt", WHATSAPP_PRESET_MESSAGE_DEFAULTS["preset_partner_business_name_prompt"])
         elif session.state == WHATSAPP_PARTNER_BUSINESS_NAME:
             data["business_name"] = text[:255]
             session.state = WHATSAPP_PARTNER_CONTACT
-            reply = "Contact person-এর নাম লিখুন।"
+            reply = get_whatsapp_preset_message(db, "preset_partner_contact_prompt", WHATSAPP_PRESET_MESSAGE_DEFAULTS["preset_partner_contact_prompt"])
         elif session.state == WHATSAPP_PARTNER_CONTACT:
             data["contact_person"] = text[:120]
             session.state = WHATSAPP_PARTNER_EMAIL
-            reply = "Email বা login ID লিখুন।"
+            reply = get_whatsapp_preset_message(db, "preset_partner_email_prompt", WHATSAPP_PRESET_MESSAGE_DEFAULTS["preset_partner_email_prompt"])
         elif session.state == WHATSAPP_PARTNER_EMAIL:
             if len(text) < 3:
-                reply = "Email বা login ID প্রয়োজন। আবার লিখুন।"
+                reply = get_whatsapp_preset_message(db, "preset_partner_email_required", WHATSAPP_PRESET_MESSAGE_DEFAULTS["preset_partner_email_required"])
             else:
                 data["email"] = text[:255]
                 session.state = WHATSAPP_PARTNER_ADDRESS
-                reply = "Business address লিখুন।"
+                reply = get_whatsapp_preset_message(db, "preset_partner_address_prompt", WHATSAPP_PRESET_MESSAGE_DEFAULTS["preset_partner_address_prompt"])
         elif session.state == WHATSAPP_PARTNER_ADDRESS:
             data["address"] = text[:2000]
             session.state = WHATSAPP_PARTNER_CITY
-            reply = "City লিখুন।"
+            reply = get_whatsapp_preset_message(db, "preset_partner_city_prompt", WHATSAPP_PRESET_MESSAGE_DEFAULTS["preset_partner_city_prompt"])
         elif session.state == WHATSAPP_PARTNER_CITY:
             data["city"] = text[:120]
             session.state = WHATSAPP_PARTNER_STATE
-            reply = "State লিখুন।"
+            reply = get_whatsapp_preset_message(db, "preset_partner_state_prompt", WHATSAPP_PRESET_MESSAGE_DEFAULTS["preset_partner_state_prompt"])
         elif session.state == WHATSAPP_PARTNER_STATE:
             data["state"] = text[:120]
             session.state = WHATSAPP_PARTNER_PINCODE
-            reply = "Pincode লিখুন।"
+            reply = get_whatsapp_preset_message(db, "preset_partner_pincode_prompt", WHATSAPP_PRESET_MESSAGE_DEFAULTS["preset_partner_pincode_prompt"])
         elif session.state == WHATSAPP_PARTNER_PINCODE:
             if not text.isdigit() or len(text) != 6:
-                reply = "সঠিক 6 digit pincode লিখুন।"
+                reply = get_whatsapp_preset_message(db, "preset_partner_pincode_invalid", WHATSAPP_PRESET_MESSAGE_DEFAULTS["preset_partner_pincode_invalid"])
             else:
                 data["pincode"] = text
                 session.state = WHATSAPP_PARTNER_PAN
-                reply = "PAN নম্বর লিখুন। এটি encrypted ভাবে রাখা হবে।"
+                reply = get_whatsapp_preset_message(db, "preset_partner_pan_prompt", WHATSAPP_PRESET_MESSAGE_DEFAULTS["preset_partner_pan_prompt"])
         elif session.state == WHATSAPP_PARTNER_PAN:
             pan = text.upper().replace(" ", "")
             if len(pan) != 10:
-                reply = "সঠিক PAN নম্বর লিখুন।"
+                reply = get_whatsapp_preset_message(db, "preset_partner_pan_invalid", WHATSAPP_PRESET_MESSAGE_DEFAULTS["preset_partner_pan_invalid"])
             else:
                 data["pan_no"] = pan
                 session.state = WHATSAPP_PARTNER_AADHAAR
-                reply = "12 digit Aadhaar নম্বর লিখুন। এটি confirmation-এ দেখানো হবে না।"
+                reply = get_whatsapp_preset_message(db, "preset_partner_aadhaar_prompt", WHATSAPP_PRESET_MESSAGE_DEFAULTS["preset_partner_aadhaar_prompt"])
         elif session.state == WHATSAPP_PARTNER_AADHAAR:
             aadhaar = "".join(ch for ch in text if ch.isdigit())
             if len(aadhaar) != 12:
-                reply = "Aadhaar অবশ্যই 12 digit হতে হবে।"
+                reply = get_whatsapp_preset_message(db, "preset_partner_aadhaar_invalid", WHATSAPP_PRESET_MESSAGE_DEFAULTS["preset_partner_aadhaar_invalid"])
             else:
                 data["aadhaar_no"] = aadhaar
                 session.state = WHATSAPP_PARTNER_CONFIRMATION
-                reply = _registration_confirmation(role, data)
+                reply = _registration_confirmation(role, data, db)
         elif session.state == WHATSAPP_PARTNER_CONFIRMATION:
             if normalized in {"1", "confirm", "yes", "হ্যাঁ", "হ্যা"}:
                 from .routers.partner_public import partner_register
                 try:
                     result = partner_register(_partner_application_payload(session, data), db)
                 except Exception as exc:
-                    reply = f"Partner application জমা দেওয়া যায়নি: {getattr(exc, 'detail', str(exc))}"
+                    reply = get_whatsapp_preset_message(db, "preset_partner_submit_failed", WHATSAPP_PRESET_MESSAGE_DEFAULTS["preset_partner_submit_failed"], detail=getattr(exc, "detail", str(exc)))
                 else:
                     request_id = result.get("request_id", "")
                     session.state = WHATSAPP_PARTNER_APPLICATION_PENDING
@@ -1149,72 +1212,72 @@ def _continue_role_registration_flow(db, session: WhatsAppRegistrationSession, l
                     lead.partner_request_id = request_id
                     record_lifecycle_event(db, lead, "partner_application_submitted", f"Partner application submitted: {request_id}.")
                     _schedule_lifecycle_followup(db, lead, "Partner approval follow-up", 2)
-                    reply = f"আপনার Partner application জমা হয়েছে। Reference ID: {request_id}\nStatus: pending approval। Approval হলে আমরা জানাব।"
+                    reply = get_whatsapp_preset_message(db, "preset_partner_submitted", WHATSAPP_PRESET_MESSAGE_DEFAULTS["preset_partner_submitted"], request_id=request_id)
             elif normalized in {"2", "edit"}:
                 session.state = WHATSAPP_PARTNER_EDIT
-                reply = "কোন field edit করবেন? 1 Business name, 2 Contact, 3 Email, 4 Address, 5 Location, 6 PAN, 7 Aadhaar"
+                reply = get_whatsapp_preset_message(db, "preset_partner_edit_prompt", WHATSAPP_PRESET_MESSAGE_DEFAULTS["preset_partner_edit_prompt"])
             else:
-                reply = _registration_confirmation(role, data)
+                reply = _registration_confirmation(role, data, db)
         elif session.state == WHATSAPP_PARTNER_EDIT:
             edit_states = {"1": WHATSAPP_PARTNER_BUSINESS_NAME, "2": WHATSAPP_PARTNER_CONTACT, "3": WHATSAPP_PARTNER_EMAIL, "4": WHATSAPP_PARTNER_ADDRESS, "5": WHATSAPP_PARTNER_CITY, "6": WHATSAPP_PARTNER_PAN, "7": WHATSAPP_PARTNER_AADHAAR}
             session.state = edit_states.get(normalized, WHATSAPP_PARTNER_CONFIRMATION)
             if normalized in edit_states:
                 data["_editing"] = True
-            reply = "ঠিক আছে, নতুন value লিখুন।" if normalized in edit_states else _registration_confirmation(role, data)
+            reply = get_whatsapp_preset_message(db, "preset_registration_edit_value_prompt", WHATSAPP_PRESET_MESSAGE_DEFAULTS["preset_registration_edit_value_prompt"]) if normalized in edit_states else _registration_confirmation(role, data, db)
         elif session.state == WHATSAPP_PARTNER_APPLICATION_PENDING:
             request = db.query(PartnerRequest).filter(PartnerRequest.id == data.get("request_id")).first()
             status = str(request.status if request else "pending").lower()
-            reply = f"আপনার Partner application status: {status}." if status != "approved" else "আপনার Partner application approved হয়েছে। Partner onboarding শুরু করা যাবে।"
+            reply = get_whatsapp_preset_message(db, "preset_partner_pending_status", WHATSAPP_PRESET_MESSAGE_DEFAULTS["preset_partner_pending_status"], status=status) if status != "approved" else get_whatsapp_preset_message(db, "preset_partner_pending_approved", WHATSAPP_PRESET_MESSAGE_DEFAULTS["preset_partner_pending_approved"])
             if status == "approved":
                 session.state = WHATSAPP_PARTNER_ONBOARDING
                 _complete_lifecycle_followups(db, lead, "Partner approval")
                 _add_lifecycle_activity_once(db, lead, "onboarding_started", "Partner onboarding started after approval")
                 record_lifecycle_event(db, lead, "partner_approved", "Partner application approved.", "Start Partner onboarding", 1)
         else:
-            reply = "আপনার Partner registration এখনও অসম্পূর্ণ। Continue করতে 1, আবার শুরু করতে 2, বাতিল করতে 0 লিখুন।"
+            reply = get_whatsapp_preset_message(db, "preset_role_registration_incomplete", WHATSAPP_PRESET_MESSAGE_DEFAULTS["preset_role_registration_incomplete"], role="Partner")
     else:
         rider_prompts = {
-            WHATSAPP_RIDER_NAME: ("name", WHATSAPP_RIDER_VEHICLE, "Vehicle/service type লিখুন, যেমন delivery বা e-bike।"),
-            WHATSAPP_RIDER_VEHICLE: ("vehicle_type", WHATSAPP_RIDER_ADDRESS, "আপনার সম্পূর্ণ address লিখুন।"),
-            WHATSAPP_RIDER_ADDRESS: ("address", WHATSAPP_RIDER_CITY, "City লিখুন।"),
-            WHATSAPP_RIDER_CITY: ("city", WHATSAPP_RIDER_STATE, "State লিখুন।"),
-            WHATSAPP_RIDER_STATE: ("state", WHATSAPP_RIDER_PINCODE, "Pincode লিখুন।"),
+            WHATSAPP_RIDER_NAME: ("name", WHATSAPP_RIDER_VEHICLE, "preset_rider_name_prompt"),
+            WHATSAPP_RIDER_VEHICLE: ("vehicle_type", WHATSAPP_RIDER_ADDRESS, "preset_rider_address_prompt"),
+            WHATSAPP_RIDER_ADDRESS: ("address", WHATSAPP_RIDER_CITY, "preset_rider_city_prompt"),
+            WHATSAPP_RIDER_CITY: ("city", WHATSAPP_RIDER_STATE, "preset_rider_state_prompt"),
+            WHATSAPP_RIDER_STATE: ("state", WHATSAPP_RIDER_PINCODE, "preset_rider_pincode_prompt"),
         }
         if session.state in rider_prompts:
-            key, next_state, prompt = rider_prompts[session.state]
+            key, next_state, prompt_key = rider_prompts[session.state]
             data[key] = text[:2000]
             session.state = next_state
-            reply = prompt
+            reply = get_whatsapp_preset_message(db, prompt_key, WHATSAPP_PRESET_MESSAGE_DEFAULTS[prompt_key])
         elif session.state == WHATSAPP_RIDER_PINCODE:
             if not text.isdigit() or len(text) != 6:
-                reply = "সঠিক 6 digit pincode লিখুন।"
+                reply = get_whatsapp_preset_message(db, "preset_rider_pincode_invalid", WHATSAPP_PRESET_MESSAGE_DEFAULTS["preset_rider_pincode_invalid"])
             else:
                 data["pincode"] = text
                 session.state = WHATSAPP_RIDER_PAN
-                reply = "PAN নম্বর লিখুন। এটি encrypted ভাবে রাখা হবে।"
+                reply = get_whatsapp_preset_message(db, "preset_rider_pan_prompt", WHATSAPP_PRESET_MESSAGE_DEFAULTS["preset_rider_pan_prompt"])
         elif session.state == WHATSAPP_RIDER_PAN:
             pan = text.upper().replace(" ", "")
             if len(pan) != 10:
-                reply = "সঠিক PAN নম্বর লিখুন।"
+                reply = get_whatsapp_preset_message(db, "preset_rider_pan_invalid", WHATSAPP_PRESET_MESSAGE_DEFAULTS["preset_rider_pan_invalid"])
             else:
                 data["pan_no"] = pan
                 session.state = WHATSAPP_RIDER_AADHAAR
-                reply = "12 digit Aadhaar নম্বর লিখুন।"
+                reply = get_whatsapp_preset_message(db, "preset_rider_aadhaar_prompt", WHATSAPP_PRESET_MESSAGE_DEFAULTS["preset_rider_aadhaar_prompt"])
         elif session.state == WHATSAPP_RIDER_AADHAAR:
             aadhaar = "".join(ch for ch in text if ch.isdigit())
             if len(aadhaar) != 12:
-                reply = "Aadhaar অবশ্যই 12 digit হতে হবে।"
+                reply = get_whatsapp_preset_message(db, "preset_rider_aadhaar_invalid", WHATSAPP_PRESET_MESSAGE_DEFAULTS["preset_rider_aadhaar_invalid"])
             else:
                 data["aadhaar_no"] = aadhaar
                 session.state = WHATSAPP_RIDER_CONFIRMATION
-                reply = _registration_confirmation(role, data)
+                reply = _registration_confirmation(role, data, db)
         elif session.state == WHATSAPP_RIDER_CONFIRMATION:
             if normalized in {"1", "confirm", "yes", "হ্যাঁ", "হ্যা"}:
                 from .routers.rider import rider_register
                 try:
                     result = rider_register(_rider_application_payload(session, data), db)
                 except Exception as exc:
-                    reply = f"Rider application জমা দেওয়া যায়নি: {getattr(exc, 'detail', str(exc))}"
+                    reply = get_whatsapp_preset_message(db, "preset_rider_submit_failed", WHATSAPP_PRESET_MESSAGE_DEFAULTS["preset_rider_submit_failed"], detail=getattr(exc, "detail", str(exc)))
                 else:
                     rider = result.get("rider") or {}
                     rider_id = rider.get("id", "")
@@ -1224,18 +1287,18 @@ def _continue_role_registration_flow(db, session: WhatsAppRegistrationSession, l
                     lead.rider_user_id = rider_id or lead.rider_user_id
                     record_lifecycle_event(db, lead, "rider_application_submitted", f"Rider application submitted: {rider_id}.")
                     _schedule_lifecycle_followup(db, lead, "Rider approval follow-up", 2)
-                    reply = "আপনার Rider application জমা হয়েছে। Status: pending approval। Approval হলে আমরা জানাব।"
+                    reply = get_whatsapp_preset_message(db, "preset_rider_submitted", WHATSAPP_PRESET_MESSAGE_DEFAULTS["preset_rider_submitted"])
             elif normalized in {"2", "edit"}:
                 session.state = WHATSAPP_RIDER_EDIT
-                reply = "কোন field edit করবেন? 1 নাম, 2 Vehicle, 3 Address, 4 City, 5 State, 6 Pincode, 7 PAN, 8 Aadhaar"
+                reply = get_whatsapp_preset_message(db, "preset_rider_edit_prompt", WHATSAPP_PRESET_MESSAGE_DEFAULTS["preset_rider_edit_prompt"])
             else:
-                reply = _registration_confirmation(role, data)
+                reply = _registration_confirmation(role, data, db)
         elif session.state == WHATSAPP_RIDER_EDIT:
             edit_states = {"1": WHATSAPP_RIDER_NAME, "2": WHATSAPP_RIDER_VEHICLE, "3": WHATSAPP_RIDER_ADDRESS, "4": WHATSAPP_RIDER_CITY, "5": WHATSAPP_RIDER_STATE, "6": WHATSAPP_RIDER_PINCODE, "7": WHATSAPP_RIDER_PAN, "8": WHATSAPP_RIDER_AADHAAR}
             session.state = edit_states.get(normalized, WHATSAPP_RIDER_CONFIRMATION)
             if normalized in edit_states:
                 data["_editing"] = True
-            reply = "ঠিক আছে, নতুন value লিখুন।" if normalized in edit_states else _registration_confirmation(role, data)
+            reply = get_whatsapp_preset_message(db, "preset_registration_edit_value_prompt", WHATSAPP_PRESET_MESSAGE_DEFAULTS["preset_registration_edit_value_prompt"]) if normalized in edit_states else _registration_confirmation(role, data, db)
         elif session.state == WHATSAPP_RIDER_APPLICATION_PENDING:
             rider = db.query(User).filter(User.id == data.get("rider_user_id"), User.role == "rider").first()
             profile = db.query(AppSetting).filter(AppSetting.key == f"rider_profile:{data.get('rider_user_id')}").first()
@@ -1243,17 +1306,17 @@ def _continue_role_registration_flow(db, session: WhatsAppRegistrationSession, l
                 status = str((json.loads(profile.value_json or "{}") if profile else {}).get("approval_status") or "pending").lower()
             except (TypeError, ValueError):
                 status = "pending"
-            reply = f"আপনার Rider application status: {status}." if status != "approved" else "আপনার Rider application approved হয়েছে। Rider onboarding শুরু করা যাবে।"
+            reply = get_whatsapp_preset_message(db, "preset_rider_pending_status", WHATSAPP_PRESET_MESSAGE_DEFAULTS["preset_rider_pending_status"], status=status) if status != "approved" else get_whatsapp_preset_message(db, "preset_rider_pending_approved", WHATSAPP_PRESET_MESSAGE_DEFAULTS["preset_rider_pending_approved"])
             if rider and status == "approved":
                 session.state = WHATSAPP_RIDER_ONBOARDING
                 _complete_lifecycle_followups(db, lead, "Rider approval")
                 _add_lifecycle_activity_once(db, lead, "onboarding_started", "Rider onboarding started after approval")
                 record_lifecycle_event(db, lead, "rider_approved", "Rider application approved.", "Start Rider onboarding", 1)
         else:
-            reply = "আপনার Rider registration এখনও অসম্পূর্ণ। Continue করতে 1, আবার শুরু করতে 2, বাতিল করতে 0 লিখুন।"
+            reply = get_whatsapp_preset_message(db, "preset_role_registration_incomplete", WHATSAPP_PRESET_MESSAGE_DEFAULTS["preset_role_registration_incomplete"], role="Rider")
     if data.pop("_editing", False) and session.state not in {WHATSAPP_PARTNER_CONFIRMATION, WHATSAPP_RIDER_CONFIRMATION}:
         session.state = WHATSAPP_PARTNER_CONFIRMATION if role == "partner" else WHATSAPP_RIDER_CONFIRMATION
-        reply = _registration_confirmation(role, data)
+        reply = _registration_confirmation(role, data, db)
     _save_session_data(session, data)
     if not _send_member_registration_reply(db, recipient, reply):
         return False
@@ -1268,7 +1331,7 @@ def _request_whatsapp_human_handoff(db, lead: CRMLead, session: WhatsAppRegistra
     assignee_id = lead.assigned_user_id or _admin_assignee(db)
     if assignee_id:
         db.add(CRMTask(title="WhatsApp human support requested", description="Customer asked to speak with a human from WhatsApp.", due_at=datetime.now(timezone.utc), status="Pending", priority="High", lead_id=lead.id, assigned_user_id=assignee_id, created_by_user_id=assignee_id))
-    text = "আপনার অনুরোধটি আমাদের support team-কে পাঠানো হয়েছে। একজন representative শীঘ্রই যোগাযোগ করবেন।"
+    text = get_whatsapp_preset_message(db, "preset_handoff_requested", WHATSAPP_PRESET_MESSAGE_DEFAULTS["preset_handoff_requested"])
     if not _send_member_registration_reply(db, recipient, text):
         return False
     db.add(CRMLeadActivity(lead_id=lead.id, activity_type="whatsapp_human_handoff_requested", message="Customer requested human support from WhatsApp"))
@@ -1281,55 +1344,55 @@ def _continue_member_registration_flow(db, session: WhatsAppRegistrationSession,
     data = _session_data(session)
     if data.pop("_resume_prompt", False):
         if _whatsapp_command_text(text) == "1":
-            reply = "ঠিক আছে, আগের জায়গা থেকেই continue করছি। প্রয়োজনীয় তথ্য লিখুন।"
+            reply = get_whatsapp_preset_message(db, "preset_registration_continue", WHATSAPP_PRESET_MESSAGE_DEFAULTS["preset_registration_continue"])
         elif _whatsapp_command_text(text) == "2":
             return _start_member_registration_flow(db, session, lead, recipient)
         elif _whatsapp_command_text(text) in {"0", "cancel", "বাতিল"}:
             _clear_member_registration_session(session)
-            reply = "আপনার registration বাতিল করা হয়েছে।"
+            reply = get_whatsapp_preset_message(db, "preset_registration_cancelled", WHATSAPP_PRESET_MESSAGE_DEFAULTS["preset_registration_cancelled"])
         else:
-            reply = "Continue করতে 1, আবার শুরু করতে 2, বাতিল করতে 0 লিখুন।"
+            reply = get_whatsapp_preset_message(db, "preset_registration_continue_invalid", WHATSAPP_PRESET_MESSAGE_DEFAULTS["preset_registration_continue_invalid"])
     elif _whatsapp_command_text(text) in WHATSAPP_RESUME_COMMANDS and session.state != WHATSAPP_MEMBER_CONFIRMATION:
         data["_resume_prompt"] = True
-        reply = "আপনার Member registration এখনও অসম্পূর্ণ। শেষবার যেখানে থেমেছিলাম সেখান থেকে continue করতে 1, আবার শুরু করতে 2, বাতিল করতে 0 লিখুন।"
+        reply = get_whatsapp_preset_message(db, "preset_member_registration_incomplete", WHATSAPP_PRESET_MESSAGE_DEFAULTS["preset_member_registration_incomplete"])
     elif _is_whatsapp_reset_command(text):
         _clear_member_registration_session(session)
-        reply = "আপনার active Member registration flow বাতিল করা হয়েছে। আবার শুরু করতে চাইলে লিখুন: আমি মেম্বার হতে চাই"
+        reply = get_whatsapp_preset_message(db, "preset_member_registration_cancelled", WHATSAPP_PRESET_MESSAGE_DEFAULTS["preset_member_registration_cancelled"])
     elif session.state == WHATSAPP_MEMBER_NAME:
         if not text:
-            reply = "নাম খালি রাখা যাবে না। আপনার নাম লিখুন।"
+            reply = get_whatsapp_preset_message(db, "preset_member_name_required", WHATSAPP_PRESET_MESSAGE_DEFAULTS["preset_member_name_required"])
         else:
             session.name = text[:120]
             data["name"] = session.name
             if not lead.contact_person or lead.contact_person.startswith("WhatsApp-") or lead.contact_person == "WhatsApp Lead":
                 lead.contact_person = session.name
             session.state = WHATSAPP_MEMBER_ADDRESS
-            reply = "ধন্যবাদ।\nআপনার ঠিকানা লিখুন।"
+            reply = get_whatsapp_preset_message(db, "preset_member_address_prompt", WHATSAPP_PRESET_MESSAGE_DEFAULTS["preset_member_address_prompt"])
     elif session.state == WHATSAPP_MEMBER_ADDRESS:
         if len(text) < 3:
-            reply = "ঠিকানা খালি রাখা যাবে না। আপনার সম্পূর্ণ ঠিকানা লিখুন।"
+            reply = get_whatsapp_preset_message(db, "preset_member_address_required", WHATSAPP_PRESET_MESSAGE_DEFAULTS["preset_member_address_required"])
         else:
             session.address = text[:2000]
             data["address"] = session.address
             if not lead.address:
                 lead.address = session.address
             session.state = WHATSAPP_MEMBER_PAN
-            reply = "ধন্যবাদ। আপনার PAN নম্বর লিখুন।"
+            reply = get_whatsapp_preset_message(db, "preset_member_pan_prompt", WHATSAPP_PRESET_MESSAGE_DEFAULTS["preset_member_pan_prompt"])
     elif session.state == WHATSAPP_MEMBER_PAN:
         pan = text.upper().replace(" ", "")
         if len(pan) != 10:
-            reply = "PAN নম্বর 10 অক্ষরের হতে হবে। আবার লিখুন।"
+            reply = get_whatsapp_preset_message(db, "preset_member_pan_invalid", WHATSAPP_PRESET_MESSAGE_DEFAULTS["preset_member_pan_invalid"])
         else:
             data["pan_no"] = pan
             session.state = WHATSAPP_MEMBER_DOB
-            reply = "আপনার জন্মতারিখ লিখুন (যেমন 1990-01-31)।"
+            reply = get_whatsapp_preset_message(db, "preset_member_dob_prompt", WHATSAPP_PRESET_MESSAGE_DEFAULTS["preset_member_dob_prompt"])
     elif session.state == WHATSAPP_MEMBER_DOB:
         if len(text) < 4:
-            reply = "জন্মতারিখ প্রয়োজন। আবার লিখুন।"
+            reply = get_whatsapp_preset_message(db, "preset_member_dob_required", WHATSAPP_PRESET_MESSAGE_DEFAULTS["preset_member_dob_required"])
         else:
             data["dob"] = text[:40]
             session.state = WHATSAPP_MEMBER_CONFIRMATION
-            reply = _member_registration_confirmation(data)
+            reply = _member_registration_confirmation(db, data)
     elif session.state == WHATSAPP_MEMBER_CONFIRMATION:
         normalized = _whatsapp_command_text(text)
         if normalized in {"1", "confirm", "yes", "হ্যাঁ", "হ্যা"}:
@@ -1345,7 +1408,7 @@ def _continue_member_registration_flow(db, session: WhatsAppRegistrationSession,
                 ), None, db)
             except Exception as exc:
                 detail = getattr(exc, "detail", str(exc))
-                reply = f"রেজিস্ট্রেশন সম্পন্ন করা যায়নি: {detail}\nদয়া করে support লিখুন।"
+                reply = get_whatsapp_preset_message(db, "preset_member_registration_failed", WHATSAPP_PRESET_MESSAGE_DEFAULTS["preset_member_registration_failed"], detail=detail)
             else:
                 user = result.get("user") or {}
                 session.state = WHATSAPP_MEMBER_ACTIVATION_PENDING
@@ -1358,18 +1421,18 @@ def _continue_member_registration_flow(db, session: WhatsAppRegistrationSession,
                 db.add(CRMLeadActivity(lead_id=lead.id, activity_type="registration_completed", message="WhatsApp Member registration completed; activation remains pending."))
                 db.add(CRMLeadActivity(lead_id=lead.id, activity_type="activation_pending", message="WhatsApp Member registration completed; payment activation is pending."))
                 _schedule_lifecycle_followup(db, lead, "Member activation follow-up", 2)
-                reply = f"আপনার Member registration সফল হয়েছে।\nMember ID: {user.get('member_code') or user.get('id')}\n\nআপনার ID এখনও Active হয়নি। Activation সম্পন্ন করার পর আপনার ID Active হবে।\nSecure action: {DEFAULT_MEMBER_ACTIVATION_URL}\n\nPayment বা purchase status backend verify না হওয়া পর্যন্ত Active ধরা হবে না।"
+                reply = get_whatsapp_preset_message(db, "preset_member_registration_success", WHATSAPP_PRESET_MESSAGE_DEFAULTS["preset_member_registration_success"], member_code=user.get("member_code") or user.get("id"), activation_url=DEFAULT_MEMBER_ACTIVATION_URL)
         elif normalized in {"2", "edit"}:
             session.state = WHATSAPP_MEMBER_NAME
             session.name = ""
             session.address = ""
             _save_session_data(session, {})
-            reply = "ঠিক আছে। আবার আপনার নাম লিখুন।"
+            reply = get_whatsapp_preset_message(db, "preset_member_edit_restart", WHATSAPP_PRESET_MESSAGE_DEFAULTS["preset_member_edit_restart"])
         elif normalized in {"0", "cancel", "বাতিল"}:
             _clear_member_registration_session(session)
-            reply = "আপনার registration বাতিল করা হয়েছে।"
+            reply = get_whatsapp_preset_message(db, "preset_registration_cancelled", WHATSAPP_PRESET_MESSAGE_DEFAULTS["preset_registration_cancelled"])
         else:
-            reply = _member_registration_confirmation(data)
+            reply = _member_registration_confirmation(db, data)
     else:
         return False
     _save_session_data(session, data)
@@ -1407,37 +1470,24 @@ def ingest_whatsapp_message(db, payload: dict, request=None) -> str:
             "What is METHO AAY-UPAY?" in incoming_text
             or "মেঠো আয়-উপায় কী?" in incoming_text
         ):
-            reply_text = (
-                "METHO AAY-UPAY is a smart e-commerce platform by "
-                "Metho Logistics Pvt. Ltd. Browse quality daily essentials, "
-                "kitchenware, & direct farm produce easily!\n\n"
-                "মেঠো আয়-উপায় হলো মেঠো লজিস্টিকস প্রাইভেট লিমিটেডের একটি "
-                "ডিজিটাল প্ল্যাটফর্ম। এখান থেকে সহজেই দৈনন্দিন প্রয়োজনীয় "
-                "সামগ্রী, কিচেন অ্যাপ্লায়েন্স ও সেরা দেশি পণ্য অর্ডার করতে পারবেন।"
-            )
+            reply_text = get_whatsapp_preset_message(db, "preset_icebreaker_metho_info", WHATSAPP_PRESET_MESSAGE_DEFAULTS["preset_icebreaker_metho_info"])
 
         elif (
             "How to buy products or join as a Partner?" in incoming_text
             or "কীভাবে কেনাকাটা বা পার্টনার হিসেবে যুক্ত হব?" in incoming_text
         ):
-            reply_text = (
-                "Looking to shop or grow your business with us? Visit our "
-                "portal to place orders or register as an authorized partner/vendor.\n\n"
-                "পণ্য কিনতে চান নাকি আমাদের সাথে বিজনেসে যুক্ত হতে চান? "
-                "অর্ডার করতে বা অথরাইজড বিজনেস পার্টনার/ভেন্ডর হিসেবে "
-                "রেজিস্টার করতে আমাদের পোর্টালে ভিজিট করুন।"
-            )
+            reply_text = get_whatsapp_preset_message(db, "preset_icebreaker_shop_partner", WHATSAPP_PRESET_MESSAGE_DEFAULTS["preset_icebreaker_shop_partner"])
 
         elif (
             "How to contact Customer Support?" in incoming_text
             or "কাস্টমার কেয়ারের সাথে কীভাবে যোগাযোগ করব?" in incoming_text
         ):
-            reply_text = (
-                "We are here to help! For product details or business support, "
-                "call or WhatsApp us at +91 91635 30078.\n\n"
-                "আমরা আপনাকে সাহায্য করতে প্রস্তুত! পণ্য অর্ডার বা বিজনেসের "
-                "যেকোনো সহায়তার জন্য কল বা মেসেজ করুন: +91 91635 30078।"
-            )
+            try:
+                from .routers.auth import METHO_SUPPORT_WHATSAPP
+                support_number = str(METHO_SUPPORT_WHATSAPP or "").strip()
+            except Exception:
+                support_number = ""
+            reply_text = get_whatsapp_preset_message(db, "preset_icebreaker_customer_support", WHATSAPP_PRESET_MESSAGE_DEFAULTS["preset_icebreaker_customer_support"], support_number=support_number)
 
         auto_reply = ""
 

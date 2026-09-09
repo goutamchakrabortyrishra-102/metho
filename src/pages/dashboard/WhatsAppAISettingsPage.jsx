@@ -1,54 +1,97 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { Navigate } from "react-router-dom";
-import { Save, Settings2 } from "lucide-react";
+import { Save, Settings2, Trash2, Upload } from "lucide-react";
 import { toast } from "sonner";
 import api from "@/services/api";
 import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+
+const presetGroups = [
+  { title: "Core replies", fields: [["default_auto_reply", "Default auto reply"], ["customer_auto_reply", "Customer auto reply"], ["member_auto_reply", "Member auto reply"], ["partner_auto_reply", "Partner auto reply"], ["invoice_template", "Invoice message template"], ["order_template", "Order message template"], ["preset_support_fallback", "Support / Executive fallback"], ["preset_handoff_requested", "Human handoff requested"]] },
+  { title: "Registration entry", fields: [["registration_welcome_message", "Registration welcome"], ["registration_url", "General registration URL"], ["registration_help_prompt", "Registration help"], ["registration_role_question", "Role selection question"], ["preset_registration_intro", "WhatsApp introduction"], ["preset_metho_info", "METHO information reply"], ["preset_icebreaker_metho_info", "Icebreaker METHO info"], ["preset_icebreaker_shop_partner", "Icebreaker shop or partner"], ["preset_icebreaker_customer_support", "Icebreaker customer support"], ["preset_member_role_explanation", "Member role explanation"], ["preset_partner_role_explanation", "Partner role explanation"], ["preset_rider_role_explanation", "Rider role explanation"], ["preset_role_selection_fallback", "Role selection fallback"]] },
+  { title: "Member registration", fields: [["member_registration_url", "Member registration URL"], ["member_registration_reply", "Member configured reply"], ["member_registration_keywords", "Member reply keywords"], ["preset_member_registration_start", "Member registration start"], ["preset_member_registration_incomplete", "Member incomplete registration"], ["preset_member_name_required", "Member name required"], ["preset_member_address_prompt", "Member address prompt"], ["preset_member_address_required", "Member address required"], ["preset_member_pan_prompt", "Member PAN prompt"], ["preset_member_pan_invalid", "Member PAN invalid"], ["preset_member_dob_prompt", "Member DOB prompt"], ["preset_member_dob_required", "Member DOB required"], ["preset_member_confirmation", "Member confirmation"], ["preset_member_edit_restart", "Member edit restart"], ["preset_member_registration_success", "Member registration success"], ["preset_member_registration_failed", "Member registration failed"], ["preset_member_activation_pending", "Member activation pending"], ["preset_member_active_reply", "Member active reply"], ["preset_member_onboarding_started", "Member onboarding started"], ["preset_order_status_header", "Order status header"], ["preset_no_orders_found", "No orders found"]] },
+  { title: "Partner registration", fields: [["partner_registration_url", "Partner registration URL"], ["partner_registration_reply", "Partner configured reply"], ["partner_registration_keywords", "Partner reply keywords"], ["preset_partner_registration_start", "Partner registration start"], ["preset_partner_business_type_invalid", "Partner business type invalid"], ["preset_partner_business_name_prompt", "Partner business name prompt"], ["preset_partner_contact_prompt", "Partner contact prompt"], ["preset_partner_email_prompt", "Partner email prompt"], ["preset_partner_email_required", "Partner email required"], ["preset_partner_address_prompt", "Partner address prompt"], ["preset_partner_city_prompt", "Partner city prompt"], ["preset_partner_state_prompt", "Partner state prompt"], ["preset_partner_pincode_prompt", "Partner pincode prompt"], ["preset_partner_pincode_invalid", "Partner pincode invalid"], ["preset_partner_pan_prompt", "Partner PAN prompt"], ["preset_partner_pan_invalid", "Partner PAN invalid"], ["preset_partner_aadhaar_prompt", "Partner Aadhaar prompt"], ["preset_partner_aadhaar_invalid", "Partner Aadhaar invalid"], ["preset_partner_confirmation", "Partner confirmation"], ["preset_partner_edit_prompt", "Partner edit prompt"], ["preset_partner_submit_failed", "Partner submit failed"], ["preset_partner_submitted", "Partner submitted"], ["preset_partner_pending_status", "Partner pending status"], ["preset_partner_pending_approved", "Partner pending approved"], ["preset_partner_approved_reply", "Partner approved reply"], ["preset_partner_rejected_reply", "Partner rejected reply"], ["preset_partner_status_reply", "Partner status reply"]] },
+  { title: "Rider registration", fields: [["rider_registration_url", "Rider registration URL"], ["rider_registration_reply", "Rider configured reply"], ["rider_registration_keywords", "Rider reply keywords"], ["preset_rider_registration_start", "Rider registration start"], ["preset_rider_name_prompt", "Rider vehicle prompt"], ["preset_rider_address_prompt", "Rider address prompt"], ["preset_rider_city_prompt", "Rider city prompt"], ["preset_rider_state_prompt", "Rider state prompt"], ["preset_rider_pincode_prompt", "Rider pincode prompt"], ["preset_rider_pincode_invalid", "Rider pincode invalid"], ["preset_rider_pan_prompt", "Rider PAN prompt"], ["preset_rider_pan_invalid", "Rider PAN invalid"], ["preset_rider_aadhaar_prompt", "Rider Aadhaar prompt"], ["preset_rider_aadhaar_invalid", "Rider Aadhaar invalid"], ["preset_rider_confirmation", "Rider confirmation"], ["preset_rider_edit_prompt", "Rider edit prompt"], ["preset_rider_submit_failed", "Rider submit failed"], ["preset_rider_submitted", "Rider submitted"], ["preset_rider_pending_status", "Rider pending status"], ["preset_rider_pending_approved", "Rider pending approved"], ["preset_rider_approved_reply", "Rider approved reply"], ["preset_rider_status_reply", "Rider status reply"]] },
+  { title: "Shared registration and follow-up", fields: [["preset_registration_continue", "Registration continue"], ["preset_registration_continue_invalid", "Registration continue invalid"], ["preset_registration_cancelled", "Registration cancelled"], ["preset_member_registration_cancelled", "Member registration cancelled"], ["preset_role_registration_incomplete", "Role registration incomplete"], ["preset_registration_edit_value_prompt", "Edit value prompt"], ["preset_pre_registration_followup", "Pre-registration follow-up"], ["preset_crm_followup_due", "CRM follow-up due"], ["preset_lifecycle_registration_form_opened", "Lifecycle registration form opened"], ["preset_lifecycle_registration_form_submitted", "Lifecycle registration form submitted"], ["preset_lifecycle_registration_form_followup_started", "Lifecycle registration follow-up started"], ["preset_lifecycle_member_registration_completed", "Lifecycle member registration completed"], ["preset_lifecycle_member_activated", "Lifecycle member activated"], ["preset_lifecycle_partner_registration_submitted", "Lifecycle partner registration submitted"], ["preset_lifecycle_partner_activated", "Lifecycle partner activated"], ["preset_lifecycle_metho_move_booking_created", "Lifecycle METHO Move booking created"], ["preset_ai_local_fallback", "Local fallback reply"]] },
+];
+
+const posterPresets = [
+  ["default_auto_reply", "Default auto reply poster"],
+  ["customer_auto_reply", "Customer auto reply poster"],
+  ["member_auto_reply", "Member auto reply poster"],
+  ["partner_auto_reply", "Partner auto reply poster"],
+  ["registration_welcome_message", "Registration welcome poster"],
+  ["member_registration_reply", "Member registration poster"],
+  ["partner_registration_reply", "Partner registration poster"],
+  ["rider_registration_reply", "Rider registration poster"],
+];
 
 export default function WhatsAppAISettingsPage() {
   const { user } = useAuth();
   const isAdmin = ["super_admin", "company_admin", "admin"].includes(user?.role);
   const [form, setForm] = useState(null);
   const [saving, setSaving] = useState(false);
+  const [posterBusy, setPosterBusy] = useState(false);
+  const presetKeys = useMemo(() => presetGroups.flatMap((group) => group.fields.map(([key]) => key)), []);
+  const posterKeys = useMemo(() => posterPresets.flatMap(([key]) => [`${key}_image_url`, `${key}_mode`]), []);
 
   useEffect(() => {
     if (!isAdmin) return;
-    api.get("/admin/crm/whatsapp-ai/settings").then(({ data }) => setForm(data)).catch(() => toast.error("WhatsApp AI settings could not be loaded"));
+    api.get("/admin/settings/whatsapp").then(({ data }) => setForm(data)).catch(() => toast.error("WhatsApp preset messages could not be loaded"));
   }, [isAdmin]);
 
   if (!isAdmin) return <Navigate to="/app" replace />;
-  if (!form) return <div className="p-6 text-sm text-slate-500">Loading WhatsApp AI settings...</div>;
-  const update = (key) => (event) => setForm((current) => ({ ...current, [key]: event.target.type === "checkbox" ? event.target.checked : event.target.value }));
+  if (!form) return <div className="p-6 text-sm text-slate-500">Loading WhatsApp preset messages...</div>;
+  const update = (key) => (event) => setForm((current) => ({ ...current, [key]: event.target.value }));
+  const clear = (key) => setForm((current) => ({ ...current, [key]: "" }));
   const save = async () => {
     setSaving(true);
     try {
-      const { data } = await api.put("/admin/crm/whatsapp-ai/settings", form);
+      const payload = {};
+      [...presetKeys, ...posterKeys].forEach((key) => { payload[key] = String(form[key] || "").trim(); });
+      const { data } = await api.put("/admin/settings/whatsapp", payload);
       setForm(data);
-      toast.success("WhatsApp AI settings saved");
+      toast.success("WhatsApp preset messages saved");
     } catch (error) {
-      toast.error(error?.response?.data?.detail || "WhatsApp AI settings could not be saved");
+      toast.error(error?.response?.data?.detail || "WhatsApp preset messages could not be saved");
     } finally { setSaving(false); }
   };
+  const uploadPoster = async (key, event) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+    setPosterBusy(true);
+    try {
+      const body = new FormData();
+      body.append("file", file);
+      const { data } = await api.post("/admin/settings/whatsapp/poster", body, { headers: { "Content-Type": "multipart/form-data" } });
+      setForm((current) => ({ ...current, [`${key}_image_url`]: data.url, [`${key}_mode`]: "image" }));
+      toast.success("Preset poster uploaded");
+    } catch (error) {
+      toast.error(error?.response?.data?.detail || "Preset poster could not be uploaded");
+    } finally { setPosterBusy(false); event.target.value = ""; }
+  };
+  const deletePoster = async (key) => {
+    const url = form?.[`${key}_image_url`];
+    if (!url) return;
+    setPosterBusy(true);
+    try {
+      await api.delete("/admin/settings/whatsapp/poster", { data: { url } });
+      setForm((current) => ({ ...current, [`${key}_image_url`]: "", [`${key}_mode`]: "text" }));
+      toast.success("Preset poster cleared");
+    } catch (error) {
+      toast.error(error?.response?.data?.detail || "Preset poster could not be cleared");
+    } finally { setPosterBusy(false); }
+  };
 
-  return <div className="mx-auto max-w-4xl space-y-5">
-    <div><p className="text-xs font-semibold uppercase tracking-[0.2em] text-emerald-800">METHO Business CRM</p><h1 className="mt-1 flex items-center gap-2 text-2xl font-bold text-slate-900"><Settings2 className="h-6 w-6" /> WhatsApp AI</h1><p className="mt-1 text-sm text-slate-600">AI can draft replies for admin review, or auto-send when explicitly enabled with guardrails.</p></div>
+  return <div className="mx-auto max-w-6xl space-y-5">
+    <div><p className="text-xs font-semibold uppercase tracking-[0.2em] text-emerald-800">METHO Business CRM</p><h1 className="mt-1 flex items-center gap-2 text-2xl font-bold text-slate-900"><Settings2 className="h-6 w-6" /> WhatsApp Preset Messages</h1><p className="mt-1 text-sm text-slate-600">Manage every WhatsApp preset reply used by the live preset-only flow.</p></div>
     <div className="space-y-5 border border-border bg-white p-5">
-      <label className="flex items-center gap-2 text-sm font-medium"><input type="checkbox" checked={form.enabled === true} onChange={update("enabled")} /> Enable AI reply suggestions</label>
-      <div className="grid gap-3 rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm md:grid-cols-2">
-        <label className="flex items-start gap-2"><input type="checkbox" checked={form.auto_send_enabled === true} onChange={update("auto_send_enabled")} className="mt-1" /><span><span className="font-medium text-amber-950">Auto-send AI replies</span><span className="block text-xs text-amber-800">Only non-handoff Gemini/OpenAI replies are sent automatically.</span></span></label>
-        <label className="flex items-start gap-2"><input type="checkbox" checked={form.suppress_static_default_when_ai_enabled !== false} onChange={update("suppress_static_default_when_ai_enabled")} className="mt-1" /><span><span className="font-medium text-amber-950">Let AI handle freeform questions</span><span className="block text-xs text-amber-800">Stops old static default replies when AI is enabled.</span></span></label>
-        <label className="flex items-start gap-2"><input type="checkbox" checked={form.auto_send_fallback_allowed === true} onChange={update("auto_send_fallback_allowed")} className="mt-1" /><span><span className="font-medium text-amber-950">Allow fallback auto-send</span><span className="block text-xs text-amber-800">Keep off unless you want local fallback text sent without model output.</span></span></label>
-        <div><Label>Follow-up delay hours</Label><Input type="number" min="1" max="168" value={form.follow_up_delay_hours || 24} onChange={update("follow_up_delay_hours")} className="mt-1.5" /></div>
-      </div>
-      <div className="grid gap-4 md:grid-cols-2"><div><Label>Provider</Label><select value={form.provider} onChange={update("provider")} className="mt-1.5 h-10 w-full rounded-md border border-input px-3 text-sm"><option value="openai">OpenAI</option><option value="gemini">Gemini</option></select></div><div><Label>Model</Label><Input value={form.model} onChange={update("model")} className="mt-1.5" /></div></div>
-      <div><Label>System prompt</Label><Textarea value={form.system_prompt} onChange={update("system_prompt")} rows={6} className="mt-1.5" /></div>
-      <div><Label>Knowledge base</Label><Textarea value={form.knowledge_base} onChange={update("knowledge_base")} rows={8} className="mt-1.5" /></div>
-      <div><Label>Human handoff keywords</Label><Input value={form.handoff_keywords} onChange={update("handoff_keywords")} className="mt-1.5" /></div>
-      <div className="flex justify-end"><Button onClick={save} disabled={saving}><Save className="mr-2 h-4 w-4" />{saving ? "Saving..." : "Save settings"}</Button></div>
+      <div className="rounded-lg border border-emerald-200 bg-emerald-50 p-3 text-xs text-emerald-900">Preset messages are stored in the existing WhatsApp settings configuration. Sensitive customer data is not shown here.</div>
+      {presetGroups.map((group) => <section key={group.title} className="border-t border-border pt-4 first:border-t-0 first:pt-0"><h2 className="text-sm font-semibold text-emerald-950">{group.title}</h2><div className="mt-3 grid gap-3 md:grid-cols-2">{group.fields.map(([key, label]) => <div key={key}><div className="flex items-center justify-between gap-2"><Label>{label}</Label><Button type="button" size="sm" variant="outline" onClick={() => clear(key)}><Trash2 className="mr-1 h-3.5 w-3.5" />Clear</Button></div><Textarea value={form[key] || ""} onChange={update(key)} rows={4} className="mt-1.5" /></div>)}</div></section>)}
+      <section className="border-t border-border pt-4"><h2 className="text-sm font-semibold text-emerald-950">Preset Posters</h2><div className="mt-3 grid gap-3 md:grid-cols-2">{posterPresets.map(([key, label]) => <div key={key} className="rounded border border-emerald-100 p-3"><div className="flex items-center justify-between gap-2"><Label>{label}</Label><select value={form[`${key}_mode`] || "text"} onChange={update(`${key}_mode`)} className="rounded border border-input px-2 py-1 text-xs"><option value="text">Text only</option><option value="image">Poster only</option></select></div><p className="mt-2 break-all text-xs text-slate-500">{form[`${key}_image_url`] || "No poster attached"}</p><div className="mt-3 flex flex-wrap gap-2"><label className="inline-flex cursor-pointer items-center rounded border border-emerald-300 px-2 py-1 text-xs font-semibold text-emerald-800"><Upload className="mr-1 h-3.5 w-3.5" />Attach poster<input type="file" accept="image/jpeg,image/png,image/webp" className="hidden" onChange={(event) => uploadPoster(key, event)} disabled={posterBusy} /></label>{form[`${key}_image_url`] ? <Button type="button" size="sm" variant="outline" onClick={() => deletePoster(key)} disabled={posterBusy}><Trash2 className="mr-1 h-3.5 w-3.5" />Clear poster</Button> : null}</div></div>)}</div></section>
+      <div className="flex justify-end"><Button onClick={save} disabled={saving || posterBusy}><Save className="mr-2 h-4 w-4" />{saving ? "Saving..." : "Save preset messages"}</Button></div>
     </div>
   </div>;
 }
