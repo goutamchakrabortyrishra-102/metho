@@ -308,6 +308,7 @@ def test_whatsapp_bengali_earning_question_goes_to_ai_not_preset(monkeypatch):
         sent_images = []
         monkeypatch.setattr("sql_app.whatsapp_cloud.send_whatsapp_message", lambda _db, recipient, text: sent_text.append((recipient, text)) or {"messages": [{"id": "wamid.reply"}]})
         monkeypatch.setattr("sql_app.whatsapp_cloud.send_whatsapp_image", lambda _db, recipient, image_url, caption="": sent_images.append((recipient, image_url, caption)) or {"messages": [{"id": "wamid.image"}]})
+        monkeypatch.setattr("sql_app.whatsapp_ai.should_ai_handle_freeform_reply", lambda _db: False)
         update_whatsapp_settings({"phone_number_id": "123456", "access_token": "secret-token", "default_auto_reply_image_url": "/api/files/whatsapp_posters/default.png", "rider_registration_keywords": "3,rider,রাইডার,METHO,AAY,UPAY,কাজ করে আয়,আয় করা,কাজ করে আয়,আয় করা,কাজ,আয়,আয়", "rider_registration_reply_image_url": "/api/files/whatsapp_posters/rider.png"}, db, admin())
         save_ai_config(db, {"enabled": True, "auto_send_enabled": True, "suppress_static_default_when_ai_enabled": True})
         config = resolve_config(db)
@@ -332,6 +333,7 @@ def test_whatsapp_info_questions_skip_posters_with_matching_production_keywords(
         sent_images = []
         monkeypatch.setattr("sql_app.whatsapp_cloud.send_whatsapp_message", lambda _db, recipient, text: {"messages": [{"id": "wamid.reply"}]})
         monkeypatch.setattr("sql_app.whatsapp_cloud.send_whatsapp_image", lambda _db, recipient, image_url, caption="": sent_images.append((recipient, image_url, caption)) or {"messages": [{"id": "wamid.image"}]})
+        monkeypatch.setattr("sql_app.whatsapp_ai.should_ai_handle_freeform_reply", lambda _db: False)
         update_whatsapp_settings({"phone_number_id": "123456", "access_token": "secret-token", "default_auto_reply_image_url": "/api/files/whatsapp_posters/default.png", "rider_registration_keywords": "3,rider,রাইডার,METHO,AAY,UPAY,কাজ,আয়,কাজ করে আয়,আয় করা", "rider_registration_reply_image_url": "/api/files/whatsapp_posters/rider.png"}, db, admin())
         save_ai_config(db, {"enabled": True, "auto_send_enabled": True, "suppress_static_default_when_ai_enabled": True})
         for index, text in enumerate(("কীভাবে কাজ করে আয় করা যায়", "METHO AAY-UPAY কাজ করে আয় করা যায়?"), start=1):
@@ -351,6 +353,7 @@ def test_whatsapp_question_mark_info_query_skips_default_poster_without_ai_setti
         sent_images = []
         monkeypatch.setattr("sql_app.whatsapp_cloud.send_whatsapp_message", lambda _db, recipient, text: sent_text.append((recipient, text)) or {"messages": [{"id": "wamid.reply"}]})
         monkeypatch.setattr("sql_app.whatsapp_cloud.send_whatsapp_image", lambda _db, recipient, image_url, caption="": sent_images.append((recipient, image_url, caption)) or {"messages": [{"id": "wamid.image"}]})
+        monkeypatch.setattr("sql_app.whatsapp_ai.should_ai_handle_freeform_reply", lambda _db: False)
         update_whatsapp_settings({"phone_number_id": "123456", "access_token": "secret-token", "default_auto_reply_image_url": "/api/files/whatsapp_posters/default.png", "rider_registration_keywords": "3,rider,রাইডার,কাজ,আয়,METHO,AAY,UPAY", "rider_registration_reply_image_url": "/api/files/whatsapp_posters/rider.png"}, db, admin())
         assert ingest_whatsapp_message(db, message_payload("wamid.ai-info-no-config", "METHO AAY-UPAY-এ কীভাবে কাজ করে আয় করা যায়?"), None) == "created"
         assert sent_text == []
@@ -369,6 +372,7 @@ def test_whatsapp_bengali_product_info_query_goes_to_ai_not_default_poster(monke
         sent_images = []
         monkeypatch.setattr("sql_app.whatsapp_cloud.send_whatsapp_message", lambda _db, recipient, text: sent_text.append((recipient, text)) or {"messages": [{"id": "wamid.reply"}]})
         monkeypatch.setattr("sql_app.whatsapp_cloud.send_whatsapp_image", lambda _db, recipient, image_url, caption="": sent_images.append((recipient, image_url, caption)) or {"messages": [{"id": "wamid.image"}]})
+        monkeypatch.setattr("sql_app.whatsapp_ai.should_ai_handle_freeform_reply", lambda _db: False)
         update_whatsapp_settings({"phone_number_id": "123456", "access_token": "secret-token", "default_auto_reply_image_url": "/api/files/whatsapp_posters/default.png", "member_registration_keywords": "1,member,মেম্বার,প্রোডাক্ট,জানতে চাই", "member_registration_reply_image_url": "/api/files/whatsapp_posters/member.png"}, db, admin())
         save_ai_config(db, {"enabled": True, "auto_send_enabled": True, "suppress_static_default_when_ai_enabled": True})
         config = resolve_config(db)

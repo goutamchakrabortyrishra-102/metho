@@ -208,7 +208,8 @@ def _admin_assignee(db) -> str:
 
 
 def should_ai_handle_freeform_reply(db) -> bool:
-    return False
+    config = resolve_ai_config(db)
+    return bool(config.get("enabled")) and bool(config.get("auto_send_enabled"))
 
 
 def _schedule_ai_follow_up(db, lead: CRMLead, config: dict, reason: str) -> None:

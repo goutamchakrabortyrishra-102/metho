@@ -11,7 +11,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from sql_app.database import Base
 from sql_app.models import AppSetting, CRMLead, CRMLeadActivity, CRMWhatsAppAISuggestion, WhatsAppMessageOutbox
 from sql_app.routers.whatsapp_ai import approve_suggestion, reject_suggestion
-from sql_app.whatsapp_ai import create_suggestion_for_activity, process_pending_whatsapp_ai_activities, save_ai_config
+from sql_app.whatsapp_ai import create_suggestion_for_activity, process_pending_whatsapp_ai_activities, save_ai_config, should_ai_handle_freeform_reply
 
 
 def make_session():
@@ -76,6 +76,19 @@ def test_ai_suggestion_is_disabled_by_default(monkeypatch):
         monkeypatch.setattr("sql_app.whatsapp_ai.SessionLocal", lambda: db)
         create_suggestion_for_activity(activity.id)
         assert db.query(CRMWhatsAppAISuggestion).count() == 0
+    finally:
+        db.close()
+
+
+def test_ai_freeform_requires_enabled_and_auto_send():
+    db = make_session()
+    try:
+        save_ai_config(db, {"enabled": True, "auto_send_enabled": True})
+        assert should_ai_handle_freeform_reply(db) is True
+        save_ai_config(db, {"enabled": False, "auto_send_enabled": True})
+        assert should_ai_handle_freeform_reply(db) is False
+        save_ai_config(db, {"enabled": True, "auto_send_enabled": False})
+        assert should_ai_handle_freeform_reply(db) is False
     finally:
         db.close()
 
