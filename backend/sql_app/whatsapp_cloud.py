@@ -89,6 +89,12 @@ ROLE_IDENTITY_KEYWORDS = {
 }
 INFORMATIONAL_QUESTION_MARKERS = ("?", "কীভাবে", "কিভাবে", "কি ভাবে", "কী ভাবে", "কেমন করে", "জানতে চাই", "জানতে", "প্রোডাক্ট", "পণ্য", "সম্বন্ধে", "সম্পর্কে", "what", "how")
 BROAD_EARNING_KEYWORDS = ("কাজ", "আয়", "আয়", "income", "earn", "earning", "work")
+PRODUCT_QUERY_KEYWORDS = ("product", "catalog", "catalogue", "price", "পণ্য", "প্রোডাক্ট", "দাম")
+ORDER_QUERY_KEYWORDS = ("order", "অর্ডার")
+PAYMENT_QUERY_KEYWORDS = ("payment", "pay", "paid", "টাকা", "পেমেন্ট")
+WALLET_QUERY_KEYWORDS = ("wallet", "reward", "rewards", "smart cycle", "ওয়ালেট", "রিওয়ার্ড", "স্মার্ট সাইকেল")
+DELIVERY_QUERY_KEYWORDS = ("delivery", "deliver", "metho move", "ডেলিভারি")
+SUPPORT_QUERY_KEYWORDS = ("support", "help", "contact", "executive", "সাপোর্ট", "সহায়তা", "যোগাযোগ")
 REGISTRATION_INTENT_MARKERS = ("রেজিস্ট", "register", "registration", "যুক্ত", "join", "হতে চাই", "করতে চাই", "হব", "হবো", "চালু", "অনবোর্ডিং", "onboarding", "interested")
 WHATSAPP_REGISTRATION_IDLE = "IDLE"
 WHATSAPP_INTRODUCTION = "INTRODUCTION"
@@ -291,6 +297,41 @@ def get_configured_whatsapp_reply_mode(db, role: str | None = None) -> str:
     image_key = {"customer": "customer_auto_reply_image_url", "member": "member_registration_reply_image_url", "partner": "partner_registration_reply_image_url", "rider": "rider_registration_reply_image_url", "default": "default_auto_reply_image_url"}.get(role_key, "default_auto_reply_image_url")
     mode = "image" if str(config.get(image_key) or "").strip() else str(config.get(key) or "text").strip().lower()
     return mode if mode in {"text", "image"} else "text"
+
+
+def _configured_executive_fallback(db) -> str:
+    config = resolve_config(db)
+    values = (
+        str(config.get("customer_auto_reply") or "").strip(),
+        str(config.get("default_auto_reply") or "").strip(),
+        str(config.get("registration_help_prompt") or "").strip(),
+    )
+    markers = ("executive", "support", "contact", "representative", "সাপোর্ট", "সহায়তা", "যোগাযোগ", "প্রতিনিধি")
+    for value in values:
+        lowered = value.lower()
+        if value and any(marker in lowered for marker in markers):
+            return value
+    try:
+        from .routers.auth import METHO_SUPPORT_WHATSAPP
+        support_number = str(METHO_SUPPORT_WHATSAPP or "").strip()
+    except Exception:
+        support_number = ""
+    if support_number:
+        return f"আপনার প্রশ্নটি আমাদের support team দেখবে। METHO WhatsApp executive: {support_number}"
+    return ""
+
+
+def _preset_role_for_common_query(config: dict, text: str) -> str | None:
+    lowered = str(text or "").lower()
+    if any(keyword in lowered for keyword in ("partner", "পার্টনার")):
+        return "partner"
+    if any(keyword in lowered for keyword in ("rider", "রাইডার")):
+        return "rider"
+    if any(keyword in lowered for keyword in (*PRODUCT_QUERY_KEYWORDS, *PAYMENT_QUERY_KEYWORDS, *WALLET_QUERY_KEYWORDS, *DELIVERY_QUERY_KEYWORDS)):
+        return "customer" if str(config.get("customer_auto_reply") or "").strip() else "default"
+    if any(keyword in lowered for keyword in (*ORDER_QUERY_KEYWORDS, *SUPPORT_QUERY_KEYWORDS, *BROAD_EARNING_KEYWORDS)):
+        return "default"
+    return None
 
 
 def get_registration_welcome_image(db) -> str:
@@ -1359,8 +1400,8 @@ def ingest_whatsapp_message(db, payload: dict, request=None) -> str:
         role_hint = _registration_role_for_text(config, incoming_text)
         lowered = incoming_text.lower()
         is_ai_freeform_query = _is_informational_question(incoming_text) and not _has_registration_intent(incoming_text)
-        if not role_hint and not is_ai_freeform_query and any(word in lowered for word in ("customer", "product", "order", "price")):
-            role_hint = "customer"
+        if not role_hint:
+            role_hint = _preset_role_for_common_query(config, incoming_text)
 
         if (
             "What is METHO AAY-UPAY?" in incoming_text
@@ -1491,11 +1532,16 @@ def ingest_whatsapp_message(db, payload: dict, request=None) -> str:
         elif role_hint:
             if role_hint in REGISTRATION_ROLE_SETTINGS:
                 auto_reply = _localized_role_reply(db, role_hint, language, lead.id, normalized["phone"])
+            elif role_hint in {"customer", "default"}:
+                if role_hint == "default" and any(keyword in incoming_text.lower() for keyword in ORDER_QUERY_KEYWORDS) and str(config.get("order_template") or "").strip():
+                    auto_reply = str(config.get("order_template") or "").strip()
+                elif role_hint == "default" and any(keyword in incoming_text.lower() for keyword in SUPPORT_QUERY_KEYWORDS):
+                    auto_reply = _configured_executive_fallback(db) or get_configured_whatsapp_reply(db, "default", DEFAULT_AUTO_REPLY)
+                else:
+                    auto_reply = get_configured_whatsapp_reply(db, role_hint, DEFAULT_AUTO_REPLY)
             else:
                 configured_reply = get_configured_whatsapp_reply(db, role_hint)
                 auto_reply = _registration_reply(db, configured_reply, lead.id, normalized["phone"])
-        elif any(keyword in incoming_text.lower() for keyword in BROAD_EARNING_KEYWORDS):
-            auto_reply = get_configured_whatsapp_reply(db, "default", DEFAULT_AUTO_REPLY)
         else:
             auto_reply = get_configured_whatsapp_reply(db, "default", DEFAULT_AUTO_REPLY)
         logger.info(

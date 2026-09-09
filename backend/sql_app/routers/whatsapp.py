@@ -354,17 +354,5 @@ async def receive_whatsapp_webhook(request: Request, background_tasks: Backgroun
         raise HTTPException(status_code=503, detail=f"WhatsApp lead could not be stored: {str(exc)}") from exc
     for message_id in claimed_message_ids:
         mark_webhook_event(db, message_id, "processed")
-    for message in messages:
-        message_id = str((message or {}).get("id") or "").strip()
-        if not message_id:
-            continue
-        activity = db.query(CRMLeadActivity).filter(
-            CRMLeadActivity.activity_type == "whatsapp_message_received",
-            CRMLeadActivity.message.contains(f"[{message_id}]"),
-        ).first()
-        if activity:
-            background_tasks.add_task(create_suggestion_for_activity, activity.id)
-            logger.info("WhatsApp AI background task queued: message_id=%s activity_id=%s lead_id=%s", message_id, activity.id, activity.lead_id)
-        else:
-            logger.warning("WhatsApp AI task not queued: received activity missing: message_id=%s", message_id)
+    logger.info("WhatsApp webhook processed with preset-only routing: message_count=%s", len(messages))
     return {"ok": True, "status": result, "message_count": len(messages)}

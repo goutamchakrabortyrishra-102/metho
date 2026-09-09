@@ -39,7 +39,7 @@ GEMINI_MODEL_ALIASES = {
 }
 SENSITIVE_PATTERNS = (r"\b\d{4}[-\s]?\d{4}[-\s]?\d{4}\b", r"\b[A-Z]{5}[0-9]{4}[A-Z]\b", r"\b\d{6}\b")
 SEARCH_TERMS = ("price", "cost", "benefit", "use", "detail", "product", "business", "join", "registration", "দাম", "কত", "উপকারিতা", "ব্যবহার", "বিস্তারিত", "পণ্য", "ব্যবসা", "যোগ", "রেজিস্ট্রেশন")
-PRE_REGISTRATION_FOLLOWUP = "হ্যালো! আপনি METHO সম্পর্কে তথ্য পেয়েছিলেন। Registration করতে কোনো সাহায্য লাগছে কি? চাইলে এই WhatsApp-এ reply করুন অথবা আমাদের executive-এর সঙ্গে যোগাযোগ করুন: 9339566110 / 9163530078। আমরা Member, Partner বা Rider হিসেবে যুক্ত হওয়ার ধাপ বুঝিয়ে দেব।"
+PRE_REGISTRATION_FOLLOWUP = "হ্যালো! আপনি METHO সম্পর্কে তথ্য পেয়েছিলেন। Registration করতে কোনো সাহায্য লাগছে কি? চাইলে এই WhatsApp-এ reply করুন। আমরা Member, Partner বা Rider হিসেবে যুক্ত হওয়ার ধাপ বুঝিয়ে দেব।"
 LIFECYCLE_SUGGESTIONS = {
     "registration_form_opened": "আপনি registration form খুলেছেন। Form পূরণ করতে কোনো সাহায্য লাগলে এখানেই লিখুন।",
     "registration_form_submitted": "আপনার registration form জমা হয়েছে। পরবর্তী ধাপ সম্পন্ন করতে কোনো সাহায্য লাগলে এখানে reply করুন।",    "registration_form_followup_started": "আপনার Registration Form জমা হয়েছে। Account activation বা approval status নিয়ে কোনো প্রশ্ন থাকলে এখানে reply করুন, আমরা সাহায্য করব।",    "member_registration_completed": "আপনার Member registration সম্পন্ন হয়েছে। Account activation ও প্রথম purchase-এর পরবর্তী ধাপে সহায়তা লাগলে এখানে reply করুন।",
@@ -320,7 +320,7 @@ def _gemini_generate_content(api_key: str, model_name: str, prompt: str) -> str:
 
 def _generate_reply(config: dict, message: str, context: str = "", event_type: str = "") -> tuple[str, str, str]:
     search_context = search_web_context(f"METHO AAY-UPAY {message}") if any(term in message.lower() for term in SEARCH_TERMS) else ""
-    prompt = f"{config['system_prompt']}\n\nYou are a helpful METHO customer-care teammate, not a generic chatbot. Reply like a real person: acknowledge the customer's exact question, answer directly, and give one practical next step. Detect the language of the customer's latest message and reply in that language; preserve familiar product names and links. Use the CRM context and previous conversation so you do not repeat questions or contradict earlier replies. Explain products, prices, delivery, business opportunities, and how to join only from verified context. If a fact is missing or sensitive, say that a human METHO team member will verify it and create a follow-up instead of guessing. Never claim an account is activated, a reward is paid, a purchase is completed, stock is available, or an approval is complete unless the context says so. For a pre-registration follow-up, ask whether help is needed and include executive contacts 9339566110 / 9163530078. For reminders, be warm and specific, never spammy, and keep the reply under 900 characters.\n\nTrigger event: {event_type or 'incoming_whatsapp_message'}\n\nCRM and conversation context:\n{context or 'No CRM context available.'}\n\nKnowledge base:\n{config['knowledge_base']}\n\nOptional public search context (use only as background; do not copy source wording or invent facts):\n{search_context or 'No search context available.'}\n\nCustomer message/event:\n{message}"
+    prompt = f"{config['system_prompt']}\n\nYou are a helpful METHO customer-care teammate, not a generic chatbot. Reply like a real person: acknowledge the customer's exact question, answer directly, and give one practical next step. Detect the language of the customer's latest message and reply in that language; preserve familiar product names and links. Use the CRM context and previous conversation so you do not repeat questions or contradict earlier replies. Explain products, prices, delivery, business opportunities, and how to join only from verified context. If a fact is missing or sensitive, say that a human METHO team member will verify it and create a follow-up instead of guessing. Never claim an account is activated, a reward is paid, a purchase is completed, stock is available, or an approval is complete unless the context says so. Never include an executive/support phone number unless it is present in the verified CRM/config context. For reminders, be warm and specific, never spammy, and keep the reply under 900 characters.\n\nTrigger event: {event_type or 'incoming_whatsapp_message'}\n\nCRM and conversation context:\n{context or 'No CRM context available.'}\n\nKnowledge base:\n{config['knowledge_base']}\n\nOptional public search context (use only as background; do not copy source wording or invent facts):\n{search_context or 'No search context available.'}\n\nCustomer message/event:\n{message}"
     gemini_key = (os.getenv("GEMINI_API_KEY", "") or os.getenv("GOOGLE_API_KEY", "")).strip()
 
     if gemini_key:
@@ -502,27 +502,25 @@ def process_due_followups(limit: int = 20) -> int:
             )
             db.add(activity)
             db.flush()
-            db.commit()
-            create_suggestion_for_activity(activity.id)
-            suggestion = db.query(CRMWhatsAppAISuggestion).filter(CRMWhatsAppAISuggestion.activity_id == activity.id).first()
-            if not suggestion and not resolve_ai_config(db).get("enabled"):
-                from .whatsapp_cloud import get_configured_whatsapp_reply, send_whatsapp_message
-                fallback_text = PRE_REGISTRATION_FOLLOWUP if is_pre_registration else (get_configured_whatsapp_reply(db, "default") or LIFECYCLE_SUGGESTIONS["crm_followup_due"])
-                try:
-                    send_whatsapp_message(db, recipient, text=fallback_text)
-                    suggestion = CRMWhatsAppAISuggestion(
-                        lead_id=lead.id,
-                        activity_id=activity.id,
-                        suggested_reply=fallback_text,
-                        provider_used="preset",
-                        model_used="configured",
-                        status="SENT",
-                        sent_reply=fallback_text,
-                    )
-                    db.add(suggestion)
-                    db.commit()
-                except Exception:
-                    db.rollback()
+            from .whatsapp_cloud import get_configured_whatsapp_reply, send_whatsapp_message
+            fallback_text = PRE_REGISTRATION_FOLLOWUP if is_pre_registration else (get_configured_whatsapp_reply(db, "default") or LIFECYCLE_SUGGESTIONS["crm_followup_due"])
+            suggestion = None
+            try:
+                send_whatsapp_message(db, recipient, text=fallback_text)
+                suggestion = CRMWhatsAppAISuggestion(
+                    lead_id=lead.id,
+                    activity_id=activity.id,
+                    suggested_reply=fallback_text,
+                    provider_used="preset",
+                    model_used="configured",
+                    status="SENT",
+                    sent_reply=fallback_text,
+                )
+                db.add(suggestion)
+                db.add(CRMLeadActivity(lead_id=lead.id, activity_type="whatsapp_message_sent", message=fallback_text))
+                db.commit()
+            except Exception:
+                db.rollback()
             if suggestion and suggestion.status == "SENT":
                 followup.status = "Sent"
                 lead.last_contact_at = now
