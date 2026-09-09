@@ -935,14 +935,10 @@ def _continue_introduction(db, session: WhatsAppRegistrationSession, lead: CRMLe
     if normalized == "4":
         reply = get_whatsapp_preset_message(db, "preset_metho_info", WHATSAPP_PRESET_MESSAGE_DEFAULTS["preset_metho_info"], introduction=_configured_introduction_message(db))
         session.state = WHATSAPP_ROLE_SELECTION
-    elif session.state == WHATSAPP_ROLE_SELECTION and normalized in {"1", "yes", "হ্যাঁ", "হ্যা", "register", "রেজিস্টার"} and session.role:
-        if session.role == "member":
-            return _start_member_registration_flow(db, session, lead, recipient)
-        return _start_role_registration_flow(db, session, lead, session.role, recipient)
     elif normalized in choices:
         session.role = choices[normalized]
         session.state = WHATSAPP_ROLE_SELECTION
-        reply = _role_explanation(db, session.role)
+        reply = _role_registration_reply(db, session.role)
     else:
         session.state = WHATSAPP_ROLE_SELECTION
         reply = get_whatsapp_preset_message(db, "preset_role_selection_fallback", WHATSAPP_PRESET_MESSAGE_DEFAULTS["preset_role_selection_fallback"])
