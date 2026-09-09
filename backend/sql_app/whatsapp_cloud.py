@@ -11,7 +11,7 @@ from urllib.request import Request, urlopen
 from cryptography.fernet import Fernet, InvalidToken
 
 from .crm_identity import enrich_lead_from_contact, ensure_pending_followup, find_lead_by_phone
-from .models import AppSetting, CRMFollowUp, CRMLead, CRMLeadActivity, CRMTask, User
+from .models import AppSetting, CRMFollowUp, CRMLead, CRMLeadActivity, CRMTask, User, WhatsAppRegistrationSession
 
 logger = logging.getLogger(__name__)
 
@@ -86,6 +86,14 @@ ROLE_IDENTITY_KEYWORDS = {
 INFORMATIONAL_QUESTION_MARKERS = ("?", "কীভাবে", "কিভাবে", "কি ভাবে", "কী ভাবে", "কেমন করে", "জানতে চাই", "জানতে", "প্রোডাক্ট", "পণ্য", "সম্বন্ধে", "সম্পর্কে", "what", "how")
 BROAD_EARNING_KEYWORDS = ("কাজ", "আয়", "আয়", "income", "earn", "earning", "work")
 REGISTRATION_INTENT_MARKERS = ("রেজিস্ট", "register", "registration", "যুক্ত", "join", "হতে চাই", "করতে চাই", "হব", "হবো", "চালু", "অনবোর্ডিং", "onboarding", "interested")
+WHATSAPP_REGISTRATION_IDLE = "IDLE"
+WHATSAPP_MEMBER_NAME = "MEMBER_NAME"
+WHATSAPP_MEMBER_ADDRESS = "MEMBER_ADDRESS"
+WHATSAPP_MEMBER_CONFIRMATION = "MEMBER_CONFIRMATION"
+WHATSAPP_REGISTRATION_COMPLETED = "COMPLETED"
+WHATSAPP_MEMBER_ACTIVE_STATES = {WHATSAPP_MEMBER_NAME, WHATSAPP_MEMBER_ADDRESS, WHATSAPP_MEMBER_CONFIRMATION}
+WHATSAPP_RESET_COMMANDS = {"cancel", "reset", "বাতিল"}
+WHATSAPP_HANDOFF_COMMANDS = {"agent", "support", "মানুষের সাথে কথা বলতে চাই"}
 
 
 def _setting(name: str) -> str:
@@ -596,6 +604,143 @@ def _send_auto_reply_if_configured(db, recipient: str, text: str) -> str:
         return "failed"
 
 
+def _whatsapp_command_text(text: str) -> str:
+    return " ".join(str(text or "").strip().lower().split())
+
+
+def _is_whatsapp_reset_command(text: str) -> bool:
+    return _whatsapp_command_text(text) in WHATSAPP_RESET_COMMANDS
+
+
+def _is_whatsapp_handoff_command(text: str) -> bool:
+    normalized = _whatsapp_command_text(text)
+    return normalized in WHATSAPP_HANDOFF_COMMANDS or any(command in normalized for command in WHATSAPP_HANDOFF_COMMANDS if " " in command)
+
+
+def _member_registration_session(db, phone: str, wa_id: str, lead: CRMLead) -> WhatsAppRegistrationSession:
+    session = db.query(WhatsAppRegistrationSession).filter(WhatsAppRegistrationSession.phone == phone).first()
+    if not session:
+        session = WhatsAppRegistrationSession(phone=phone, wa_id=wa_id or phone, lead_id=lead.id, role="member", state=WHATSAPP_REGISTRATION_IDLE)
+        db.add(session)
+        db.flush()
+    else:
+        if wa_id and not session.wa_id:
+            session.wa_id = wa_id
+        if not session.lead_id:
+            session.lead_id = lead.id
+    return session
+
+
+def _clear_member_registration_session(session: WhatsAppRegistrationSession) -> None:
+    session.state = WHATSAPP_REGISTRATION_IDLE
+    session.name = ""
+    session.address = ""
+    session.completed_at = None
+
+
+def _member_registration_confirmation(name: str, address: str) -> str:
+    return "\n".join((
+        "আপনার তথ্যগুলো যাচাই করুন:",
+        f"নাম: {name}",
+        f"ঠিকানা: {address}",
+        "",
+        "Reply:",
+        "1 - Confirm",
+        "2 - Edit",
+    ))
+
+
+def _send_member_registration_reply(db, recipient: str, text: str) -> bool:
+    return _send_auto_reply_if_configured(db, recipient, text=text) == "sent"
+
+
+def _start_member_registration_flow(db, session: WhatsAppRegistrationSession, lead: CRMLead, recipient: str) -> bool:
+    session.role = "member"
+    session.state = WHATSAPP_MEMBER_NAME
+    session.name = ""
+    session.address = ""
+    session.completed_at = None
+    lead.status = "APPLICATION" if lead.status == "NEW" else lead.status
+    text = "\n".join((
+        "স্বাগতম METHO AAY-UPAY-এ।",
+        "Member registration WhatsApp-এর মাধ্যমেই শুরু করছি।",
+        "",
+        "আপনার নাম লিখুন।",
+    ))
+    if not _send_member_registration_reply(db, recipient, text):
+        _clear_member_registration_session(session)
+        return False
+    db.add(CRMLeadActivity(lead_id=lead.id, activity_type="whatsapp_message_sent", message=text))
+    db.add(CRMLeadActivity(lead_id=lead.id, activity_type="whatsapp_registration_state", message="MEMBER_NAME"))
+    return True
+
+
+def _request_whatsapp_human_handoff(db, lead: CRMLead, session: WhatsAppRegistrationSession | None, recipient: str) -> bool:
+    if session:
+        _clear_member_registration_session(session)
+    ensure_pending_followup(db, lead, notes="WhatsApp customer requested human support")
+    assignee_id = lead.assigned_user_id or _admin_assignee(db)
+    if assignee_id:
+        db.add(CRMTask(title="WhatsApp human support requested", description="Customer asked to speak with a human from WhatsApp.", due_at=datetime.now(timezone.utc), status="Pending", priority="High", lead_id=lead.id, assigned_user_id=assignee_id, created_by_user_id=assignee_id))
+    text = "আপনার অনুরোধটি আমাদের support team-কে পাঠানো হয়েছে। একজন representative শীঘ্রই যোগাযোগ করবেন।"
+    if not _send_member_registration_reply(db, recipient, text):
+        return False
+    db.add(CRMLeadActivity(lead_id=lead.id, activity_type="whatsapp_human_handoff_requested", message="Customer requested human support from WhatsApp"))
+    db.add(CRMLeadActivity(lead_id=lead.id, activity_type="whatsapp_message_sent", message=text))
+    return True
+
+
+def _continue_member_registration_flow(db, session: WhatsAppRegistrationSession, lead: CRMLead, incoming_text: str, recipient: str) -> bool:
+    text = str(incoming_text or "").strip()
+    if _is_whatsapp_reset_command(text):
+        _clear_member_registration_session(session)
+        reply = "আপনার active Member registration flow বাতিল করা হয়েছে। আবার শুরু করতে চাইলে লিখুন: আমি মেম্বার হতে চাই"
+    elif session.state == WHATSAPP_MEMBER_NAME:
+        if not text:
+            reply = "নাম খালি রাখা যাবে না। আপনার নাম লিখুন।"
+        else:
+            session.name = text[:120]
+            if not lead.contact_person or lead.contact_person.startswith("WhatsApp-") or lead.contact_person == "WhatsApp Lead":
+                lead.contact_person = session.name
+            session.state = WHATSAPP_MEMBER_ADDRESS
+            reply = "ধন্যবাদ।\nআপনার ঠিকানা লিখুন।"
+    elif session.state == WHATSAPP_MEMBER_ADDRESS:
+        if len(text) < 3:
+            reply = "ঠিকানা খালি রাখা যাবে না। আপনার সম্পূর্ণ ঠিকানা লিখুন।"
+        else:
+            session.address = text[:2000]
+            if not lead.address:
+                lead.address = session.address
+            session.state = WHATSAPP_MEMBER_CONFIRMATION
+            reply = _member_registration_confirmation(session.name, session.address)
+    elif session.state == WHATSAPP_MEMBER_CONFIRMATION:
+        normalized = _whatsapp_command_text(text)
+        if normalized in {"1", "confirm", "yes", "হ্যাঁ", "হ্যা"}:
+            session.state = WHATSAPP_REGISTRATION_COMPLETED
+            session.completed_at = datetime.now(timezone.utc)
+            if session.name:
+                lead.contact_person = session.name
+            if session.address:
+                lead.address = session.address
+            if lead.status == "NEW":
+                lead.status = "APPLICATION"
+            reply = "আপনার Member registration সফলভাবে সম্পন্ন হয়েছে।\nস্বাগতম METHO AAY-UPAY-এ।"
+        elif normalized in {"2", "edit"}:
+            session.state = WHATSAPP_MEMBER_NAME
+            session.name = ""
+            session.address = ""
+            reply = "ঠিক আছে। আবার আপনার নাম লিখুন।"
+        else:
+            reply = _member_registration_confirmation(session.name, session.address)
+    else:
+        return False
+    if not _send_member_registration_reply(db, recipient, reply):
+        return False
+    db.add(CRMLeadActivity(lead_id=lead.id, activity_type="whatsapp_message_sent", message=reply))
+    db.add(CRMLeadActivity(lead_id=lead.id, activity_type="whatsapp_registration_state", message=session.state))
+    return True
+
+
 def ingest_whatsapp_message(db, payload: dict, request=None) -> str:
     statuses = []
     for normalized in _normalized_whatsapp_messages(payload):
@@ -699,6 +844,25 @@ def ingest_whatsapp_message(db, payload: dict, request=None) -> str:
             status = "created"
         else:
             status = "updated"
+
+        body = normalized["metadata"].get("raw_body") or ""
+        dispatch_marker = f"auto-reply-for:{message_id}"
+        registration_session = db.query(WhatsAppRegistrationSession).filter(WhatsAppRegistrationSession.phone == normalized["phone"]).first()
+        native_member_handled = False
+        if _is_whatsapp_handoff_command(incoming_text):
+            native_member_handled = _request_whatsapp_human_handoff(db, lead, registration_session, normalized["phone"])
+        elif registration_session and registration_session.role == "member" and registration_session.state in WHATSAPP_MEMBER_ACTIVE_STATES:
+            native_member_handled = _continue_member_registration_flow(db, registration_session, lead, incoming_text, normalized["phone"])
+        elif role_hint == "member":
+            registration_session = _member_registration_session(db, normalized["phone"], normalized["whatsapp_no"], lead)
+            native_member_handled = _start_member_registration_flow(db, registration_session, lead, normalized["phone"])
+
+        if native_member_handled:
+            db.add(CRMLeadActivity(lead_id=lead.id, activity_type="whatsapp_message_received", message=f"{activity_prefix}: {body}"))
+            db.add(CRMLeadActivity(lead_id=lead.id, activity_type="whatsapp_auto_reply_dispatched", message=f"{dispatch_marker}:member-registration"))
+            statuses.append(status)
+            continue
+
         ai_handles_freeform = False
         if reply_text:
             auto_reply = _registration_reply(db, reply_text, lead.id, normalized["phone"])
@@ -715,9 +879,7 @@ def ingest_whatsapp_message(db, payload: dict, request=None) -> str:
             except Exception:
                 ai_handles_freeform = False
             auto_reply = "" if ai_handles_freeform else _localized_default_reply(db, language)
-        body = normalized["metadata"].get("raw_body") or ""
         db.add(CRMLeadActivity(lead_id=lead.id, activity_type="whatsapp_message_received", message=f"{activity_prefix}: {body}"))
-        dispatch_marker = f"auto-reply-for:{message_id}"
         already_dispatched = db.query(CRMLeadActivity).filter(
             CRMLeadActivity.lead_id == lead.id,
             CRMLeadActivity.activity_type == "whatsapp_auto_reply_dispatched",

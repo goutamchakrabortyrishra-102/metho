@@ -12,7 +12,7 @@ from sqlalchemy.orm import sessionmaker
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from sql_app.database import Base
-from sql_app.models import AppSetting, CRMLead, CRMLeadActivity
+from sql_app.models import AppSetting, CRMLead, CRMLeadActivity, WhatsAppRegistrationSession
 from sql_app.routers.crm import get_whatsapp_conversation, list_whatsapp_conversations, send_whatsapp_conversation_message
 from sql_app.routers.whatsapp import get_whatsapp_settings, receive_whatsapp_webhook, run_whatsapp_settings_test, update_whatsapp_settings
 from sql_app.whatsapp_cloud import _is_informational_question, _registration_role_for_text, ingest_whatsapp_message, normalize_whatsapp_message, resolve_config, send_whatsapp_message
@@ -381,11 +381,225 @@ def test_whatsapp_explicit_role_intents_still_trigger_posters(monkeypatch):
     try:
         sent_images = []
         monkeypatch.setattr("sql_app.whatsapp_cloud.send_whatsapp_image", lambda _db, recipient, image_url, caption="": sent_images.append((recipient, image_url, caption)) or {"messages": [{"id": "wamid.image"}]})
-        update_whatsapp_settings({"phone_number_id": "123456", "access_token": "secret-token", "member_registration_reply_image_url": "/api/files/whatsapp_posters/member.png", "rider_registration_reply_image_url": "/api/files/whatsapp_posters/rider.png"}, db, admin())
-        assert ingest_whatsapp_message(db, message_payload("wamid.member-intent", "আমি Member হতে চাই"), None) == "created"
+        update_whatsapp_settings({"phone_number_id": "123456", "access_token": "secret-token", "partner_registration_reply_image_url": "/api/files/whatsapp_posters/partner.png", "rider_registration_reply_image_url": "/api/files/whatsapp_posters/rider.png"}, db, admin())
+        assert ingest_whatsapp_message(db, message_payload("wamid.partner-intent", "আমি Partner হতে চাই"), None) == "created"
         assert ingest_whatsapp_message(db, message_payload("wamid.rider-intent", "আমি Rider হতে চাই", sender="8801712345679"), None) == "created"
-        assert sent_images[0][1].endswith("/api/files/whatsapp_posters/member.png")
+        assert sent_images[0][1].endswith("/api/files/whatsapp_posters/partner.png")
         assert sent_images[1][1].endswith("/api/files/whatsapp_posters/rider.png")
+    finally:
+        db.close()
+
+
+def test_whatsapp_member_registration_starts_native_flow(monkeypatch):
+    db = make_session()
+    try:
+        sent = []
+        monkeypatch.setattr("sql_app.whatsapp_cloud.send_whatsapp_message", lambda _db, recipient, text: sent.append((recipient, text)) or {"messages": [{"id": "wamid.reply"}]})
+        update_whatsapp_settings({"phone_number_id": "123456", "access_token": "secret-token"}, db, admin())
+        assert ingest_whatsapp_message(db, message_payload("wamid.member-start", "আমি মেম্বার হতে চাই"), None) == "created"
+        session = db.query(WhatsAppRegistrationSession).one()
+        assert session.state == "MEMBER_NAME"
+        assert session.role == "member"
+        assert "আপনার নাম লিখুন" in sent[0][1]
+        assert "register?" not in sent[0][1]
+        assert db.query(CRMLead).count() == 1
+    finally:
+        db.close()
+
+
+def test_whatsapp_member_registration_collects_name(monkeypatch):
+    db = make_session()
+    try:
+        sent = []
+        monkeypatch.setattr("sql_app.whatsapp_cloud.send_whatsapp_message", lambda _db, recipient, text: sent.append((recipient, text)) or {"messages": [{"id": "wamid.reply"}]})
+        update_whatsapp_settings({"phone_number_id": "123456", "access_token": "secret-token"}, db, admin())
+        ingest_whatsapp_message(db, message_payload("wamid.name-start", "আমি মেম্বার হতে চাই"), None)
+        assert ingest_whatsapp_message(db, message_payload("wamid.name", "Goutam Chakraborty"), None) == "updated"
+        session = db.query(WhatsAppRegistrationSession).one()
+        assert session.state == "MEMBER_ADDRESS"
+        assert session.name == "Goutam Chakraborty"
+        assert "আপনার ঠিকানা লিখুন" in sent[-1][1]
+        assert db.query(CRMLead).count() == 1
+    finally:
+        db.close()
+
+
+def test_whatsapp_member_registration_rejects_empty_name(monkeypatch):
+    db = make_session()
+    try:
+        sent = []
+        monkeypatch.setattr("sql_app.whatsapp_cloud.send_whatsapp_message", lambda _db, recipient, text: sent.append((recipient, text)) or {"messages": [{"id": "wamid.reply"}]})
+        update_whatsapp_settings({"phone_number_id": "123456", "access_token": "secret-token"}, db, admin())
+        ingest_whatsapp_message(db, message_payload("wamid.empty-name-start", "আমি মেম্বার হতে চাই"), None)
+        assert ingest_whatsapp_message(db, message_payload("wamid.empty-name", "   "), None) == "updated"
+        session = db.query(WhatsAppRegistrationSession).one()
+        assert session.state == "MEMBER_NAME"
+        assert "নাম খালি রাখা যাবে না" in sent[-1][1]
+    finally:
+        db.close()
+
+
+def test_whatsapp_member_registration_collects_address_and_confirmation(monkeypatch):
+    db = make_session()
+    try:
+        sent = []
+        monkeypatch.setattr("sql_app.whatsapp_cloud.send_whatsapp_message", lambda _db, recipient, text: sent.append((recipient, text)) or {"messages": [{"id": "wamid.reply"}]})
+        update_whatsapp_settings({"phone_number_id": "123456", "access_token": "secret-token"}, db, admin())
+        ingest_whatsapp_message(db, message_payload("wamid.address-start", "আমি মেম্বার হতে চাই"), None)
+        ingest_whatsapp_message(db, message_payload("wamid.address-name", "Goutam Chakraborty"), None)
+        assert ingest_whatsapp_message(db, message_payload("wamid.address", "Rishra, Hooghly"), None) == "updated"
+        session = db.query(WhatsAppRegistrationSession).one()
+        assert session.state == "MEMBER_CONFIRMATION"
+        assert session.address == "Rishra, Hooghly"
+        assert "নাম: Goutam Chakraborty" in sent[-1][1]
+        assert "1 - Confirm" in sent[-1][1]
+    finally:
+        db.close()
+
+
+def test_whatsapp_member_registration_rejects_empty_address(monkeypatch):
+    db = make_session()
+    try:
+        sent = []
+        monkeypatch.setattr("sql_app.whatsapp_cloud.send_whatsapp_message", lambda _db, recipient, text: sent.append((recipient, text)) or {"messages": [{"id": "wamid.reply"}]})
+        update_whatsapp_settings({"phone_number_id": "123456", "access_token": "secret-token"}, db, admin())
+        ingest_whatsapp_message(db, message_payload("wamid.empty-address-start", "আমি মেম্বার হতে চাই"), None)
+        ingest_whatsapp_message(db, message_payload("wamid.empty-address-name", "Goutam Chakraborty"), None)
+        assert ingest_whatsapp_message(db, message_payload("wamid.empty-address", "  "), None) == "updated"
+        session = db.query(WhatsAppRegistrationSession).one()
+        assert session.state == "MEMBER_ADDRESS"
+        assert "ঠিকানা খালি রাখা যাবে না" in sent[-1][1]
+    finally:
+        db.close()
+
+
+def test_whatsapp_member_registration_confirmation_success(monkeypatch):
+    db = make_session()
+    try:
+        sent = []
+        monkeypatch.setattr("sql_app.whatsapp_cloud.send_whatsapp_message", lambda _db, recipient, text: sent.append((recipient, text)) or {"messages": [{"id": "wamid.reply"}]})
+        update_whatsapp_settings({"phone_number_id": "123456", "access_token": "secret-token"}, db, admin())
+        ingest_whatsapp_message(db, message_payload("wamid.confirm-start", "আমি মেম্বার হতে চাই"), None)
+        ingest_whatsapp_message(db, message_payload("wamid.confirm-name", "Goutam Chakraborty"), None)
+        ingest_whatsapp_message(db, message_payload("wamid.confirm-address", "Rishra, Hooghly"), None)
+        assert ingest_whatsapp_message(db, message_payload("wamid.confirm", "1"), None) == "updated"
+        session = db.query(WhatsAppRegistrationSession).one()
+        lead = db.query(CRMLead).one()
+        assert session.state == "COMPLETED"
+        assert session.completed_at is not None
+        assert lead.contact_person == "Goutam Chakraborty"
+        assert lead.address == "Rishra, Hooghly"
+        assert "সফলভাবে সম্পন্ন" in sent[-1][1]
+    finally:
+        db.close()
+
+
+def test_whatsapp_member_registration_unknown_confirmation_repeats_options(monkeypatch):
+    db = make_session()
+    try:
+        sent = []
+        monkeypatch.setattr("sql_app.whatsapp_cloud.send_whatsapp_message", lambda _db, recipient, text: sent.append((recipient, text)) or {"messages": [{"id": "wamid.reply"}]})
+        update_whatsapp_settings({"phone_number_id": "123456", "access_token": "secret-token"}, db, admin())
+        ingest_whatsapp_message(db, message_payload("wamid.unknown-start", "আমি মেম্বার হতে চাই"), None)
+        ingest_whatsapp_message(db, message_payload("wamid.unknown-name", "Goutam Chakraborty"), None)
+        ingest_whatsapp_message(db, message_payload("wamid.unknown-address", "Rishra, Hooghly"), None)
+        assert ingest_whatsapp_message(db, message_payload("wamid.unknown", "maybe"), None) == "updated"
+        session = db.query(WhatsAppRegistrationSession).one()
+        assert session.state == "MEMBER_CONFIRMATION"
+        assert "1 - Confirm" in sent[-1][1]
+        assert "2 - Edit" in sent[-1][1]
+    finally:
+        db.close()
+
+
+def test_whatsapp_member_registration_cancel_resets_state(monkeypatch):
+    db = make_session()
+    try:
+        sent = []
+        monkeypatch.setattr("sql_app.whatsapp_cloud.send_whatsapp_message", lambda _db, recipient, text: sent.append((recipient, text)) or {"messages": [{"id": "wamid.reply"}]})
+        update_whatsapp_settings({"phone_number_id": "123456", "access_token": "secret-token"}, db, admin())
+        ingest_whatsapp_message(db, message_payload("wamid.cancel-start", "আমি মেম্বার হতে চাই"), None)
+        assert ingest_whatsapp_message(db, message_payload("wamid.cancel", "বাতিল"), None) == "updated"
+        session = db.query(WhatsAppRegistrationSession).one()
+        assert session.state == "IDLE"
+        assert session.name == ""
+        assert "বাতিল" in sent[-1][1]
+    finally:
+        db.close()
+
+
+def test_whatsapp_member_registration_human_handoff(monkeypatch):
+    db = make_session()
+    try:
+        sent = []
+        monkeypatch.setattr("sql_app.whatsapp_cloud.send_whatsapp_message", lambda _db, recipient, text: sent.append((recipient, text)) or {"messages": [{"id": "wamid.reply"}]})
+        update_whatsapp_settings({"phone_number_id": "123456", "access_token": "secret-token"}, db, admin())
+        ingest_whatsapp_message(db, message_payload("wamid.handoff-start", "আমি মেম্বার হতে চাই"), None)
+        assert ingest_whatsapp_message(db, message_payload("wamid.handoff", "support"), None) == "updated"
+        session = db.query(WhatsAppRegistrationSession).one()
+        assert session.state == "IDLE"
+        assert db.query(CRMLeadActivity).filter(CRMLeadActivity.activity_type == "whatsapp_human_handoff_requested").count() == 1
+        assert db.query(CRMLead).one().follow_up_status == "Pending"
+        assert "support team" in sent[-1][1]
+    finally:
+        db.close()
+
+
+def test_whatsapp_member_registration_duplicate_message_does_not_advance_state(monkeypatch):
+    db = make_session()
+    try:
+        sent = []
+        monkeypatch.setattr("sql_app.whatsapp_cloud.send_whatsapp_message", lambda _db, recipient, text: sent.append((recipient, text)) or {"messages": [{"id": "wamid.reply"}]})
+        update_whatsapp_settings({"phone_number_id": "123456", "access_token": "secret-token"}, db, admin())
+        ingest_whatsapp_message(db, message_payload("wamid.dupe-start", "আমি মেম্বার হতে চাই"), None)
+        assert ingest_whatsapp_message(db, message_payload("wamid.dupe-name", "Goutam Chakraborty"), None) == "updated"
+        assert ingest_whatsapp_message(db, message_payload("wamid.dupe-name", "Other Address"), None) == "duplicate"
+        session = db.query(WhatsAppRegistrationSession).one()
+        assert session.state == "MEMBER_ADDRESS"
+        assert session.name == "Goutam Chakraborty"
+        assert len(sent) == 2
+    finally:
+        db.close()
+
+
+def test_whatsapp_member_registration_reuses_existing_crm_lead(monkeypatch):
+    db = make_session()
+    try:
+        sent = []
+        lead = CRMLead(lead_id="CRM-existing", business_name="Existing", contact_person="Existing", phone="01712345678", whatsapp_no="01712345678", source="manual")
+        db.add(lead)
+        db.commit()
+        monkeypatch.setattr("sql_app.whatsapp_cloud.send_whatsapp_message", lambda _db, recipient, text: sent.append((recipient, text)) or {"messages": [{"id": "wamid.reply"}]})
+        update_whatsapp_settings({"phone_number_id": "123456", "access_token": "secret-token"}, db, admin())
+        assert ingest_whatsapp_message(db, message_payload("wamid.reuse", "আমি মেম্বার হতে চাই", sender="8801712345678"), None) == "updated"
+        session = db.query(WhatsAppRegistrationSession).one()
+        assert db.query(CRMLead).count() == 1
+        assert session.lead_id == lead.id
+    finally:
+        db.close()
+
+
+def test_whatsapp_member_registration_url_fallback_still_available(monkeypatch):
+    db = make_session()
+    try:
+        sent = []
+        attempts = {"count": 0}
+
+        def fake_send(_db, recipient, text):
+            attempts["count"] += 1
+            if attempts["count"] == 1:
+                raise RuntimeError("native send unavailable")
+            sent.append((recipient, text))
+            return {"messages": [{"id": "wamid.reply"}]}
+
+        monkeypatch.setattr("sql_app.whatsapp_cloud.send_whatsapp_message", fake_send)
+        update_whatsapp_settings({"phone_number_id": "123456", "access_token": "secret-token"}, db, admin())
+        assert ingest_whatsapp_message(db, message_payload("wamid.member-fallback", "আমি মেম্বার হতে চাই"), None) == "created"
+        assert attempts["count"] == 2
+        assert "Member registration:" in sent[0][1]
+        assert "source=whatsapp" in sent[0][1]
+        assert "registration_role=member" in sent[0][1]
+        assert db.query(WhatsAppRegistrationSession).one().state == "IDLE"
     finally:
         db.close()
 

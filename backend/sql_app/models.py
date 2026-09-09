@@ -317,6 +317,23 @@ class WhatsAppMessageOutbox(Base):
     sent_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
 
+class WhatsAppRegistrationSession(Base):
+    __tablename__ = "whatsapp_registration_sessions"
+    __table_args__ = (UniqueConstraint("phone", name="uq_whatsapp_registration_session_phone"),)
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
+    phone: Mapped[str] = mapped_column(String(50), nullable=False, index=True)
+    wa_id: Mapped[str] = mapped_column(String(50), nullable=False, default="", index=True)
+    lead_id: Mapped[str | None] = mapped_column(String(36), ForeignKey("crm_leads.id"), nullable=True, index=True)
+    role: Mapped[str] = mapped_column(String(30), nullable=False, default="member", index=True)
+    state: Mapped[str] = mapped_column(String(40), nullable=False, default="IDLE", index=True)
+    name: Mapped[str] = mapped_column(String(120), nullable=False, default="")
+    address: Mapped[str] = mapped_column(Text, nullable=False, default="")
+    completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now_utc, index=True)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now_utc, onupdate=now_utc, index=True)
+
+
 class CRMVoiceCallAttempt(Base):
     __tablename__ = "crm_voice_call_attempts"
 
