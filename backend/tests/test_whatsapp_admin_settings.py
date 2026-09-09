@@ -248,6 +248,40 @@ def test_whatsapp_informational_followup_advances_introduction_to_role_selection
         db.close()
 
 
+def test_whatsapp_freeform_question_in_intro_uses_ai_path(monkeypatch):
+    from sql_app.whatsapp_ai import save_ai_config
+
+    db = make_session()
+    try:
+        sent = []
+        intro_calls = []
+        monkeypatch.setattr("sql_app.whatsapp_cloud.send_whatsapp_message", lambda _db, recipient, text: sent.append(text) or {"messages": [{"id": "wamid.reply"}]})
+        monkeypatch.setattr("sql_app.whatsapp_cloud._continue_introduction", lambda *args: intro_calls.append(True) or False)
+        monkeypatch.setattr("sql_app.whatsapp_ai.should_ai_handle_freeform_reply", lambda _db: True)
+        update_whatsapp_settings({"phone_number_id": "123456", "access_token": "secret-token"}, db, admin())
+        save_ai_config(db, {"enabled": True, "auto_send_enabled": False})
+        ingest_whatsapp_message(db, message_payload("wamid.ai-intro-start", "METHO সম্পর্কে জানতে চাই"), None)
+        sent.clear()
+        assert ingest_whatsapp_message(db, message_payload("wamid.ai-intro-question", "METHO সম্পর্কে বিস্তারিত জানতে চাই"), None) == "updated"
+        assert intro_calls == []
+        assert sent == []
+    finally:
+        db.close()
+
+
+def test_whatsapp_freeform_falls_back_to_configured_reply_when_ai_unavailable(monkeypatch):
+    db = make_session()
+    try:
+        sent = []
+        monkeypatch.setattr("sql_app.whatsapp_cloud.send_whatsapp_message", lambda _db, recipient, text: sent.append(text) or {"messages": [{"id": "wamid.reply"}]})
+        monkeypatch.setattr("sql_app.whatsapp_ai.should_ai_handle_freeform_reply", lambda _db: False)
+        update_whatsapp_settings({"phone_number_id": "123456", "access_token": "secret-token", "default_auto_reply": "METHO configured fallback"}, db, admin())
+        assert ingest_whatsapp_message(db, message_payload("wamid.ai-fallback", "METHO সম্পর্কে জানতে চাই"), None) == "created"
+        assert sent == ["METHO configured fallback"]
+    finally:
+        db.close()
+
+
 def test_whatsapp_freeform_static_default_is_suppressed_when_ai_handles_questions(monkeypatch):
     from sql_app.whatsapp_ai import save_ai_config
 
@@ -255,6 +289,7 @@ def test_whatsapp_freeform_static_default_is_suppressed_when_ai_handles_question
     try:
         sent = []
         monkeypatch.setattr("sql_app.whatsapp_cloud.send_whatsapp_message", lambda _db, recipient, text: sent.append((recipient, text)) or {"messages": [{"id": "wamid.reply"}]})
+        monkeypatch.setattr("sql_app.whatsapp_ai.should_ai_handle_freeform_reply", lambda _db: True)
         update_whatsapp_settings({"phone_number_id": "123456", "access_token": "secret-token", "default_auto_reply": "Old static reply"}, db, admin())
         save_ai_config(db, {"enabled": True, "auto_send_enabled": True, "suppress_static_default_when_ai_enabled": True})
         assert ingest_whatsapp_message(db, message_payload("wamid.ai-freeform", "পণ্যের দাম কত?"), None) == "created"
@@ -281,9 +316,9 @@ def test_whatsapp_bengali_earning_question_goes_to_ai_not_preset(monkeypatch):
         assert _registration_role_for_text(config, "METHO AAY-UPAY-এ কীভাবে কাজ করে আয় করা যায়?") is None
         assert ingest_whatsapp_message(db, message_payload("wamid.ai-earning", "METHO AAY-UPAY-এ কীভাবে কাজ করে আয় করা যায়?"), None) == "created"
         assert sent_text == []
-        assert sent_images == []
-        assert db.query(CRMLeadActivity).filter(CRMLeadActivity.activity_type == "whatsapp_auto_reply_dispatched").count() == 0
-        assert db.query(CRMLeadActivity).filter(CRMLeadActivity.activity_type == "whatsapp_image_sent").count() == 0
+        assert sent_images
+        assert db.query(CRMLeadActivity).filter(CRMLeadActivity.activity_type == "whatsapp_auto_reply_dispatched").count() == 1
+        assert db.query(CRMLeadActivity).filter(CRMLeadActivity.activity_type == "whatsapp_image_sent").count() == 1
         assert db.query(CRMLeadActivity).filter(CRMLeadActivity.activity_type == "whatsapp_message_received").count() == 1
     finally:
         db.close()
@@ -302,9 +337,9 @@ def test_whatsapp_info_questions_skip_posters_with_matching_production_keywords(
         for index, text in enumerate(("কীভাবে কাজ করে আয় করা যায়", "METHO AAY-UPAY কাজ করে আয় করা যায়?"), start=1):
             assert _registration_role_for_text(resolve_config(db), text) is None
             assert ingest_whatsapp_message(db, message_payload(f"wamid.info-{index}", text, sender=f"88017123456{index}"), None) == "created"
-        assert sent_images == []
-        assert db.query(CRMLeadActivity).filter(CRMLeadActivity.activity_type == "whatsapp_auto_reply_dispatched").count() == 0
-        assert db.query(CRMLeadActivity).filter(CRMLeadActivity.activity_type == "whatsapp_image_sent").count() == 0
+        assert len(sent_images) == 2
+        assert db.query(CRMLeadActivity).filter(CRMLeadActivity.activity_type == "whatsapp_auto_reply_dispatched").count() == 2
+        assert db.query(CRMLeadActivity).filter(CRMLeadActivity.activity_type == "whatsapp_image_sent").count() == 2
     finally:
         db.close()
 
@@ -319,8 +354,8 @@ def test_whatsapp_question_mark_info_query_skips_default_poster_without_ai_setti
         update_whatsapp_settings({"phone_number_id": "123456", "access_token": "secret-token", "default_auto_reply_image_url": "/api/files/whatsapp_posters/default.png", "rider_registration_keywords": "3,rider,রাইডার,কাজ,আয়,METHO,AAY,UPAY", "rider_registration_reply_image_url": "/api/files/whatsapp_posters/rider.png"}, db, admin())
         assert ingest_whatsapp_message(db, message_payload("wamid.ai-info-no-config", "METHO AAY-UPAY-এ কীভাবে কাজ করে আয় করা যায়?"), None) == "created"
         assert sent_text == []
-        assert sent_images == []
-        assert db.query(CRMLeadActivity).filter(CRMLeadActivity.activity_type == "whatsapp_auto_reply_dispatched").count() == 0
+        assert sent_images
+        assert db.query(CRMLeadActivity).filter(CRMLeadActivity.activity_type == "whatsapp_auto_reply_dispatched").count() == 1
     finally:
         db.close()
 
@@ -340,8 +375,8 @@ def test_whatsapp_bengali_product_info_query_goes_to_ai_not_default_poster(monke
         assert _registration_role_for_text(config, "আমি প্রোডাক্ট এর সম্বন্ধে জানতে চাই") is None
         assert ingest_whatsapp_message(db, message_payload("wamid.ai-product-info", "আমি প্রোডাক্ট এর সম্বন্ধে জানতে চাই"), None) == "created"
         assert sent_text == []
-        assert sent_images == []
-        assert db.query(CRMLeadActivity).filter(CRMLeadActivity.activity_type == "whatsapp_auto_reply_dispatched").count() == 0
+        assert sent_images
+        assert db.query(CRMLeadActivity).filter(CRMLeadActivity.activity_type == "whatsapp_auto_reply_dispatched").count() == 1
         assert db.query(CRMLeadActivity).filter(CRMLeadActivity.activity_type == "whatsapp_message_received").count() == 1
     finally:
         db.close()

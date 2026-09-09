@@ -1451,7 +1451,7 @@ def ingest_whatsapp_message(db, payload: dict, request=None) -> str:
             native_member_handled = _request_whatsapp_human_handoff(db, lead, registration_session, normalized["phone"])
         elif lead.member_user_id or lead.partner_request_id or lead.rider_user_id:
             native_member_handled = _route_existing_identity(db, lead, normalized["phone"], incoming_text)
-        elif registration_session and registration_session.state in {WHATSAPP_INTRODUCTION, WHATSAPP_ROLE_SELECTION}:
+        elif registration_session and registration_session.state in {WHATSAPP_INTRODUCTION, WHATSAPP_ROLE_SELECTION} and not (is_ai_freeform_query and not role_hint):
             native_member_handled = _continue_introduction(db, registration_session, lead, incoming_text, normalized["phone"])
         elif registration_session and registration_session.role == "member" and registration_session.state in {WHATSAPP_MEMBER_REGISTERED, WHATSAPP_MEMBER_ACTIVATION_PENDING, WHATSAPP_MEMBER_ACTIVE, WHATSAPP_MEMBER_ONBOARDING}:
             native_member_handled = _route_registered_member(db, registration_session, lead, normalized["phone"], incoming_text)
@@ -1503,20 +1503,17 @@ def ingest_whatsapp_message(db, payload: dict, request=None) -> str:
         if already_dispatched:
             statuses.append(status)
             continue
-        if is_ai_freeform_query and not role_hint:
-            statuses.append(status)
-            continue
         if ai_handles_freeform and not auto_reply and not reply_text and not role_hint:
             statuses.append(status)
             continue
-        allow_preset_dispatch = not (is_ai_freeform_query and not role_hint)
+        allow_preset_dispatch = not (is_ai_freeform_query and not role_hint and ai_handles_freeform)
         reply_mode = get_registration_welcome_mode(db) if reply_text else get_configured_whatsapp_reply_mode(db, role_hint)
         if allow_preset_dispatch and auto_reply and reply_mode == "text":
             reply_status = _send_auto_reply_if_configured(db, normalized["phone"], text=auto_reply)
             if reply_status == "sent":
                 db.add(CRMLeadActivity(lead_id=lead.id, activity_type="whatsapp_message_sent", message=auto_reply))
                 db.add(CRMLeadActivity(lead_id=lead.id, activity_type="whatsapp_auto_reply_dispatched", message=f"{dispatch_marker}:text"))
-        if reply_mode == "image":
+        if allow_preset_dispatch and reply_mode == "image":
             image_url = get_registration_welcome_image(db) if reply_text else get_configured_whatsapp_reply_image(db, role_hint)
             if image_url:
                 try:
