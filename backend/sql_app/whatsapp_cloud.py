@@ -739,7 +739,7 @@ def ingest_whatsapp_message(db, payload: dict, request=None) -> str:
             if reply_status == "sent":
                 db.add(CRMLeadActivity(lead_id=lead.id, activity_type="whatsapp_message_sent", message=auto_reply))
                 db.add(CRMLeadActivity(lead_id=lead.id, activity_type="whatsapp_auto_reply_dispatched", message=f"{dispatch_marker}:text"))
-        if allow_preset_dispatch and reply_mode == "image":
+        if reply_mode == "image":
             image_url = get_registration_welcome_image(db) if reply_text else get_configured_whatsapp_reply_image(db, role_hint)
             if image_url:
                 try:

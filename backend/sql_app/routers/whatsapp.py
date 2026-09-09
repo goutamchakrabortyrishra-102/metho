@@ -360,7 +360,7 @@ async def receive_whatsapp_webhook(request: Request, background_tasks: Backgroun
             continue
         activity = db.query(CRMLeadActivity).filter(
             CRMLeadActivity.activity_type == "whatsapp_message_received",
-            CRMLeadActivity.message.like(f"WhatsApp message received [{message_id}]:%"),
+            CRMLeadActivity.message.contains(f"[{message_id}]"),
         ).first()
         if activity:
             background_tasks.add_task(create_suggestion_for_activity, activity.id)
