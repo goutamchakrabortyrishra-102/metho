@@ -94,6 +94,11 @@ def approve_suggestion(suggestion_id: str, payload: dict, db: Session = Depends(
     suggestion.sent_reply = text
     suggestion.error_message = ""
     lead.last_contact_at = datetime.now(timezone.utc)
+    db.query(CRMWhatsAppAISuggestion).filter(
+        CRMWhatsAppAISuggestion.lead_id == lead.id,
+        CRMWhatsAppAISuggestion.status == "PENDING",
+        CRMWhatsAppAISuggestion.id != suggestion.id,
+    ).update({"status": "SUPERSEDED"}, synchronize_session=False)
     db.add(CRMLeadActivity(lead_id=lead.id, activity_type="whatsapp_message_sent", message=text, actor_user_id=current_user.id))
     db.add(CRMLeadActivity(lead_id=lead.id, activity_type="ai_suggestion_approved", message="Admin approved and sent an AI suggestion", actor_user_id=current_user.id))
     db.commit()
@@ -113,6 +118,11 @@ def reject_suggestion(suggestion_id: str, db: Session = Depends(get_db), current
     suggestion.status = "REJECTED"
     lead = db.get(CRMLead, suggestion.lead_id)
     if lead:
+        db.query(CRMWhatsAppAISuggestion).filter(
+            CRMWhatsAppAISuggestion.lead_id == lead.id,
+            CRMWhatsAppAISuggestion.status == "PENDING",
+            CRMWhatsAppAISuggestion.id != suggestion.id,
+        ).update({"status": "SUPERSEDED"}, synchronize_session=False)
         db.add(CRMLeadActivity(lead_id=lead.id, activity_type="ai_suggestion_rejected", message="Admin rejected an AI suggestion; manual response may be needed", actor_user_id=current_user.id))
     db.commit()
     return {"ok": True, "suggestion": _suggestion_payload(suggestion, db)}

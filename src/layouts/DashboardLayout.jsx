@@ -27,6 +27,7 @@ const links = [
   { to: "/app/metho-store-admin", icon: Warehouse, label: "METHO Store Products", testId: "nav-metho-store-admin", adminOnly: true },
   { to: "/app/partners", icon: Store, label: "Partners", testId: "nav-partners", adminOnly: true, section: "Business & CRM" },
   { to: "/app/crm/leads", icon: BriefcaseBusiness, label: "CRM Leads", testId: "nav-crm-leads", adminOnly: true },
+  { to: "/app/crm/active-members", icon: Users, label: "Active Members CRM", testId: "nav-crm-active-members", adminOnly: true },
   { to: "/app/crm/whatsapp", icon: MessageCircle, label: "WhatsApp Inbox", testId: "nav-crm-whatsapp", adminOnly: true },
   { to: "/app/crm/whatsapp-ai", icon: Bot, label: "WhatsApp AI", testId: "nav-crm-whatsapp-ai", adminOnly: true },
   { to: "/app/crm/pipeline", icon: ClipboardList, label: "CRM Pipeline", testId: "nav-crm-pipeline", adminOnly: true },

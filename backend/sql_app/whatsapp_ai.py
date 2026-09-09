@@ -372,6 +372,10 @@ def create_suggestion_for_activity(activity_id: str) -> None:
         context = f"{_crm_context(db, lead)}\nPrevious WhatsApp conversation:\n{_conversation_context(db, lead)}\nAvailable METHO catalog:\n{_catalog_context(db)}"
         reply, provider, model = _generate_reply(config, clean_text, context, activity.activity_type)
         logger.info("WhatsApp AI reply generated: activity_id=%s lead_id=%s provider=%s model=%s handoff=%s", activity.id, lead.id, provider, model, handoff)
+        db.query(CRMWhatsAppAISuggestion).filter(
+            CRMWhatsAppAISuggestion.lead_id == lead.id,
+            CRMWhatsAppAISuggestion.status == "PENDING",
+        ).update({"status": "SUPERSEDED"}, synchronize_session=False)
         suggestion = CRMWhatsAppAISuggestion(lead_id=lead.id, activity_id=activity.id, suggested_reply=reply, human_handoff_required=handoff, handoff_reason=reason, provider_used=provider, model_used=model)
         db.add(suggestion)
         db.flush()
