@@ -231,6 +231,23 @@ def test_whatsapp_default_auto_reply_is_sent_without_duplicate_funnel_content(mo
         db.close()
 
 
+def test_whatsapp_informational_followup_advances_introduction_to_role_selection(monkeypatch):
+    db = make_session()
+    try:
+        sent = []
+        monkeypatch.setattr("sql_app.whatsapp_cloud.send_whatsapp_message", lambda _db, recipient, text: sent.append((recipient, text)) or {"messages": [{"id": "wamid.reply"}]})
+        update_whatsapp_settings({"phone_number_id": "123456", "access_token": "secret-token"}, db, admin())
+        assert ingest_whatsapp_message(db, message_payload("wamid.info-intro", "ami er bapare jante chai"), None) == "created"
+        session = db.query(WhatsAppRegistrationSession).one()
+        assert session.state == "INTRODUCTION"
+        assert ingest_whatsapp_message(db, message_payload("wamid.info-followup", "aro jante chai"), None) == "updated"
+        assert session.state == "ROLE_SELECTION"
+        assert sent[-1][1] != sent[0][1]
+        assert "1. Member" in sent[-1][1]
+    finally:
+        db.close()
+
+
 def test_whatsapp_freeform_static_default_is_suppressed_when_ai_handles_questions(monkeypatch):
     from sql_app.whatsapp_ai import save_ai_config
 

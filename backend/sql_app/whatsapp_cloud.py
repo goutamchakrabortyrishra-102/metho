@@ -835,7 +835,8 @@ def _continue_introduction(db, session: WhatsAppRegistrationSession, lead: CRMLe
         session.state = WHATSAPP_ROLE_SELECTION
         reply = _role_explanation(session.role)
     else:
-        reply = _introduction_message()
+        session.state = WHATSAPP_ROLE_SELECTION
+        reply = "METHO AAY-UPAY সম্পর্কে আরও জানতে পারেন। যুক্ত হওয়ার জন্য একটি option বেছে নিন:\n1. Member\n2. Partner\n3. Rider"
     if not _send_member_registration_reply(db, recipient, reply):
         return False
     db.add(CRMLeadActivity(lead_id=lead.id, activity_type="whatsapp_message_sent", message=reply))
@@ -1461,6 +1462,9 @@ def ingest_whatsapp_message(db, payload: dict, request=None) -> str:
         elif registration_session is None and not role_hint and not is_ai_freeform_query:
             registration_session = _member_registration_session(db, normalized["phone"], normalized["whatsapp_no"], lead)
             native_member_handled = _send_introduction(db, registration_session, lead, normalized["phone"])
+        elif registration_session is None and not role_hint and is_ai_freeform_query:
+            registration_session = _member_registration_session(db, normalized["phone"], normalized["whatsapp_no"], lead)
+            registration_session.state = WHATSAPP_INTRODUCTION
         elif role_hint in {"member", "partner", "rider"}:
             registration_session = _member_registration_session(db, normalized["phone"], normalized["whatsapp_no"], lead)
             if registration_session.state == WHATSAPP_REGISTRATION_IDLE:
