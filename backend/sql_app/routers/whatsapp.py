@@ -6,10 +6,11 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 from fastapi import APIRouter, BackgroundTasks, Depends, File, HTTPException, Query, Request, UploadFile
+from sqlalchemy import or_
 from sqlalchemy.orm import Session
 
 from ..database import get_db
-from ..models import AppSetting, CRMLeadActivity
+from ..models import AppSetting, CRMLead, CRMLeadActivity
 from ..whatsapp_ai import create_suggestion_for_activity
 from ..storage import UPLOADED_OBJECTS_DIR
 from ..whatsapp_cloud import encrypt_secret, resolve_config, send_whatsapp_image, test_whatsapp_config, verify_signature, verify_webhook_token, ingest_whatsapp_message
@@ -230,6 +231,59 @@ def send_admin_whatsapp_image(payload: dict, db: Session = Depends(get_db), curr
         return {"ok": True, "message_id": ((result.get("messages") or [{}])[0]).get("id") if isinstance(result, dict) else None}
     except Exception as exc:
         raise HTTPException(status_code=503, detail=str(exc)) from exc
+
+
+@router.post("/admin/settings/whatsapp/bulk-send")
+@router.post("/admin/whatsapp/bulk-send")
+def send_admin_whatsapp_bulk(payload: dict, db: Session = Depends(get_db), current_user=Depends(get_current_user)):
+    _require_admin(current_user)
+    data = payload if isinstance(payload, dict) else {}
+    raw_recipients = data.get("recipients") or []
+    message = str(data.get("message") or "").strip()
+    if not isinstance(raw_recipients, list) or not raw_recipients:
+        raise HTTPException(status_code=400, detail="At least one recipient phone number is required")
+    if not message:
+        raise HTTPException(status_code=400, detail="Message is required")
+
+    from ..whatsapp_cloud import send_whatsapp_message
+
+    sent_count = 0
+    failed_count = 0
+    errors = []
+
+    clean_recipients = []
+    seen = set()
+    for raw in raw_recipients:
+        phone = "".join(ch for ch in str(raw or "") if ch.isdigit())
+        if phone and phone not in seen:
+            seen.add(phone)
+            clean_recipients.append(phone)
+
+    for phone in clean_recipients:
+        try:
+            send_whatsapp_message(db, phone, text=message)
+            sent_count += 1
+            lead = db.query(CRMLead).filter(or_(CRMLead.whatsapp_no == phone, CRMLead.phone == phone)).first()
+            if lead:
+                db.add(CRMLeadActivity(
+                    lead_id=lead.id,
+                    activity_type="whatsapp_message_sent",
+                    message=f"Bulk WhatsApp sent: {message}",
+                    actor_user_id=current_user.id,
+                ))
+                lead.last_contact_at = datetime.now(timezone.utc)
+        except Exception as exc:
+            failed_count += 1
+            errors.append(f"{phone}: {str(exc)[:100]}")
+
+    db.commit()
+    return {
+        "ok": True,
+        "total": len(clean_recipients),
+        "sent": sent_count,
+        "failed": failed_count,
+        "errors": errors[:5],
+    }
 
 
 @router.get("/whatsapp/webhook")

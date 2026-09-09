@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from "react";
-import { Users, Search, Loader2, PowerOff, Power, Pencil, ChevronDown, Eye, Network } from "lucide-react";
+import { Users, Search, Loader2, PowerOff, Power, Pencil, ChevronDown, Eye, Network, MessageSquareText, Check } from "lucide-react";
 import { toast } from "sonner";
 import api from "@/services/api";
 import { Input } from "@/components/ui/input";
@@ -38,6 +38,56 @@ export default function MembersPage() {
     password: "",
     is_active: true,
   });
+
+  const [selectedMemberIds, setSelectedMemberIds] = useState([]);
+  const [bulkWhatsAppOpen, setBulkWhatsAppOpen] = useState(false);
+  const [bulkMessage, setBulkMessage] = useState("");
+  const [bulkSending, setBulkSending] = useState(false);
+
+  const toggleSelectAllFilteredMembers = () => {
+    if (selectedMemberIds.length === filtered.length && filtered.length > 0) {
+      setSelectedMemberIds([]);
+    } else {
+      setSelectedMemberIds(filtered.map((m) => m.id));
+    }
+  };
+
+  const selectAllActiveMembers = () => {
+    const activeIds = members.filter((m) => m.active !== false).map((m) => m.id);
+    setSelectedMemberIds(activeIds);
+    toast.info(`Selected all ${activeIds.length} active members`);
+  };
+
+  const toggleSelectMember = (id) => {
+    setSelectedMemberIds((current) =>
+      current.includes(id) ? current.filter((mId) => mId !== id) : [...current, id]
+    );
+  };
+
+  const sendBulkWhatsAppForMembers = async () => {
+    if (!bulkMessage.trim() || selectedMemberIds.length === 0 || bulkSending) return;
+    setBulkSending(true);
+    try {
+      const selectedMembers = members.filter((m) => selectedMemberIds.includes(m.id));
+      const recipients = selectedMembers.map((m) => m.phone).filter(Boolean);
+      if (recipients.length === 0) {
+        toast.error("Selected members have no phone numbers");
+        return;
+      }
+      const { data } = await api.post("/admin/settings/whatsapp/bulk-send", {
+        recipients,
+        message: bulkMessage.trim(),
+      });
+      toast.success(`Bulk WhatsApp: ${data.sent} sent, ${data.failed} failed`);
+      setBulkWhatsAppOpen(false);
+      setBulkMessage("");
+      setSelectedMemberIds([]);
+    } catch (err) {
+      toast.error(err?.response?.data?.detail || "Bulk WhatsApp failed");
+    } finally {
+      setBulkSending(false);
+    }
+  };
 
   const clearTestMembers = async () => {
     if (!window.confirm("Clear all member test profiles? This will permanently remove current member accounts.")) return;
@@ -225,6 +275,9 @@ export default function MembersPage() {
             >
               Inactive ({inactiveCount})
             </Button>
+            <Button variant="outline" className="rounded-full border-emerald-300 text-emerald-900" onClick={selectAllActiveMembers}>
+              <Users className="w-4 h-4 mr-2" /> Select All Active ({activeCount})
+            </Button>
             <Button variant="outline" className="rounded-full" onClick={() => nav("/app/genealogy")}>
               <Network className="w-4 h-4 mr-2" /> View Tree
             </Button>
@@ -240,8 +293,34 @@ export default function MembersPage() {
         )}
       </div>
 
+      {selectedMemberIds.length > 0 && (
+        <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-emerald-300 bg-emerald-50 p-3.5 text-emerald-950 shadow-sm">
+          <div className="flex items-center gap-2 text-sm font-semibold">
+            <Check className="w-4 h-4 text-emerald-700" />
+            Selected {selectedMemberIds.length} members
+          </div>
+          <div className="flex items-center gap-2">
+            <Button size="sm" onClick={() => setBulkWhatsAppOpen(true)} className="bg-emerald-800 hover:bg-emerald-900 text-white rounded-full">
+              <MessageSquareText className="w-4 h-4 mr-1.5" /> Send Bulk WhatsApp ({selectedMemberIds.length})
+            </Button>
+            <Button size="sm" variant="ghost" onClick={() => setSelectedMemberIds([])} className="text-slate-600 rounded-full">
+              Clear selection
+            </Button>
+          </div>
+        </div>
+      )}
+
       <div className="bg-white rounded-xl border border-border overflow-hidden">
-        <div className={`grid px-5 py-3 bg-secondary/50 text-xs uppercase tracking-[0.15em] text-slate-600 font-semibold`} style={{ gridTemplateColumns: isAdmin ? "2.4fr 1.9fr 1.5fr 1.5fr 1fr 1.2fr" : "3fr 2fr 1.5fr 1.5fr 1fr" }}>
+        <div className={`grid px-5 py-3 bg-secondary/50 text-xs uppercase tracking-[0.15em] text-slate-600 font-semibold`} style={{ gridTemplateColumns: isAdmin ? "0.4fr 2.4fr 1.9fr 1.5fr 1.5fr 1fr 1.2fr" : "0.4fr 3fr 2fr 1.5fr 1.5fr 1fr" }}>
+          <div>
+            <input
+              type="checkbox"
+              checked={selectedMemberIds.length === filtered.length && filtered.length > 0}
+              onChange={toggleSelectAllFilteredMembers}
+              className="rounded border-slate-300 text-emerald-700 focus:ring-emerald-600 cursor-pointer"
+              title="Select all / Deselect all"
+            />
+          </div>
           <div>Member</div>
           <div>Member ID</div>
           <div>Phone</div>
@@ -254,7 +333,15 @@ export default function MembersPage() {
             <p className="p-6 text-sm text-muted-foreground font-body">No members found.</p>
           )}
           {filtered.map((m, i) => (
-            <div key={m.id} className={`grid items-center px-5 py-3 hover:bg-secondary/30 transition-colors ${m.active === false ? "opacity-60 bg-red-50/40" : ""}`} style={{ gridTemplateColumns: isAdmin ? "2.4fr 1.9fr 1.5fr 1.5fr 1fr 1.2fr" : "3fr 2fr 1.5fr 1.5fr 1fr" }} data-testid={`member-row-${i}`}>
+            <div key={m.id} className={`grid items-center px-5 py-3 hover:bg-secondary/30 transition-colors ${selectedMemberIds.includes(m.id) ? "bg-emerald-50/60" : ""} ${m.active === false ? "opacity-60 bg-red-50/40" : ""}`} style={{ gridTemplateColumns: isAdmin ? "0.4fr 2.4fr 1.9fr 1.5fr 1.5fr 1fr 1.2fr" : "0.4fr 3fr 2fr 1.5fr 1.5fr 1fr" }} data-testid={`member-row-${i}`}>
+              <div>
+                <input
+                  type="checkbox"
+                  checked={selectedMemberIds.includes(m.id)}
+                  onChange={() => toggleSelectMember(m.id)}
+                  className="rounded border-slate-300 text-emerald-700 focus:ring-emerald-600 cursor-pointer"
+                />
+              </div>
               <div className="flex items-center gap-3 min-w-0">
                 <div className="w-9 h-9 rounded-full bg-emerald-900 text-amber-400 flex items-center justify-center font-bold text-sm shrink-0">
                   {m.name?.[0]?.toUpperCase()}
@@ -444,6 +531,40 @@ export default function MembersPage() {
             <Button variant="outline" onClick={() => setEditTarget(null)} disabled={busy}>Cancel</Button>
             <Button onClick={saveEdit} disabled={busy} className="bg-emerald-900 hover:bg-emerald-950 text-white" data-testid="edit-member-save">
               {busy ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" /> Saving...</> : "Save Changes"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={bulkWhatsAppOpen} onOpenChange={setBulkWhatsAppOpen}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-emerald-900">
+              <MessageSquareText className="w-5 h-5 text-emerald-700" /> Send Bulk WhatsApp to Members
+            </DialogTitle>
+            <DialogDescription>
+              Send a direct WhatsApp message to {selectedMemberIds.length} selected members.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-3 py-2">
+            <label className="text-xs font-semibold uppercase tracking-wider text-slate-600">WhatsApp Message</label>
+            <textarea
+              value={bulkMessage}
+              onChange={(e) => setBulkMessage(e.target.value)}
+              placeholder="Type message to send to selected members..."
+              className="w-full min-h-[120px] rounded-md border border-input p-3 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-600"
+            />
+            <div className="flex flex-wrap gap-1.5 text-xs text-slate-500">
+              <span className="font-semibold text-slate-700">Quick templates:</span>
+              <button type="button" onClick={() => setBulkMessage("Hello Member! Welcome to METHO AAY-UPAY. Check out our latest products and rewards on the portal.")} className="underline hover:text-emerald-800">Member Welcome</button>
+              <span>·</span>
+              <button type="button" onClick={() => setBulkMessage("Dear Member, new daily essentials and offers are now available in METHO Store! Visit https://methoaayupay.com/app/products to order.")} className="underline hover:text-emerald-800">Store Offers</button>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setBulkWhatsAppOpen(false)} disabled={bulkSending}>Cancel</Button>
+            <Button onClick={sendBulkWhatsAppForMembers} disabled={!bulkMessage.trim() || bulkSending} className="bg-emerald-900 hover:bg-emerald-950 text-white">
+              {bulkSending ? "Sending..." : `Send to ${selectedMemberIds.length} Members`}
             </Button>
           </DialogFooter>
         </DialogContent>

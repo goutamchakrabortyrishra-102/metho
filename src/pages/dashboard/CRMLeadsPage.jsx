@@ -1,11 +1,12 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
-import { Search, Plus, RefreshCw, ArrowUpRight, CircleAlert, Eye, Phone, PhoneCall, MessageSquareText, ArrowRightLeft, Trash2, Printer, Download } from "lucide-react";
+import { Search, Plus, RefreshCw, ArrowUpRight, CircleAlert, Eye, Phone, PhoneCall, MessageSquareText, ArrowRightLeft, Trash2, Printer, Download, Check } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import api from "@/services/api";
 import { useSearchParams } from "react-router-dom";
 import { jsPDF } from "jspdf";
+import { toast } from "sonner";
 
 const stageOptions = ["NEW", "CONTACTED", "INTERESTED", "QUALIFIED", "APPLICATION", "APPROVED", "CONVERTED", "LOST"];
 const classificationOptions = [
@@ -39,6 +40,11 @@ export default function CRMLeadsPage() {
   const [assignedUserId, setAssignedUserId] = useState("ALL");
   const [source, setSource] = useState("ALL");
   const [taskForm, setTaskForm] = useState({ lead_id: "", title: "", description: "", due_at: "", priority: "Medium", assigned_user_id: "" });
+  const [selectedLeadIds, setSelectedLeadIds] = useState([]);
+  const [bulkWhatsAppOpen, setBulkWhatsAppOpen] = useState(false);
+  const [bulkMessage, setBulkMessage] = useState("");
+  const [bulkSending, setBulkSending] = useState(false);
+
   const [form, setForm] = useState({
     business_name: "",
     business_type: "Retail Shop",
@@ -55,6 +61,61 @@ export default function CRMLeadsPage() {
     priority_bucket: "Cold",
     status: "NEW",
   });
+
+  const sortedItems = useMemo(() => {
+    return [...items].sort((a, b) => {
+      const timeA = new Date(a.first_message_at || a.created_at || a.updated_at || 0).getTime();
+      const timeB = new Date(b.first_message_at || b.created_at || b.updated_at || 0).getTime();
+      return timeB - timeA;
+    });
+  }, [items]);
+
+  const toggleSelectAllLeads = () => {
+    if (selectedLeadIds.length === sortedItems.length && sortedItems.length > 0) {
+      setSelectedLeadIds([]);
+    } else {
+      setSelectedLeadIds(sortedItems.map((item) => item.id));
+    }
+  };
+
+  const toggleSelectLead = (id) => {
+    setSelectedLeadIds((current) => current.includes(id) ? current.filter((item) => item !== id) : [...current, id]);
+  };
+
+  const toggleFollowupStatus = async (lead) => {
+    const nextStatus = lead.follow_up_status === "Completed" ? "Pending" : "Completed";
+    try {
+      await api.put(`/admin/crm/leads/${lead.id}`, { follow_up_status: nextStatus });
+      toast.success(`Follow-up marked ${nextStatus} for ${lead.contact_person || lead.business_name}`);
+      await loadLeads();
+    } catch (err) {
+      setError(err?.response?.data?.detail || "Could not update follow-up status");
+    }
+  };
+
+  const sendBulkWhatsAppForLeads = async () => {
+    if (!bulkMessage.trim() || selectedLeadIds.length === 0 || bulkSending) return;
+    setBulkSending(true);
+    setError("");
+    try {
+      const selectedLeads = sortedItems.filter((item) => selectedLeadIds.includes(item.id));
+      const recipients = selectedLeads.map((item) => item.whatsapp_no || item.phone).filter(Boolean);
+      const { data } = await api.post("/admin/settings/whatsapp/bulk-send", {
+        recipients,
+        message: bulkMessage.trim(),
+      });
+      toast.success(`Bulk WhatsApp: ${data.sent} sent, ${data.failed} failed`);
+      setBulkWhatsAppOpen(false);
+      setBulkMessage("");
+      setSelectedLeadIds([]);
+      await loadLeads();
+    } catch (err) {
+      setError(err?.response?.data?.detail || "Bulk WhatsApp could not be sent");
+      toast.error(err?.response?.data?.detail || "Bulk WhatsApp failed");
+    } finally {
+      setBulkSending(false);
+    }
+  };
 
   const summary = useMemo(() => ({
     total: items.length,
@@ -241,8 +302,8 @@ export default function CRMLeadsPage() {
 
   const printLeads = () => {
     const escapeHtml = (value) => String(value ?? "").replace(/[&<>"']/g, (ch) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[ch]));
-    const rows = items.map((lead) => `<tr><td>${escapeHtml(lead.contact_person || lead.business_name || "-")}</td><td>${escapeHtml(lead.phone || lead.whatsapp_no || "-")}</td><td>${escapeHtml(lead.first_message_at ? new Date(lead.first_message_at).toLocaleString() : "-")}</td></tr>`).join("");
-    const html = `<!doctype html><html><head><meta charset="utf-8"/><title>METHO Contact List</title><style>body{font-family:Arial,Helvetica,sans-serif;padding:16px;color:#111}h1{font-size:18px;margin:0 0 4px}p.meta{font-size:12px;color:#555;margin:0 0 14px}table{width:100%;border-collapse:collapse;font-size:12px}th,td{border:1px solid #ccc;padding:8px;text-align:left}th{background:#f1f5f9}@media print{button{display:none}}</style></head><body><h1>METHO Contact List</h1><p class="meta">Name, mobile number and first message date · Total: ${items.length} · Printed: ${new Date().toLocaleString()}</p><table><thead><tr><th>Name</th><th>Mobile Number</th><th>First Message Date</th></tr></thead><tbody>${rows || '<tr><td colspan="3">No contacts found</td></tr>'}</tbody></table></body></html>`;
+    const rows = sortedItems.map((lead) => `<tr><td>${escapeHtml(lead.contact_person || lead.business_name || "-")}</td><td>${escapeHtml(lead.phone || lead.whatsapp_no || "-")}</td><td>${escapeHtml(lead.first_message_at || lead.created_at ? new Date(lead.first_message_at || lead.created_at).toLocaleString("en-IN") : "-")}</td></tr>`).join("");
+    const html = `<!doctype html><html><head><meta charset="utf-8"/><title>METHO Contact List</title><style>body{font-family:Arial,Helvetica,sans-serif;padding:16px;color:#111}h1{font-size:18px;margin:0 0 4px}p.meta{font-size:12px;color:#555;margin:0 0 14px}table{width:100%;border-collapse:collapse;font-size:12px}th,td{border:1px solid #ccc;padding:8px;text-align:left}th{background:#f1f5f9}@media print{button{display:none}}</style></head><body><h1>METHO Contact List</h1><p class="meta">Name, mobile number and date · Total: ${sortedItems.length} · Printed: ${new Date().toLocaleString("en-IN")}</p><table><thead><tr><th>Name</th><th>Mobile Number</th><th>Date</th></tr></thead><tbody>${rows || '<tr><td colspan="3">No contacts found</td></tr>'}</tbody></table></body></html>`;
     openPrintableReport(html, "Popup blocked. Allow popups to print CRM contacts.");
   };
 
@@ -253,23 +314,24 @@ export default function CRMLeadsPage() {
     doc.text("METHO Contact List", 15, 20);
     doc.setTextColor(90, 90, 90);
     doc.setFontSize(10);
-    doc.text(`Name and mobile number · Total: ${items.length}`, 15, 28);
+    doc.text(`Name and mobile number · Total: ${sortedItems.length}`, 15, 28);
     let y = 42;
     doc.setTextColor(6, 78, 59);
     doc.setFontSize(11);
     doc.text("Name", 15, y);
     doc.text("Mobile Number", 95, y);
-    doc.text("First Message Date", 145, y);
+    doc.text("Date", 145, y);
     y += 8;
     doc.setTextColor(20, 20, 20);
-    items.forEach((lead) => {
+    sortedItems.forEach((lead) => {
       if (y > 280) {
         doc.addPage();
         y = 20;
       }
       doc.text(String(lead.contact_person || lead.business_name || "-").slice(0, 55), 15, y);
       doc.text(String(lead.phone || lead.whatsapp_no || "-"), 95, y);
-      doc.text(lead.first_message_at ? new Date(lead.first_message_at).toLocaleDateString("en-IN") : "-", 145, y);
+      const dt = lead.first_message_at || lead.created_at;
+      doc.text(dt ? new Date(dt).toLocaleString("en-IN") : "-", 145, y);
       y += 8;
     });
     doc.save(`metho-contacts-${new Date().toISOString().slice(0, 10)}.pdf`);
@@ -422,11 +484,37 @@ export default function CRMLeadsPage() {
       {error ? <div className="text-sm text-red-600 flex items-center gap-2"><CircleAlert className="w-4 h-4" /> {error}</div> : null}
       {voiceCallMessage ? <div className="text-sm text-emerald-700 flex items-center gap-2"><Phone className="w-4 h-4" /> {voiceCallMessage}</div> : null}
 
+      {selectedLeadIds.length > 0 && (
+        <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-emerald-300 bg-emerald-50 p-3.5 text-emerald-950 shadow-sm">
+          <div className="flex items-center gap-2 text-sm font-semibold">
+            <Check className="w-4 h-4 text-emerald-700" />
+            Selected {selectedLeadIds.length} of {sortedItems.length} leads
+          </div>
+          <div className="flex items-center gap-2">
+            <Button size="sm" onClick={() => setBulkWhatsAppOpen(true)} className="bg-emerald-800 hover:bg-emerald-900 text-white rounded-full">
+              <MessageSquareText className="w-4 h-4 mr-1.5" /> Send Bulk WhatsApp ({selectedLeadIds.length})
+            </Button>
+            <Button size="sm" variant="ghost" onClick={() => setSelectedLeadIds([])} className="text-slate-600 rounded-full">
+              Clear selection
+            </Button>
+          </div>
+        </div>
+      )}
+
       <div className="bg-white rounded-xl border border-border overflow-hidden">
         <div className="overflow-x-auto">
           <table className="min-w-full text-sm">
             <thead className="bg-slate-50 text-slate-700">
               <tr>
+                <th className="px-3 py-2 text-left w-10">
+                  <input
+                    type="checkbox"
+                    checked={selectedLeadIds.length === sortedItems.length && sortedItems.length > 0}
+                    onChange={toggleSelectAllLeads}
+                    className="rounded border-slate-300 text-emerald-700 focus:ring-emerald-600 cursor-pointer"
+                    title="Select all / Deselect all"
+                  />
+                </th>
                 <th className="px-3 py-2 text-left">Business</th>
                 <th className="px-3 py-2 text-left">Contact</th>
                 <th className="px-3 py-2 text-left">City</th>
@@ -437,10 +525,18 @@ export default function CRMLeadsPage() {
               </tr>
             </thead>
             <tbody>
-              {loading ? <tr><td colSpan={7} className="p-4 text-center text-slate-500">Loading leads...</td></tr> : null}
-              {!loading && items.length === 0 ? <tr><td colSpan={7} className="p-4 text-center text-slate-500">No leads found</td></tr> : null}
-              {items.map((lead) => (
-                <tr key={lead.id} className="border-t border-border">
+              {loading ? <tr><td colSpan={8} className="p-4 text-center text-slate-500">Loading leads...</td></tr> : null}
+              {!loading && sortedItems.length === 0 ? <tr><td colSpan={8} className="p-4 text-center text-slate-500">No leads found</td></tr> : null}
+              {sortedItems.map((lead) => (
+                <tr key={lead.id} className={`border-t border-border transition-colors ${selectedLeadIds.includes(lead.id) ? "bg-emerald-50/60" : ""}`}>
+                  <td className="px-3 py-2">
+                    <input
+                      type="checkbox"
+                      checked={selectedLeadIds.includes(lead.id)}
+                      onChange={() => toggleSelectLead(lead.id)}
+                      className="rounded border-slate-300 text-emerald-700 focus:ring-emerald-600 cursor-pointer"
+                    />
+                  </td>
                   <td className="px-3 py-2">
                     <div className="font-semibold text-slate-900">{lead.business_name}</div>
                     <div className="text-xs text-slate-500">{lead.business_type || "-"}</div>
@@ -461,7 +557,21 @@ export default function CRMLeadsPage() {
                   </td>
                   <td className="px-3 py-2">
                     <div className="flex items-center gap-2">{lead.next_follow_up_at ? new Date(lead.next_follow_up_at).toLocaleString() : "-"} <ArrowUpRight className="w-4 h-4 text-slate-400" /></div>
-                    <div className="mt-1 text-xs text-slate-500">Follow-up: {lead.follow_up_status || "Pending"}</div>
+                    <div className="mt-1 flex items-center gap-1.5 text-xs">
+                      <button
+                        type="button"
+                        onClick={() => toggleFollowupStatus(lead)}
+                        className={`inline-flex items-center gap-1 px-2 py-0.5 rounded border text-xs font-medium transition-colors ${
+                          lead.follow_up_status === "Completed"
+                            ? "bg-emerald-100 text-emerald-800 border-emerald-300 font-semibold"
+                            : "bg-slate-50 text-slate-700 border-slate-300 hover:bg-slate-100"
+                        }`}
+                        title="Click to toggle follow-up status (Manual check)"
+                      >
+                        <Check className={`w-3.5 h-3.5 ${lead.follow_up_status === "Completed" ? "text-emerald-700 font-bold" : "text-slate-400"}`} />
+                        <span>{lead.follow_up_status === "Completed" ? "Follow-up: Completed" : "Follow-up: Pending"}</span>
+                      </button>
+                    </div>
                     <div className="mt-2 flex flex-wrap gap-2">
                       <Button size="sm" variant="outline" onClick={() => openLeadDetails(lead)} title="View lead timeline"><Eye className="w-3.5 h-3.5 mr-1" /> Details</Button>
                       <Button size="sm" variant="outline" onClick={() => startVoiceCall(lead)} disabled={voiceCallBusyId === lead.id || Boolean(voiceCallBusyId)} title="Start voice call">
@@ -515,6 +625,40 @@ export default function CRMLeadsPage() {
             <div className="border-t pt-3"><h3 className="font-semibold">Activity timeline</h3>{detailLoading ? null : detailActivities.length ? <div className="mt-2 max-h-64 space-y-2 overflow-y-auto">{detailActivities.map((activity) => <div key={activity.id} className="rounded border p-2"><div className="flex justify-between gap-3"><span className="font-medium">{activity.activity_type}</span><span className="text-xs text-slate-500">{activity.created_at ? new Date(activity.created_at).toLocaleString() : ""}</span></div><p className="mt-1 whitespace-pre-wrap text-slate-600">{activity.message}</p></div>)}</div> : <p className="mt-2 text-slate-500">No activity recorded</p>}</div>
           </div> : null}
           <DialogFooter><Button variant="outline" onClick={() => setDetailLead(null)}>Close</Button>{detailLead?.status === "LOST" ? <Button variant="outline" className="text-red-700" onClick={() => deleteLostLead(detailLead)}><Trash2 className="mr-1 h-4 w-4" />Delete rejected</Button> : null}</DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={bulkWhatsAppOpen} onOpenChange={setBulkWhatsAppOpen}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-emerald-900">
+              <MessageSquareText className="w-5 h-5 text-emerald-700" /> Send Bulk WhatsApp Message
+            </DialogTitle>
+            <DialogDescription>
+              Send a direct WhatsApp message to {selectedLeadIds.length} selected leads. Message will be logged in CRM activity.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-3 py-2">
+            <label className="text-xs font-semibold uppercase tracking-wider text-slate-600">WhatsApp Message</label>
+            <textarea
+              value={bulkMessage}
+              onChange={(e) => setBulkMessage(e.target.value)}
+              placeholder="Type message to send to all selected contacts..."
+              className="w-full min-h-[120px] rounded-md border border-input p-3 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-600"
+            />
+            <div className="flex flex-wrap gap-1.5 text-xs text-slate-500">
+              <span className="font-semibold text-slate-700">Quick templates:</span>
+              <button type="button" onClick={() => setBulkMessage("Hello! We have an update regarding your METHO enquiry. Reply here or call us for details.")} className="underline hover:text-emerald-800">General Enquiry</button>
+              <span>·</span>
+              <button type="button" onClick={() => setBulkMessage("Hello! Your METHO registration process is waiting for the next step. Reply here if you need assistance.")} className="underline hover:text-emerald-800">Registration Follow-up</button>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setBulkWhatsAppOpen(false)} disabled={bulkSending}>Cancel</Button>
+            <Button onClick={sendBulkWhatsAppForLeads} disabled={!bulkMessage.trim() || bulkSending} className="bg-emerald-900 hover:bg-emerald-950 text-white">
+              {bulkSending ? "Sending..." : `Send to ${selectedLeadIds.length} Leads`}
+            </Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
     </div>
