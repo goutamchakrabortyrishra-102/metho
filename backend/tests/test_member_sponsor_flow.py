@@ -65,6 +65,25 @@ def test_registration_accepts_valid_custom_sponsor_code(monkeypatch):
         db.close()
 
 
+def test_registration_falls_back_to_active_admin_for_inactive_sponsor(monkeypatch):
+    db = make_session()
+    try:
+        admin = add_user(db, "MAU00001", "super_admin")
+        inactive_sponsor = add_user(db, "MAU10001", "member")
+        inactive_sponsor.is_active = False
+        db.commit()
+        monkeypatch.setattr("sql_app.routers.auth.hash_password", lambda value: "hashed")
+        monkeypatch.setattr("sql_app.routers.auth.build_welcome_pdf", lambda user: "")
+        monkeypatch.setattr("sql_app.routers.auth.send_welcome_email", lambda *args: False)
+
+        result = register(RegisterRequest(name="Fallback Sponsor", email="MAU12348", phone="9999999996", pan_no="DEFGH1234I", password="secret1", sponsor_code=inactive_sponsor.id), db)
+        relation = db.query(UserReferral).filter(UserReferral.user_id == "MAU12348").one()
+        assert result["user"]["sponsor_code"] == admin.id
+        assert relation.sponsor_user_id == admin.id
+    finally:
+        db.close()
+
+
 def test_registration_rejects_unknown_sponsor_code_before_creating_member():
     db = make_session()
     try:

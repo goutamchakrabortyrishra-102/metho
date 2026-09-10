@@ -351,10 +351,10 @@ def register(payload: RegisterRequest, request: Request, db: Session = Depends(g
     sponsor_user = _resolve_user_by_identifier(db, requested_sponsor) if requested_sponsor else _resolve_default_admin_sponsor(db)
     if requested_sponsor and not sponsor_user:
         raise HTTPException(status_code=400, detail="Sponsor code not found")
+    if sponsor_user and (not sponsor_user.is_active or sponsor_user.role not in ADMIN_ROLES | {"member"}):
+        sponsor_user = _resolve_default_admin_sponsor(db)
     if not sponsor_user:
         raise HTTPException(status_code=503, detail="Default METHO Admin sponsor is not configured")
-    if sponsor_user and (not bool(sponsor_user.is_active) or sponsor_user.role not in ADMIN_ROLES | {"member"}):
-        raise HTTPException(status_code=400, detail="Sponsor ID is inactive. Activate your ID first before sponsoring.")
     if sponsor_user.id == member_id:
         raise HTTPException(status_code=400, detail="A member cannot sponsor themselves")
 
