@@ -61,7 +61,7 @@ def ensure_pending_followup(db, lead: CRMLead, *, notes: str) -> None:
     lead.follow_up_status = "Pending"
 
 
-def link_lead_to_registration(db, *, phone: str, email: str = "", user_id: str | None = None, partner_request_id: str | None = None) -> CRMLead | None:
+def link_lead_to_registration(db, *, phone: str, email: str = "", user_id: str | None = None, partner_request_id: str | None = None, rider_user_id: str | None = None) -> CRMLead | None:
     lead = find_lead_by_phone(db, phone)
     if not lead:
         return None
@@ -69,12 +69,14 @@ def link_lead_to_registration(db, *, phone: str, email: str = "", user_id: str |
         lead.member_user_id = user_id
     if partner_request_id:
         lead.partner_request_id = partner_request_id
+    if rider_user_id:
+        lead.rider_user_id = rider_user_id
     if lead.status == "NEW":
         lead.status = "APPLICATION"
     lead.follow_up_status = "Completed"
     lead.next_follow_up_at = None
     if email and not lead.email:
         lead.email = email
-    registration_type = "member" if user_id else "partner"
+    registration_type = "member" if user_id else "partner" if partner_request_id else "rider"
     link_lead_activity(db, lead, "registration_linked", f"{registration_type.title()} registration linked to this CRM lead")
     return lead

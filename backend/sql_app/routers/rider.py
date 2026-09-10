@@ -5,6 +5,8 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
 from ..database import get_db
+from ..crm_automation import record_lifecycle_event_by_phone
+from ..crm_identity import link_lead_to_registration
 from ..models import AppSetting, User
 from ..schemas import RiderRegisterRequest
 from ..security import hash_password
@@ -133,6 +135,9 @@ def rider_register(payload: RiderRegisterRequest, db: Session = Depends(get_db))
         "registered_at": datetime.now(timezone.utc).isoformat(),
     })
     db.commit()
+    link_lead_to_registration(db, phone=phone, email=email, rider_user_id=user.id)
+    db.commit()
+    record_lifecycle_event_by_phone(db, phone, "rider_registration_submitted", f"Rider registration submitted: {user.id}. Admin approval is pending.", "Review rider application and guide onboarding after approval", 1)
     return {"message": "Rider registration submitted for admin approval", "rider": _rider_response(user, _profile(db, user.id))}
 
 
@@ -151,6 +156,8 @@ def _set_rider_status(user_id: str, status: str, active: bool, db: Session, curr
     profile["approval_status"] = status
     _save_profile(db, rider.id, profile)
     db.commit()
+    if status == "approved" and active:
+        record_lifecycle_event_by_phone(db, rider.phone, "rider_activated", f"Rider approved and activated: {rider.id}.", "Guide Rider through onboarding and availability setup", 1)
     return {"rider": _rider_response(rider, profile)}
 
 

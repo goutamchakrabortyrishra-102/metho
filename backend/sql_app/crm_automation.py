@@ -28,6 +28,7 @@ def record_lifecycle_event(
         pending = db.query(CRMFollowUp).filter(
             CRMFollowUp.lead_id == lead.id,
             CRMFollowUp.status == "Pending",
+            CRMFollowUp.notes == followup_notes,
         ).first()
         if not pending:
             due_at = datetime.now(timezone.utc) + timedelta(days=max(0, followup_days))

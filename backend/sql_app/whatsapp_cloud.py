@@ -13,7 +13,7 @@ from cryptography.fernet import Fernet, InvalidToken
 
 from .crm_identity import enrich_lead_from_contact, ensure_pending_followup, find_lead_by_phone
 from .crm_automation import record_lifecycle_event
-from .models import AppSetting, CRMFollowUp, CRMLead, CRMLeadActivity, CRMTask, PartnerRequest, PublicOrder, User, WhatsAppRegistrationSession
+from .models import AppSetting, CRMFollowUp, CRMLead, CRMLeadActivity, CRMTask, PartnerRequest, PublicOrder, User, WhatsAppMessageOutbox, WhatsAppRegistrationSession
 from .schemas import RegisterRequest, RiderRegisterRequest
 
 logger = logging.getLogger(__name__)
@@ -64,18 +64,15 @@ DEFAULT_AUTO_REPLY = """আমরা কারা?
 
 সম্পূর্ণ ফ্রি রেজিস্ট্রেশন এবং অনলাইন ও অফলাইন ফ্রি ট্রেনিং সাপোর্ট দেওয়া হয়।"""
 DEFAULT_ROLE_REGISTRATION_REPLIES = {
-    "member": """মেঠো মেম্বার (Member) হিসেবে আয় শুরু করুন!
-কেনাকাটায় রিওয়ার্ড কমিশন, টিম ম্যাচিং বোনাস এবং লিডারশিপ বোনাসের সুযোগ পেতে এখনই আপনার আইডি চালু করুন।
+    "member": """METHO AAY-UPAY-এ Member হিসেবে যুক্ত হয়ে কেনাকাটায় reward/cashback এবং referral-based earning opportunity পেতে পারেন। Registration ও training support-এ ধাপে ধাপে শুরু করুন.
 
-পরবর্তী ধাপ: রেজিস্ট্রেশন সম্পন্ন করার পরে ফ্রি ট্রেনিংয়ের জন্য আমাদের টিম আপনাকে গাইড করবে।""",
-    "partner": """মেঠো বিজনেস পার্টনার (Partner) হয়ে দোকান বা সার্ভিস বাড়ান!
-ছোট দোকানদার, খুচরা বিক্রেতা বা সার্ভিস প্রোভাইডার হিসেবে মেঠো পার্টনার হয়ে আপনার এলাকায় কাস্টমার বাড়ান।
+Join METHO as a Member for shopping rewards and referral-based earning opportunities. Registration and training support help you get started step by step.""",
+    "partner": """METHO Business Partner হিসেবে আপনার shop বা service-এর customer reach বাড়ানোর সুযোগ পান। Free registration ও available training support-এর মাধ্যমে শুরু করুন.
 
-কোনো ইনভেস্টমেন্ট ছাড়াই রেজিস্ট্রেশন করুন। দোকান যুক্ত করার অনলাইন ও অফলাইন ট্রেনিং ফ্রিতে দেওয়া হবে।""",
-    "rider": """মেঠো রাইডার (Rider) হয়ে প্রতিদিন আয় করুন!
-আপনার বাইক, স্কুটার, টোটো বা ডেলিভারি সার্ভিস দিয়ে মেঠো প্ল্যাটফর্মে কাজের সুযোগ পান।
+Join as a METHO Business Partner to grow your shop or service reach. Start with free registration and available training support.""",
+    "rider": """METHO Rider হিসেবে delivery ও mobility কাজের earning opportunity পেতে পারেন। Free registration-এর পরে approval ও onboarding support অনুযায়ী শুরু করুন.
 
-রেজিস্ট্রেশন শেষে আমাদের প্রতিনিধি ভেরিফিকেশন ও ট্র্যাকিং সুবিধা বুঝিয়ে দেবেন।""",
+Join as a METHO Rider for delivery and mobility earning opportunities. Start with free registration, then approval and onboarding support.""",
 }
 DEFAULT_REGISTRATION_ROLE_KEYWORDS = {
     "member": "1,member,মেম্বার,কেনাকাটা,ইনকাম",
@@ -139,7 +136,8 @@ WHATSAPP_RIDER_ONBOARDING = "RIDER_ONBOARDING"
 WHATSAPP_REGISTRATION_COMPLETED = "COMPLETED"
 WHATSAPP_MEMBER_ACTIVE_STATES = {WHATSAPP_MEMBER_NAME, WHATSAPP_MEMBER_ADDRESS, WHATSAPP_MEMBER_PAN, WHATSAPP_MEMBER_DOB, WHATSAPP_MEMBER_CONFIRMATION}
 WHATSAPP_RESET_COMMANDS = {"cancel", "reset", "বাতিল"}
-WHATSAPP_HANDOFF_COMMANDS = {"agent", "support", "মানুষের সাথে কথা বলতে চাই"}
+WHATSAPP_HANDOFF_COMMANDS = {"agent", "support", "executive", "human", "কথা বলতে চাই", "এক্সিকিউটিভের সাথে কথা বলতে চাই", "প্রতিনিধি", "সাহায্য চাই", "মানুষের সাথে কথা বলতে চাই"}
+WHATSAPP_REGISTRATION_REMINDER_OPTOUT_COMMANDS = {"stop", "no more", "unsubscribe", "বন্ধ করুন", "আর মেসেজ চাই না", "পরে করব না"}
 WHATSAPP_RESUME_COMMANDS = {"hi", "hello", "হাই", "হ্যালো", "নমস্কার", "start"}
 WHATSAPP_PRESET_MESSAGE_DEFAULTS = {
     "preset_registration_intro": "নমস্কার! METHO AAY-UPAY-এ স্বাগতম।\nMETHO-তে Customer, Member, Business Partner অথবা Rider হিসেবে যুক্ত হতে পারেন।\nআপনি জানতে চান:\n1. Member\n2. Partner\n3. Rider\n4. METHO সম্পর্কে আরও জানতে চাই",
@@ -156,10 +154,13 @@ WHATSAPP_PRESET_MESSAGE_DEFAULTS = {
     "preset_lifecycle_registration_form_opened": "আপনি registration form খুলেছেন। Form পূরণ করতে কোনো সাহায্য লাগলে এখানেই লিখুন।",
     "preset_lifecycle_registration_form_submitted": "আপনার registration form জমা হয়েছে। পরবর্তী ধাপ সম্পন্ন করতে কোনো সাহায্য লাগলে এখানে reply করুন।",
     "preset_lifecycle_registration_form_followup_started": "আপনার Registration Form জমা হয়েছে। Account activation বা approval status নিয়ে কোনো প্রশ্ন থাকলে এখানে reply করুন, আমরা সাহায্য করব।",
+    "preset_abandoned_registration_reminder": "আপনি METHO AAY-UPAY registration শুরু করেছিলেন, কিন্তু এখনও সম্পূর্ণ করেননি।\n\nYou started your {role} registration but have not completed it yet.\n\nআপনার registration link এখনও active আছে:\n{registration_url}\n\nNeed help? এই WhatsApp chat-এ reply করুন, আমাদের Executive সাহায্য করবে।",
+    "preset_registration_reminders_stopped": "ঠিক আছে। আমরা Registration reminder বন্ধ করে দিয়েছি।\nOkay. We have stopped the Registration reminders.\n\nপরে শুরু করতে চাইলে এই WhatsApp chat-এ reply করুন।",
     "preset_lifecycle_member_registration_completed": "আপনার Member registration সম্পন্ন হয়েছে। Account activation ও প্রথম purchase-এর পরবর্তী ধাপে সহায়তা লাগলে এখানে reply করুন।",
     "preset_lifecycle_member_activated": "আপনার Member account active হয়েছে। Smart Cycle, reward rules এবং product purchase নিয়ে সাহায্য লাগলে এখানে reply করুন।",
     "preset_lifecycle_partner_registration_submitted": "আপনার Partner registration জমা হয়েছে। KYC ও approval-এর পরবর্তী ধাপে সহায়তা লাগলে এখানে reply করুন।",
     "preset_lifecycle_partner_activated": "আপনার Partner account approved হয়েছে। Shop/service onboarding ও প্রথম listing-এর সাহায্য লাগলে এখানে reply করুন।",
+    "preset_lifecycle_rider_activated": "আপনার Rider account approved হয়েছে। Availability ও delivery/onboarding নিয়ে সাহায্য লাগলে এখানে reply করুন।",
     "preset_lifecycle_metho_move_booking_created": "আপনার METHO Move booking request পাওয়া গেছে। Payment বা rider assignment বিষয়ে সাহায্য লাগলে এখানে reply করুন।",
     "preset_ai_local_fallback": "ধন্যবাদ আপনার বার্তার জন্য। মেঠো প্রতিনিধি শীঘ্রই আপনার সাথে যোগাযোগ করবেন।",
     "preset_member_active_reply": "আপনার METHO Member ID {member_code} Active।\nপ্রথম ধাপ: METHO products, wallet ও support সম্পর্কে জানতে এখানে প্রশ্ন করুন।",
@@ -704,12 +705,12 @@ def _registration_reply(db, reply_text: str, lead_id: str = "", phone: str = "")
     return f"{text}\n\n{cta}" if text else cta
 
 
-def _role_registration_reply(db, role: str) -> str:
+def _role_registration_reply(db, role: str, lead_id: str = "", phone: str = "") -> str:
     config = resolve_config(db)
     reply = config.get(f"{role}_registration_reply") or config["registration_welcome_message"]
     return "\n\n".join((
         reply,
-        f"{role.title()} রেজিস্ট্রেশন করুন: {config[f'{role}_registration_url']}",
+        f"{role.title()} রেজিস্ট্রেশন করুন: {_tracked_registration_url(config[f'{role}_registration_url'], role, lead_id, phone)}",
         config["registration_help_prompt"],
     ))
 
@@ -805,6 +806,24 @@ def _is_whatsapp_reset_command(text: str) -> bool:
 def _is_whatsapp_handoff_command(text: str) -> bool:
     normalized = _whatsapp_command_text(text)
     return normalized in WHATSAPP_HANDOFF_COMMANDS or any(command in normalized for command in WHATSAPP_HANDOFF_COMMANDS if " " in command)
+
+
+def _is_registration_reminder_opt_out(text: str) -> bool:
+    normalized = _whatsapp_command_text(text)
+    return normalized in WHATSAPP_REGISTRATION_REMINDER_OPTOUT_COMMANDS or any(command in normalized for command in WHATSAPP_REGISTRATION_REMINDER_OPTOUT_COMMANDS if " " in command)
+
+
+def _stop_abandoned_registration_reminders(db, lead: CRMLead, reason: str) -> None:
+    notes = "Abandoned registration reminder"
+    for followup in db.query(CRMFollowUp).filter(CRMFollowUp.lead_id == lead.id, CRMFollowUp.status.in_(["Pending", "Processing"]), CRMFollowUp.notes == notes).all():
+        followup.status = "Cancelled"
+        db.query(WhatsAppMessageOutbox).filter(
+            WhatsAppMessageOutbox.status.in_(["pending", "retry"]),
+            WhatsAppMessageOutbox.dedupe_key.like(f"crm-followup:{followup.id}:%"),
+        ).delete(synchronize_session=False)
+    for task in db.query(CRMTask).filter(CRMTask.lead_id == lead.id, CRMTask.status.in_(["Pending", "In Progress"]), CRMTask.title == notes).all():
+        task.status = "Completed"
+    db.add(CRMLeadActivity(lead_id=lead.id, activity_type="registration_reminders_stopped", message=reason))
 
 
 def _member_registration_session(db, phone: str, wa_id: str, lead: CRMLead) -> WhatsAppRegistrationSession:
@@ -938,7 +957,7 @@ def _continue_introduction(db, session: WhatsAppRegistrationSession, lead: CRMLe
     elif normalized in choices:
         session.role = choices[normalized]
         session.state = WHATSAPP_ROLE_SELECTION
-        reply = _role_registration_reply(db, session.role)
+        reply = _role_registration_reply(db, session.role, lead.id, recipient)
     else:
         session.state = WHATSAPP_ROLE_SELECTION
         reply = get_whatsapp_preset_message(db, "preset_role_selection_fallback", WHATSAPP_PRESET_MESSAGE_DEFAULTS["preset_role_selection_fallback"])
@@ -1323,9 +1342,11 @@ def _continue_role_registration_flow(db, session: WhatsAppRegistrationSession, l
 def _request_whatsapp_human_handoff(db, lead: CRMLead, session: WhatsAppRegistrationSession | None, recipient: str) -> bool:
     if session:
         _clear_member_registration_session(session)
+    _stop_abandoned_registration_reminders(db, lead, "Automatic registration reminders stopped after human support request")
     ensure_pending_followup(db, lead, notes="WhatsApp customer requested human support")
     assignee_id = lead.assigned_user_id or _admin_assignee(db)
     if assignee_id:
+        assignee_id = assignee_id.id if isinstance(assignee_id, User) else assignee_id
         db.add(CRMTask(title="WhatsApp human support requested", description="Customer asked to speak with a human from WhatsApp.", due_at=datetime.now(timezone.utc), status="Pending", priority="High", lead_id=lead.id, assigned_user_id=assignee_id, created_by_user_id=assignee_id))
     text = get_whatsapp_preset_message(db, "preset_handoff_requested", WHATSAPP_PRESET_MESSAGE_DEFAULTS["preset_handoff_requested"])
     if not _send_member_registration_reply(db, recipient, text):
@@ -1541,7 +1562,13 @@ def ingest_whatsapp_message(db, payload: dict, request=None) -> str:
             registration_session.state if registration_session else "none",
         )
         native_member_handled = False
-        if _is_whatsapp_handoff_command(incoming_text):
+        if _is_registration_reminder_opt_out(incoming_text):
+            if registration_session:
+                _clear_member_registration_session(registration_session)
+            _stop_abandoned_registration_reminders(db, lead, "Customer opted out of registration reminders")
+            reply = get_whatsapp_preset_message(db, "preset_registration_reminders_stopped", WHATSAPP_PRESET_MESSAGE_DEFAULTS["preset_registration_reminders_stopped"])
+            native_member_handled = _send_member_registration_reply(db, normalized["phone"], reply)
+        elif _is_whatsapp_handoff_command(incoming_text):
             native_member_handled = _request_whatsapp_human_handoff(db, lead, registration_session, normalized["phone"])
         elif lead.member_user_id or lead.partner_request_id or lead.rider_user_id:
             native_member_handled = _route_existing_identity(db, lead, normalized["phone"], incoming_text)

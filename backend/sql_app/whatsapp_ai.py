@@ -49,6 +49,7 @@ LIFECYCLE_SUGGESTIONS = {
     "member_activated": WHATSAPP_PRESET_MESSAGE_DEFAULTS["preset_lifecycle_member_activated"],
     "partner_registration_submitted": WHATSAPP_PRESET_MESSAGE_DEFAULTS["preset_lifecycle_partner_registration_submitted"],
     "partner_activated": WHATSAPP_PRESET_MESSAGE_DEFAULTS["preset_lifecycle_partner_activated"],
+    "rider_activated": WHATSAPP_PRESET_MESSAGE_DEFAULTS["preset_lifecycle_rider_activated"],
     "metho_move_booking_created": WHATSAPP_PRESET_MESSAGE_DEFAULTS["preset_lifecycle_metho_move_booking_created"],
     "crm_followup_due": WHATSAPP_PRESET_MESSAGE_DEFAULTS["preset_crm_followup_due"],
     "pre_registration_followup": PRE_REGISTRATION_FOLLOWUP,
@@ -223,7 +224,13 @@ def _schedule_ai_follow_up(db, lead: CRMLead, config: dict, reason: str) -> None
     scheduled_at = datetime.now(timezone.utc) + timedelta(hours=delay_hours)
     lead.next_follow_up_at = scheduled_at
     lead.follow_up_status = "Pending"
-    existing = db.query(CRMFollowUp).filter(CRMFollowUp.lead_id == lead.id, CRMFollowUp.status == "Pending").order_by(CRMFollowUp.scheduled_at.asc()).first()
+    existing = db.query(
+        CRMFollowUp
+    ).filter(
+        CRMFollowUp.lead_id == lead.id,
+        CRMFollowUp.status == "Pending",
+        CRMFollowUp.notes == reason,
+    ).first()
     if existing:
         existing.scheduled_at = scheduled_at
         existing.notes = reason
@@ -499,34 +506,40 @@ def process_due_followups(limit: int = 20) -> int:
                 _complete_followup_task_rows(db, lead, followup.notes)
                 continue
             followup.status = "Processing"
-            is_pre_registration = not lead.member_user_id and any(marker in str(followup.notes or "") for marker in ("Initial Meta", "Initial WhatsApp", "Follow-up for WhatsApp", "linked Meta/Facebook"))
+            reminder_notes = "Abandoned registration reminder"
+            is_abandoned_registration = str(followup.notes or "") == reminder_notes
+            is_pre_registration = not is_abandoned_registration and not lead.member_user_id and any(marker in str(followup.notes or "") for marker in ("Initial Meta", "Initial WhatsApp", "Follow-up for WhatsApp", "linked Meta/Facebook"))
             activity = CRMLeadActivity(
                 lead_id=lead.id,
-                activity_type="pre_registration_followup" if is_pre_registration else "crm_followup_due",
+                activity_type="registration_reminder_queued" if is_abandoned_registration else "pre_registration_followup" if is_pre_registration else "crm_followup_due",
                 message=f"Scheduled CRM follow-up: {followup.notes or 'Please follow up with this lead.'}",
             )
             db.add(activity)
             db.flush()
-            from .whatsapp_cloud import get_configured_whatsapp_reply, send_whatsapp_message
-            fallback_text = get_whatsapp_preset_message(db, "preset_pre_registration_followup", PRE_REGISTRATION_FOLLOWUP) if is_pre_registration else (get_configured_whatsapp_reply(db, "default") or get_whatsapp_preset_message(db, "preset_crm_followup_due", LIFECYCLE_SUGGESTIONS["crm_followup_due"]))
-            suggestion = None
-            try:
-                send_whatsapp_message(db, recipient, text=fallback_text)
-                suggestion = CRMWhatsAppAISuggestion(
-                    lead_id=lead.id,
-                    activity_id=activity.id,
-                    suggested_reply=fallback_text,
-                    provider_used="preset",
-                    model_used="configured",
-                    status="SENT",
-                    sent_reply=fallback_text,
-                )
-                db.add(suggestion)
-                db.add(CRMLeadActivity(lead_id=lead.id, activity_type="whatsapp_message_sent", message=fallback_text))
+            from .whatsapp_cloud import _tracked_registration_url, get_configured_whatsapp_reply, resolve_config
+            if is_abandoned_registration:
+                session = db.query(WhatsAppRegistrationSession).filter(WhatsAppRegistrationSession.lead_id == lead.id).first()
+                role = session.role if session and session.role in {"member", "partner", "rider"} else "member"
+                config = resolve_config(db)
+                registration_url = _tracked_registration_url(config[f"{role}_registration_url"], role, lead.id, recipient)
+                fallback_text = get_whatsapp_preset_message(db, "preset_abandoned_registration_reminder", "", role=role.title(), registration_url=registration_url)
+                outbox_activity_type = "registration_reminder_sent"
+            else:
+                fallback_text = get_whatsapp_preset_message(db, "preset_pre_registration_followup", PRE_REGISTRATION_FOLLOWUP) if is_pre_registration else (get_configured_whatsapp_reply(db, "default") or get_whatsapp_preset_message(db, "preset_crm_followup_due", LIFECYCLE_SUGGESTIONS["crm_followup_due"]))
+                outbox_activity_type = "whatsapp_message_sent"
+            scheduled_marker = int((followup.scheduled_at or now).timestamp())
+            queued = enqueue_whatsapp_message(db, f"crm-followup:{followup.id}:{scheduled_marker}", recipient, fallback_text, lead.id, outbox_activity_type)
+            if queued:
                 db.commit()
-            except Exception:
-                db.rollback()
-            if suggestion and suggestion.status == "SENT":
+            if queued or db.query(WhatsAppMessageOutbox).filter(WhatsAppMessageOutbox.dedupe_key == f"crm-followup:{followup.id}:{scheduled_marker}").first():
+                if is_abandoned_registration:
+                    followup.status = "Pending"
+                    followup.scheduled_at = now + timedelta(hours=24)
+                    lead.follow_up_status = "Pending"
+                    lead.next_follow_up_at = followup.scheduled_at
+                    processed += 1
+                    db.commit()
+                    continue
                 followup.status = "Sent"
                 lead.last_contact_at = now
                 from .models import PublicOrder
@@ -577,6 +590,10 @@ def _complete_followup_task_rows(db, lead: CRMLead, notes: str) -> None:
 def _whatsapp_followup_state(db, lead: CRMLead, followup: CRMFollowUp) -> str:
     notes = str(followup.notes or "").lower()
     session = db.query(WhatsAppRegistrationSession).filter(WhatsAppRegistrationSession.lead_id == lead.id).first()
+    if notes == "abandoned registration reminder":
+        if str(lead.status or "").upper() in {"LOST", "CLOSED"} or lead.member_user_id or lead.partner_request_id or lead.rider_user_id:
+            return "completed"
+        return "pending"
     if "member activation" in notes or "activation/payment" in notes or "first purchase" in notes:
         user = db.query(User).filter(User.id == lead.member_user_id, User.role == "member").first() if lead.member_user_id else None
         if user and user.is_active:

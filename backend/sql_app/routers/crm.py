@@ -119,6 +119,30 @@ def record_public_registration_event(payload: dict, db: Session = Depends(get_db
         return {"ok": True, "linked": False}
     if event_type == "registration_form_submitted" and lead.status == "NEW":
         lead.status = "APPLICATION"
+    reminder_notes = "Abandoned registration reminder"
+    reminder_followups = db.query(CRMFollowUp).filter(
+        CRMFollowUp.lead_id == lead.id,
+        CRMFollowUp.status.in_(["Pending", "Processing"]),
+        CRMFollowUp.notes == reminder_notes,
+    ).all()
+    pending_reminder = next((row for row in reminder_followups if row.status == "Pending"), None)
+    if event_type == "registration_form_opened":
+        due_at = datetime.now(timezone.utc) + timedelta(hours=24)
+        if pending_reminder:
+            pending_reminder.scheduled_at = due_at
+        else:
+            db.add(CRMFollowUp(lead_id=lead.id, scheduled_at=due_at, status="Pending", notes=reminder_notes))
+        lead.next_follow_up_at = due_at
+        lead.follow_up_status = "Pending"
+    elif reminder_followups:
+        for reminder in reminder_followups:
+            reminder.status = "Completed"
+            db.query(WhatsAppMessageOutbox).filter(
+                WhatsAppMessageOutbox.status.in_(["pending", "retry"]),
+                WhatsAppMessageOutbox.dedupe_key.like(f"crm-followup:{reminder.id}:%"),
+            ).delete(synchronize_session=False)
+        for task in db.query(CRMTask).filter(CRMTask.lead_id == lead.id, CRMTask.status.in_(["Pending", "In Progress"]), CRMTask.title == reminder_notes).all():
+            task.status = "Completed"
     activity = CRMLeadActivity(lead_id=lead.id, activity_type=event_type, message=f"Registration form {('submitted' if event_type.endswith('submitted') else 'opened')} from {phone or 'tracked CRM link'}")
     db.add(activity)
     db.commit()

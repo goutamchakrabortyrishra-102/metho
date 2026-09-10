@@ -547,7 +547,6 @@ export default function PartnerRegisterPage() {
       return toast.error("Please select shop sector");
     }
     setBusy(true);
-    api.post("/public/crm/registration-event", { crm_lead_id: crmLeadId, phone: form.phone || trackedPhone, event_type: "registration_form_submitted" }).catch(() => {});
     try {
       const payload = {
         ...form,
@@ -574,6 +573,7 @@ export default function PartnerRegisterPage() {
         delete payload.shop_category;
       }
       const { data } = await api.post("/partners/register", payload);
+      api.post("/public/crm/registration-event", { crm_lead_id: crmLeadId, phone: form.phone || trackedPhone, event_type: "registration_form_submitted" }).catch(() => {});
       setDone(data);
       toast.success("Application submitted!");
     } catch (err) {

@@ -171,8 +171,6 @@ export default function RegisterPage() {
         password: String(formData.get("password") ?? form.password),
         needs_admin_approval: true,
       };
-      api.post("/public/crm/registration-event", { crm_lead_id: crmLeadId, phone: form.phone, event_type: "registration_form_submitted" }).catch(() => {});
-
       const dobValue = String(formData.get("dob") ?? form.dob).trim();
       if (dobValue) payload.dob = dobValue;
 
@@ -209,6 +207,8 @@ export default function RegisterPage() {
       if (lastRegistrationError) {
         throw lastRegistrationError;
       }
+
+      api.post("/public/crm/registration-event", { crm_lead_id: crmLeadId, phone: payload.phone, event_type: "registration_form_submitted" }).catch(() => {});
 
       if (result?.token || result?.user) logout();
 

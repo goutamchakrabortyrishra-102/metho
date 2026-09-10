@@ -1,5 +1,5 @@
-import React, { useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import React, { useEffect, useState } from "react";
+import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { ArrowRight, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -9,9 +9,17 @@ import { Logo } from "@/components/Logo";
 import api from "@/services/api";
 
 export default function RiderRegisterPage() {
+  const [searchParams] = useSearchParams();
+  const crmLeadId = (searchParams.get("crm_lead_id") || "").trim();
+  const trackedPhone = (searchParams.get("prefill_phone") || "").trim();
   const [loading, setLoading] = useState(false);
   const [agreedToTerms, setAgreedToTerms] = useState(false);
   const nav = useNavigate();
+
+  useEffect(() => {
+    if (!crmLeadId && !trackedPhone) return;
+    api.post("/public/crm/registration-event", { crm_lead_id: crmLeadId, phone: trackedPhone, event_type: "registration_form_opened" }).catch(() => {});
+  }, [crmLeadId, trackedPhone]);
 
   const submit = async (event) => {
     event.preventDefault();
@@ -23,6 +31,7 @@ export default function RiderRegisterPage() {
     const form = new FormData(event.currentTarget);
     try {
       await api.post("/rider/register", { ...Object.fromEntries(form.entries()), agreed_to_terms: agreedToTerms });
+      api.post("/public/crm/registration-event", { crm_lead_id: crmLeadId, phone: form.get("phone") || trackedPhone, event_type: "registration_form_submitted" }).catch(() => {});
       toast.success("Registration submitted. Please wait for admin approval.");
       nav("/login?role=rider");
     } catch (error) {
@@ -42,7 +51,7 @@ export default function RiderRegisterPage() {
         </div>
         <div className="grid gap-4 sm:grid-cols-2">
           <div><Label htmlFor="rider-name">Name</Label><Input id="rider-name" name="name" required className="mt-1.5" /></div>
-          <div><Label htmlFor="rider-phone">Phone</Label><Input id="rider-phone" name="phone" required className="mt-1.5" /></div>
+          <div><Label htmlFor="rider-phone">Phone</Label><Input id="rider-phone" name="phone" required defaultValue={trackedPhone} className="mt-1.5" /></div>
           <div><Label htmlFor="rider-email">Email</Label><Input id="rider-email" name="email" type="email" required className="mt-1.5" /></div>
           <div><Label htmlFor="rider-password">Password</Label><Input id="rider-password" name="password" type="password" minLength={6} required className="mt-1.5" /></div>
           <div><Label htmlFor="rider-whatsapp">WhatsApp</Label><Input id="rider-whatsapp" name="whatsapp" required className="mt-1.5" /></div>
