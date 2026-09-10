@@ -379,6 +379,51 @@ def test_successful_website_registration_triggers_role_specific_lifecycle(monkey
         db.close()
 
 
+@pytest.mark.parametrize("role", ["member", "partner", "rider"])
+def test_successful_website_registration_syncs_whatsapp_session_and_next_message(monkeypatch, role):
+    db = make_session()
+    try:
+        monkeypatch.setattr("sql_app.whatsapp_ai.create_suggestion_for_activity", lambda _activity_id: None)
+        monkeypatch.setattr("sql_app.routers.auth.hash_password", lambda value: "hashed")
+        monkeypatch.setattr("sql_app.routers.auth.build_welcome_pdf", lambda user: "")
+        monkeypatch.setattr("sql_app.routers.auth.send_welcome_email", lambda *args: False)
+        monkeypatch.setattr("sql_app.routers.auth._send_registration_whatsapp_welcome", lambda *args: None)
+        monkeypatch.setattr("sql_app.routers.auth.record_lifecycle_event_by_phone", lambda *args: None)
+        monkeypatch.setattr("sql_app.routers.partner_public.record_lifecycle_event_by_phone", lambda *args: None)
+        monkeypatch.setattr("sql_app.routers.rider.record_lifecycle_event_by_phone", lambda *args: None)
+        db.add(User(id="MAU00001", name="METHO Admin", email="admin@test.local", phone="9000000000", password="hashed", role="super_admin", is_active=True))
+        phone = {"member": "8801712345678", "partner": "8801712345679", "rider": "8801712345680"}[role]
+        lead = add_tracked_lead(db, role, phone)
+        lead.assigned_user_id = "ADMIN"
+        session = db.query(WhatsAppRegistrationSession).filter_by(phone=phone).one()
+        session.state = "INTRODUCTION"
+        session.role = ""
+        db.commit()
+
+        if role == "member":
+            register(RegisterRequest(name="Member One", email="MAU12345", phone=phone, pan_no="ABCDE1234F", password="secret1"), db)
+        elif role == "partner":
+            partner_register({"login_id": "partner-one", "password": "secret1", "business_name": "Partner One", "contact_person": "Owner", "phone": phone, "pan_no": "BCDEF1234G", "aadhaar_no": "123456789012"}, db)
+        else:
+            rider_register(RiderRegisterRequest(name="Rider One", phone=phone, password="secret1", vehicle_type="delivery", whatsapp=phone, address="Road 1", pan_no="CDEFG1234H", aadhaar_no="123456789013", agreed_to_terms=True), db)
+
+        db.refresh(lead)
+        db.refresh(session)
+        assert session.state.endswith("PENDING")
+        assert session.role == role
+        assert session.completed_at is not None
+        sent = []
+        monkeypatch.setattr("sql_app.whatsapp_cloud._send_member_registration_reply", lambda _db, recipient, text: sent.append(text) or True)
+        assert ingest_whatsapp_message(db, message_payload(f"wamid.website-{role}-next", "next", sender=phone), None) == "updated"
+        assert sent
+        assert "1. Member" not in sent[-1]
+        assert "2. Partner" not in sent[-1]
+        assert "3. Rider" not in sent[-1]
+        assert lead.member_user_id or lead.partner_request_id or lead.rider_user_id
+    finally:
+        db.close()
+
+
 def test_failed_website_registration_does_not_trigger_success_lifecycle(monkeypatch):
     db = make_session()
     try:

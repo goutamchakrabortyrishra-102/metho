@@ -1,7 +1,8 @@
+import json
 import re
 from datetime import datetime, timedelta, timezone
 
-from .models import CRMFollowUp, CRMLead, CRMLeadActivity
+from .models import CRMFollowUp, CRMLead, CRMLeadActivity, WhatsAppRegistrationSession
 
 
 def normalize_phone(value: str | None) -> str:
@@ -61,6 +62,32 @@ def ensure_pending_followup(db, lead: CRMLead, *, notes: str) -> None:
     lead.follow_up_status = "Pending"
 
 
+def _sync_whatsapp_registration_session(db, lead: CRMLead, phone: str, *, user_id: str | None = None, partner_request_id: str | None = None, rider_user_id: str | None = None) -> None:
+    session = db.query(WhatsAppRegistrationSession).filter(WhatsAppRegistrationSession.phone == phone).first()
+    if not session:
+        candidates = phone_keys(phone)
+        if candidates:
+            session = next((item for item in db.query(WhatsAppRegistrationSession).all() if phone_keys(item.phone).intersection(candidates)), None)
+    if not session:
+        return
+    session.lead_id = lead.id
+    session.completed_at = datetime.now(timezone.utc)
+    session.name = ""
+    session.address = ""
+    if user_id:
+        session.role = "member"
+        session.state = "MEMBER_ACTIVATION_PENDING"
+        session.data_json = json.dumps({"member_user_id": user_id}, ensure_ascii=False)
+    elif partner_request_id:
+        session.role = "partner"
+        session.state = "PARTNER_APPLICATION_PENDING"
+        session.data_json = json.dumps({"request_id": partner_request_id}, ensure_ascii=False)
+    elif rider_user_id:
+        session.role = "rider"
+        session.state = "RIDER_APPLICATION_PENDING"
+        session.data_json = json.dumps({"rider_user_id": rider_user_id}, ensure_ascii=False)
+
+
 def link_lead_to_registration(db, *, phone: str, email: str = "", user_id: str | None = None, partner_request_id: str | None = None, rider_user_id: str | None = None) -> CRMLead | None:
     lead = find_lead_by_phone(db, phone)
     if not lead:
@@ -79,4 +106,5 @@ def link_lead_to_registration(db, *, phone: str, email: str = "", user_id: str |
         lead.email = email
     registration_type = "member" if user_id else "partner" if partner_request_id else "rider"
     link_lead_activity(db, lead, "registration_linked", f"{registration_type.title()} registration linked to this CRM lead")
+    _sync_whatsapp_registration_session(db, lead, phone, user_id=user_id, partner_request_id=partner_request_id, rider_user_id=rider_user_id)
     return lead
