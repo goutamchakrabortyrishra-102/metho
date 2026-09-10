@@ -99,6 +99,7 @@ DELIVERY_QUERY_KEYWORDS = ("delivery", "deliver", "metho move", "ডেলিভ
 SUPPORT_QUERY_KEYWORDS = ("support", "help", "contact", "executive", "সাপোর্ট", "সহায়তা", "যোগাযোগ")
 REGISTRATION_INTENT_MARKERS = ("রেজিস্ট", "register", "registration", "যুক্ত", "join", "হতে চাই", "করতে চাই", "হব", "হবো", "চালু", "অনবোর্ডিং", "onboarding", "interested")
 WHATSAPP_REGISTRATION_IDLE = "IDLE"
+WHATSAPP_REGISTRATION_CONFIRMATION_PENDING = "REGISTRATION_CONFIRMATION_PENDING"
 WHATSAPP_INTRODUCTION = "INTRODUCTION"
 WHATSAPP_ROLE_SELECTION = "ROLE_SELECTION"
 WHATSAPP_MEMBER_NAME = "MEMBER_NAME"
@@ -171,6 +172,8 @@ WHATSAPP_HANDOFF_COMMANDS = {"agent", "support", "executive", "human", "কথ�
 WHATSAPP_REGISTRATION_REMINDER_OPTOUT_COMMANDS = {"stop", "no more", "unsubscribe", "বন্ধ করুন", "আর মেসেজ চাই না", "পরে করব না"}
 WHATSAPP_RESUME_COMMANDS = {"hi", "hello", "হাই", "হ্যালো", "নমস্কার", "start", "namaskar"}
 WHATSAPP_NEW_CONVERSATION_GREETINGS = {"hi", "hello", "হাই", "হ্যালো", "নমস্কার", "namaskar"}
+WHATSAPP_CONFIRMATION_YES = {"yes", "y", "হ্যাঁ"}
+WHATSAPP_CONFIRMATION_NO = {"no", "n", "না"}
 WHATSAPP_PRESET_MESSAGE_DEFAULTS = {
     "preset_registration_intro": "নমস্কার! METHO AAY-UPAY-এ স্বাগতম।\nMETHO-তে Customer, Member, Business Partner অথবা Rider হিসেবে যুক্ত হতে পারেন।\nআপনি জানতে চান:\n1. Member\n2. Partner\n3. Rider\n4. METHO সম্পর্কে আরও জানতে চাই",
     "preset_metho_info": "METHO AAY-UPAY একটি ডিজিটাল platform যেখানে Customer, Member, Partner ও Rider হিসেবে যুক্ত হওয়ার পথ আছে।\n\n{introduction}",
@@ -185,6 +188,7 @@ WHATSAPP_PRESET_MESSAGE_DEFAULTS = {
     "preset_icebreaker_customer_support": "We are here to help! For product details or business support, call or WhatsApp us at {support_number}.\n\nআমরা আপনাকে সাহায্য করতে প্রস্তুত! পণ্য অর্ডার বা বিজনেসের যেকোনো সহায়তার জন্য কল বা মেসেজ করুন: {support_number}।",
     "preset_lifecycle_registration_form_opened": "আপনি registration form খুলেছেন। Form পূরণ করতে কোনো সাহায্য লাগলে এখানেই লিখুন।",
     "preset_lifecycle_registration_form_submitted": "আপনার registration form জমা হয়েছে। পরবর্তী ধাপ সম্পন্ন করতে কোনো সাহায্য লাগলে এখানে reply করুন।",
+    "preset_registration_submit_confirmation": "🌱 আপনি কি METHO AAY-UPAY Registration Form সফলভাবে Submit করেছেন?\n\nYes — হ্যাঁ, Submit করেছি\nNo — না, এখনও Submit করিনি\n\n👉 Reply: Yes / No",
     "preset_lifecycle_registration_form_followup_started": "আপনার Registration Form জমা হয়েছে। Account activation বা approval status নিয়ে কোনো প্রশ্ন থাকলে এখানে reply করুন, আমরা সাহায্য করব।",
     "preset_abandoned_registration_reminder": "আপনার METHO registration এখনও সম্পূর্ণ হয়নি।\nYour METHO registration is still incomplete.\n\n👉 Registration complete করতে এখানে ক্লিক করুন:\n{registration_url}\n\n💬 কোনো সাহায্য লাগলে \"Executive\" লিখুন — আমাদের Executive-এর সাথে কথা বলতে পারবেন।",
     "preset_registration_reminders_stopped": "ঠিক আছে। আমরা Registration reminder বন্ধ করে দিয়েছি।\nOkay. We have stopped the Registration reminders.\n\nপরে শুরু করতে চাইলে এই WhatsApp chat-এ reply করুন।",
@@ -876,8 +880,32 @@ def _stop_abandoned_registration_reminders(db, lead: CRMLead, reason: str) -> No
     db.add(CRMLeadActivity(lead_id=lead.id, activity_type="registration_reminders_stopped", message=reason))
 
 
+def _registration_confirmation_reply(db, session: WhatsAppRegistrationSession, lead: CRMLead, text: str, recipient: str) -> bool:
+    normalized = _whatsapp_command_text(text)
+    if normalized in WHATSAPP_CONFIRMATION_YES:
+        data = _session_data(session)
+        data["registration_confirmed"] = True
+        session.data_json = json.dumps(data, ensure_ascii=False)
+        session.completed_at = session.completed_at or datetime.now(timezone.utc)
+        _stop_abandoned_registration_reminders(db, lead, "Registration confirmed after website form submit")
+        handled = _route_existing_identity(db, lead, recipient, text) if (lead.member_user_id or lead.partner_request_id or lead.rider_user_id) else False
+        data = _session_data(session)
+        data["registration_confirmed"] = True
+        _save_session_data(session, data)
+        return handled
+    if normalized in WHATSAPP_CONFIRMATION_NO:
+        config = resolve_config(db)
+        role = session.role if session.role in REGISTRATION_ROLE_SETTINGS else "member"
+        url = _tracked_registration_url(_role_registration_url(config, role), role, lead.id, recipient)
+        return _send_member_registration_reply(db, recipient, f"আপনার registration form আবার পূরণ করুন:\n{url}")
+    reply = get_whatsapp_preset_message(db, "preset_registration_submit_confirmation", WHATSAPP_PRESET_MESSAGE_DEFAULTS["preset_registration_submit_confirmation"])
+    return _send_member_registration_reply(db, recipient, reply)
+
+
 def _member_registration_session(db, phone: str, wa_id: str, lead: CRMLead) -> WhatsAppRegistrationSession:
     session = db.query(WhatsAppRegistrationSession).filter(WhatsAppRegistrationSession.phone == phone).first()
+    if not session:
+        session = db.query(WhatsAppRegistrationSession).filter(WhatsAppRegistrationSession.lead_id == lead.id).first()
     if not session:
         session = WhatsAppRegistrationSession(phone=phone, wa_id=wa_id or phone, lead_id=lead.id, role="member", state=WHATSAPP_REGISTRATION_IDLE)
         db.add(session)
@@ -1628,6 +1656,8 @@ def ingest_whatsapp_message(db, payload: dict, request=None) -> str:
             native_member_handled = _send_member_registration_reply(db, normalized["phone"], reply)
         elif _is_whatsapp_handoff_command(incoming_text):
             native_member_handled = _request_whatsapp_human_handoff(db, lead, registration_session, normalized["phone"])
+        elif registration_session and registration_session.state == WHATSAPP_REGISTRATION_CONFIRMATION_PENDING:
+            native_member_handled = _registration_confirmation_reply(db, registration_session, lead, incoming_text, normalized["phone"])
         elif lead.member_user_id or lead.partner_request_id or lead.rider_user_id:
             native_member_handled = _route_existing_identity(db, lead, normalized["phone"], incoming_text)
         elif _is_new_conversation_greeting(incoming_text):

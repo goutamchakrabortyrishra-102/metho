@@ -163,6 +163,21 @@ def record_public_registration_event(payload: dict, db: Session = Depends(get_db
         from ..whatsapp_ai import create_suggestion_for_activity
         create_suggestion_for_activity(activity.id)
     if event_type == "registration_form_submitted" and registration_linked:
+        from ..whatsapp_cloud import WHATSAPP_REGISTRATION_CONFIRMATION_PENDING, WHATSAPP_PRESET_MESSAGE_DEFAULTS, _member_registration_session, get_whatsapp_preset_message
+        session = _member_registration_session(db, phone, phone, lead)
+        session.role = "member" if lead.member_user_id else "partner" if lead.partner_request_id else "rider"
+        session.state = WHATSAPP_REGISTRATION_CONFIRMATION_PENDING
+        session.data_json = json.dumps({"registration_confirmed": False, "registration_role": session.role}, ensure_ascii=False)
+        confirmation = get_whatsapp_preset_message(db, "preset_registration_submit_confirmation", WHATSAPP_PRESET_MESSAGE_DEFAULTS["preset_registration_submit_confirmation"])
+        if not db.query(WhatsAppMessageOutbox).filter(WhatsAppMessageOutbox.dedupe_key == f"registration-confirmation:{lead.id}").first():
+            db.add(WhatsAppMessageOutbox(
+                dedupe_key=f"registration-confirmation:{lead.id}",
+                lead_id=lead.id,
+                activity_type="registration_confirmation_requested",
+                recipient=lead.whatsapp_no or lead.phone or phone,
+                message=confirmation,
+            ))
+        db.commit()
         if lead.member_user_id:
             record_lifecycle_event(db, lead, "member_registration_completed", f"Member registration completed: {lead.member_user_id}. Activation/payment is pending.", "Complete member activation/payment and explain first purchase steps", 1)
         elif lead.partner_request_id:

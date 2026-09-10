@@ -150,7 +150,8 @@ def test_submitted_registration_stops_pending_and_queued_abandoned_reminders(mon
         record_public_registration_event({"crm_lead_id": lead.id, "phone": lead.phone, "event_type": "registration_form_submitted"}, db)
         reminder = db.query(CRMFollowUp).filter_by(lead_id=lead.id, notes="Abandoned registration reminder").one()
         assert reminder.status == "Completed"
-        assert db.query(WhatsAppMessageOutbox).count() == 0
+        assert db.query(WhatsAppMessageOutbox).filter(WhatsAppMessageOutbox.activity_type == "registration_reminder_sent").count() == 0
+        assert db.query(WhatsAppMessageOutbox).filter_by(lead_id=lead.id, activity_type="registration_confirmation_requested").count() == 1
         assert lead.status == "APPLICATION"
     finally:
         db.close()
@@ -468,7 +469,7 @@ def test_registration_submit_event_queues_next_whatsapp_followup(monkeypatch, ro
         db.close = lambda: None
         monkeypatch.setattr("sql_app.whatsapp_ai.SessionLocal", NoCloseSession(db))
         assert process_due_followups() == 1
-        outbox = db.query(WhatsAppMessageOutbox).filter_by(lead_id=lead.id).one()
+        outbox = db.query(WhatsAppMessageOutbox).filter_by(lead_id=lead.id, activity_type="whatsapp_message_sent").one()
         assert outbox.status == "pending"
         assert outbox.activity_type == "whatsapp_message_sent"
         assert outbox.message.strip()
@@ -513,6 +514,69 @@ def test_registration_submit_reconciles_changed_phone_and_registered_routing(mon
         assert "1. Member" not in sent[-1]
         assert "2. Partner" not in sent[-1]
         assert "3. Rider" not in sent[-1]
+    finally:
+        db.close()
+
+
+def test_registration_submit_requests_whatsapp_confirmation(monkeypatch):
+    db = make_session()
+    try:
+        monkeypatch.setattr("sql_app.whatsapp_ai.create_suggestion_for_activity", lambda _activity_id: None)
+        lead = add_tracked_lead(db, "member")
+        lead.member_user_id = "MAU23451"
+        db.commit()
+        result = record_public_registration_event({"crm_lead_id": lead.id, "phone": lead.phone, "event_type": "registration_form_submitted"}, db)
+        session = db.query(WhatsAppRegistrationSession).one()
+        outbox = db.query(WhatsAppMessageOutbox).filter_by(lead_id=lead.id, activity_type="registration_confirmation_requested").one()
+        assert result["linked"] is True
+        assert session.state == "REGISTRATION_CONFIRMATION_PENDING"
+        assert json.loads(session.data_json)["registration_confirmed"] is False
+        assert outbox.message
+    finally:
+        db.close()
+
+
+@pytest.mark.parametrize(("reply", "confirmed"), [("YES", True), ("Yes", True), ("y", True), ("হ্যাঁ", True), ("NO", False), ("n", False), ("না", False)])
+def test_registration_confirmation_replies_bypass_role_parser(monkeypatch, reply, confirmed):
+    db = make_session()
+    try:
+        lead = add_tracked_lead(db, "member")
+        lead.member_user_id = "MAU23451"
+        db.add(User(id="MAU23451", name="Member One", email="MAU23451", phone=lead.phone, password="hashed", role="member", is_active=False))
+        session = db.query(WhatsAppRegistrationSession).one()
+        session.state = "REGISTRATION_CONFIRMATION_PENDING"
+        session.role = "member"
+        session.completed_at = datetime.now(timezone.utc)
+        session.data_json = json.dumps({"member_user_id": "MAU23451", "registration_confirmed": False})
+        db.commit()
+        sent = []
+        monkeypatch.setattr("sql_app.whatsapp_cloud._send_member_registration_reply", lambda _db, recipient, text: sent.append(text) or True)
+        assert ingest_whatsapp_message(db, message_payload(f"wamid.confirm-{reply}", reply), None) == "updated"
+        assert sent
+        assert "1. Member" not in sent[-1]
+        assert "2. Partner" not in sent[-1]
+        assert "3. Rider" not in sent[-1]
+        db.refresh(session)
+        assert json.loads(session.data_json)["registration_confirmed"] is confirmed
+    finally:
+        db.close()
+
+
+def test_duplicate_confirmation_does_not_create_reminder_chain(monkeypatch):
+    db = make_session()
+    try:
+        lead = add_tracked_lead(db, "member")
+        lead.member_user_id = "MAU23451"
+        session = db.query(WhatsAppRegistrationSession).one()
+        session.state = "REGISTRATION_CONFIRMATION_PENDING"
+        session.role = "member"
+        session.data_json = json.dumps({"member_user_id": "MAU23451", "registration_confirmed": False})
+        db.commit()
+        sent = []
+        monkeypatch.setattr("sql_app.whatsapp_cloud._send_member_registration_reply", lambda _db, recipient, text: sent.append(text) or True)
+        for message_id in ("wamid.confirm-one", "wamid.confirm-two"):
+            assert ingest_whatsapp_message(db, message_payload(message_id, "YES"), None) == "updated"
+        assert db.query(CRMFollowUp).filter_by(lead_id=lead.id, notes="Abandoned registration reminder", status="Pending").count() == 0
     finally:
         db.close()
 
