@@ -20,15 +20,20 @@ logger = logging.getLogger(__name__)
 
 WHATSAPP_GRAPH_API_VERSION = os.getenv("WHATSAPP_GRAPH_API_VERSION", "v20.0").strip() or "v20.0"
 DEFAULT_FALLBACK_ENCRYPTION_KEY = "default-fallback-32-char-key-here"
-DEFAULT_WHATSAPP_REGISTRATION_URL = "https://methoaayupay.com/app/register"
+DEFAULT_WHATSAPP_REGISTRATION_URL = "https://methoaayupay.com/register"
 DEFAULT_WHATSAPP_WELCOME_MESSAGE = "নমস্কার! মেঠো আয়-উপায় (METHO AAY-UPAY)-এ আপনাকে স্বাগতম!"
 DEFAULT_WHATSAPP_REGISTRATION_HELP_PROMPT = "রেজিস্ট্রেশনে কোনো সাহায্য লাগলে এই চ্যাটেই রিপ্লাই করুন, আমরা আপনাকে সহায়তা করব।"
 DEFAULT_REGISTRATION_ROLE_QUESTION = "আপনি কীভাবে যুক্ত হতে চান? 1 লিখুন Member-এর জন্য, 2 লিখুন Partner-এর জন্য, অথবা 3 লিখুন Rider-এর জন্য।"
-DEFAULT_MEMBER_REGISTRATION_URL = "https://methoaayupay.com/app/register"
+DEFAULT_MEMBER_REGISTRATION_URL = "https://methoaayupay.com/register"
 DEFAULT_PARTNER_REGISTRATION_URL = "https://methoaayupay.com/partner-register"
 DEFAULT_RIDER_REGISTRATION_URL = "https://methoaayupay.com/rider-register"
 DEFAULT_MEMBER_ACTIVATION_URL = "https://methoaayupay.com/shop"
 REGISTRATION_ROLE_SETTINGS = ("member", "partner", "rider")
+ROLE_REGISTRATION_PATHS = {
+    "member": "/register",
+    "partner": "/partner-register",
+    "rider": "/rider-register",
+}
 LOCALIZED_ROLE_REPLIES = {
     "bn": {
         "member": "মেঠো মেম্বার হিসেবে যুক্ত হতে Member রেজিস্ট্রেশন করুন।",
@@ -710,7 +715,7 @@ def _role_registration_reply(db, role: str, lead_id: str = "", phone: str = "") 
     reply = config.get(f"{role}_registration_reply") or config["registration_welcome_message"]
     return "\n\n".join((
         reply,
-        f"{role.title()} রেজিস্ট্রেশন করুন: {_tracked_registration_url(config[f'{role}_registration_url'], role, lead_id, phone)}",
+        f"{role.title()} রেজিস্ট্রেশন করুন: {_tracked_registration_url(_role_registration_url(config, role), role, lead_id, phone)}",
         config["registration_help_prompt"],
     ))
 
@@ -760,7 +765,17 @@ def _localized_role_reply(db, role: str, language: str, lead_id: str = "", phone
     base = custom if custom and custom != default else LOCALIZED_ROLE_REPLIES[language][role]
     default_help = DEFAULT_WHATSAPP_REGISTRATION_HELP_PROMPT
     help_prompt = config["registration_help_prompt"] if config["registration_help_prompt"] != default_help else LOCALIZED_HELP_PROMPTS[language]
-    return "\n\n".join((base, f"{role.title()} registration: {_tracked_registration_url(config[f'{role}_registration_url'], role, lead_id, phone)}", help_prompt))
+    return "\n\n".join((base, f"{role.title()} registration: {_tracked_registration_url(_role_registration_url(config, role), role, lead_id, phone)}", help_prompt))
+
+
+def _role_registration_url(config: dict, role: str) -> str:
+    raw_url = str(config.get(f"{role}_registration_url") or "").strip()
+    parsed = urlsplit(raw_url)
+    role_path = ROLE_REGISTRATION_PATHS.get(role, "/register")
+    wrong_form_paths = {"", "/", "/app", "/login", "/app/register"}
+    if parsed.path in wrong_form_paths:
+        return urlunsplit((parsed.scheme, parsed.netloc, role_path, parsed.query, parsed.fragment))
+    return raw_url
 
 
 def _tracked_registration_url(url: str, role: str, lead_id: str = "", phone: str = "") -> str:

@@ -516,12 +516,12 @@ def process_due_followups(limit: int = 20) -> int:
             )
             db.add(activity)
             db.flush()
-            from .whatsapp_cloud import _tracked_registration_url, get_configured_whatsapp_reply, resolve_config
+            from .whatsapp_cloud import _role_registration_url, _tracked_registration_url, get_configured_whatsapp_reply, resolve_config
             if is_abandoned_registration:
                 session = db.query(WhatsAppRegistrationSession).filter(WhatsAppRegistrationSession.lead_id == lead.id).first()
                 role = session.role if session and session.role in {"member", "partner", "rider"} else "member"
                 config = resolve_config(db)
-                registration_url = _tracked_registration_url(config[f"{role}_registration_url"], role, lead.id, recipient)
+                registration_url = _tracked_registration_url(_role_registration_url(config, role), role, lead.id, recipient)
                 fallback_text = get_whatsapp_preset_message(db, "preset_abandoned_registration_reminder", "", role=role.title(), registration_url=registration_url)
                 outbox_activity_type = "registration_reminder_sent"
             else:

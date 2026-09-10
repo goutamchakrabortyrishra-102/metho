@@ -18,7 +18,7 @@ from sql_app.routers.partner_public import partner_register
 from sql_app.routers.rider import rider_register
 from sql_app.schemas import RegisterRequest, RiderRegisterRequest
 from sql_app.whatsapp_ai import process_due_followups, process_message_outbox
-from sql_app.whatsapp_cloud import ingest_whatsapp_message, _continue_introduction, _request_whatsapp_human_handoff, _role_registration_reply, _stop_abandoned_registration_reminders
+from sql_app.whatsapp_cloud import ingest_whatsapp_message, _continue_introduction, _request_whatsapp_human_handoff, _role_registration_reply, _role_registration_url, _stop_abandoned_registration_reminders
 from test_whatsapp_admin_settings import message_payload
 
 
@@ -198,12 +198,26 @@ def test_role_registration_links_are_tracked_for_all_roles():
         for role in ("member", "partner", "rider"):
             reply = _role_registration_reply(db, role, "lead-123", "8801712345678")
             url = next(value for value in reply.split() if value.startswith("https://"))
-            query = parse_qs(urlsplit(url).query)
+            parsed = urlsplit(url)
+            query = parse_qs(parsed.query)
             assert query["crm_lead_id"] == ["lead-123"]
             assert query["prefill_phone"] == ["8801712345678"]
             assert query["registration_role"] == [role]
+            if role == "member":
+                assert parsed.path == "/register"
     finally:
         db.close()
+
+
+def test_role_registration_urls_normalize_to_public_form_routes():
+    config = {
+        "member_registration_url": "https://methoaayupay.com/app/register",
+        "partner_registration_url": "https://methoaayupay.com/",
+        "rider_registration_url": "https://methoaayupay.com/app",
+    }
+    assert urlsplit(_role_registration_url(config, "member")).path == "/register"
+    assert urlsplit(_role_registration_url(config, "partner")).path == "/partner-register"
+    assert urlsplit(_role_registration_url(config, "rider")).path == "/rider-register"
 
 
 @pytest.mark.parametrize(("choice", "role"), [("1", "member"), ("2", "partner"), ("3", "rider")])

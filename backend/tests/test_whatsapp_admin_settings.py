@@ -89,8 +89,8 @@ def test_whatsapp_settings_prefill_registration_funnel_templates():
     try:
         settings = get_whatsapp_settings(db, admin())
         assert "1 লিখুন Member-এর জন্য" in settings["registration_role_question"]
-        assert "https://methoaayupay.com/app/register" == settings["member_registration_url"]
-        assert "মেঠো বিজনেস পার্টনার" in settings["partner_registration_reply"]
+        assert "https://methoaayupay.com/register" == settings["member_registration_url"]
+        assert "METHO Business Partner" in settings["partner_registration_reply"]
         assert settings["rider_registration_keywords"].startswith("3,rider")
     finally:
         db.close()
