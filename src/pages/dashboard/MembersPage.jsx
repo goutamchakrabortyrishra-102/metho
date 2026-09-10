@@ -427,6 +427,10 @@ export default function MembersPage() {
                 <p className="text-slate-900">{profileTarget?.email || "-"}</p>
               </div>
               <div>
+                <span className="font-semibold text-slate-700">Password:</span>
+                <p className="text-slate-900">Stored securely (hidden)</p>
+              </div>
+              <div>
                 <span className="font-semibold text-slate-700">DOB:</span>
                 <p className="text-slate-900">{profileTarget?.dob || "-"}</p>
               </div>
