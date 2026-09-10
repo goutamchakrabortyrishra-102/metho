@@ -171,7 +171,7 @@ export default function WhatsAppInboxPage() {
 
   const deleteSelectedConversation = async () => {
     if (!selected || !window.confirm("Delete this WhatsApp chat? CRM lead and follow-up data will remain.")) return;
-    try { await api.delete(`/admin/crm/whatsapp/conversations/${selected.lead_id}`); setSelected(null); setMessages([]); setSuggestions([]); await loadConversations(); }
+    try { await api.delete(`/admin/crm/whatsapp/conversations/${selected.lead_id}`); setConversations((current) => current.filter((conversation) => conversation.lead_id !== selected.lead_id)); setSelected(null); setMessages([]); setSuggestions([]); toast.success("Chat deleted"); await loadConversations(); }
     catch (err) { setError(err?.response?.data?.detail || "Chat could not be deleted"); }
   };
 
