@@ -10,7 +10,7 @@ from sqlalchemy.orm import sessionmaker
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from sql_app.database import Base
-from sql_app.models import User, UserReferral
+from sql_app.models import AppSetting, User, UserReferral
 from sql_app.routers.auth import register
 from sql_app.routers.compat import _leader_qualification_snapshot, _member_activation_datetime, admin_update_user
 from sql_app.schemas import RegisterRequest
@@ -149,6 +149,61 @@ def test_admin_cannot_assign_sponsor_to_non_member_account():
         actor = SimpleNamespace(role="admin", id=admin.id)
         with pytest.raises(Exception, match="member accounts"):
             admin_update_user(partner.id, {"sponsor_code": "MAU00001"}, db, actor)
+    finally:
+        db.close()
+
+
+def test_admin_can_edit_complete_member_profile_and_requires_active_sponsor():
+    db = make_session()
+    try:
+        admin = add_user(db, "MAU00001", "super_admin")
+        member = add_user(db, "MAU10001")
+        inactive_sponsor = add_user(db, "MAU10002")
+        inactive_sponsor.is_active = False
+        db.commit()
+        actor = SimpleNamespace(role="admin", id=admin.id)
+
+        admin_update_user(member.id, {
+            "name": "Updated Member",
+            "phone": "+91 98765 43210",
+            "dob": "1990-01-31",
+            "pan_no": "ABCDE1234F",
+            "aadhaar_no": "123456789012",
+            "address": "Updated Road",
+            "city": "Rishra",
+            "state": "West Bengal",
+            "pincode": "712248",
+            "password": "newpass1",
+            "sponsor_code": "MAU00001",
+        }, db, actor)
+        db.refresh(member)
+        profile = json.loads(db.query(AppSetting).filter_by(key=f"user_profile:{member.id}").one().value_json)
+        assert member.name == "Updated Member"
+        assert member.phone == "919876543210"
+        assert profile["pan_no"] == "ABCDE1234F"
+        assert profile["aadhaar_no"] == "123456789012"
+        assert profile["address"] == "Updated Road"
+        assert db.query(UserReferral).filter_by(user_id=member.id, sponsor_user_id=admin.id).one()
+
+        with pytest.raises(Exception, match="inactive"):
+            admin_update_user(member.id, {"sponsor_code": inactive_sponsor.id}, db, actor)
+    finally:
+        db.close()
+
+
+def test_admin_member_edit_rejects_duplicate_mobile_and_pan():
+    db = make_session()
+    try:
+        admin = add_user(db, "MAU00001", "super_admin")
+        first = add_user(db, "MAU10001")
+        second = add_user(db, "MAU10002")
+        db.add(AppSetting(key=f"user_profile:{first.id}", value_json=json.dumps({"pan_no": "ABCDE1234F"})))
+        db.commit()
+        actor = SimpleNamespace(role="admin", id=admin.id)
+        with pytest.raises(Exception, match="Phone number"):
+            admin_update_user(second.id, {"phone": first.phone}, db, actor)
+        with pytest.raises(Exception, match="PAN number"):
+            admin_update_user(second.id, {"pan_no": "ABCDE1234F"}, db, actor)
     finally:
         db.close()
 

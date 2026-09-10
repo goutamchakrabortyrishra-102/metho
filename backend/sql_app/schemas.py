@@ -6,6 +6,9 @@ class RegisterRequest(BaseModel):
     email: str
     phone: str
     pan_no: str = ""
+    aadhaar_no: str = ""
+    dob: str = ""
+    address: str = ""
     password: str
     sponsor_code: str | None = None
 

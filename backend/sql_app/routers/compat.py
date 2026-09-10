@@ -13,6 +13,7 @@ import urllib.error
 import urllib.request
 from urllib.parse import quote
 import secrets
+import re
 from PIL import Image
 
 from fastapi import APIRouter, Depends, File, HTTPException, Query, Request, UploadFile
@@ -30,7 +31,7 @@ from ..models import AppSetting, AssociatePartner, CRMLead, CRMLeadActivity, Fin
 from ..security import hash_password, verify_password
 from ..storage import UPLOADED_OBJECTS_DIR
 from ..google_search import search_web_context
-from .auth import ADMIN_LOGIN_ID, get_current_user, get_current_user_optional
+from .auth import ADMIN_LOGIN_ID, DEFAULT_ADMIN_SPONSOR_ID, _member_identity_setting_key, _normalize_member_pan, _normalize_member_phone, get_current_user, get_current_user_optional
 from .settings import load_settings, save_settings
 
 router = APIRouter(prefix="/api", tags=["compat"])
@@ -721,6 +722,11 @@ PARTNER_WALLET_DEFAULTS = {
 USER_PROFILE_DEFAULTS = {
     "dob": "",
     "pan_no": "",
+    "aadhaar_no": "",
+    "address": "",
+    "city": "",
+    "state": "",
+    "pincode": "",
 }
 
 
@@ -3195,6 +3201,7 @@ def _load_user_profile_details(db: Session, user_id: str) -> dict:
     return {
         "dob": str(payload.get("dob") or "").strip(),
         "pan_no": str(payload.get("pan_no") or "").strip().upper(),
+        "aadhaar_no": str(payload.get("aadhaar_no") or "").strip(),
         "address": str(payload.get("address") or "").strip(),
         "city": str(payload.get("city") or "").strip(),
         "state": str(payload.get("state") or "").strip(),
@@ -3208,6 +3215,7 @@ def _save_user_profile_details(db: Session, user_id: str, payload: dict | None) 
     normalized = {
         "dob": str(source.get("dob") if source.get("dob") is not None else current.get("dob") or "").strip(),
         "pan_no": str(source.get("pan_no") if source.get("pan_no") is not None else current.get("pan_no") or "").strip().upper(),
+        "aadhaar_no": str(source.get("aadhaar_no") if source.get("aadhaar_no") is not None else current.get("aadhaar_no") or "").strip(),
         "address": str(source.get("address") if source.get("address") is not None else current.get("address") or "").strip(),
         "city": str(source.get("city") if source.get("city") is not None else current.get("city") or "").strip(),
         "state": str(source.get("state") if source.get("state") is not None else current.get("state") or "").strip(),
@@ -3241,10 +3249,10 @@ def _resolve_user_by_member_code(db: Session, member_code: str) -> User | None:
 
 
 def _default_admin_sponsor(db: Session) -> User | None:
-    preferred = _resolve_user_by_member_code(db, "MAU00001")
-    if preferred and preferred.role in {"admin", "company_admin", "super_admin"}:
+    preferred = _resolve_user_by_member_code(db, DEFAULT_ADMIN_SPONSOR_ID)
+    if preferred and preferred.role in {"admin", "company_admin", "super_admin"} and preferred.is_active:
         return preferred
-    return db.query(User).filter(User.role.in_(["admin", "company_admin", "super_admin"])).order_by(User.created_at.asc()).first()
+    return db.query(User).filter(User.role.in_(["admin", "company_admin", "super_admin"]), User.is_active.is_(True)).order_by(User.created_at.asc()).first()
 
 
 def _is_downline_of(db: Session, sponsor_id: str, member_id: str) -> bool:
@@ -3917,6 +3925,7 @@ def members(db: Session = Depends(get_db), current_user=Depends(get_current_user
                 "sponsor_code": _sponsor_code_for_user(db, u.id),
                 "dob": extras.get("dob") or "",
                 "pan_no": extras.get("pan_no") or "",
+                "aadhaar_no": extras.get("aadhaar_no") or "",
                 "address": extras.get("address") or "",
                 "city": extras.get("city") or "",
                 "state": extras.get("state") or "",
@@ -3951,6 +3960,7 @@ def admin_users(role: str | None = None, db: Session = Depends(get_db), current_
                 "sponsor_code": _sponsor_code_for_user(db, user.id),
                 "dob": extras.get("dob") or "",
                 "pan_no": extras.get("pan_no") or "",
+                "aadhaar_no": extras.get("aadhaar_no") or "",
                 "address": extras.get("address") or "",
                 "city": extras.get("city") or "",
                 "state": extras.get("state") or "",
@@ -4026,10 +4036,17 @@ def admin_update_user(user_id: str, payload: dict, db: Session = Depends(get_db)
     user = db.query(User).filter(User.id == user_id).first()
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
+    old_phone = _normalize_member_phone(user.phone) if user.role == "member" else ""
+    if user.role == "member" and payload.get("phone") is not None:
+        next_phone = _normalize_member_phone(payload.get("phone"))
+        if len(next_phone) < 10 or len(next_phone) > 15:
+            raise HTTPException(status_code=400, detail="Phone number must be 10 to 15 digits")
+        for other in db.query(User).filter(User.role == "member", User.id != user.id).all():
+            if _normalize_member_phone(other.phone) == next_phone:
+                raise HTTPException(status_code=409, detail="Phone number already belongs to another member")
+        user.phone = next_phone
     if payload.get("name") is not None:
         user.name = str(payload.get("name") or user.name).strip() or user.name
-    if payload.get("phone") is not None:
-        user.phone = str(payload.get("phone") or "").strip()
     if payload.get("email") is not None:
         next_email = str(payload.get("email") or "").strip().lower()
         if next_email and next_email != str(user.email or "").strip().lower():
@@ -4048,7 +4065,36 @@ def admin_update_user(user_id: str, payload: dict, db: Session = Depends(get_db)
                 raise HTTPException(status_code=400, detail="Password must be at least 6 characters")
             user.password = hash_password(new_password)
 
-    if any(key in payload for key in ("dob", "pan_no", "address", "city", "state", "pincode")):
+    if user.role == "member" and payload.get("pan_no") is not None:
+        next_pan = _normalize_member_pan(payload.get("pan_no"))
+        if next_pan and not re.fullmatch(r"[A-Z]{5}[0-9]{4}[A-Z]", next_pan):
+            raise HTTPException(status_code=400, detail="PAN must be in format ABCDE1234F")
+        current_profile = _load_user_profile_details(db, user.id)
+        old_pan = current_profile.get("pan_no") or ""
+        if next_pan:
+            identity_owner = db.query(AppSetting).filter(AppSetting.key == _member_identity_setting_key("pan", next_pan)).first()
+            if identity_owner and user.id not in str(identity_owner.value_json or ""):
+                raise HTTPException(status_code=409, detail="PAN number already belongs to another member")
+            for profile_row in db.query(AppSetting).filter(AppSetting.key.like("user_profile:%")).all():
+                if profile_row.key != _user_profile_key(user.id):
+                    try:
+                        profile_data = json.loads(profile_row.value_json or "{}")
+                    except (TypeError, ValueError):
+                        profile_data = {}
+                    if str(profile_data.get("pan_no") or "").strip().upper() == next_pan:
+                        raise HTTPException(status_code=409, detail="PAN number already belongs to another member")
+        if old_pan and old_pan != next_pan:
+            db.query(AppSetting).filter(AppSetting.key == _member_identity_setting_key("pan", old_pan)).delete(synchronize_session=False)
+        if next_pan:
+            row = db.query(AppSetting).filter(AppSetting.key == _member_identity_setting_key("pan", next_pan)).first()
+            if not row:
+                db.add(AppSetting(key=_member_identity_setting_key("pan", next_pan), value_json=json.dumps({"user_id": user.id})))
+    if user.role == "member" and payload.get("phone") is not None:
+        new_phone = _normalize_member_phone(payload.get("phone"))
+        if old_phone != new_phone:
+            db.query(AppSetting).filter(AppSetting.key == _member_identity_setting_key("phone", old_phone)).delete(synchronize_session=False)
+            db.add(AppSetting(key=_member_identity_setting_key("phone", new_phone), value_json=json.dumps({"user_id": user.id})))
+    if any(key in payload for key in ("dob", "pan_no", "aadhaar_no", "address", "city", "state", "pincode")):
         _save_user_profile_details(db, user.id, payload)
 
     if "sponsor_code" in payload:
@@ -4057,7 +4103,9 @@ def admin_update_user(user_id: str, payload: dict, db: Session = Depends(get_db)
         sponsor_code = str(payload.get("sponsor_code") or "").strip().upper()
         existing_rel = db.query(UserReferral).filter(UserReferral.user_id == user.id).first()
         sponsor = _resolve_user_by_member_code(db, sponsor_code) if sponsor_code else _default_admin_sponsor(db)
-        if not sponsor or sponsor.id == user.id or _is_downline_of(db, sponsor.id, user.id):
+        if sponsor and not sponsor.is_active:
+            raise HTTPException(status_code=400, detail="Sponsor is inactive. Activate the sponsor before assigning it.")
+        if not sponsor or sponsor.role not in {"member", "admin", "company_admin", "super_admin"} or sponsor.id == user.id or _is_downline_of(db, sponsor.id, user.id):
             raise HTTPException(status_code=400, detail="Valid sponsor_code required; sponsor cannot be a member's downline")
         resolved_code = member_code_for_user(sponsor.id)
         if not existing_rel:

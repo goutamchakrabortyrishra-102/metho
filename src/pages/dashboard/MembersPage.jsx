@@ -30,6 +30,7 @@ export default function MembersPage() {
     sponsor_code: "",
     dob: "",
     pan_no: "",
+    aadhaar_no: "",
     address: "",
     city: "",
     state: "",
@@ -189,6 +190,7 @@ export default function MembersPage() {
       sponsor_code: m.sponsor_code || "",
       dob: m.dob || "",
       pan_no: m.pan_no || "",
+      aadhaar_no: m.aadhaar_no || "",
       address: m.address || "",
       city: m.city || "",
       state: m.state || "",
@@ -213,6 +215,7 @@ export default function MembersPage() {
         sponsor_code: String(editForm.sponsor_code || "").trim().toUpperCase(),
         dob: editForm.dob || null,
         pan_no: String(editForm.pan_no || "").trim().toUpperCase(),
+        aadhaar_no: String(editForm.aadhaar_no || "").replace(/\D/g, ""),
         address: editForm.address,
         city: editForm.city,
         state: editForm.state,
@@ -431,6 +434,10 @@ export default function MembersPage() {
                 <span className="font-semibold text-slate-700">PAN:</span>
                 <p className="font-mono text-slate-900">{profileTarget?.pan_no || "-"}</p>
               </div>
+              <div>
+                <span className="font-semibold text-slate-700">Aadhaar:</span>
+                <p className="font-mono text-slate-900">{profileTarget?.aadhaar_no || "-"}</p>
+              </div>
               <div className="md:col-span-2">
                 <span className="font-semibold text-slate-700">Address:</span>
                 <p className="text-slate-900">{profileTarget?.address || "-"}</p>
@@ -509,6 +516,10 @@ export default function MembersPage() {
             <div>
               <Label>PAN Number</Label>
               <Input value={editForm.pan_no || ""} onChange={(e) => setEditForm({ ...editForm, pan_no: e.target.value.toUpperCase() })} placeholder="ABCDE1234F" className="mt-1.5 h-11 uppercase" maxLength={10} />
+            </div>
+            <div>
+              <Label>Aadhaar Number</Label>
+              <Input value={editForm.aadhaar_no || ""} onChange={(e) => setEditForm({ ...editForm, aadhaar_no: e.target.value.replace(/\D/g, "").slice(0, 12) })} inputMode="numeric" maxLength={12} className="mt-1.5 h-11" />
             </div>
             <div className="md:col-span-2"><Label>Address</Label><Input value={editForm.address || ""} onChange={(e) => setEditForm({ ...editForm, address: e.target.value })} className="mt-1.5 h-11" /></div>
             <div><Label>City</Label><Input value={editForm.city || ""} onChange={(e) => setEditForm({ ...editForm, city: e.target.value })} className="mt-1.5 h-11" /></div>

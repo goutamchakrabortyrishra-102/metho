@@ -124,12 +124,12 @@ def _resolve_user_by_identifier(db: Session, identifier: str) -> User | None:
 
 def _resolve_default_admin_sponsor(db: Session) -> User | None:
     preferred = _resolve_user_by_identifier(db, DEFAULT_ADMIN_SPONSOR_ID)
-    if preferred and preferred.role in ADMIN_ROLES:
+    if preferred and preferred.role in ADMIN_ROLES and preferred.is_active:
         return preferred
 
     return (
         db.query(User)
-        .filter(User.role.in_(list(ADMIN_ROLES)))
+        .filter(User.role.in_(list(ADMIN_ROLES)), User.is_active.is_(True))
         .order_by(User.created_at.asc())
         .first()
     )
@@ -353,7 +353,7 @@ def register(payload: RegisterRequest, request: Request, db: Session = Depends(g
         raise HTTPException(status_code=400, detail="Sponsor code not found")
     if not sponsor_user:
         raise HTTPException(status_code=503, detail="Default METHO Admin sponsor is not configured")
-    if requested_sponsor and not bool(sponsor_user.is_active):
+    if sponsor_user and (not bool(sponsor_user.is_active) or sponsor_user.role not in ADMIN_ROLES | {"member"}):
         raise HTTPException(status_code=400, detail="Sponsor ID is inactive. Activate your ID first before sponsoring.")
     if sponsor_user.id == member_id:
         raise HTTPException(status_code=400, detail="A member cannot sponsor themselves")
@@ -396,6 +396,22 @@ def register(payload: RegisterRequest, request: Request, db: Session = Depends(g
     registration_lead = None
     try:
         link_lead_to_registration(db, phone=user.phone, email=user.email, user_id=user.id)
+        db.commit()
+        profile_payload = json.dumps({
+            "dob": str(payload.dob or "").strip(),
+            "pan_no": normalized_pan,
+            "aadhaar_no": re.sub(r"\D", "", str(payload.aadhaar_no or "")),
+            "address": str(payload.address or "").strip(),
+            "city": "",
+            "state": "",
+            "pincode": "",
+        })
+        profile_row = db.query(AppSetting).filter(AppSetting.key == f"user_profile:{user.id}").first()
+        if profile_row:
+            profile_row.value_json = profile_payload
+            profile_row.updated_at = datetime.now(timezone.utc)
+        else:
+            db.add(AppSetting(key=f"user_profile:{user.id}", value_json=profile_payload, updated_at=datetime.now(timezone.utc)))
         db.commit()
         registration_lead = record_lifecycle_event_by_phone(db, user.phone, "member_registration_completed", f"Member registration completed: {user.id}. Activation/payment is pending.", "Complete member activation/payment and explain first purchase steps", 1)
         if registration_lead:
