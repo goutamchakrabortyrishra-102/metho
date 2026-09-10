@@ -140,6 +140,7 @@ WHATSAPP_RIDER_APPROVED = "RIDER_APPROVED"
 WHATSAPP_RIDER_ONBOARDING = "RIDER_ONBOARDING"
 WHATSAPP_REGISTRATION_COMPLETED = "COMPLETED"
 WHATSAPP_MEMBER_ACTIVE_STATES = {WHATSAPP_MEMBER_NAME, WHATSAPP_MEMBER_ADDRESS, WHATSAPP_MEMBER_PAN, WHATSAPP_MEMBER_DOB, WHATSAPP_MEMBER_CONFIRMATION}
+WHATSAPP_REGISTRATION_START_COMMANDS = {"registration", "register", "রেজিস্ট্রেশন", "রেজিস্টার"}
 WHATSAPP_RESET_COMMANDS = {"cancel", "reset", "বাতিল"}
 WHATSAPP_HANDOFF_COMMANDS = {"agent", "support", "executive", "human", "কথা বলতে চাই", "এক্সিকিউটিভের সাথে কথা বলতে চাই", "প্রতিনিধি", "সাহায্য চাই", "মানুষের সাথে কথা বলতে চাই"}
 WHATSAPP_REGISTRATION_REMINDER_OPTOUT_COMMANDS = {"stop", "no more", "unsubscribe", "বন্ধ করুন", "আর মেসেজ চাই না", "পরে করব না"}
@@ -818,6 +819,10 @@ def _is_whatsapp_reset_command(text: str) -> bool:
     return _whatsapp_command_text(text) in WHATSAPP_RESET_COMMANDS
 
 
+def _is_registration_start_command(text: str) -> bool:
+    return _whatsapp_command_text(text) in WHATSAPP_REGISTRATION_START_COMMANDS
+
+
 def _is_whatsapp_handoff_command(text: str) -> bool:
     normalized = _whatsapp_command_text(text)
     return normalized in WHATSAPP_HANDOFF_COMMANDS or any(command in normalized for command in WHATSAPP_HANDOFF_COMMANDS if " " in command)
@@ -945,7 +950,11 @@ def _introduction_message() -> str:
 
 
 def _configured_introduction_message(db) -> str:
-    return get_whatsapp_preset_message(db, "preset_registration_intro", WHATSAPP_PRESET_MESSAGE_DEFAULTS["preset_registration_intro"])
+    configured = get_whatsapp_preset_message(db, "preset_registration_intro", WHATSAPP_PRESET_MESSAGE_DEFAULTS["preset_registration_intro"])
+    if configured:
+        return configured
+    config = resolve_config(db)
+    return "\n\n".join((config["registration_welcome_message"], config["registration_role_question"]))
 
 
 def _role_explanation(db, role: str) -> str:
@@ -965,7 +974,7 @@ def _send_introduction(db, session: WhatsAppRegistrationSession, lead: CRMLead, 
 
 def _continue_introduction(db, session: WhatsAppRegistrationSession, lead: CRMLead, text: str, recipient: str) -> bool:
     normalized = _whatsapp_command_text(text)
-    choices = {"1": "member", "2": "partner", "3": "rider"}
+    choices = {"1": "member", "member": "member", "মেম্বার": "member", "2": "partner", "partner": "partner", "পার্টনার": "partner", "3": "rider", "rider": "rider", "রাইডার": "rider"}
     if normalized == "4":
         reply = get_whatsapp_preset_message(db, "preset_metho_info", WHATSAPP_PRESET_MESSAGE_DEFAULTS["preset_metho_info"], introduction=_configured_introduction_message(db))
         session.state = WHATSAPP_ROLE_SELECTION
@@ -1577,7 +1586,11 @@ def ingest_whatsapp_message(db, payload: dict, request=None) -> str:
             registration_session.state if registration_session else "none",
         )
         native_member_handled = False
-        if _is_registration_reminder_opt_out(incoming_text):
+        if _is_registration_start_command(incoming_text):
+            registration_session = _member_registration_session(db, normalized["phone"], normalized["whatsapp_no"], lead)
+            _clear_member_registration_session(registration_session)
+            native_member_handled = _send_introduction(db, registration_session, lead, normalized["phone"])
+        elif _is_registration_reminder_opt_out(incoming_text):
             if registration_session:
                 _clear_member_registration_session(registration_session)
             _stop_abandoned_registration_reminders(db, lead, "Customer opted out of registration reminders")

@@ -220,7 +220,7 @@ def test_role_registration_urls_normalize_to_public_form_routes():
     assert urlsplit(_role_registration_url(config, "rider")).path == "/rider-register"
 
 
-@pytest.mark.parametrize(("choice", "role"), [("1", "member"), ("2", "partner"), ("3", "rider")])
+@pytest.mark.parametrize(("choice", "role"), [("1", "member"), ("Member", "member"), ("2", "partner"), ("Partner", "partner"), ("3", "rider"), ("Rider", "rider")])
 def test_role_selection_sends_tracked_link_without_starting_native_registration(monkeypatch, choice, role):
     db = make_session()
     try:
@@ -260,6 +260,39 @@ def test_direct_role_intent_sends_tracked_form_url_only(monkeypatch, message, ro
         session = db.query(WhatsAppRegistrationSession).one()
         assert session.state == "ROLE_SELECTION"
         assert session.role == role
+    finally:
+        db.close()
+
+
+@pytest.mark.parametrize(("role", "state"), [("member", "MEMBER_PAN"), ("partner", "PARTNER_PAN"), ("rider", "RIDER_AADHAAR")])
+def test_registration_start_command_resets_stale_native_session(monkeypatch, role, state):
+    db = make_session()
+    try:
+        sent = []
+        monkeypatch.setattr("sql_app.whatsapp_cloud.send_whatsapp_message", lambda _db, recipient, text: sent.append(text) or {"messages": [{"id": "wamid.reply"}]})
+        from sql_app.routers.whatsapp import update_whatsapp_settings
+        update_whatsapp_settings({"phone_number_id": "123456", "access_token": "secret-token"}, db, SimpleNamespace(role="admin", id="ADMIN"))
+        lead = add_tracked_lead(db, role=role)
+        session = db.query(WhatsAppRegistrationSession).one()
+        session.role = role
+        session.state = state
+        session.name = "Old Name"
+        session.address = "Old Address"
+        session.data_json = '{"pan_no":"ABCDE1234F","aadhaar_no":"123456789012"}'
+        db.commit()
+
+        assert ingest_whatsapp_message(db, message_payload("wamid.restart-registration", "Registration"), None) == "updated"
+        db.refresh(session)
+        assert session.state == "INTRODUCTION"
+        assert session.role == ""
+        assert session.name == ""
+        assert session.address == ""
+        assert session.data_json == "{}"
+        assert "1 লিখুন Member" in sent[-1]
+        assert "2 লিখুন Partner" in sent[-1]
+        assert "3 লিখুন Rider" in sent[-1]
+        assert "PAN" not in sent[-1]
+        assert db.query(CRMLeadActivity).filter_by(lead_id=lead.id, activity_type="whatsapp_registration_state", message=state).count() == 0
     finally:
         db.close()
 

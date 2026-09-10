@@ -677,7 +677,10 @@ def test_whatsapp_member_registration_url_fallback_still_available(monkeypatch):
         assert ingest_whatsapp_message(db, message_payload("wamid.member-fallback", "আমি মেম্বার হতে চাই"), None) == "created"
         assert attempts["count"] == 2
         assert "Member registration:" in sent[0][1]
-        assert db.query(WhatsAppRegistrationSession).one().state == "INTRODUCTION"
+        assert "registration_role=member" in sent[0][1]
+        session = db.query(WhatsAppRegistrationSession).one()
+        assert session.state == "ROLE_SELECTION"
+        assert session.role == "member"
     finally:
         db.close()
 
