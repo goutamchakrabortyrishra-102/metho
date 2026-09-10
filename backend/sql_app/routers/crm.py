@@ -46,6 +46,15 @@ CRM_FOLLOWUP_STATUSES = {"Pending", "Completed", "Cancelled", "Overdue"}
 CRM_TASK_STATUSES = {"Pending", "In Progress", "Completed", "Cancelled", "Overdue"}
 CRM_TASK_PRIORITIES = {"Low", "Medium", "High", "Urgent"}
 CRM_ASSIGNEE_ROLES = {"super_admin", "company_admin", "admin"}
+WHATSAPP_CONVERSATION_ACTIVITY_TYPES = [
+    "whatsapp_message_received",
+    "whatsapp_message_sent",
+    "whatsapp_image_sent",
+    "whatsapp_auto_reply_dispatched",
+    "whatsapp_conversation_read",
+    "ai_suggestion_rejected",
+    "ai_suggestion_approved",
+]
 
 
 def _registration_event_url(value: str, lead_id: str, phone: str) -> str:
@@ -287,10 +296,10 @@ def get_whatsapp_conversation(lead_id: str, db: Session = Depends(get_db), curre
     return {"conversation": {"lead_id": lead.id, "contact_person": lead.contact_person, "business_name": lead.business_name, "phone": lead.whatsapp_no or lead.phone, "source": lead.source, "status": lead.status, "priority_bucket": lead.priority_bucket, "next_follow_up_at": _iso(lead.next_follow_up_at), "follow_up_status": lead.follow_up_status, "member_user_id": lead.member_user_id, "partner_request_id": lead.partner_request_id, "converted_partner_id": lead.converted_partner_id}, "messages": [_whatsapp_message_payload(activity) for activity in activities]}
 
 
-def _delete_whatsapp_activities(db: Session, lead_ids: list[str]) -> int:
+def _delete_whatsapp_activities(db: Session, lead_ids: list[str]) -> dict[str, int]:
     if not lead_ids:
-        return 0
-    activity_ids = [row.id for row in db.query(CRMLeadActivity.id).filter(CRMLeadActivity.lead_id.in_(lead_ids), CRMLeadActivity.activity_type.in_(["whatsapp_message_received", "whatsapp_message_sent", "whatsapp_image_sent", "whatsapp_auto_reply_dispatched", "whatsapp_conversation_read", "ai_suggestion_rejected", "ai_suggestion_approved"])).all()]
+        return {"messages": 0, "queued_messages": 0}
+    activity_ids = [row.id for row in db.query(CRMLeadActivity.id).filter(CRMLeadActivity.lead_id.in_(lead_ids), CRMLeadActivity.activity_type.in_(WHATSAPP_CONVERSATION_ACTIVITY_TYPES)).all()]
     if activity_ids:
         db.query(CRMWhatsAppAISuggestion).filter(CRMWhatsAppAISuggestion.activity_id.in_(activity_ids)).delete(synchronize_session=False)
     deleted = db.query(CRMLeadActivity).filter(CRMLeadActivity.id.in_(activity_ids)).delete(synchronize_session=False) if activity_ids else 0
@@ -311,7 +320,13 @@ def delete_whatsapp_conversation(lead_id: str, db: Session = Depends(get_db), cu
 @router.delete("/admin/crm/whatsapp/conversations")
 def delete_all_whatsapp_conversations(db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     _require_admin_user(current_user)
-    lead_ids = [row.id for row in db.query(CRMLead.id).filter(CRMLead.source == "whatsapp").all()]
+    lead_ids = [
+        row.lead_id
+        for row in db.query(CRMLeadActivity.lead_id)
+        .filter(CRMLeadActivity.activity_type.in_(WHATSAPP_CONVERSATION_ACTIVITY_TYPES))
+        .distinct()
+        .all()
+    ]
     deleted = _delete_whatsapp_activities(db, lead_ids)
     return {"ok": True, "deleted_messages": deleted["messages"], "deleted_queued_messages": deleted["queued_messages"]}
 
