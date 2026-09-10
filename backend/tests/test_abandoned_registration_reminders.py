@@ -297,6 +297,57 @@ def test_registration_start_command_resets_stale_native_session(monkeypatch, rol
         db.close()
 
 
+@pytest.mark.parametrize(("role", "state"), [("member", "MEMBER_NAME"), ("partner", "PARTNER_BUSINESS_TYPE"), ("rider", "RIDER_NAME")])
+@pytest.mark.parametrize("greeting", ["Hi", "Hello", "হাই", "হ্যালো", "নমস্কার", "Namaskar"])
+def test_new_greeting_resets_any_stale_native_session(monkeypatch, role, state, greeting):
+    db = make_session()
+    try:
+        lead = add_tracked_lead(db, role=role)
+        session = db.query(WhatsAppRegistrationSession).one()
+        session.state = state
+        session.name = "Old Name"
+        session.address = "Old Address"
+        session.data_json = '{"pan_no":"ABCDE1234F","aadhaar_no":"123456789012"}'
+        db.commit()
+        sent = []
+        monkeypatch.setattr("sql_app.whatsapp_cloud._send_member_registration_reply", lambda _db, recipient, text: sent.append(text) or True)
+
+        assert ingest_whatsapp_message(db, message_payload(f"wamid.greeting-{role}-{state}-{greeting}", greeting), None) == "updated"
+        db.refresh(session)
+        assert session.state == "INTRODUCTION"
+        assert session.role == ""
+        assert session.name == ""
+        assert session.address == ""
+        assert session.data_json == "{}"
+        assert "1. Member" in sent[-1]
+        assert "PAN" not in sent[-1]
+        assert db.query(CRMLeadActivity).filter_by(lead_id=lead.id, activity_type="whatsapp_introduction_started").count() == 1
+    finally:
+        db.close()
+
+
+def test_new_greeting_does_not_reset_registered_identity(monkeypatch):
+    db = make_session()
+    try:
+        lead = add_tracked_lead(db)
+        lead.member_user_id = "MAU12345"
+        db.add(User(id="MAU12345", name="Active Member", email="active@example.com", phone=lead.phone, password="hash", role="member", is_active=False))
+        session = db.query(WhatsAppRegistrationSession).one()
+        session.state = "MEMBER_ACTIVATION_PENDING"
+        session.data_json = '{"member_user_id":"MAU12345"}'
+        db.commit()
+        sent = []
+        monkeypatch.setattr("sql_app.whatsapp_cloud._send_member_registration_reply", lambda _db, recipient, text: sent.append(text) or True)
+
+        assert ingest_whatsapp_message(db, message_payload("wamid.greeting-registered", "Hello"), None) == "updated"
+        db.refresh(session)
+        assert session.state == "MEMBER_ACTIVATION_PENDING"
+        assert session.data_json == '{"member_user_id": "MAU12345"}'
+        assert sent
+    finally:
+        db.close()
+
+
 def test_successful_website_registration_triggers_role_specific_lifecycle(monkeypatch):
     db = make_session()
     try:

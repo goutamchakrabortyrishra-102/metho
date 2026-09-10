@@ -140,11 +140,37 @@ WHATSAPP_RIDER_APPROVED = "RIDER_APPROVED"
 WHATSAPP_RIDER_ONBOARDING = "RIDER_ONBOARDING"
 WHATSAPP_REGISTRATION_COMPLETED = "COMPLETED"
 WHATSAPP_MEMBER_ACTIVE_STATES = {WHATSAPP_MEMBER_NAME, WHATSAPP_MEMBER_ADDRESS, WHATSAPP_MEMBER_PAN, WHATSAPP_MEMBER_DOB, WHATSAPP_MEMBER_CONFIRMATION}
+WHATSAPP_LEGACY_NATIVE_REGISTRATION_STATES = {
+    *WHATSAPP_MEMBER_ACTIVE_STATES,
+    WHATSAPP_PARTNER_BUSINESS_TYPE,
+    WHATSAPP_PARTNER_BUSINESS_NAME,
+    WHATSAPP_PARTNER_CONTACT,
+    WHATSAPP_PARTNER_EMAIL,
+    WHATSAPP_PARTNER_ADDRESS,
+    WHATSAPP_PARTNER_CITY,
+    WHATSAPP_PARTNER_STATE,
+    WHATSAPP_PARTNER_PINCODE,
+    WHATSAPP_PARTNER_PAN,
+    WHATSAPP_PARTNER_AADHAAR,
+    WHATSAPP_PARTNER_CONFIRMATION,
+    WHATSAPP_PARTNER_EDIT,
+    WHATSAPP_RIDER_NAME,
+    WHATSAPP_RIDER_VEHICLE,
+    WHATSAPP_RIDER_ADDRESS,
+    WHATSAPP_RIDER_CITY,
+    WHATSAPP_RIDER_STATE,
+    WHATSAPP_RIDER_PINCODE,
+    WHATSAPP_RIDER_PAN,
+    WHATSAPP_RIDER_AADHAAR,
+    WHATSAPP_RIDER_CONFIRMATION,
+    WHATSAPP_RIDER_EDIT,
+}
 WHATSAPP_REGISTRATION_START_COMMANDS = {"registration", "register", "রেজিস্ট্রেশন", "রেজিস্টার"}
 WHATSAPP_RESET_COMMANDS = {"cancel", "reset", "বাতিল"}
 WHATSAPP_HANDOFF_COMMANDS = {"agent", "support", "executive", "human", "কথা বলতে চাই", "এক্সিকিউটিভের সাথে কথা বলতে চাই", "প্রতিনিধি", "সাহায্য চাই", "মানুষের সাথে কথা বলতে চাই"}
 WHATSAPP_REGISTRATION_REMINDER_OPTOUT_COMMANDS = {"stop", "no more", "unsubscribe", "বন্ধ করুন", "আর মেসেজ চাই না", "পরে করব না"}
-WHATSAPP_RESUME_COMMANDS = {"hi", "hello", "হাই", "হ্যালো", "নমস্কার", "start"}
+WHATSAPP_RESUME_COMMANDS = {"hi", "hello", "হাই", "হ্যালো", "নমস্কার", "start", "namaskar"}
+WHATSAPP_NEW_CONVERSATION_GREETINGS = {"hi", "hello", "হাই", "হ্যালো", "নমস্কার", "namaskar"}
 WHATSAPP_PRESET_MESSAGE_DEFAULTS = {
     "preset_registration_intro": "নমস্কার! METHO AAY-UPAY-এ স্বাগতম।\nMETHO-তে Customer, Member, Business Partner অথবা Rider হিসেবে যুক্ত হতে পারেন।\nআপনি জানতে চান:\n1. Member\n2. Partner\n3. Rider\n4. METHO সম্পর্কে আরও জানতে চাই",
     "preset_metho_info": "METHO AAY-UPAY একটি ডিজিটাল platform যেখানে Customer, Member, Partner ও Rider হিসেবে যুক্ত হওয়ার পথ আছে।\n\n{introduction}",
@@ -179,63 +205,63 @@ WHATSAPP_PRESET_MESSAGE_DEFAULTS = {
     "preset_partner_status_reply": "আপনার Partner application এখন {status} অবস্থায় আছে। Approval হলে আমরা জানাব।",
     "preset_rider_approved_reply": "আপনার Rider application approved হয়েছে। Repository-তে Rider profile ও availability APIs আছে; কাজ শুরু করার আগে secure Rider dashboard-এ availability সেট করুন। Assigned delivery/earnings-এর আলাদা WhatsApp flow পাওয়া যায়নি।",
     "preset_rider_status_reply": "আপনার Rider application এখন {status} অবস্থায় আছে। Approval হলে আমরা জানাব।",
-    "preset_member_registration_start": "স্বাগতম METHO AAY-UPAY-এ।\nMember registration WhatsApp-এর মাধ্যমেই শুরু করছি।\n\nআপনার নাম লিখুন।",
-    "preset_partner_registration_start": "Partner registration শুরু করছি। আপনার business type লিখুন: 1 = Shop, 2 = Service",
-    "preset_rider_registration_start": "Rider registration শুরু করছি। আপনার পূর্ণ নাম লিখুন।",
-    "preset_registration_continue": "ঠিক আছে, আগের জায়গা থেকেই continue করছি। প্রয়োজনীয় তথ্য লিখুন।",
-    "preset_registration_continue_invalid": "Continue করতে 1, আবার শুরু করতে 2, বাতিল করতে 0 লিখুন।",
+    "preset_member_registration_start": "Member registration সম্পূর্ণ করতে website form খুলুন।",
+    "preset_partner_registration_start": "Partner registration সম্পূর্ণ করতে website form খুলুন।",
+    "preset_rider_registration_start": "Rider registration সম্পূর্ণ করতে website form খুলুন।",
+    "preset_registration_continue": "আপনার registration website form-এ সম্পূর্ণ করুন।",
+    "preset_registration_continue_invalid": "Registration link খুলে পুরো form পূরণ করুন। সাহায্য লাগলে Executive লিখুন।",
     "preset_registration_cancelled": "আপনার registration বাতিল করা হয়েছে।",
     "preset_member_registration_cancelled": "আপনার active Member registration flow বাতিল করা হয়েছে। আবার শুরু করতে চাইলে লিখুন: আমি মেম্বার হতে চাই",
-    "preset_member_registration_incomplete": "আপনার Member registration এখনও অসম্পূর্ণ। শেষবার যেখানে থেমেছিলাম সেখান থেকে continue করতে 1, আবার শুরু করতে 2, বাতিল করতে 0 লিখুন।",
-    "preset_role_registration_incomplete": "আপনার {role} registration এখনও অসম্পূর্ণ। Continue করতে 1, আবার শুরু করতে 2, বাতিল করতে 0 লিখুন।",
-    "preset_member_name_required": "নাম খালি রাখা যাবে না। আপনার নাম লিখুন।",
-    "preset_member_address_prompt": "ধন্যবাদ।\nআপনার ঠিকানা লিখুন।",
-    "preset_member_address_required": "ঠিকানা খালি রাখা যাবে না। আপনার সম্পূর্ণ ঠিকানা লিখুন।",
-    "preset_member_pan_prompt": "ধন্যবাদ। আপনার PAN নম্বর লিখুন।",
-    "preset_member_pan_invalid": "PAN নম্বর 10 অক্ষরের হতে হবে। আবার লিখুন।",
-    "preset_member_dob_prompt": "আপনার জন্মতারিখ লিখুন (যেমন 1990-01-31)।",
-    "preset_member_dob_required": "জন্মতারিখ প্রয়োজন। আবার লিখুন।",
-    "preset_member_edit_restart": "ঠিক আছে। আবার আপনার নাম লিখুন।",
+    "preset_member_registration_incomplete": "আপনার Member registration এখনও অসম্পূর্ণ। সম্পূর্ণ website form-টি খুলে বাকি তথ্য দিন।",
+    "preset_role_registration_incomplete": "আপনার {role} registration এখনও অসম্পূর্ণ। সম্পূর্ণ website form-টি খুলে registration শেষ করুন।",
+    "preset_member_name_required": "Member registration website form-এ আপনার তথ্য সম্পূর্ণ করুন।",
+    "preset_member_address_prompt": "Member registration website form-এ আপনার তথ্য সম্পূর্ণ করুন।",
+    "preset_member_address_required": "Member registration website form-এ আপনার তথ্য সম্পূর্ণ করুন।",
+    "preset_member_pan_prompt": "Member registration website form-এ আপনার তথ্য সম্পূর্ণ করুন।",
+    "preset_member_pan_invalid": "Member registration website form-এ আপনার তথ্য সম্পূর্ণ করুন।",
+    "preset_member_dob_prompt": "Member registration website form-এ আপনার তথ্য সম্পূর্ণ করুন।",
+    "preset_member_dob_required": "Member registration website form-এ আপনার তথ্য সম্পূর্ণ করুন।",
+    "preset_member_edit_restart": "Registration website form-এ তথ্য সম্পাদনা করুন।",
     "preset_member_registration_success": "আপনার Member registration সফল হয়েছে।\nMember ID: {member_code}\n\nআপনার ID এখনও Active হয়নি। Activation সম্পন্ন করার পর আপনার ID Active হবে।\nSecure action: {activation_url}\n\nPayment বা purchase status backend verify না হওয়া পর্যন্ত Active ধরা হবে না।",
     "preset_member_registration_failed": "রেজিস্ট্রেশন সম্পন্ন করা যায়নি: {detail}\nদয়া করে support লিখুন।",
-    "preset_member_confirmation": "আপনার তথ্যগুলো যাচাই করুন:\nনাম: {name}\nঠিকানা: {address}\nPAN: {pan}\nজন্মতারিখ: {dob}\n\nReply:\n1 - Confirm\n2 - Edit\n0 - Cancel",
-    "preset_partner_business_type_invalid": "শুধু 1 = Shop অথবা 2 = Service লিখুন।",
-    "preset_partner_business_name_prompt": "আপনার business/shop/service-এর নাম লিখুন।",
-    "preset_partner_contact_prompt": "Contact person-এর নাম লিখুন।",
-    "preset_partner_email_prompt": "Email বা login ID লিখুন।",
-    "preset_partner_email_required": "Email বা login ID প্রয়োজন। আবার লিখুন।",
-    "preset_partner_address_prompt": "Business address লিখুন।",
-    "preset_partner_city_prompt": "City লিখুন।",
-    "preset_partner_state_prompt": "State লিখুন।",
-    "preset_partner_pincode_prompt": "Pincode লিখুন।",
-    "preset_partner_pincode_invalid": "সঠিক 6 digit pincode লিখুন।",
-    "preset_partner_pan_prompt": "PAN নম্বর লিখুন। এটি encrypted ভাবে রাখা হবে।",
-    "preset_partner_pan_invalid": "সঠিক PAN নম্বর লিখুন।",
-    "preset_partner_aadhaar_prompt": "12 digit Aadhaar নম্বর লিখুন। এটি confirmation-এ দেখানো হবে না।",
-    "preset_partner_aadhaar_invalid": "Aadhaar অবশ্যই 12 digit হতে হবে।",
-    "preset_partner_edit_prompt": "কোন field edit করবেন? 1 Business name, 2 Contact, 3 Email, 4 Address, 5 Location, 6 PAN, 7 Aadhaar",
-    "preset_registration_edit_value_prompt": "ঠিক আছে, নতুন value লিখুন।",
+    "preset_partner_confirmation": "Partner registration website form-এ আপনার application সম্পূর্ণ করুন।",
+    "preset_partner_business_type_invalid": "Partner registration website form-এ আপনার application সম্পূর্ণ করুন।",
+    "preset_partner_business_name_prompt": "Partner registration website form-এ আপনার application সম্পূর্ণ করুন।",
+    "preset_partner_contact_prompt": "Partner registration website form-এ আপনার application সম্পূর্ণ করুন।",
+    "preset_partner_email_prompt": "Partner registration website form-এ আপনার application সম্পূর্ণ করুন।",
+    "preset_partner_email_required": "Partner registration website form-এ আপনার application সম্পূর্ণ করুন।",
+    "preset_partner_address_prompt": "Partner registration website form-এ আপনার application সম্পূর্ণ করুন।",
+    "preset_partner_city_prompt": "Partner registration website form-এ আপনার application সম্পূর্ণ করুন।",
+    "preset_partner_state_prompt": "Partner registration website form-এ আপনার application সম্পূর্ণ করুন।",
+    "preset_partner_pincode_prompt": "Partner registration website form-এ আপনার application সম্পূর্ণ করুন।",
+    "preset_partner_pincode_invalid": "Partner registration website form-এ আপনার application সম্পূর্ণ করুন।",
+    "preset_partner_pan_prompt": "Partner registration website form-এ আপনার application সম্পূর্ণ করুন।",
+    "preset_partner_pan_invalid": "Partner registration website form-এ আপনার application সম্পূর্ণ করুন।",
+    "preset_partner_aadhaar_prompt": "Partner registration website form-এ আপনার application সম্পূর্ণ করুন।",
+    "preset_partner_aadhaar_invalid": "Partner registration website form-এ আপনার application সম্পূর্ণ করুন।",
+    "preset_partner_edit_prompt": "Partner registration website form-এ আপনার application সম্পূর্ণ করুন।",
+    "preset_registration_edit_value_prompt": "Registration website form-এ তথ্য সম্পাদনা করুন।",
     "preset_partner_submit_failed": "Partner application জমা দেওয়া যায়নি: {detail}",
     "preset_partner_submitted": "আপনার Partner application জমা হয়েছে। Reference ID: {request_id}\nStatus: pending approval। Approval হলে আমরা জানাব।",
     "preset_partner_pending_status": "আপনার Partner application status: {status}.",
     "preset_partner_pending_approved": "আপনার Partner application approved হয়েছে। Partner onboarding শুরু করা যাবে।",
-    "preset_rider_name_prompt": "Vehicle/service type লিখুন, যেমন delivery বা e-bike।",
-    "preset_rider_address_prompt": "আপনার সম্পূর্ণ address লিখুন।",
-    "preset_rider_city_prompt": "City লিখুন।",
-    "preset_rider_state_prompt": "State লিখুন।",
-    "preset_rider_pincode_prompt": "Pincode লিখুন।",
-    "preset_rider_pincode_invalid": "সঠিক 6 digit pincode লিখুন।",
-    "preset_rider_pan_prompt": "PAN নম্বর লিখুন। এটি encrypted ভাবে রাখা হবে।",
-    "preset_rider_pan_invalid": "সঠিক PAN নম্বর লিখুন।",
-    "preset_rider_aadhaar_prompt": "12 digit Aadhaar নম্বর লিখুন।",
-    "preset_rider_aadhaar_invalid": "Aadhaar অবশ্যই 12 digit হতে হবে।",
-    "preset_rider_edit_prompt": "কোন field edit করবেন? 1 নাম, 2 Vehicle, 3 Address, 4 City, 5 State, 6 Pincode, 7 PAN, 8 Aadhaar",
+    "preset_rider_name_prompt": "Rider registration website form-এ আপনার application সম্পূর্ণ করুন।",
+    "preset_rider_address_prompt": "Rider registration website form-এ আপনার application সম্পূর্ণ করুন।",
+    "preset_rider_city_prompt": "Rider registration website form-এ আপনার application সম্পূর্ণ করুন।",
+    "preset_rider_state_prompt": "Rider registration website form-এ আপনার application সম্পূর্ণ করুন।",
+    "preset_rider_pincode_prompt": "Rider registration website form-এ আপনার application সম্পূর্ণ করুন।",
+    "preset_rider_pincode_invalid": "Rider registration website form-এ আপনার application সম্পূর্ণ করুন।",
+    "preset_rider_pan_prompt": "Rider registration website form-এ আপনার application সম্পূর্ণ করুন।",
+    "preset_rider_pan_invalid": "Rider registration website form-এ আপনার application সম্পূর্ণ করুন।",
+    "preset_rider_aadhaar_prompt": "Rider registration website form-এ আপনার application সম্পূর্ণ করুন।",
+    "preset_rider_aadhaar_invalid": "Rider registration website form-এ আপনার application সম্পূর্ণ করুন।",
+    "preset_rider_edit_prompt": "Rider registration website form-এ আপনার application সম্পূর্ণ করুন।",
     "preset_rider_submit_failed": "Rider application জমা দেওয়া যায়নি: {detail}",
     "preset_rider_submitted": "আপনার Rider application জমা হয়েছে। Status: pending approval। Approval হলে আমরা জানাব।",
     "preset_rider_pending_status": "আপনার Rider application status: {status}.",
     "preset_rider_pending_approved": "আপনার Rider application approved হয়েছে। Rider onboarding শুরু করা যাবে।",
-    "preset_partner_confirmation": "Partner application-এর তথ্য যাচাই করুন:\nBusiness type: {business_type}\nBusiness name: {business_name}\nContact person: {contact_person}\nEmail/Login ID: {email}\nAddress: {address}\nCity/State/Pincode: {city}, {state}, {pincode}\nPAN: {pan}\nAadhaar: {aadhaar}\n\n1 - Confirm\n2 - Edit\n0 - Cancel",
-    "preset_rider_confirmation": "Rider application-এর তথ্য যাচাই করুন:\nনাম: {name}\nVehicle/service: {vehicle_type}\nAddress: {address}\nCity/State/Pincode: {city}, {state}, {pincode}\nPAN: {pan}\nAadhaar: {aadhaar}\n\n1 - Confirm\n2 - Edit\n0 - Cancel",
+    "preset_partner_confirmation": "Partner registration website form-এ আপনার application সম্পূর্ণ করুন।",
+    "preset_rider_confirmation": "Rider registration website form-এ আপনার application সম্পূর্ণ করুন।",
     "preset_pre_registration_followup": "হ্যালো! আপনি METHO সম্পর্কে তথ্য পেয়েছিলেন। Registration করতে কোনো সাহায্য লাগছে কি? চাইলে এই WhatsApp-এ reply করুন। আমরা Member, Partner বা Rider হিসেবে যুক্ত হওয়ার ধাপ বুঝিয়ে দেব।",
     "preset_crm_followup_due": "আপনার আগের METHO আপডেটের পরবর্তী ধাপ সম্পন্ন হয়েছে কি? কোনো সাহায্য লাগলে এই WhatsApp-এ reply করুন।",
 }
@@ -821,6 +847,10 @@ def _is_whatsapp_reset_command(text: str) -> bool:
 
 def _is_registration_start_command(text: str) -> bool:
     return _whatsapp_command_text(text) in WHATSAPP_REGISTRATION_START_COMMANDS
+
+
+def _is_new_conversation_greeting(text: str) -> bool:
+    return _whatsapp_command_text(text) in WHATSAPP_NEW_CONVERSATION_GREETINGS
 
 
 def _is_whatsapp_handoff_command(text: str) -> bool:
@@ -1600,6 +1630,10 @@ def ingest_whatsapp_message(db, payload: dict, request=None) -> str:
             native_member_handled = _request_whatsapp_human_handoff(db, lead, registration_session, normalized["phone"])
         elif lead.member_user_id or lead.partner_request_id or lead.rider_user_id:
             native_member_handled = _route_existing_identity(db, lead, normalized["phone"], incoming_text)
+        elif registration_session and registration_session.state in WHATSAPP_LEGACY_NATIVE_REGISTRATION_STATES:
+            # Legacy field-by-field sessions must re-enter the website-form flow.
+            _clear_member_registration_session(registration_session)
+            native_member_handled = _send_introduction(db, registration_session, lead, normalized["phone"])
         elif registration_session and registration_session.state in {WHATSAPP_INTRODUCTION, WHATSAPP_ROLE_SELECTION}:
             native_member_handled = _continue_introduction(db, registration_session, lead, incoming_text, normalized["phone"])
         elif registration_session and registration_session.role == "member" and registration_session.state in {WHATSAPP_MEMBER_REGISTERED, WHATSAPP_MEMBER_ACTIVATION_PENDING, WHATSAPP_MEMBER_ACTIVE, WHATSAPP_MEMBER_ONBOARDING}:

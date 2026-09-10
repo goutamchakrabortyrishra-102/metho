@@ -614,7 +614,14 @@ def _whatsapp_followup_state(db, lead: CRMLead, followup: CRMFollowUp) -> str:
         except (TypeError, ValueError):
             status = "pending"
         return "completed" if status in {"approved", "rejected"} else "pending"
-    if session and session.state in {"MEMBER_NAME", "MEMBER_ADDRESS", "MEMBER_PAN", "MEMBER_DOB", "PARTNER_BUSINESS_TYPE", "RIDER_NAME"}:
+    if session and session.state in {
+        "MEMBER_NAME", "MEMBER_ADDRESS", "MEMBER_PAN", "MEMBER_DOB", "MEMBER_CONFIRMATION",
+        "PARTNER_BUSINESS_TYPE", "PARTNER_BUSINESS_NAME", "PARTNER_CONTACT", "PARTNER_EMAIL",
+        "PARTNER_ADDRESS", "PARTNER_CITY", "PARTNER_STATE", "PARTNER_PINCODE", "PARTNER_PAN",
+        "PARTNER_AADHAAR", "PARTNER_CONFIRMATION", "PARTNER_EDIT", "RIDER_NAME", "RIDER_VEHICLE",
+        "RIDER_ADDRESS", "RIDER_CITY", "RIDER_STATE", "RIDER_PINCODE", "RIDER_PAN",
+        "RIDER_AADHAAR", "RIDER_CONFIRMATION", "RIDER_EDIT",
+    }:
         return "pending"
     return "pending"
 
