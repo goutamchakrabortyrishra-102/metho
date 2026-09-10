@@ -442,6 +442,39 @@ def test_successful_website_registration_syncs_whatsapp_session_and_next_message
         db.close()
 
 
+@pytest.mark.parametrize("role", ["member", "partner", "rider"])
+def test_registration_submit_event_queues_next_whatsapp_followup(monkeypatch, role):
+    db = make_session()
+    try:
+        monkeypatch.setattr("sql_app.whatsapp_ai.create_suggestion_for_activity", lambda _activity_id: None)
+        phone = {"member": "8801712345678", "partner": "8801712345679", "rider": "8801712345680"}[role]
+        lead = add_tracked_lead(db, role, phone)
+        lead.assigned_user_id = "ADMIN"
+        if role == "member":
+            lead.member_user_id = "MAU12345"
+        elif role == "partner":
+            lead.partner_request_id = "partner-request-1"
+        else:
+            lead.rider_user_id = "MAU12346"
+        db.commit()
+
+        result = record_public_registration_event({"crm_lead_id": lead.id, "phone": phone, "event_type": "registration_form_submitted"}, db)
+        assert result["linked"] is True
+        assert db.query(CRMLeadActivity).filter_by(lead_id=lead.id, activity_type="registration_form_submitted").count() == 1
+        followup = db.query(CRMFollowUp).filter_by(lead_id=lead.id, notes="Confirm registration status and next activation/approval step").one()
+        followup.scheduled_at = datetime.now(timezone.utc) - timedelta(seconds=1)
+        db.commit()
+        db.close = lambda: None
+        monkeypatch.setattr("sql_app.whatsapp_ai.SessionLocal", NoCloseSession(db))
+        assert process_due_followups() == 1
+        outbox = db.query(WhatsAppMessageOutbox).filter_by(lead_id=lead.id).one()
+        assert outbox.status == "pending"
+        assert outbox.activity_type == "whatsapp_message_sent"
+        assert outbox.message.strip()
+    finally:
+        db.close()
+
+
 def test_failed_website_registration_does_not_trigger_success_lifecycle(monkeypatch):
     db = make_session()
     try:

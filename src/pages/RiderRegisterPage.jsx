@@ -31,7 +31,7 @@ export default function RiderRegisterPage() {
     const form = new FormData(event.currentTarget);
     try {
       await api.post("/rider/register", { ...Object.fromEntries(form.entries()), agreed_to_terms: agreedToTerms });
-      api.post("/public/crm/registration-event", { crm_lead_id: crmLeadId, phone: form.get("phone") || trackedPhone, event_type: "registration_form_submitted" }).catch(() => {});
+      await api.post("/public/crm/registration-event", { crm_lead_id: crmLeadId, phone: form.get("phone") || trackedPhone, event_type: "registration_form_submitted" });
       toast.success("Registration submitted. Please wait for admin approval.");
       nav("/login?role=rider");
     } catch (error) {

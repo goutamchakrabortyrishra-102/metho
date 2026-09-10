@@ -208,7 +208,7 @@ export default function RegisterPage() {
         throw lastRegistrationError;
       }
 
-      api.post("/public/crm/registration-event", { crm_lead_id: crmLeadId, phone: payload.phone, event_type: "registration_form_submitted" }).catch(() => {});
+      await api.post("/public/crm/registration-event", { crm_lead_id: crmLeadId, phone: payload.phone, event_type: "registration_form_submitted" });
 
       if (result?.token || result?.user) logout();
 
