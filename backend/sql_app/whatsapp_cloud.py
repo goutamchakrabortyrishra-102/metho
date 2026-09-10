@@ -154,7 +154,7 @@ WHATSAPP_PRESET_MESSAGE_DEFAULTS = {
     "preset_lifecycle_registration_form_opened": "আপনি registration form খুলেছেন। Form পূরণ করতে কোনো সাহায্য লাগলে এখানেই লিখুন।",
     "preset_lifecycle_registration_form_submitted": "আপনার registration form জমা হয়েছে। পরবর্তী ধাপ সম্পন্ন করতে কোনো সাহায্য লাগলে এখানে reply করুন।",
     "preset_lifecycle_registration_form_followup_started": "আপনার Registration Form জমা হয়েছে। Account activation বা approval status নিয়ে কোনো প্রশ্ন থাকলে এখানে reply করুন, আমরা সাহায্য করব।",
-    "preset_abandoned_registration_reminder": "আপনি METHO AAY-UPAY registration শুরু করেছিলেন, কিন্তু এখনও সম্পূর্ণ করেননি।\n\nYou started your {role} registration but have not completed it yet.\n\nআপনার registration link এখনও active আছে:\n{registration_url}\n\nNeed help? এই WhatsApp chat-এ reply করুন, আমাদের Executive সাহায্য করবে।",
+    "preset_abandoned_registration_reminder": "আপনার METHO registration এখনও সম্পূর্ণ হয়নি।\nYour METHO registration is still incomplete.\n\n👉 Registration complete করতে এখানে ক্লিক করুন:\n{registration_url}\n\n💬 কোনো সাহায্য লাগলে \"Executive\" লিখুন — আমাদের Executive-এর সাথে কথা বলতে পারবেন।",
     "preset_registration_reminders_stopped": "ঠিক আছে। আমরা Registration reminder বন্ধ করে দিয়েছি।\nOkay. We have stopped the Registration reminders.\n\nপরে শুরু করতে চাইলে এই WhatsApp chat-এ reply করুন।",
     "preset_lifecycle_member_registration_completed": "আপনার Member registration সম্পন্ন হয়েছে। Account activation ও প্রথম purchase-এর পরবর্তী ধাপে সহায়তা লাগলে এখানে reply করুন।",
     "preset_lifecycle_member_activated": "আপনার Member account active হয়েছে। Smart Cycle, reward rules এবং product purchase নিয়ে সাহায্য লাগলে এখানে reply করুন।",
@@ -1588,10 +1588,13 @@ def ingest_whatsapp_message(db, payload: dict, request=None) -> str:
             registration_session.state = WHATSAPP_INTRODUCTION
         elif role_hint in {"member", "partner", "rider"}:
             registration_session = _member_registration_session(db, normalized["phone"], normalized["whatsapp_no"], lead)
-            if registration_session.state == WHATSAPP_REGISTRATION_IDLE:
-                native_member_handled = _send_introduction(db, registration_session, lead, normalized["phone"])
-            else:
-                native_member_handled = _continue_introduction(db, registration_session, lead, incoming_text, normalized["phone"])
+            registration_session.role = role_hint
+            registration_session.state = WHATSAPP_ROLE_SELECTION
+            reply = _role_registration_reply(db, role_hint, lead.id, normalized["phone"])
+            native_member_handled = _send_member_registration_reply(db, normalized["phone"], reply)
+            if native_member_handled:
+                db.add(CRMLeadActivity(lead_id=lead.id, activity_type="whatsapp_message_sent", message=reply))
+                db.add(CRMLeadActivity(lead_id=lead.id, activity_type="whatsapp_role_selected", message=role_hint))
 
         if native_member_handled:
             logger.info("WhatsApp final reply path: registration message_id=%s", message_id)

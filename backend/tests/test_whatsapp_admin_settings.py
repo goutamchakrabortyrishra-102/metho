@@ -51,9 +51,11 @@ def message_payload(message_id="wamid.123", body="Need partner details", sender=
 
 
 def start_member_registration(db, prefix="member", sender="8801712345678"):
-    ingest_whatsapp_message(db, message_payload(f"wamid.{prefix}-intro", "আমি মেম্বার হতে চাই", sender=sender), None)
-    ingest_whatsapp_message(db, message_payload(f"wamid.{prefix}-role", "1", sender=sender), None)
-    ingest_whatsapp_message(db, message_payload(f"wamid.{prefix}-consent", "1", sender=sender), None)
+    lead = CRMLead(lead_id=f"WA-{prefix}", business_name="WhatsApp", contact_person="WhatsApp Lead", phone=sender, whatsapp_no=sender, source="whatsapp")
+    db.add(lead)
+    db.flush()
+    db.add(WhatsAppRegistrationSession(phone=sender, wa_id=sender, lead_id=lead.id, role="member", state="MEMBER_NAME"))
+    db.commit()
 
 
 def test_admin_can_save_whatsapp_secrets(monkeypatch):
@@ -210,8 +212,11 @@ def test_whatsapp_registration_role_reply_uses_configured_role_url(monkeypatch):
         monkeypatch.setattr("sql_app.whatsapp_cloud.send_whatsapp_message", lambda _db, recipient, text: sent.append((recipient, text)) or {"messages": [{"id": "wamid.reply"}]})
         update_whatsapp_settings({"phone_number_id": "123456", "access_token": "secret-token", "partner_registration_url": "https://example.com/join-partner", "partner_registration_reply": "পার্টনার হিসেবে শুরু করুন"}, db, admin())
         assert ingest_whatsapp_message(db, message_payload("wamid.partner", "আমি পার্টনার হতে চাই"), None) == "created"
-        assert "1. Member" in sent[0][1]
-        assert db.query(WhatsAppRegistrationSession).one().state == "INTRODUCTION"
+        assert "https://example.com/join-partner" in sent[0][1]
+        assert "registration_role=partner" in sent[0][1]
+        session = db.query(WhatsAppRegistrationSession).one()
+        assert session.state == "ROLE_SELECTION"
+        assert session.role == "partner"
     finally:
         db.close()
 
@@ -458,21 +463,19 @@ def test_whatsapp_explicit_role_intents_still_trigger_posters(monkeypatch):
         db.close()
 
 
-def test_whatsapp_member_registration_starts_native_flow(monkeypatch):
+def test_whatsapp_member_registration_sends_tracked_website_link_only(monkeypatch):
     db = make_session()
     try:
         sent = []
         monkeypatch.setattr("sql_app.whatsapp_cloud.send_whatsapp_message", lambda _db, recipient, text: sent.append((recipient, text)) or {"messages": [{"id": "wamid.reply"}]})
         update_whatsapp_settings({"phone_number_id": "123456", "access_token": "secret-token"}, db, admin())
         ingest_whatsapp_message(db, message_payload("wamid.member-start", "আমি মেম্বার হতে চাই"), None)
-        ingest_whatsapp_message(db, message_payload("wamid.member-role", "1"), None)
-        assert ingest_whatsapp_message(db, message_payload("wamid.member-consent", "1"), None) == "updated"
         session = db.query(WhatsAppRegistrationSession).one()
-        assert session.state == "MEMBER_NAME"
+        assert session.state == "ROLE_SELECTION"
         assert session.role == "member"
-        assert "1. Member" in sent[0][1]
-        assert "আপনার নাম লিখুন" in sent[-1][1]
-        assert "register?" not in sent[0][1]
+        assert "registration_role=member" in sent[0][1]
+        assert "prefill_phone=" in sent[0][1]
+        assert "আপনার নাম লিখুন" not in sent[0][1]
         assert db.query(CRMLead).count() == 1
     finally:
         db.close()

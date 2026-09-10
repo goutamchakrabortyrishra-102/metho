@@ -4,6 +4,7 @@ from pathlib import Path
 from types import SimpleNamespace
 from urllib.parse import parse_qs, urlsplit
 
+import pytest
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
@@ -12,8 +13,13 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from sql_app.database import Base
 from sql_app.models import CRMFollowUp, CRMLead, CRMLeadActivity, CRMTask, User, WhatsAppMessageOutbox, WhatsAppRegistrationSession
 from sql_app.routers.crm import record_public_registration_event
+from sql_app.routers.auth import register
+from sql_app.routers.partner_public import partner_register
+from sql_app.routers.rider import rider_register
+from sql_app.schemas import RegisterRequest, RiderRegisterRequest
 from sql_app.whatsapp_ai import process_due_followups, process_message_outbox
-from sql_app.whatsapp_cloud import _continue_introduction, _request_whatsapp_human_handoff, _role_registration_reply, _stop_abandoned_registration_reminders
+from sql_app.whatsapp_cloud import ingest_whatsapp_message, _continue_introduction, _request_whatsapp_human_handoff, _role_registration_reply, _stop_abandoned_registration_reminders
+from test_whatsapp_admin_settings import message_payload
 
 
 class NoCloseSession:
@@ -76,6 +82,8 @@ def test_opened_registration_queues_one_reminder_and_outbox_records_delivery(mon
         assert outbox.status == "pending"
         assert "crm_lead_id=" in outbox.message
         assert "prefill_phone=" in outbox.message
+        assert "registration এখনও সম্পূর্ণ হয়নি" in outbox.message
+        assert "Executive" in outbox.message
         sent = []
         monkeypatch.setattr("sql_app.whatsapp_cloud.send_whatsapp_message", lambda _db, recipient, text: sent.append((recipient, text)) or {"messages": [{"id": "wamid.reminder"}]})
         assert process_message_outbox() == 1
@@ -105,6 +113,24 @@ def test_abandoned_reminder_repeats_without_duplicates(monkeypatch):
         db.close()
 
 
+def test_completed_registration_does_not_receive_incomplete_registration_reminder(monkeypatch):
+    db = make_session()
+    try:
+        lead = add_tracked_lead(db)
+        open_registration(db, lead)
+        due_reminder(db, lead)
+        lead.member_user_id = "MAU12345"
+        db.commit()
+        db.close = lambda: None
+        monkeypatch.setattr("sql_app.whatsapp_ai.SessionLocal", NoCloseSession(db))
+        assert process_due_followups() == 0
+        reminder = db.query(CRMFollowUp).filter_by(lead_id=lead.id, notes="Abandoned registration reminder").one()
+        assert reminder.status == "Completed"
+        assert db.query(WhatsAppMessageOutbox).count() == 0
+    finally:
+        db.close()
+
+
 def test_submitted_registration_stops_pending_and_queued_abandoned_reminders(monkeypatch):
     db = make_session()
     try:
@@ -115,6 +141,11 @@ def test_submitted_registration_stops_pending_and_queued_abandoned_reminders(mon
         monkeypatch.setattr("sql_app.whatsapp_ai.SessionLocal", NoCloseSession(db))
         assert process_due_followups() == 1
         assert db.query(WhatsAppMessageOutbox).count() == 1
+        record_public_registration_event({"crm_lead_id": lead.id, "phone": lead.phone, "event_type": "registration_form_submitted"}, db)
+        reminder = db.query(CRMFollowUp).filter_by(lead_id=lead.id, notes="Abandoned registration reminder").one()
+        assert reminder.status == "Pending"
+        lead.member_user_id = "MAU12345"
+        db.commit()
         record_public_registration_event({"crm_lead_id": lead.id, "phone": lead.phone, "event_type": "registration_form_submitted"}, db)
         reminder = db.query(CRMFollowUp).filter_by(lead_id=lead.id, notes="Abandoned registration reminder").one()
         assert reminder.status == "Completed"
@@ -175,18 +206,101 @@ def test_role_registration_links_are_tracked_for_all_roles():
         db.close()
 
 
-def test_role_selection_sends_tracked_link_without_starting_native_registration(monkeypatch):
+@pytest.mark.parametrize(("choice", "role"), [("1", "member"), ("2", "partner"), ("3", "rider")])
+def test_role_selection_sends_tracked_link_without_starting_native_registration(monkeypatch, choice, role):
     db = make_session()
     try:
-        lead = add_tracked_lead(db)
+        lead = add_tracked_lead(db, role=role)
         session = db.query(WhatsAppRegistrationSession).one()
         session.state = "INTRODUCTION"
         sent = []
         monkeypatch.setattr("sql_app.whatsapp_cloud._send_member_registration_reply", lambda _db, recipient, text: sent.append(text) or True)
-        assert _continue_introduction(db, session, lead, "1", lead.phone)
+        assert _continue_introduction(db, session, lead, choice, lead.phone)
         assert session.state == "ROLE_SELECTION"
-        assert session.role == "member"
+        assert session.role == role
         assert "crm_lead_id=" in sent[0]
         assert "prefill_phone=" in sent[0]
+        assert f"registration_role={role}" in sent[0]
+        assert "আপনার নাম লিখুন" not in sent[0]
+        assert "business type" not in sent[0]
+        assert "পূর্ণ নাম লিখুন" not in sent[0]
+    finally:
+        db.close()
+
+
+@pytest.mark.parametrize(("message", "role"), [("আমি মেম্বার হতে চাই", "member"), ("আমি পার্টনার হতে চাই", "partner"), ("আমি রাইডার হতে চাই", "rider")])
+def test_direct_role_intent_sends_tracked_form_url_only(monkeypatch, message, role):
+    db = make_session()
+    try:
+        sent = []
+        monkeypatch.setattr("sql_app.whatsapp_cloud.send_whatsapp_message", lambda _db, recipient, text: sent.append(text) or {"messages": [{"id": "wamid.reply"}]})
+        from sql_app.routers.whatsapp import update_whatsapp_settings
+        update_whatsapp_settings({"phone_number_id": "123456", "access_token": "secret-token", f"{role}_registration_url": f"https://example.com/{role}-join"}, db, SimpleNamespace(role="admin", id="ADMIN"))
+        assert ingest_whatsapp_message(db, message_payload(f"wamid.{role}.direct", message), None) == "created"
+        assert len(sent) == 1
+        assert f"https://example.com/{role}-join" in sent[0]
+        assert f"registration_role={role}" in sent[0]
+        assert "আপনার নাম লিখুন" not in sent[0]
+        assert "business type" not in sent[0]
+        assert "পূর্ণ নাম লিখুন" not in sent[0]
+        session = db.query(WhatsAppRegistrationSession).one()
+        assert session.state == "ROLE_SELECTION"
+        assert session.role == role
+    finally:
+        db.close()
+
+
+def test_successful_website_registration_triggers_role_specific_lifecycle(monkeypatch):
+    db = make_session()
+    try:
+        monkeypatch.setattr("sql_app.whatsapp_ai.create_suggestion_for_activity", lambda _activity_id: None)
+        monkeypatch.setattr("sql_app.routers.auth.hash_password", lambda value: "hashed")
+        monkeypatch.setattr("sql_app.routers.auth.build_welcome_pdf", lambda user: "")
+        monkeypatch.setattr("sql_app.routers.auth.send_welcome_email", lambda *args: False)
+        monkeypatch.setattr("sql_app.routers.auth._send_registration_whatsapp_welcome", lambda *args: None)
+        db.add(User(id="MAU00001", name="METHO Admin", email="admin@test.local", phone="9000000000", password="hashed", role="super_admin", is_active=True))
+        member_lead = add_tracked_lead(db, "member", "8801712345678")
+        partner_lead = add_tracked_lead(db, "partner", "8801712345679")
+        rider_lead = add_tracked_lead(db, "rider", "8801712345680")
+        member_lead.assigned_user_id = "ADMIN"
+        partner_lead.assigned_user_id = "ADMIN"
+        rider_lead.assigned_user_id = "ADMIN"
+        db.commit()
+
+        register(RegisterRequest(name="Member One", email="MAU12345", phone=member_lead.phone, pan_no="ABCDE1234F", password="secret1"), db)
+        partner_register({"login_id": "partner-one", "password": "secret1", "business_name": "Partner One", "contact_person": "Owner", "phone": partner_lead.phone, "pan_no": "BCDEF1234G", "aadhaar_no": "123456789012"}, db)
+        rider_register(RiderRegisterRequest(name="Rider One", phone=rider_lead.phone, password="secret1", vehicle_type="delivery", whatsapp=rider_lead.phone, address="Road 1", pan_no="CDEFG1234H", aadhaar_no="123456789013", agreed_to_terms=True), db)
+
+        assert db.query(CRMLeadActivity).filter_by(lead_id=member_lead.id, activity_type="member_registration_completed").count() == 1
+        assert db.query(CRMLeadActivity).filter_by(lead_id=partner_lead.id, activity_type="partner_registration_submitted").count() == 1
+        assert db.query(CRMLeadActivity).filter_by(lead_id=rider_lead.id, activity_type="rider_registration_submitted").count() == 1
+        assert member_lead.member_user_id
+        assert partner_lead.partner_request_id
+        assert rider_lead.rider_user_id
+    finally:
+        db.close()
+
+
+def test_failed_website_registration_does_not_trigger_success_lifecycle(monkeypatch):
+    db = make_session()
+    try:
+        monkeypatch.setattr("sql_app.whatsapp_ai.create_suggestion_for_activity", lambda _activity_id: None)
+        db.add(User(id="MAU00001", name="METHO Admin", email="admin@test.local", phone="9000000000", password="hashed", role="super_admin", is_active=True))
+        member_lead = add_tracked_lead(db, "member", "8801712345678")
+        partner_lead = add_tracked_lead(db, "partner", "8801712345679")
+        rider_lead = add_tracked_lead(db, "rider", "8801712345680")
+
+        with pytest.raises(Exception, match="PAN number"):
+            register(RegisterRequest(name="Bad Member", email="MAU12345", phone=member_lead.phone, pan_no="BAD", password="secret1"), db)
+        with pytest.raises(Exception, match="PAN number is required"):
+            partner_register({"login_id": "bad-partner", "password": "secret1", "business_name": "Bad Partner", "contact_person": "Owner", "phone": partner_lead.phone, "aadhaar_no": "123456789012"}, db)
+        with pytest.raises(Exception, match="Aadhaar"):
+            rider_register(RiderRegisterRequest(name="Bad Rider", phone=rider_lead.phone, password="secret1", vehicle_type="delivery", whatsapp=rider_lead.phone, address="Road 1", pan_no="ABCDE1234F", aadhaar_no="123", agreed_to_terms=True), db)
+
+        success_types = ["registration_form_submitted", "member_registration_completed", "partner_registration_submitted", "rider_registration_submitted", "onboarding_started"]
+        assert db.query(CRMLeadActivity).filter(CRMLeadActivity.activity_type.in_(success_types)).count() == 0
+        assert not member_lead.member_user_id
+        assert not partner_lead.partner_request_id
+        assert not rider_lead.rider_user_id
     finally:
         db.close()

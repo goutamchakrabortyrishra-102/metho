@@ -126,6 +126,7 @@ def record_public_registration_event(payload: dict, db: Session = Depends(get_db
     lead = db.query(CRMLead).filter(CRMLead.id == lead_id).first() if lead_id else find_lead_by_phone(db, phone)
     if not lead:
         return {"ok": True, "linked": False}
+    registration_linked = bool(lead.member_user_id or lead.partner_request_id or lead.rider_user_id or lead.converted_partner_id)
     if event_type == "registration_form_submitted" and lead.status == "NEW":
         lead.status = "APPLICATION"
     reminder_notes = "Abandoned registration reminder"
@@ -143,7 +144,7 @@ def record_public_registration_event(payload: dict, db: Session = Depends(get_db
             db.add(CRMFollowUp(lead_id=lead.id, scheduled_at=due_at, status="Pending", notes=reminder_notes))
         lead.next_follow_up_at = due_at
         lead.follow_up_status = "Pending"
-    elif reminder_followups:
+    elif reminder_followups and registration_linked:
         for reminder in reminder_followups:
             reminder.status = "Completed"
             db.query(WhatsAppMessageOutbox).filter(
@@ -158,7 +159,7 @@ def record_public_registration_event(payload: dict, db: Session = Depends(get_db
     if lead.source == "whatsapp":
         from ..whatsapp_ai import create_suggestion_for_activity
         create_suggestion_for_activity(activity.id)
-    if event_type == "registration_form_submitted":
+    if event_type == "registration_form_submitted" and registration_linked:
         record_lifecycle_event(db, lead, "registration_form_followup_started", "Registration form submitted; waiting for account activation or partner approval.", "Confirm registration status and next activation/approval step", 1)
     return {"ok": True, "linked": True, "lead_id": lead.id, "status": lead.status}
 
