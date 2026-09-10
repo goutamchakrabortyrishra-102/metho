@@ -21,6 +21,7 @@ export default function MembersPage() {
   const [scope, setScope] = useState("members");
   const [profileTarget, setProfileTarget] = useState(null);
   const [editTarget, setEditTarget] = useState(null);
+  const [resetPasswordValue, setResetPasswordValue] = useState("");
   const [editForm, setEditForm] = useState({
     id: "",
     member_code: "",
@@ -180,6 +181,7 @@ export default function MembersPage() {
 
   const openEdit = (m) => {
     setEditTarget(m);
+    setResetPasswordValue("");
     const memberId = String(m.member_code || m.email || "").trim();
     setEditForm({
       id: m.id || "",
@@ -199,6 +201,24 @@ export default function MembersPage() {
       password: "",
       is_active: m.active !== false,
     });
+  };
+
+  const resetMemberPassword = async () => {
+    if (!editTarget || !isAdmin) return;
+    setBusy(true);
+    try {
+      const { data } = await api.post(`/admin/users/${editTarget.id}/reset-password`, {});
+      setResetPasswordValue(data?.new_password || "");
+      toast.success("New password created. Share it with the member securely.");
+    } catch (err) {
+      toast.error(adminActionError(err, "Password reset failed"));
+    } finally { setBusy(false); }
+  };
+
+  const copyResetPassword = async () => {
+    if (!resetPasswordValue) return;
+    await navigator.clipboard?.writeText(resetPasswordValue);
+    toast.success("New password copied");
   };
 
   const saveEdit = async () => {
@@ -536,6 +556,15 @@ export default function MembersPage() {
             <div>
               <Label>Password (optional change)</Label>
               <Input type="text" minLength={6} value={editForm.password} onChange={(e) => setEditForm({ ...editForm, password: e.target.value })} placeholder="leave blank to keep current" className="mt-1.5 h-11 font-mono" />
+              <Button type="button" variant="outline" onClick={resetMemberPassword} disabled={busy} className="mt-2 h-9 text-xs">
+                Generate New Password
+              </Button>
+              {resetPasswordValue ? (
+                <div className="mt-2 flex items-center gap-2 rounded-md border border-amber-200 bg-amber-50 p-2 text-xs">
+                  <span className="font-mono font-semibold text-amber-950">{resetPasswordValue}</span>
+                  <Button type="button" variant="ghost" onClick={copyResetPassword} className="ml-auto h-7 px-2 text-xs">Copy</Button>
+                </div>
+              ) : null}
             </div>
             <label className="flex items-center gap-2 text-sm cursor-pointer">
               <input type="checkbox" checked={!!editForm.is_active} onChange={(e) => setEditForm({ ...editForm, is_active: e.target.checked })} className="w-4 h-4" />
