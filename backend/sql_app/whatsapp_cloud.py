@@ -1630,6 +1630,10 @@ def ingest_whatsapp_message(db, payload: dict, request=None) -> str:
             native_member_handled = _request_whatsapp_human_handoff(db, lead, registration_session, normalized["phone"])
         elif lead.member_user_id or lead.partner_request_id or lead.rider_user_id:
             native_member_handled = _route_existing_identity(db, lead, normalized["phone"], incoming_text)
+        elif _is_new_conversation_greeting(incoming_text):
+            registration_session = _member_registration_session(db, normalized["phone"], normalized["whatsapp_no"], lead)
+            _clear_member_registration_session(registration_session)
+            native_member_handled = _send_introduction(db, registration_session, lead, normalized["phone"])
         elif registration_session and registration_session.state in WHATSAPP_LEGACY_NATIVE_REGISTRATION_STATES:
             # Legacy field-by-field sessions must re-enter the website-form flow.
             _clear_member_registration_session(registration_session)

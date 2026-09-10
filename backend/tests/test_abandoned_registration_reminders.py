@@ -348,6 +348,24 @@ def test_new_greeting_does_not_reset_registered_identity(monkeypatch):
         db.close()
 
 
+@pytest.mark.parametrize("greeting", ["Hi", "Hello", "হাই"])
+def test_fresh_greeting_starts_welcome_role_selection(monkeypatch, greeting):
+    db = make_session()
+    try:
+        sent = []
+        monkeypatch.setattr("sql_app.whatsapp_cloud._send_member_registration_reply", lambda _db, recipient, text: sent.append(text) or True)
+
+        assert ingest_whatsapp_message(db, message_payload(f"wamid.fresh-greeting-{greeting}", greeting), None) == "created"
+        assert sent
+        assert "I couldn't identify your role" not in sent[-1]
+        assert "1. Member" in sent[-1]
+        assert "2. Partner" in sent[-1]
+        assert "3. Rider" in sent[-1]
+        assert db.query(WhatsAppRegistrationSession).one().state == "INTRODUCTION"
+    finally:
+        db.close()
+
+
 def test_successful_website_registration_triggers_role_specific_lifecycle(monkeypatch):
     db = make_session()
     try:
