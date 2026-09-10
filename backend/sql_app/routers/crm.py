@@ -9,6 +9,7 @@ from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
 
 from ..database import get_db
 from ..crm_automation import record_lifecycle_event
+from ..crm_identity import reconcile_registration_identity
 from ..models import (
     AppSetting,
     AssociatePartner,
@@ -126,6 +127,8 @@ def record_public_registration_event(payload: dict, db: Session = Depends(get_db
     lead = db.query(CRMLead).filter(CRMLead.id == lead_id).first() if lead_id else find_lead_by_phone(db, phone)
     if not lead:
         return {"ok": True, "linked": False}
+    if event_type == "registration_form_submitted" and not (lead.member_user_id or lead.partner_request_id or lead.rider_user_id):
+        reconcile_registration_identity(db, lead, phone)
     registration_linked = bool(lead.member_user_id or lead.partner_request_id or lead.rider_user_id or lead.converted_partner_id)
     if event_type == "registration_form_submitted" and lead.status == "NEW":
         lead.status = "APPLICATION"
@@ -160,6 +163,12 @@ def record_public_registration_event(payload: dict, db: Session = Depends(get_db
         from ..whatsapp_ai import create_suggestion_for_activity
         create_suggestion_for_activity(activity.id)
     if event_type == "registration_form_submitted" and registration_linked:
+        if lead.member_user_id:
+            record_lifecycle_event(db, lead, "member_registration_completed", f"Member registration completed: {lead.member_user_id}. Activation/payment is pending.", "Complete member activation/payment and explain first purchase steps", 1)
+        elif lead.partner_request_id:
+            record_lifecycle_event(db, lead, "partner_registration_submitted", f"Partner registration submitted: {lead.partner_request_id}. Admin approval is pending.", "Review partner KYC/application and guide onboarding after approval", 1)
+        elif lead.rider_user_id:
+            record_lifecycle_event(db, lead, "rider_registration_submitted", f"Rider registration submitted: {lead.rider_user_id}. Admin approval is pending.", "Review rider application and guide onboarding", 1)
         record_lifecycle_event(db, lead, "registration_form_followup_started", "Registration form submitted; waiting for account activation or partner approval.", "Confirm registration status and next activation/approval step", 1)
     return {"ok": True, "linked": True, "lead_id": lead.id, "status": lead.status}
 

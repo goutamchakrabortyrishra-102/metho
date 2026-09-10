@@ -1,3 +1,4 @@
+import json
 import sys
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
@@ -11,7 +12,7 @@ from sqlalchemy.orm import sessionmaker
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from sql_app.database import Base
-from sql_app.models import CRMFollowUp, CRMLead, CRMLeadActivity, CRMTask, User, WhatsAppMessageOutbox, WhatsAppRegistrationSession
+from sql_app.models import AppSetting, CRMFollowUp, CRMLead, CRMLeadActivity, CRMTask, PartnerRequest, User, WhatsAppMessageOutbox, WhatsAppRegistrationSession
 from sql_app.routers.crm import record_public_registration_event
 from sql_app.routers.auth import register
 from sql_app.routers.partner_public import partner_register
@@ -432,7 +433,7 @@ def test_successful_website_registration_syncs_whatsapp_session_and_next_message
         assert session.completed_at is not None
         sent = []
         monkeypatch.setattr("sql_app.whatsapp_cloud._send_member_registration_reply", lambda _db, recipient, text: sent.append(text) or True)
-        assert ingest_whatsapp_message(db, message_payload(f"wamid.website-{role}-next", "next", sender=phone), None) == "updated"
+        assert ingest_whatsapp_message(db, message_payload(f"wamid.website-{role}-submitted", "submitted", sender=phone), None) == "updated"
         assert sent
         assert "1. Member" not in sent[-1]
         assert "2. Partner" not in sent[-1]
@@ -471,6 +472,47 @@ def test_registration_submit_event_queues_next_whatsapp_followup(monkeypatch, ro
         assert outbox.status == "pending"
         assert outbox.activity_type == "whatsapp_message_sent"
         assert outbox.message.strip()
+    finally:
+        db.close()
+
+
+@pytest.mark.parametrize("role", ["member", "partner", "rider"])
+def test_registration_submit_reconciles_changed_phone_and_registered_routing(monkeypatch, role):
+    db = make_session()
+    try:
+        monkeypatch.setattr("sql_app.whatsapp_ai.create_suggestion_for_activity", lambda _activity_id: None)
+        tracked_phone = {"member": "8801712345678", "partner": "8801712345679", "rider": "8801712345680"}[role]
+        submitted_phone = {"member": "919876543210", "partner": "919876543211", "rider": "919876543212"}[role]
+        lead = add_tracked_lead(db, role, tracked_phone)
+        session = db.query(WhatsAppRegistrationSession).filter_by(phone=tracked_phone).one()
+        if role == "member":
+            db.add(User(id="MAU23451", name="Member One", email="MAU23451", phone=submitted_phone, password="hashed", role="member", is_active=False))
+        elif role == "rider":
+            rider = User(id="MAU23452", name="Rider One", email="rider@example.com", phone=submitted_phone, password="hashed", role="rider", is_active=False)
+            db.add(rider)
+            db.flush()
+            db.add(AppSetting(key=f"rider_profile:{rider.id}", value_json=json.dumps({"approval_status": "pending"})))
+        else:
+            db.add(PartnerRequest(id="partner-request-changed-phone", phone=submitted_phone, whatsapp_no=submitted_phone, status="pending", business_name="Partner One"))
+        db.commit()
+
+        result = record_public_registration_event({"crm_lead_id": lead.id, "phone": submitted_phone, "event_type": "registration_form_submitted"}, db)
+        assert result["linked"] is True
+        db.refresh(lead)
+        db.refresh(session)
+        assert lead.member_user_id or lead.partner_request_id or lead.rider_user_id
+        assert session.role == role
+        assert session.state.endswith("PENDING")
+        assert session.completed_at is not None
+        assert db.query(CRMLeadActivity).filter_by(lead_id=lead.id, activity_type=f"{role}_registration_submitted" if role != "member" else "member_registration_completed").count() == 1
+
+        sent = []
+        monkeypatch.setattr("sql_app.whatsapp_cloud._send_member_registration_reply", lambda _db, recipient, text: sent.append(text) or True)
+        assert ingest_whatsapp_message(db, message_payload(f"wamid.changed-phone-{role}", "submitted", sender=tracked_phone), None) == "updated"
+        assert sent
+        assert "1. Member" not in sent[-1]
+        assert "2. Partner" not in sent[-1]
+        assert "3. Rider" not in sent[-1]
     finally:
         db.close()
 

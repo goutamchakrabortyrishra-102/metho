@@ -2,7 +2,7 @@ import json
 import re
 from datetime import datetime, timedelta, timezone
 
-from .models import CRMFollowUp, CRMLead, CRMLeadActivity, WhatsAppRegistrationSession
+from .models import CRMFollowUp, CRMLead, CRMLeadActivity, PartnerRequest, User, WhatsAppRegistrationSession
 
 
 def normalize_phone(value: str | None) -> str:
@@ -65,6 +65,8 @@ def ensure_pending_followup(db, lead: CRMLead, *, notes: str) -> None:
 def _sync_whatsapp_registration_session(db, lead: CRMLead, phone: str, *, user_id: str | None = None, partner_request_id: str | None = None, rider_user_id: str | None = None) -> None:
     session = db.query(WhatsAppRegistrationSession).filter(WhatsAppRegistrationSession.phone == phone).first()
     if not session:
+        session = db.query(WhatsAppRegistrationSession).filter(WhatsAppRegistrationSession.lead_id == lead.id).first()
+    if not session:
         candidates = phone_keys(phone)
         if candidates:
             session = next((item for item in db.query(WhatsAppRegistrationSession).all() if phone_keys(item.phone).intersection(candidates)), None)
@@ -88,8 +90,8 @@ def _sync_whatsapp_registration_session(db, lead: CRMLead, phone: str, *, user_i
         session.data_json = json.dumps({"rider_user_id": rider_user_id}, ensure_ascii=False)
 
 
-def link_lead_to_registration(db, *, phone: str, email: str = "", user_id: str | None = None, partner_request_id: str | None = None, rider_user_id: str | None = None) -> CRMLead | None:
-    lead = find_lead_by_phone(db, phone)
+def link_lead_to_registration(db, *, phone: str, email: str = "", user_id: str | None = None, partner_request_id: str | None = None, rider_user_id: str | None = None, lead: CRMLead | None = None) -> CRMLead | None:
+    lead = lead or find_lead_by_phone(db, phone)
     if not lead:
         return None
     if user_id:
@@ -107,4 +109,20 @@ def link_lead_to_registration(db, *, phone: str, email: str = "", user_id: str |
     registration_type = "member" if user_id else "partner" if partner_request_id else "rider"
     link_lead_activity(db, lead, "registration_linked", f"{registration_type.title()} registration linked to this CRM lead")
     _sync_whatsapp_registration_session(db, lead, phone, user_id=user_id, partner_request_id=partner_request_id, rider_user_id=rider_user_id)
+    return lead
+
+
+def reconcile_registration_identity(db, lead: CRMLead, phone: str) -> CRMLead | None:
+    candidates = phone_keys(phone)
+    if not candidates:
+        return lead
+    for user in db.query(User).filter(User.phone != "", User.role.in_(["member", "rider"])).all():
+        if not phone_keys(user.phone).intersection(candidates):
+            continue
+        if user.role == "member":
+            return link_lead_to_registration(db, phone=phone, user_id=user.id, lead=lead)
+        return link_lead_to_registration(db, phone=phone, rider_user_id=user.id, lead=lead)
+    for request in db.query(PartnerRequest).filter(PartnerRequest.phone != "").all():
+        if phone_keys(request.phone).intersection(candidates) or phone_keys(request.whatsapp_no).intersection(candidates):
+            return link_lead_to_registration(db, phone=phone, partner_request_id=request.id, lead=lead)
     return lead
