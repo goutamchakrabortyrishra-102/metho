@@ -58,7 +58,7 @@ const maybeClearLegacyPwaStateOnce = () => {
   if (typeof window === "undefined") return;
   const host = String(window.location.hostname || "").toLowerCase();
   const isHostedFrontend = host === "methoaayupay.com" || host === "www.methoaayupay.com" || host.endsWith(".pages.dev");
-  const cleanupKey = "metho_legacy_pwa_cleanup_v4";
+  const cleanupKey = "metho_legacy_pwa_cleanup_v5";
 
   // Hosted environments only need this cache eviction once per cleanup version.
   if (isHostedFrontend) {

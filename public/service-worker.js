@@ -1,6 +1,6 @@
 // Service worker for METHO AAY-UPAY PWA
 // Minimal caching so shell + static assets load offline. API calls always go to network.
-const CACHE_NAME = "metho-aayupay-v3";
+const CACHE_NAME = "metho-aayupay-v4";
 const STATIC_ASSETS = ["/index.html", "/manifest.json"];
 
 self.addEventListener("install", (event) => {
