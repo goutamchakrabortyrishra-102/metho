@@ -1097,6 +1097,46 @@ def ceo_dashboard(db: Session = Depends(get_db), current_user: User = Depends(ge
     pending_partner_approvals = db.query(PartnerRequest).filter(PartnerRequest.status == "pending").count()
     pending_product_approvals = db.query(AppSetting).filter(AppSetting.key.like("product_approval:%")).count()
     pending_withdrawals = db.query(AppSetting).filter(AppSetting.key.like("withdrawal:%")).count()
+    whatsapp_lead_rows = db.query(CRMLead).filter(CRMLead.source == "whatsapp").all()
+    activity_rows = db.query(CRMLeadActivity).filter(
+        CRMLeadActivity.lead_id.in_([lead.id for lead in whatsapp_lead_rows]),
+        CRMLeadActivity.activity_type.in_([
+            "registration_reminder_sent",
+            "whatsapp_message_received",
+            "whatsapp_human_handoff_requested",
+            "member_registration_completed",
+            "partner_registration_submitted",
+            "rider_registration_submitted",
+        ]),
+    ).order_by(CRMLeadActivity.created_at.asc()).all() if whatsapp_lead_rows else []
+    activities_by_lead: dict[str, list[CRMLeadActivity]] = {}
+    for activity in activity_rows:
+        activities_by_lead.setdefault(activity.lead_id, []).append(activity)
+    registration_event_types = {"member_registration_completed", "partner_registration_submitted", "rider_registration_submitted"}
+    registrations_completed = set()
+    handoff_leads = set()
+    reminder_no_response_leads = []
+    for lead in whatsapp_lead_rows:
+        activities = activities_by_lead.get(lead.id, [])
+        if any(activity.activity_type in registration_event_types for activity in activities):
+            registrations_completed.add(lead.id)
+        if any(activity.activity_type == "whatsapp_human_handoff_requested" for activity in activities):
+            handoff_leads.add(lead.id)
+        reminders = [activity for activity in activities if activity.activity_type == "registration_reminder_sent"]
+        latest_reminder = reminders[-1].created_at if reminders else None
+        replied_after_reminder = latest_reminder and any(
+            activity.activity_type == "whatsapp_message_received" and activity.created_at >= latest_reminder
+            for activity in activities
+        )
+        if len(reminders) >= 2 and not replied_after_reminder and not (lead.member_user_id or lead.partner_request_id or lead.rider_user_id):
+            reminder_no_response_leads.append(lead)
+    action_queue = []
+    for lead in reminder_no_response_leads:
+        action_queue.append({"lead_id": lead.id, "name": lead.contact_person or lead.business_name, "phone": lead.whatsapp_no or lead.phone, "reason": "No reply after repeated registration reminders", "priority": "high"})
+    for lead in whatsapp_lead_rows:
+        if lead.id in handoff_leads:
+            action_queue.append({"lead_id": lead.id, "name": lead.contact_person or lead.business_name, "phone": lead.whatsapp_no or lead.phone, "reason": "Customer requested Executive support", "priority": "high"})
+    action_queue = action_queue[:12]
 
     return {
         "today_sales": round(float(db.query(func.coalesce(func.sum(Order.total_amount), 0)).filter(Order.created_at >= datetime(today.year, today.month, today.day, tzinfo=timezone.utc)).scalar() or 0), 2),
@@ -1119,6 +1159,11 @@ def ceo_dashboard(db: Session = Depends(get_db), current_user: User = Depends(ge
         "pending_partner_approvals": pending_partner_approvals,
         "pending_product_approvals": pending_product_approvals,
         "pending_withdrawals": pending_withdrawals,
+        "whatsapp_registration_started": sum(1 for lead in whatsapp_lead_rows if lead.status == "APPLICATION" or lead.member_user_id or lead.partner_request_id or lead.rider_user_id),
+        "whatsapp_registration_completed": len(registrations_completed),
+        "whatsapp_human_handoffs": len(handoff_leads),
+        "whatsapp_no_response_after_reminders": len(reminder_no_response_leads),
+        "whatsapp_action_queue": action_queue,
         "source": "existing system data only",
     }
 
