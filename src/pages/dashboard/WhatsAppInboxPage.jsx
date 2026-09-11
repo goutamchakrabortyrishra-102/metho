@@ -95,16 +95,17 @@ export default function WhatsAppInboxPage() {
       const { data } = await api.get("/admin/crm/whatsapp/conversations", { params: { search: search || undefined } });
       const items = Array.isArray(data?.items) ? data.items : [];
       setConversations(items);
-      if (selected && !items.some((item) => item.lead_id === selected.lead_id)) {
-        setSelected(null);
+      setSelected((current) => {
+        if (!current || items.some((item) => item.lead_id === current.lead_id)) return current;
         setMessages([]);
-      }
+        return null;
+      });
     } catch (err) {
       setError(err?.response?.data?.detail || "Could not load WhatsApp conversations");
     } finally {
       setLoading(false);
     }
-  }, [search, selected]);
+  }, [search]);
 
   const openConversation = async (conversation) => {
     setSelected(conversation);
@@ -256,8 +257,8 @@ export default function WhatsAppInboxPage() {
       </div>
     )}
 
-    <div className="grid min-h-[600px] grid-cols-1 overflow-hidden border border-border bg-white md:grid-cols-[330px_minmax(0,1fr)]">
-      <aside className="border-b border-border md:row-span-2 md:border-b-0 md:border-r">
+    <div className="grid h-[min(720px,calc(100dvh-10rem))] min-h-[600px] grid-cols-1 overflow-hidden border border-border bg-white md:grid-cols-[330px_minmax(0,1fr)] md:grid-rows-[auto_minmax(0,1fr)]">
+      <aside className="flex min-h-0 flex-col border-b border-border md:row-span-2 md:border-b-0 md:border-r">
         <div className="flex items-center justify-between border-b border-border p-3 gap-2">
           <div className="relative flex-1">
             <Search className="absolute left-3 top-3 h-4 w-4 text-slate-400" />
@@ -269,7 +270,7 @@ export default function WhatsAppInboxPage() {
             </Button>
           )}
         </div>
-        <div className="max-h-[500px] overflow-y-auto md:max-h-[620px]">
+        <div className="min-h-0 flex-1 overflow-y-auto">
           {conversations.map((conversation) => {
             const isSelected = selected?.lead_id === conversation.lead_id;
             const isChecked = selectedLeadIds.includes(conversation.lead_id);
@@ -306,7 +307,7 @@ export default function WhatsAppInboxPage() {
         </div>
       </aside>
       {selected ? <div data-whatsapp-selection className="border-b border-border bg-white px-5 py-3 text-xs text-slate-600 md:col-start-2 md:col-span-1"><span className="mr-3 font-semibold text-emerald-800">Stage: {selected.status || "NEW"}</span><span className="mr-3">Follow-up: {selected.follow_up_status || "Pending"}</span>{selected.next_follow_up_at ? <span className="mr-3">Next: {formatTime(selected.next_follow_up_at)}</span> : null}{selected.member_user_id || selected.partner_request_id || selected.converted_partner_id ? <span className="text-blue-700">Registration linked</span> : null}</div> : null}
-      <section data-whatsapp-selection className="flex min-h-[500px] flex-col bg-slate-50 md:col-start-2">
+      <section data-whatsapp-selection className="flex min-h-0 flex-col bg-slate-50 md:col-start-2">
         {selected ? <div className="flex justify-end gap-2 border-b border-border bg-white px-5 py-2"><Button size="sm" variant="outline" onClick={markRead}><CheckCheck className="mr-1 h-3.5 w-3.5" />Mark read</Button><Button size="sm" variant="outline" onClick={deleteSelectedConversation}><Trash2 className="mr-1 h-3.5 w-3.5" />Delete chat</Button></div> : null}
         {selected ? <><header className="border-b border-border bg-white px-5 py-4"><h2 className="font-bold text-slate-900">{selected.contact_person || selected.business_name}</h2><p className="text-sm text-slate-500">{selected.phone}</p></header><div className="flex-1 space-y-3 overflow-y-auto p-5">{suggestions.filter((item) => item.status === "PENDING").slice(0, 1).map((suggestion) => <div key={suggestion.id} className="border border-amber-200 bg-amber-50 p-3 text-sm"><div className="flex items-center gap-2 font-semibold text-amber-900"><Bot className="h-4 w-4" />AI suggested reply</div><p className="mt-2 whitespace-pre-wrap text-slate-800">{suggestion.suggested_reply}</p>{suggestion.human_handoff_required ? <p className="mt-2 text-xs text-red-700">Human handoff required: {suggestion.handoff_reason}</p> : <div className="mt-3 flex gap-2"><Button size="sm" onClick={() => processSuggestion(suggestion, "approve")} disabled={suggestionBusy}><Check className="mr-1 h-3.5 w-3.5" />Send</Button><Button size="sm" variant="outline" onClick={() => processSuggestion(suggestion, "reject")} disabled={suggestionBusy}><X className="mr-1 h-3.5 w-3.5" />Reject</Button></div>}</div>)}{messages.map((message) => <div key={message.id} className={`flex ${message.direction === "outgoing" ? "justify-end" : "justify-start"}`}><div className={`max-w-[85%] rounded-lg px-3 py-2 text-sm ${message.direction === "outgoing" ? "bg-emerald-700 text-white" : "bg-white text-slate-800 shadow-sm"}`}><p className="whitespace-pre-wrap">{message.text}</p><p className={`mt-1 text-[10px] ${message.direction === "outgoing" ? "text-emerald-100" : "text-slate-400"}`}>{formatTime(message.created_at)}</p></div></div>)}</div></> : <div className="flex flex-1 flex-col items-center justify-center p-8 text-center text-slate-500"><MessageCircle className="mb-3 h-9 w-9 text-emerald-700" /><p className="font-medium text-slate-700">Select a WhatsApp conversation</p><p className="mt-1 text-sm">Incoming messages stored by the existing webhook appear here.</p></div>}
       </section>
