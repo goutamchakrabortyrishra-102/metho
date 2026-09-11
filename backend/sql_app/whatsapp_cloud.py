@@ -97,6 +97,7 @@ PAYMENT_QUERY_KEYWORDS = ("payment", "pay", "paid", "টাকা", "পেম�
 WALLET_QUERY_KEYWORDS = ("wallet", "reward", "rewards", "smart cycle", "ওয়ালেট", "রিওয়ার্ড", "স্মার্ট সাইকেল")
 DELIVERY_QUERY_KEYWORDS = ("delivery", "deliver", "metho move", "ডেলিভারি")
 SUPPORT_QUERY_KEYWORDS = ("support", "help", "contact", "executive", "সাপোর্ট", "সহায়তা", "যোগাযোগ")
+EXECUTIVE_ENQUIRY_KEYWORDS = ("plan", "details", "detail", "income", "earning", "earn", "business opportunity", "work opportunity", "commission", "benefit", "how it works", "income hoy", "income হবে", "ইনকাম", "আয়", "আয়", "ব্যবসার সুযোগ", "কাজের সুযোগ", "কী ভাবে ইনকাম", "কিভাবে ইনকাম", "কীভাবে আয়", "কিভাবে আয়", "প্ল্যান", "ডিটেইল", "বিস্তারিত", "সুবিধা", "কমিশন")
 REGISTRATION_INTENT_MARKERS = ("রেজিস্ট", "register", "registration", "যুক্ত", "join", "হতে চাই", "করতে চাই", "হব", "হবো", "চালু", "অনবোর্ডিং", "onboarding", "interested")
 WHATSAPP_REGISTRATION_IDLE = "IDLE"
 WHATSAPP_REGISTRATION_CONFIRMATION_PENDING = "REGISTRATION_CONFIRMATION_PENDING"
@@ -182,6 +183,7 @@ WHATSAPP_PRESET_MESSAGE_DEFAULTS = {
     "preset_rider_role_explanation": "Rider হিসেবে delivery কাজের জন্য application জমা দিতে পারবেন। রেজিস্ট্রেশন করতে চাইলে 1 লিখুন।",
     "preset_role_selection_fallback": "METHO AAY-UPAY সম্পর্কে আরও জানতে পারেন। যুক্ত হওয়ার জন্য একটি option বেছে নিন:\n1. Member\n2. Partner\n3. Rider",
     "preset_support_fallback": "আপনার প্রশ্নটি আমাদের support team দেখবে। METHO WhatsApp executive: {support_number}",
+    "preset_business_enquiry_executive": "এই বিষয়ে বিস্তারিত জানতে আমাদের Executive-এর সাথে যোগাযোগ করুন: 9339566110",
     "preset_handoff_requested": "আপনার অনুরোধটি আমাদের support team-কে পাঠানো হয়েছে। একজন representative শীঘ্রই যোগাযোগ করবেন।",
     "preset_icebreaker_metho_info": "METHO AAY-UPAY is a smart e-commerce platform by Metho Logistics Pvt. Ltd. Browse quality daily essentials, kitchenware, & direct farm produce easily!\n\nমেঠো আয়-উপায় হলো মেঠো লজিস্টিকস প্রাইভেট লিমিটেডের একটি ডিজিটাল প্ল্যাটফর্ম। এখান থেকে সহজেই দৈনন্দিন প্রয়োজনীয় সামগ্রী, কিচেন অ্যাপ্লায়েন্স ও সেরা দেশি পণ্য অর্ডার করতে পারবেন।",
     "preset_icebreaker_shop_partner": "Looking to shop or grow your business with us? Visit our portal to place orders or register as an authorized partner/vendor.\n\nপণ্য কিনতে চান নাকি আমাদের সাথে বিজনেসে যুক্ত হতে চান? অর্ডার করতে বা অথরাইজড বিজনেস পার্টনার/ভেন্ডর হিসেবে রেজিস্টার করতে আমাদের পোর্টালে ভিজিট করুন।",
@@ -866,6 +868,11 @@ def _is_whatsapp_handoff_command(text: str) -> bool:
 def _is_registration_reminder_opt_out(text: str) -> bool:
     normalized = _whatsapp_command_text(text)
     return normalized in WHATSAPP_REGISTRATION_REMINDER_OPTOUT_COMMANDS or any(command in normalized for command in WHATSAPP_REGISTRATION_REMINDER_OPTOUT_COMMANDS if " " in command)
+
+
+def _is_executive_enquiry(text: str) -> bool:
+    normalized = _whatsapp_command_text(text)
+    return bool(normalized) and any(keyword in normalized for keyword in EXECUTIVE_ENQUIRY_KEYWORDS)
 
 
 def _stop_abandoned_registration_reminders(db, lead: CRMLead, reason: str) -> None:
@@ -1670,6 +1677,9 @@ def ingest_whatsapp_message(db, payload: dict, request=None) -> str:
             # Legacy field-by-field sessions must re-enter the website-form flow.
             _clear_member_registration_session(registration_session)
             native_member_handled = _send_introduction(db, registration_session, lead, normalized["phone"])
+        elif registration_session and registration_session.state in {WHATSAPP_INTRODUCTION, WHATSAPP_ROLE_SELECTION} and _is_executive_enquiry(incoming_text):
+            reply = get_whatsapp_preset_message(db, "preset_business_enquiry_executive", WHATSAPP_PRESET_MESSAGE_DEFAULTS["preset_business_enquiry_executive"])
+            native_member_handled = _send_member_registration_reply(db, normalized["phone"], reply)
         elif registration_session and registration_session.state in {WHATSAPP_INTRODUCTION, WHATSAPP_ROLE_SELECTION}:
             native_member_handled = _continue_introduction(db, registration_session, lead, incoming_text, normalized["phone"])
         elif registration_session and registration_session.role == "member" and registration_session.state in {WHATSAPP_MEMBER_REGISTERED, WHATSAPP_MEMBER_ACTIVATION_PENDING, WHATSAPP_MEMBER_ACTIVE, WHATSAPP_MEMBER_ONBOARDING}:

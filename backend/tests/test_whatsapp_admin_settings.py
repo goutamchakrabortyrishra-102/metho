@@ -164,6 +164,21 @@ def test_whatsapp_webhook_normalizes_incoming_message_to_crm_lead(monkeypatch):
         db.close()
 
 
+@pytest.mark.parametrize("message", ["Plan ta ki", "Details pls", "income hoy ki", "business opportunity", "কিভাবে আয় হবে", "কমিশন কত"])
+def test_business_enquiries_use_configured_executive_reply(monkeypatch, message):
+    db = make_session()
+    try:
+        sent = []
+        monkeypatch.setattr("sql_app.whatsapp_cloud.send_whatsapp_message", lambda _db, recipient, text: sent.append(text) or {"messages": [{"id": "wamid.reply"}]})
+        update_whatsapp_settings({"phone_number_id": "123456", "access_token": "secret-token", "preset_business_enquiry_executive": "Executive contact: 9339566110"}, db, admin())
+        assert ingest_whatsapp_message(db, message_payload(f"wamid.executive-welcome-{message}", "Hi"), None) == "created"
+        assert "1 লিখুন Member" in sent[-1]
+        assert ingest_whatsapp_message(db, message_payload(f"wamid.executive-{message}", message), None) == "updated"
+        assert sent[-1] == "Executive contact: 9339566110"
+    finally:
+        db.close()
+
+
 def test_whatsapp_webhook_acknowledges_status_only_event():
     db = make_session()
     try:
