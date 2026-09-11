@@ -172,8 +172,8 @@ WHATSAPP_HANDOFF_COMMANDS = {"agent", "support", "executive", "human", "কথ�
 WHATSAPP_REGISTRATION_REMINDER_OPTOUT_COMMANDS = {"stop", "no more", "unsubscribe", "বন্ধ করুন", "আর মেসেজ চাই না", "পরে করব না"}
 WHATSAPP_RESUME_COMMANDS = {"hi", "hello", "হাই", "হ্যালো", "নমস্কার", "start", "namaskar"}
 WHATSAPP_NEW_CONVERSATION_GREETINGS = {"hi", "hello", "হাই", "হ্যালো", "নমস্কার", "namaskar"}
-WHATSAPP_CONFIRMATION_YES = {"yes", "y", "হ্যাঁ"}
-WHATSAPP_CONFIRMATION_NO = {"no", "n", "না"}
+WHATSAPP_CONFIRMATION_YES = {"yes", "y", "হ্যাঁ", "submitted", "submit করেছি", "submit korechi", "hoyeche", "hoye গেছে", "হয়েছে", "হয়ে গেছে", "korediyechi", "kore diyechi", "করে দিয়েছি", "করে দিয়েছি", "done"}
+WHATSAPP_CONFIRMATION_NO = {"no", "n", "না", "not submitted", "not yet", "submit korini", "submit করি নি", "হয়নি", "হয়নি", "হয় নি", "হয় নি", "করিনি", "করি নি"}
 WHATSAPP_PRESET_MESSAGE_DEFAULTS = {
     "preset_registration_intro": "নমস্কার! METHO AAY-UPAY-এ স্বাগতম।\nMETHO-তে Customer, Member, Business Partner অথবা Rider হিসেবে যুক্ত হতে পারেন।\nআপনি জানতে চান:\n1. Member\n2. Partner\n3. Rider\n4. METHO সম্পর্কে আরও জানতে চাই",
     "preset_metho_info": "METHO AAY-UPAY একটি ডিজিটাল platform যেখানে Customer, Member, Partner ও Rider হিসেবে যুক্ত হওয়ার পথ আছে।\n\n{introduction}",
@@ -189,6 +189,7 @@ WHATSAPP_PRESET_MESSAGE_DEFAULTS = {
     "preset_lifecycle_registration_form_opened": "আপনি registration form খুলেছেন। Form পূরণ করতে কোনো সাহায্য লাগলে এখানেই লিখুন।",
     "preset_lifecycle_registration_form_submitted": "আপনার registration form জমা হয়েছে। পরবর্তী ধাপ সম্পন্ন করতে কোনো সাহায্য লাগলে এখানে reply করুন।",
     "preset_registration_submit_confirmation": "🌱 আপনি কি METHO AAY-UPAY Registration Form সফলভাবে Submit করেছেন?\n\nYes — হ্যাঁ, Submit করেছি\nNo — না, এখনও Submit করিনি\n\n👉 Reply: Yes / No",
+    "preset_registration_confirmation_no": "Registration সম্পূর্ণ করতে অসুবিধা হলে আমাদের Executive-এর সাথে যোগাযোগ করুন: 9339566110",
     "preset_lifecycle_registration_form_followup_started": "আপনার Registration Form জমা হয়েছে। Account activation বা approval status নিয়ে কোনো প্রশ্ন থাকলে এখানে reply করুন, আমরা সাহায্য করব।",
     "preset_abandoned_registration_reminder": "আপনার METHO registration এখনও সম্পূর্ণ হয়নি।\nYour METHO registration is still incomplete.\n\n👉 Registration complete করতে এখানে ক্লিক করুন:\n{registration_url}\n\n💬 কোনো সাহায্য লাগলে \"Executive\" লিখুন — আমাদের Executive-এর সাথে কথা বলতে পারবেন।",
     "preset_registration_reminders_stopped": "ঠিক আছে। আমরা Registration reminder বন্ধ করে দিয়েছি।\nOkay. We have stopped the Registration reminders.\n\nপরে শুরু করতে চাইলে এই WhatsApp chat-এ reply করুন।",
@@ -894,10 +895,11 @@ def _registration_confirmation_reply(db, session: WhatsAppRegistrationSession, l
         _save_session_data(session, data)
         return handled
     if normalized in WHATSAPP_CONFIRMATION_NO:
-        config = resolve_config(db)
-        role = session.role if session.role in REGISTRATION_ROLE_SETTINGS else "member"
-        url = _tracked_registration_url(_role_registration_url(config, role), role, lead.id, recipient)
-        return _send_member_registration_reply(db, recipient, f"আপনার registration form আবার পূরণ করুন:\n{url}")
+        data = _session_data(session)
+        data["registration_confirmed"] = False
+        _save_session_data(session, data)
+        reply = get_whatsapp_preset_message(db, "preset_registration_confirmation_no", WHATSAPP_PRESET_MESSAGE_DEFAULTS["preset_registration_confirmation_no"])
+        return _send_member_registration_reply(db, recipient, reply)
     reply = get_whatsapp_preset_message(db, "preset_registration_submit_confirmation", WHATSAPP_PRESET_MESSAGE_DEFAULTS["preset_registration_submit_confirmation"])
     return _send_member_registration_reply(db, recipient, reply)
 

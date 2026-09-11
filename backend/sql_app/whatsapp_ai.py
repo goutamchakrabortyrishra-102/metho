@@ -591,6 +591,13 @@ def _whatsapp_followup_state(db, lead: CRMLead, followup: CRMFollowUp) -> str:
     notes = str(followup.notes or "").lower()
     session = db.query(WhatsAppRegistrationSession).filter(WhatsAppRegistrationSession.lead_id == lead.id).first()
     if notes == "abandoned registration reminder":
+        if session and session.state == "REGISTRATION_CONFIRMATION_PENDING":
+            try:
+                confirmation_pending = not bool(json.loads(session.data_json or "{}").get("registration_confirmed"))
+            except (TypeError, ValueError, json.JSONDecodeError):
+                confirmation_pending = True
+            if confirmation_pending:
+                return "pending"
         if str(lead.status or "").upper() in {"LOST", "CLOSED"} or lead.member_user_id or lead.partner_request_id or lead.rider_user_id:
             return "completed"
         return "pending"

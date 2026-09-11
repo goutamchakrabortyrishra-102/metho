@@ -536,7 +536,7 @@ def test_registration_submit_requests_whatsapp_confirmation(monkeypatch):
         db.close()
 
 
-@pytest.mark.parametrize(("reply", "confirmed"), [("YES", True), ("Yes", True), ("y", True), ("হ্যাঁ", True), ("NO", False), ("n", False), ("না", False)])
+@pytest.mark.parametrize(("reply", "confirmed"), [("YES", True), ("Yes", True), ("y", True), ("হ্যাঁ", True), ("submitted", True), ("hoyeche", True), ("হয়েছে", True), ("korediyechi", True), ("করে দিয়েছি", True), ("done", True), ("NO", False), ("n", False), ("না", False), ("not submitted", False), ("not yet", False), ("হয়নি", False), ("করিনি", False)])
 def test_registration_confirmation_replies_bypass_role_parser(monkeypatch, reply, confirmed):
     db = make_session()
     try:
@@ -558,6 +558,8 @@ def test_registration_confirmation_replies_bypass_role_parser(monkeypatch, reply
         assert "3. Rider" not in sent[-1]
         db.refresh(session)
         assert json.loads(session.data_json)["registration_confirmed"] is confirmed
+        if not confirmed:
+            assert "9339566110" in sent[-1]
     finally:
         db.close()
 
@@ -577,6 +579,26 @@ def test_duplicate_confirmation_does_not_create_reminder_chain(monkeypatch):
         for message_id in ("wamid.confirm-one", "wamid.confirm-two"):
             assert ingest_whatsapp_message(db, message_payload(message_id, "YES"), None) == "updated"
         assert db.query(CRMFollowUp).filter_by(lead_id=lead.id, notes="Abandoned registration reminder", status="Pending").count() == 0
+    finally:
+        db.close()
+
+
+def test_confirmation_pending_keeps_existing_reminder_chain_active(monkeypatch):
+    db = make_session()
+    try:
+        lead = add_tracked_lead(db, "member")
+        lead.member_user_id = "MAU23451"
+        session = db.query(WhatsAppRegistrationSession).one()
+        session.state = "REGISTRATION_CONFIRMATION_PENDING"
+        session.data_json = json.dumps({"registration_confirmed": False})
+        db.add(CRMFollowUp(lead_id=lead.id, scheduled_at=datetime.now(timezone.utc) - timedelta(seconds=1), status="Pending", notes="Abandoned registration reminder"))
+        db.commit()
+        db.close = lambda: None
+        monkeypatch.setattr("sql_app.whatsapp_ai.SessionLocal", NoCloseSession(db))
+        assert process_due_followups() == 1
+        reminder = db.query(CRMFollowUp).filter_by(lead_id=lead.id, notes="Abandoned registration reminder").one()
+        assert reminder.status == "Pending"
+        assert db.query(WhatsAppMessageOutbox).filter_by(lead_id=lead.id, activity_type="registration_reminder_sent").count() == 1
     finally:
         db.close()
 
