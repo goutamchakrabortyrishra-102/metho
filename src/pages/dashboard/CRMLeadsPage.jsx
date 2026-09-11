@@ -141,10 +141,15 @@ export default function CRMLeadsPage() {
     setLoading(true);
     setError("");
     try {
-      const { data } = await api.get("/admin/crm/leads", {
-        params: { search: search || undefined, status: status === "ALL" ? undefined : status, assigned_user_id: assignedUserId === "ALL" ? undefined : assignedUserId, source: source === "ALL" ? undefined : source },
-      });
-      setItems(Array.isArray(data?.items) ? data.items : []);
+      const params = { search: search || undefined, status: status === "ALL" ? undefined : status, assigned_user_id: assignedUserId === "ALL" ? undefined : assignedUserId, source: source === "ALL" ? undefined : source, limit: 200, offset: 0 };
+      const { data } = await api.get("/admin/crm/leads", { params });
+      const loaded = Array.isArray(data?.items) ? data.items : [];
+      const total = Number(data?.total || loaded.length);
+      for (let offset = loaded.length; offset < total; offset += 200) {
+        const { data: next } = await api.get("/admin/crm/leads", { params: { ...params, offset } });
+        loaded.push(...(Array.isArray(next?.items) ? next.items : []));
+      }
+      setItems(loaded);
     } catch (err) {
       setError(err?.response?.data?.detail || "Could not load CRM leads");
     } finally {
@@ -273,6 +278,24 @@ export default function CRMLeadsPage() {
       setDetailLead(null);
       await loadLeads();
     } catch (err) { setError(err?.response?.data?.detail || "Rejected lead could not be deleted"); }
+  };
+
+  const deleteSelectedLostLeads = async () => {
+    const selectedLostLeads = sortedItems.filter((lead) => selectedLeadIds.includes(lead.id) && lead.status === "LOST");
+    if (!selectedLostLeads.length) {
+      toast.error("Select rejected or lost leads to delete");
+      return;
+    }
+    if (!window.confirm(`Delete ${selectedLostLeads.length} rejected lead(s)? Their CRM history and chat activity will be removed.`)) return;
+    try {
+      await Promise.all(selectedLostLeads.map((lead) => api.delete(`/admin/crm/leads/${lead.id}`)));
+      setSelectedLeadIds((current) => current.filter((id) => !selectedLostLeads.some((lead) => lead.id === id)));
+      if (detailLead && selectedLostLeads.some((lead) => lead.id === detailLead.id)) setDetailLead(null);
+      toast.success(`${selectedLostLeads.length} rejected lead(s) deleted`);
+      await loadLeads();
+    } catch (err) {
+      setError(err?.response?.data?.detail || "Selected rejected leads could not be deleted");
+    }
   };
 
   const createTask = async () => {
@@ -493,6 +516,9 @@ export default function CRMLeadsPage() {
           <div className="flex items-center gap-2">
             <Button size="sm" onClick={() => setBulkWhatsAppOpen(true)} className="bg-emerald-800 hover:bg-emerald-900 text-white rounded-full">
               <MessageSquareText className="w-4 h-4 mr-1.5" /> Send Bulk WhatsApp ({selectedLeadIds.length})
+            </Button>
+            <Button size="sm" variant="outline" onClick={deleteSelectedLostLeads} className="rounded-full border-red-200 text-red-700 hover:bg-red-50">
+              <Trash2 className="w-4 h-4 mr-1.5" /> Delete selected rejected
             </Button>
             <Button size="sm" variant="ghost" onClick={() => setSelectedLeadIds([])} className="text-slate-600 rounded-full">
               Clear selection
