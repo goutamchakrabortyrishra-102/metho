@@ -1,7 +1,8 @@
 import React, { useEffect, useMemo, useState } from "react";
-import { ShieldCheck, CalendarCheck2, Clock3, AlertTriangle, Wrench, Save, RotateCcw, Upload, Download, Cloud, Copy } from "lucide-react";
+import { ShieldCheck, CalendarCheck2, Clock3, AlertTriangle, Wrench, Save, RotateCcw, Upload, Download, Cloud, Copy, RefreshCw, Users, Wallet, Activity } from "lucide-react";
 import { toast } from "sonner";
 import api from "@/services/api";
+import { Link } from "react-router-dom";
 
 const STORAGE_KEY = "metho_owner_guide_state_v1";
 const REMOTE_OWNER_GUIDE_PATHS = [
@@ -82,6 +83,8 @@ export default function OwnerGuidePage() {
   const [purgeBusy, setPurgeBusy] = useState(false);
   const [purgeConfirmText, setPurgeConfirmText] = useState("");
   const [purgeReport, setPurgeReport] = useState(null);
+  const [liveData, setLiveData] = useState(null);
+  const [liveLoading, setLiveLoading] = useState(true);
 
   const fetchRemoteState = async () => {
     for (const path of REMOTE_OWNER_GUIDE_PATHS) {
@@ -145,6 +148,10 @@ export default function OwnerGuidePage() {
   }, [state]);
 
   const today = useMemo(() => new Date().toLocaleDateString("en-GB"), []);
+  const yesterdayIncomplete = useMemo(() => {
+    if (!state.updatedAt || state.updatedAt.includes(today)) return [];
+    return DAILY_ITEMS.filter((_, index) => !state.daily[index]);
+  }, [state.daily, state.updatedAt, today]);
 
   const dailyDone = state.daily.filter(Boolean).length;
   const weeklyDone = state.weekly.filter(Boolean).length;
@@ -387,6 +394,35 @@ export default function OwnerGuidePage() {
     }
   };
 
+  const loadLiveData = async () => {
+    setLiveLoading(true);
+    try {
+      const [overview, health, withdrawals] = await Promise.all([
+        api.get("/admin/ceo-dashboard"),
+        api.get("/admin/system-health"),
+        api.get("/admin/withdrawals?status_filter=pending"),
+      ]);
+      const overviewData = overview.data || {};
+      const healthData = health.data || {};
+      const pendingWithdrawals = Array.isArray(withdrawals.data) ? withdrawals.data.length : 0;
+      const approvalsClear = !Number(overviewData.pending_partner_approvals || 0) && !Number(overviewData.pending_product_approvals || 0) && !Number(overviewData.pending_withdrawals || 0);
+      const systemHealthy = healthData.overall_status === "healthy";
+      setLiveData({ overview: overviewData, health: healthData, pendingWithdrawals });
+      setState((current) => ({
+        ...current,
+        daily: current.daily.map((checked, index) => checked || (index === 1 && approvalsClear)),
+        weekly: current.weekly.map((checked, index) => checked || (index === 3 && systemHealthy)),
+        withdrawal: current.withdrawal.map((checked) => checked || pendingWithdrawals === 0),
+      }));
+    } catch {
+      toast.error("Live CRM and system summary could not be loaded");
+    } finally {
+      setLiveLoading(false);
+    }
+  };
+
+  useEffect(() => { loadLiveData(); }, []);
+
   return (
     <div className="space-y-6" data-testid="owner-guide-page">
       <div>
@@ -394,6 +430,17 @@ export default function OwnerGuidePage() {
         <h1 className="font-display font-black text-3xl md:text-4xl text-emerald-950 tracking-tight mt-1">Solo Operation Guide</h1>
         <p className="text-sm text-muted-foreground font-body mt-1">VS Code না খুলেই daily system check, security discipline, আর জরুরি সময়ে কী করবেন - সব এখানে।</p>
       </div>
+
+      <section className="border border-emerald-200 bg-emerald-50 p-5" data-testid="owner-guide-live-work">
+        <div className="flex flex-wrap items-center justify-between gap-3"><div><p className="text-xs font-semibold uppercase tracking-wider text-emerald-800">Live Work Queue</p><h2 className="mt-1 font-display text-xl font-bold text-emerald-950">আজ আগে যা দেখবেন</h2></div><button onClick={loadLiveData} disabled={liveLoading} className="inline-flex items-center gap-1.5 rounded border border-emerald-300 bg-white px-3 py-2 text-xs font-semibold text-emerald-800"><RefreshCw className={`h-3.5 w-3.5 ${liveLoading ? "animate-spin" : ""}`} /> Refresh live data</button></div>
+        <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+          <Link to="/app/crm/leads?status=NEW" className="border border-emerald-200 bg-white p-3"><Users className="h-4 w-4 text-emerald-700" /><p className="mt-2 text-xs text-slate-500">নতুন CRM lead</p><p className="text-2xl font-bold text-emerald-950">{liveData?.overview?.new_leads ?? "-"}</p><p className="mt-1 text-xs text-slate-600">আজ contact করুন</p></Link>
+          <Link to="/app/crm/leads?status=APPLICATION" className="border border-amber-200 bg-white p-3"><Clock3 className="h-4 w-4 text-amber-700" /><p className="mt-2 text-xs text-slate-500">Pending follow-up</p><p className="text-2xl font-bold text-emerald-950">{liveData?.overview?.pending_followups ?? "-"}</p><p className="mt-1 text-xs text-slate-600">registration / approval দেখুন</p></Link>
+          <Link to="/app/withdrawals" className="border border-amber-200 bg-white p-3"><Wallet className="h-4 w-4 text-amber-700" /><p className="mt-2 text-xs text-slate-500">Pending withdrawal</p><p className="text-2xl font-bold text-emerald-950">{liveData?.pendingWithdrawals ?? "-"}</p><p className="mt-1 text-xs text-slate-600">payout যাচাই করুন</p></Link>
+          <Link to="/app/system-health" className="border border-sky-200 bg-white p-3"><Activity className="h-4 w-4 text-sky-700" /><p className="mt-2 text-xs text-slate-500">System status</p><p className="text-2xl font-bold capitalize text-emerald-950">{liveData?.health?.overall_status ?? "-"}</p><p className="mt-1 text-xs text-slate-600">health alerts দেখুন</p></Link>
+        </div>
+        {yesterdayIncomplete.length ? <div className="mt-4 border border-amber-200 bg-amber-50 p-3 text-sm text-amber-950"><p className="font-semibold">গতকাল অসম্পূর্ণ ছিল</p><p className="mt-1">{yesterdayIncomplete.join(" | ")}</p></div> : null}
+      </section>
 
       <section className="bg-white rounded-xl border border-border p-5" data-testid="owner-guide-control-panel">
         <div className="grid gap-3 md:grid-cols-2">
