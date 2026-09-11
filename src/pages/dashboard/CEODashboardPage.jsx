@@ -54,11 +54,17 @@ export default function CEODashboardPage() {
         <div className="bg-white rounded-xl border border-border p-4"><p className="text-xs uppercase text-slate-500">Conversion</p><p className="text-2xl font-bold">{data.conversion_rate}%</p></div>
       </div>
 
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <Link to="/app/orders" className="bg-white rounded-xl border border-amber-200 p-4 hover:bg-amber-50"><p className="text-xs uppercase text-slate-500">Order action needed</p><p className="text-2xl font-bold text-amber-700">{data.pending_orders || 0}</p><p className="mt-1 text-xs text-slate-600">payment / approval queue</p></Link>
+        <Link to="/app/orders" className="bg-white rounded-xl border border-red-200 p-4 hover:bg-red-50"><p className="text-xs uppercase text-slate-500">Paid invoice review</p><p className="text-2xl font-bold text-red-700">{data.paid_orders_without_invoice || 0}</p><p className="mt-1 text-xs text-slate-600">paid orders without invoice record</p></Link>
+        <Link to="/app/withdrawals" className="bg-white rounded-xl border border-amber-200 p-4 hover:bg-amber-50"><p className="text-xs uppercase text-slate-500">Withdrawal action needed</p><p className="text-2xl font-bold text-amber-700">{data.pending_withdrawals || 0}</p><p className="mt-1 text-xs text-slate-600">verify before payout</p></Link>
+      </div>
+
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <div className="bg-white rounded-xl border border-border p-4"><h2 className="font-semibold mb-3">Operations</h2><ul className="space-y-2 text-sm text-slate-700"><li>Members: {data.new_members} new / {data.active_members} active</li><li>Partners: {data.new_partners} new / {data.active_partners} active</li><li>Total orders: {data.total_orders}</li></ul></div>
         <div className="bg-white rounded-xl border border-border p-4"><h2 className="font-semibold mb-3">Pipeline</h2><ul className="space-y-2 text-sm text-slate-700"><li>Hot leads: {data.hot_leads}</li><li>Pending follow-ups: {data.pending_followups}</li><li>Overdue follow-ups: {data.overdue_followups}</li></ul></div>
       </div>
-      {data.whatsapp_action_queue?.length ? <div className="bg-white rounded-xl border border-border p-4"><h2 className="font-semibold mb-3">Priority WhatsApp actions</h2><div className="space-y-2">{data.whatsapp_action_queue.map((item) => <Link key={`${item.lead_id}-${item.reason}`} to={`/app/crm/leads?search=${encodeURIComponent(item.phone || item.name)}`} className="flex items-center justify-between gap-3 rounded border p-3 hover:bg-emerald-50"><span><span className="block font-semibold">{item.name || "WhatsApp lead"}</span><span className="text-xs text-slate-600">{item.phone || "-"} · {item.reason}</span></span><span className="text-xs font-semibold text-red-700">Open lead</span></Link>)}</div></div> : null}
+      {data.whatsapp_action_queue?.length ? <div className="bg-white rounded-xl border border-border p-4"><h2 className="font-semibold mb-3">Priority actions</h2><div className="space-y-2">{data.whatsapp_action_queue.map((item) => <Link key={`${item.lead_id || item.order_id}-${item.reason}`} to={item.route || `/app/crm/leads?search=${encodeURIComponent(item.phone || item.name)}`} className="flex items-center justify-between gap-3 rounded border p-3 hover:bg-emerald-50"><span><span className="block font-semibold">{item.name || "WhatsApp lead"}</span><span className="text-xs text-slate-600">{item.phone ? `${item.phone} · ` : ""}{item.reason}</span></span><span className="text-xs font-semibold text-red-700">Open</span></Link>)}</div></div> : null}
     </div>
   );
 }

@@ -19,6 +19,7 @@ from ..models import (
     CRMWhatsAppAISuggestion,
     CRMLeadSnapshot,
     CRMTask,
+    InvoiceRecord,
     WhatsAppMessageOutbox,
     Order,
     PartnerRequest,
@@ -1097,6 +1098,10 @@ def ceo_dashboard(db: Session = Depends(get_db), current_user: User = Depends(ge
     pending_partner_approvals = db.query(PartnerRequest).filter(PartnerRequest.status == "pending").count()
     pending_product_approvals = db.query(AppSetting).filter(AppSetting.key.like("product_approval:%")).count()
     pending_withdrawals = db.query(AppSetting).filter(AppSetting.key.like("withdrawal:%")).count()
+    pending_order_rows = db.query(PublicOrder).filter(PublicOrder.status.in_(["pending_approval", "pending_payment"])).order_by(PublicOrder.created_at.asc()).all()
+    paid_order_rows = db.query(PublicOrder).filter(PublicOrder.status == "paid").order_by(PublicOrder.created_at.asc()).all()
+    invoiced_order_ids = {row.order_id for row in db.query(InvoiceRecord.order_id).all()}
+    paid_without_invoice = [row for row in paid_order_rows if row.id not in invoiced_order_ids]
     whatsapp_lead_rows = db.query(CRMLead).filter(CRMLead.source == "whatsapp").all()
     activity_rows = db.query(CRMLeadActivity).filter(
         CRMLeadActivity.lead_id.in_([lead.id for lead in whatsapp_lead_rows]),
@@ -1136,6 +1141,10 @@ def ceo_dashboard(db: Session = Depends(get_db), current_user: User = Depends(ge
     for lead in whatsapp_lead_rows:
         if lead.id in handoff_leads:
             action_queue.append({"lead_id": lead.id, "name": lead.contact_person or lead.business_name, "phone": lead.whatsapp_no or lead.phone, "reason": "Customer requested Executive support", "priority": "high"})
+    for order in pending_order_rows:
+        action_queue.append({"order_id": order.id, "name": f"Order {order.id[:8].upper()}", "reason": f"Order {str(order.status or '').replace('_', ' ')}", "priority": "high", "route": "/app/orders"})
+    for order in paid_without_invoice:
+        action_queue.append({"order_id": order.id, "name": f"Order {order.id[:8].upper()}", "reason": "Paid order needs invoice review", "priority": "high", "route": "/app/orders"})
     action_queue = action_queue[:12]
 
     return {
@@ -1159,6 +1168,8 @@ def ceo_dashboard(db: Session = Depends(get_db), current_user: User = Depends(ge
         "pending_partner_approvals": pending_partner_approvals,
         "pending_product_approvals": pending_product_approvals,
         "pending_withdrawals": pending_withdrawals,
+        "pending_orders": len(pending_order_rows),
+        "paid_orders_without_invoice": len(paid_without_invoice),
         "whatsapp_registration_started": sum(1 for lead in whatsapp_lead_rows if lead.status == "APPLICATION" or lead.member_user_id or lead.partner_request_id or lead.rider_user_id),
         "whatsapp_registration_completed": len(registrations_completed),
         "whatsapp_human_handoffs": len(handoff_leads),
