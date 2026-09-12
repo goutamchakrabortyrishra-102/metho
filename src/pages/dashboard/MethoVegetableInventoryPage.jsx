@@ -58,7 +58,7 @@ export default function MethoVegetableInventoryPage() {
 
   return <div className="space-y-6" data-testid="vegetable-inventory-page">
     <div className="flex flex-wrap items-end justify-between gap-4">
-      <div><Link to="/app/metho-vegetable-admin?type=metho_vegetable" className="inline-flex items-center text-sm font-semibold text-emerald-900 hover:underline"><ArrowLeft className="mr-1 h-4 w-4" /> Vegetables</Link><h1 className="mt-2 font-display text-3xl font-black text-emerald-950">Vegetable Inventory</h1><p className="mt-1 text-sm text-slate-600">Daily rate ও stock এখান থেকে edit করুন।</p></div>
+      <div><Link to="/admin/metho-vegetable-admin?type=metho_vegetable" className="inline-flex items-center text-sm font-semibold text-emerald-900 hover:underline"><ArrowLeft className="mr-1 h-4 w-4" /> Vegetables</Link><h1 className="mt-2 font-display text-3xl font-black text-emerald-950">Vegetable Inventory</h1><p className="mt-1 text-sm text-slate-600">Daily rate ও stock এখান থেকে edit করুন।</p></div>
       <div className="flex gap-2"><Button variant="outline" onClick={load} className="rounded-full"><RefreshCw className="mr-2 h-4 w-4" /> Refresh</Button><Button onClick={downloadPdf} className="rounded-full bg-emerald-900 hover:bg-emerald-950"><FileDown className="mr-2 h-4 w-4" /> Download PDF</Button></div>
     </div>
     <div className="flex gap-2 text-xs font-semibold"><span className="rounded-full bg-emerald-100 px-3 py-1.5 text-emerald-900">{items.length} items</span><span className="rounded-full bg-amber-100 px-3 py-1.5 text-amber-900">{lowStockCount} low stock</span></div>

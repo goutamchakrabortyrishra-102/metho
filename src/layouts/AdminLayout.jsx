@@ -1,17 +1,28 @@
 import React, { useState } from "react";
 import { Outlet, NavLink, useNavigate } from "react-router-dom";
-import { Calculator, CheckCircle2, ClipboardList, LogOut, Menu, Package, Send, Shield, Store, Upload, Warehouse, X, Activity, BookOpenCheck, Bot, BadgeIndianRupee, Home, Users, Network, MessageCircle, ChartNoAxesCombined, Settings, CarTaxiFront, UtensilsCrossed, Building2, BriefcaseBusiness, Plane, MapPin, Boxes, Truck, Camera } from "lucide-react";
+import { Calculator, CheckCircle2, ClipboardList, LogOut, Menu, Package, Send, Shield, Store, Upload, Warehouse, X, Activity, BookOpenCheck, Bot, BadgeIndianRupee, Home, Users, Network, MessageCircle, ChartNoAxesCombined, Settings, CarTaxiFront, UtensilsCrossed, Building2, BriefcaseBusiness, Plane, MapPin, Boxes, Truck, Camera, Sparkles, Trophy, Wallet, TrendingUp, ShoppingCart, User } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { Logo } from "@/components/Logo";
 import { Button } from "@/components/ui/button";
 
 const links = [
   { to: "/admin", icon: Home, label: "Admin Home", end: true, testId: "admin-nav-home", section: "Overview" },
+  { to: "/admin/members", icon: Users, label: "Members", testId: "admin-nav-members" },
+  { to: "/admin/genealogy", icon: Network, label: "Genealogy / Downline", testId: "admin-nav-genealogy" },
+  { to: "/admin/smart-cycle", icon: Sparkles, label: "Smart Cycle™", testId: "admin-nav-smart-cycle" },
+  { to: "/admin/leaderboard", icon: Trophy, label: "Leaderboard", testId: "admin-nav-leaderboard" },
+  { to: "/admin/ceo-dashboard", icon: TrendingUp, label: "CEO Dashboard", testId: "admin-nav-ceo-dashboard" },
+  { to: "/admin/wallet", icon: Wallet, label: "Wallet", testId: "admin-nav-wallet" },
+  { to: "/admin/business", icon: TrendingUp, label: "Business", testId: "admin-nav-business" },
   { to: "/admin/metho-store-admin", icon: Warehouse, label: "Store Owner Admin", testId: "admin-nav-metho-store-admin", section: "Business" },
   { to: "/admin/partners", icon: Store, label: "Partners", testId: "admin-nav-partners" },
   { to: "/admin/partner-approvals", icon: CheckCircle2, label: "Partner Applications", testId: "admin-nav-partner-approvals" },
   { to: "/admin/products", icon: Package, label: "Products", testId: "admin-nav-products", section: "Commerce" },
+  { to: "/admin/metho-vegetable-admin?type=metho_vegetable", icon: Package, label: "METHO Vegetable", testId: "admin-nav-metho-vegetable-admin" },
+  { to: "/admin/company-inventory", icon: Boxes, label: "METHO Products Inventory", testId: "admin-nav-company-inventory" },
+  { to: "/admin/metho-vegetable-inventory", icon: Package, label: "METHO Vegetable Inventory", testId: "admin-nav-metho-vegetable-inventory" },
   { to: "/admin/product-approvals", icon: Package, label: "Product Approvals", testId: "admin-nav-product-approvals", section: "Commerce" },
+  { to: "/admin/orders", icon: ShoppingCart, label: "Orders", testId: "admin-nav-orders" },
   { to: "/admin/crm/leads", icon: Users, label: "CRM Auto Leads", testId: "admin-nav-crm-leads" },
   { to: "/admin/crm/active-members", icon: Network, label: "Active Members CRM", testId: "admin-nav-crm-active-members" },
   { to: "/admin/crm/pipeline", icon: ClipboardList, label: "CRM Pipeline", testId: "admin-nav-crm-pipeline" },
@@ -34,6 +45,7 @@ const links = [
   { to: "/admin/active-tracking", icon: MapPin, label: "Active Tracking", testId: "admin-nav-active-tracking" },
   { to: "/admin/product-upload", icon: Upload, label: "Image Upload", testId: "admin-nav-product-upload", section: "System" },
   { to: "/admin/settings", icon: Settings, label: "Admin Settings / Meta Config", testId: "admin-nav-settings" },
+  { to: "/admin/profile", icon: User, label: "Profile", testId: "admin-nav-profile" },
   { to: "/admin/ai-upgrade", icon: Bot, label: "AI Upgrade", testId: "admin-nav-ai-upgrade" },
   { to: "/admin/audit-log", icon: ClipboardList, label: "Audit Log", testId: "admin-nav-audit-log" },
   { to: "/admin/system-health", icon: Activity, label: "System Health", testId: "admin-nav-system-health" },

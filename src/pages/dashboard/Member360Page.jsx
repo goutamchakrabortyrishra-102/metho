@@ -105,7 +105,7 @@ export default function Member360Page() {
               <Pencil className="w-4 h-4 mr-2" /> Edit Profile
             </Button>
           )}
-          <Button type="button" variant="outline" className="rounded-full" onClick={() => nav("/app/members")}>Back to Members</Button>
+          <Button type="button" variant="outline" className="rounded-full" onClick={() => nav("/admin/members")}>Back to Members</Button>
         </div>
       </div>
 

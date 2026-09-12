@@ -550,7 +550,7 @@ export default function ProductsPage() {
           {isAdmin ? (
             <>
               {isVegetableAdmin ? (
-                <Link to="/app/metho-vegetable-inventory">
+                <Link to="/admin/metho-vegetable-inventory">
                   <Button variant="outline" className="rounded-full border-emerald-300 text-emerald-900 hover:bg-emerald-50" data-testid="open-vegetable-inventory">
                     Inventory
                   </Button>
@@ -558,12 +558,12 @@ export default function ProductsPage() {
               ) : null}
               {isVegetableAdmin ? (
                 <>
-                  <Link to="/app/orders?scope=vegetable">
+                  <Link to="/admin/orders?scope=vegetable">
                     <Button variant="outline" className="rounded-full border-sky-300 text-sky-900 hover:bg-sky-50" data-testid="open-vegetable-orders">
                       <FileText className="w-4 h-4 mr-2" /> Customer Orders &amp; Invoice
                     </Button>
                   </Link>
-                  <Link to="/app/orders?scope=vegetable">
+                  <Link to="/admin/orders?scope=vegetable">
                     <Button variant="outline" className="rounded-full border-amber-300 text-amber-900 hover:bg-amber-50" data-testid="open-vegetable-daily-order-sheet">
                       <Printer className="w-4 h-4 mr-2" /> Daily Order Sheet
                     </Button>

@@ -309,7 +309,7 @@ export default function MembersPage() {
             <Button variant="outline" className="rounded-full border-emerald-300 text-emerald-900" onClick={selectAllActiveMembers}>
               <Users className="w-4 h-4 mr-2" /> Select All Active ({activeCount})
             </Button>
-            <Button variant="outline" className="rounded-full" onClick={() => nav("/app/genealogy")}>
+            <Button variant="outline" className="rounded-full" onClick={() => nav("/admin/genealogy")}>
               <Network className="w-4 h-4 mr-2" /> View Tree
             </Button>
             <Button
@@ -398,7 +398,7 @@ export default function MembersPage() {
                       </Button>
                     </DropdownMenuTrigger>
                     <DropdownMenuContent align="end">
-                      <DropdownMenuItem onClick={() => nav(`/app/members/${m.id}/360`)}>
+                      <DropdownMenuItem onClick={() => nav(`/admin/members/${m.id}/360`)}>
                         <Eye className="w-4 h-4 mr-2" /> View Profile
                       </DropdownMenuItem>
                       <DropdownMenuItem onClick={() => openEdit(m)}>

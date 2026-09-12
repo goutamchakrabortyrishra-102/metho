@@ -391,6 +391,14 @@ function App() {
                 }
               >
                 <Route index element={<AdminHomePage />} />
+                <Route path="smart-cycle" element={<AdminRoute><SmartCyclePage /></AdminRoute>} />
+                <Route path="wallet" element={<AdminRoute><WalletPage /></AdminRoute>} />
+                <Route path="members" element={<AdminRoute><MembersPage /></AdminRoute>} />
+                <Route path="members/:memberId/360" element={<AdminRoute><Member360Page /></AdminRoute>} />
+                <Route path="genealogy" element={<AdminRoute><GenealogyPage /></AdminRoute>} />
+                <Route path="leaderboard" element={<AdminRoute><LeaderboardPage /></AdminRoute>} />
+                <Route path="business" element={<AdminRoute><BusinessPage /></AdminRoute>} />
+                <Route path="ceo-dashboard" element={<AdminRoute><CEODashboardPage /></AdminRoute>} />
                 <Route path="metho-store-admin" element={<AdminRoute><MethoStoreAdminPage /></AdminRoute>} />
                 <Route path="partners" element={<AdminRoute><PartnersPage /></AdminRoute>} />
                 <Route path="partner-approvals" element={<AdminRoute><PartnerApprovalsPage /></AdminRoute>} />
@@ -406,7 +414,11 @@ function App() {
                 <Route path="settlement" element={<AdminRoute><MonthlySettlementPage /></AdminRoute>} />
                 <Route path="mps-claims" element={<AdminRoute><MPSClaimsPage /></AdminRoute>} />
                 <Route path="products" element={<AdminRoute><ProductsPage /></AdminRoute>} />
+                <Route path="metho-vegetable-admin" element={<AdminRoute><ProductsPage /></AdminRoute>} />
+                <Route path="company-inventory" element={<AdminRoute><CompanyInventoryPage /></AdminRoute>} />
+                <Route path="metho-vegetable-inventory" element={<AdminRoute><MethoVegetableInventoryPage /></AdminRoute>} />
                 <Route path="product-upload" element={<AdminRoute><Navigate to="/admin/products?upload=1" replace /></AdminRoute>} />
+                <Route path="orders" element={<AdminRoute><OrdersPage /></AdminRoute>} />
                 <Route path="transport-bookings" element={<AdminRoute><AdminTransportPage /></AdminRoute>} />
                 <Route path="stay-dining-bookings" element={<AdminRoute><AdminStayDiningBookingsPage /></AdminRoute>} />
                 <Route path="tourism-control" element={<AdminRoute><TourismControlCenterPage /></AdminRoute>} />
@@ -422,6 +434,7 @@ function App() {
                 <Route path="system-health" element={<AdminRoute><SystemHealthPage /></AdminRoute>} />
                 <Route path="owner-guide" element={<AdminRoute><OwnerGuidePage /></AdminRoute>} />
                 <Route path="settings" element={<AdminRoute><SettingsPage /></AdminRoute>} />
+                <Route path="profile" element={<AdminRoute><ProfilePage /></AdminRoute>} />
               </Route>
               <Route
                 path="/app"
