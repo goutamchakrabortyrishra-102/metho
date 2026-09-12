@@ -1,6 +1,6 @@
 import React, { useState } from "react";
 import { Outlet, NavLink, useNavigate } from "react-router-dom";
-import { Calculator, CheckCircle2, ClipboardList, LogOut, Menu, Package, Send, Shield, Store, Upload, Warehouse, X, Activity, BookOpenCheck, Bot, BadgeIndianRupee, Home } from "lucide-react";
+import { Calculator, CheckCircle2, ClipboardList, LogOut, Menu, Package, Send, Shield, Store, Upload, Warehouse, X, Activity, BookOpenCheck, Bot, BadgeIndianRupee, Home, Users, Network, MessageCircle, ChartNoAxesCombined, Settings } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { Logo } from "@/components/Logo";
 import { Button } from "@/components/ui/button";
@@ -11,12 +11,18 @@ const links = [
   { to: "/admin/partners", icon: Store, label: "Partners", testId: "admin-nav-partners" },
   { to: "/admin/partner-approvals", icon: CheckCircle2, label: "Partner Applications", testId: "admin-nav-partner-approvals" },
   { to: "/admin/product-approvals", icon: Package, label: "Product Approvals", testId: "admin-nav-product-approvals", section: "Commerce" },
+  { to: "/admin/crm/leads", icon: Users, label: "CRM Auto Leads", testId: "admin-nav-crm-leads" },
+  { to: "/admin/crm/active-members", icon: Network, label: "Active Members CRM", testId: "admin-nav-crm-active-members" },
+  { to: "/admin/crm/pipeline", icon: ClipboardList, label: "CRM Pipeline", testId: "admin-nav-crm-pipeline" },
+  { to: "/admin/crm/whatsapp", icon: MessageCircle, label: "WhatsApp Inbox", testId: "admin-nav-crm-whatsapp" },
+  { to: "/admin/crm/whatsapp-ai", icon: Bot, label: "WhatsApp AI", testId: "admin-nav-crm-whatsapp-ai" },
   { to: "/admin/pending-payments", icon: BadgeIndianRupee, label: "Pending Payments", testId: "admin-nav-pending-payments" },
   { to: "/admin/accounts", icon: Calculator, label: "Accounts", testId: "admin-nav-accounts", section: "Finance" },
   { to: "/admin/withdrawals", icon: Send, label: "Withdrawals", testId: "admin-nav-withdrawals" },
   { to: "/admin/settlement", icon: Calculator, label: "Settlement", testId: "admin-nav-settlement" },
   { to: "/admin/mps-claims", icon: Shield, label: "MPS Claims", testId: "admin-nav-mps-claims" },
   { to: "/admin/product-upload", icon: Upload, label: "Image Upload", testId: "admin-nav-product-upload", section: "System" },
+  { to: "/admin/settings", icon: Settings, label: "Admin Settings / Meta Config", testId: "admin-nav-settings" },
   { to: "/admin/ai-upgrade", icon: Bot, label: "AI Upgrade", testId: "admin-nav-ai-upgrade" },
   { to: "/admin/audit-log", icon: ClipboardList, label: "Audit Log", testId: "admin-nav-audit-log" },
   { to: "/admin/system-health", icon: Activity, label: "System Health", testId: "admin-nav-system-health" },

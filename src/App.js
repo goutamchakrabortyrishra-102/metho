@@ -394,6 +394,11 @@ function App() {
                 <Route path="partners" element={<AdminRoute><PartnersPage /></AdminRoute>} />
                 <Route path="partner-approvals" element={<AdminRoute><PartnerApprovalsPage /></AdminRoute>} />
                 <Route path="product-approvals" element={<AdminRoute><ProductApprovalsPage /></AdminRoute>} />
+                <Route path="crm/leads" element={<AdminRoute><CRMLeadsPage /></AdminRoute>} />
+                <Route path="crm/active-members" element={<AdminRoute><ActiveMembersPage /></AdminRoute>} />
+                <Route path="crm/pipeline" element={<AdminRoute><CRMPipelinePage /></AdminRoute>} />
+                <Route path="crm/whatsapp" element={<AdminRoute><WhatsAppInboxPage /></AdminRoute>} />
+                <Route path="crm/whatsapp-ai" element={<AdminRoute><WhatsAppAISettingsPage /></AdminRoute>} />
                 <Route path="pending-payments" element={<AdminRoute><PendingPaymentsPage /></AdminRoute>} />
                 <Route path="accounts" element={<AdminRoute><AccountsPage /></AdminRoute>} />
                 <Route path="withdrawals" element={<AdminRoute><WithdrawalsPage /></AdminRoute>} />
@@ -404,6 +409,7 @@ function App() {
                 <Route path="audit-log" element={<AdminRoute><AuditLogPage /></AdminRoute>} />
                 <Route path="system-health" element={<AdminRoute><SystemHealthPage /></AdminRoute>} />
                 <Route path="owner-guide" element={<AdminRoute><OwnerGuidePage /></AdminRoute>} />
+                <Route path="settings" element={<AdminRoute><SettingsPage /></AdminRoute>} />
               </Route>
               <Route
                 path="/app"
