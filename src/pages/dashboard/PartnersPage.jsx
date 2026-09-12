@@ -1425,10 +1425,10 @@ export default function PartnersPage() {
               <DropdownMenuItem onClick={() => { setSearch(""); setCityFilter(""); setTypeFilter(""); load(); }}>
                 <Eye className="w-4 h-4 mr-2" /> View All Partners
               </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => nav("/app/partner-approvals")}>
+              <DropdownMenuItem onClick={() => nav("/admin/partner-approvals")}>
                 <CheckCircle2 className="w-4 h-4 mr-2" /> Partner Applications
               </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => nav("/app/product-approvals")}>
+              <DropdownMenuItem onClick={() => nav("/admin/product-approvals")}>
                 <Package className="w-4 h-4 mr-2" /> Product Approvals
               </DropdownMenuItem>
               <DropdownMenuItem onClick={() => setLoadError("")}>
@@ -1932,10 +1932,10 @@ export default function PartnersPage() {
           <Button type="button" variant="outline" className="rounded-full" onClick={() => { setSearch(""); setCityFilter(""); setTypeFilter(""); }} data-testid="clear-partner-filters">
             View All Partners
           </Button>
-          <Button type="button" variant="outline" className="rounded-full" onClick={() => nav("/app/partner-approvals")} data-testid="open-partner-approvals">
+          <Button type="button" variant="outline" className="rounded-full" onClick={() => nav("/admin/partner-approvals")} data-testid="open-partner-approvals">
             Partner Approvals
           </Button>
-          <Button type="button" variant="outline" className="rounded-full" onClick={() => nav("/app/product-approvals")} data-testid="open-product-approvals">
+          <Button type="button" variant="outline" className="rounded-full" onClick={() => nav("/admin/product-approvals")} data-testid="open-product-approvals">
             Product Approvals
           </Button>
         </div>
@@ -2055,10 +2055,10 @@ export default function PartnersPage() {
                     <DropdownMenuItem onClick={() => downloadPartnerPdf(p)}>
                       <FileDown className="w-4 h-4 mr-2" /> Download Partner PDF
                     </DropdownMenuItem>
-                    <DropdownMenuItem onClick={() => nav("/app/partner-approvals")}>
+                    <DropdownMenuItem onClick={() => nav("/admin/partner-approvals")}>
                       <CheckCircle2 className="w-4 h-4 mr-2" /> Partner Applications
                     </DropdownMenuItem>
-                    <DropdownMenuItem onClick={() => nav("/app/product-approvals")}>
+                    <DropdownMenuItem onClick={() => nav("/admin/product-approvals")}>
                       <Package className="w-4 h-4 mr-2" /> Product Approvals
                     </DropdownMenuItem>
                     <DropdownMenuItem onClick={() => sendPartnerMessage(p)}>

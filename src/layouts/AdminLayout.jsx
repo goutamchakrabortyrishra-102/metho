@@ -1,6 +1,6 @@
 import React, { useState } from "react";
 import { Outlet, NavLink, useNavigate } from "react-router-dom";
-import { Calculator, CheckCircle2, ClipboardList, LogOut, Menu, Package, Send, Shield, Store, Upload, Warehouse, X, Activity, BookOpenCheck, Bot, BadgeIndianRupee, Home, Users, Network, MessageCircle, ChartNoAxesCombined, Settings } from "lucide-react";
+import { Calculator, CheckCircle2, ClipboardList, LogOut, Menu, Package, Send, Shield, Store, Upload, Warehouse, X, Activity, BookOpenCheck, Bot, BadgeIndianRupee, Home, Users, Network, MessageCircle, ChartNoAxesCombined, Settings, CarTaxiFront, UtensilsCrossed, Building2, BriefcaseBusiness, Plane, MapPin, Boxes, Truck, Camera } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { Logo } from "@/components/Logo";
 import { Button } from "@/components/ui/button";
@@ -10,6 +10,7 @@ const links = [
   { to: "/admin/metho-store-admin", icon: Warehouse, label: "Store Owner Admin", testId: "admin-nav-metho-store-admin", section: "Business" },
   { to: "/admin/partners", icon: Store, label: "Partners", testId: "admin-nav-partners" },
   { to: "/admin/partner-approvals", icon: CheckCircle2, label: "Partner Applications", testId: "admin-nav-partner-approvals" },
+  { to: "/admin/products", icon: Package, label: "Products", testId: "admin-nav-products", section: "Commerce" },
   { to: "/admin/product-approvals", icon: Package, label: "Product Approvals", testId: "admin-nav-product-approvals", section: "Commerce" },
   { to: "/admin/crm/leads", icon: Users, label: "CRM Auto Leads", testId: "admin-nav-crm-leads" },
   { to: "/admin/crm/active-members", icon: Network, label: "Active Members CRM", testId: "admin-nav-crm-active-members" },
@@ -21,6 +22,16 @@ const links = [
   { to: "/admin/withdrawals", icon: Send, label: "Withdrawals", testId: "admin-nav-withdrawals" },
   { to: "/admin/settlement", icon: Calculator, label: "Settlement", testId: "admin-nav-settlement" },
   { to: "/admin/mps-claims", icon: Shield, label: "MPS Claims", testId: "admin-nav-mps-claims" },
+  { to: "/admin/transport-bookings", icon: CarTaxiFront, label: "Transport Bookings", testId: "admin-nav-transport-bookings" },
+  { to: "/admin/stay-dining-bookings", icon: UtensilsCrossed, label: "Stay & Dining Bookings", testId: "admin-nav-stay-dining-bookings" },
+  { to: "/admin/tourism-control", icon: Plane, label: "Tourism Control", testId: "admin-nav-tourism-control" },
+  { to: "/admin/property-buy-sell", icon: Building2, label: "Property Buy & Sell", testId: "admin-nav-property-buy-sell" },
+  { to: "/admin/service-sectors", icon: BriefcaseBusiness, label: "Service Sectors", testId: "admin-nav-service-sectors" },
+  { to: "/admin/metho-delivery", icon: Truck, label: "METHO Delivery", testId: "admin-nav-metho-delivery" },
+  { to: "/admin/shipments", icon: Boxes, label: "Shipments", testId: "admin-nav-shipments" },
+  { to: "/admin/creative-media", icon: Camera, label: "Creative & Media", testId: "admin-nav-creative-media" },
+  { to: "/admin/driver-registry", icon: CarTaxiFront, label: "Driver & Vehicle Registry", testId: "admin-nav-driver-registry" },
+  { to: "/admin/active-tracking", icon: MapPin, label: "Active Tracking", testId: "admin-nav-active-tracking" },
   { to: "/admin/product-upload", icon: Upload, label: "Image Upload", testId: "admin-nav-product-upload", section: "System" },
   { to: "/admin/settings", icon: Settings, label: "Admin Settings / Meta Config", testId: "admin-nav-settings" },
   { to: "/admin/ai-upgrade", icon: Bot, label: "AI Upgrade", testId: "admin-nav-ai-upgrade" },

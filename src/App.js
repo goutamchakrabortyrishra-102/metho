@@ -404,7 +404,18 @@ function App() {
                 <Route path="withdrawals" element={<AdminRoute><WithdrawalsPage /></AdminRoute>} />
                 <Route path="settlement" element={<AdminRoute><MonthlySettlementPage /></AdminRoute>} />
                 <Route path="mps-claims" element={<AdminRoute><MPSClaimsPage /></AdminRoute>} />
-                <Route path="product-upload" element={<AdminRoute><Navigate to="/app/products?upload=1" replace /></AdminRoute>} />
+                <Route path="products" element={<AdminRoute><ProductsPage /></AdminRoute>} />
+                <Route path="product-upload" element={<AdminRoute><Navigate to="/admin/products?upload=1" replace /></AdminRoute>} />
+                <Route path="transport-bookings" element={<AdminRoute><AdminTransportPage /></AdminRoute>} />
+                <Route path="stay-dining-bookings" element={<AdminRoute><AdminStayDiningBookingsPage /></AdminRoute>} />
+                <Route path="tourism-control" element={<AdminRoute><TourismControlCenterPage /></AdminRoute>} />
+                <Route path="property-buy-sell" element={<AdminRoute><AdminPropertyBuySellPage /></AdminRoute>} />
+                <Route path="service-sectors" element={<AdminRoute><AdminServiceSectorsPage /></AdminRoute>} />
+                <Route path="metho-delivery" element={<AdminRoute><MethoDeliveryAdminPage /></AdminRoute>} />
+                <Route path="shipments" element={<AdminRoute><ShipmentsPage /></AdminRoute>} />
+                <Route path="creative-media" element={<AdminRoute><AdminCreativeMediaPage /></AdminRoute>} />
+                <Route path="driver-registry" element={<AdminRoute><DriverRegistryPage /></AdminRoute>} />
+                <Route path="active-tracking" element={<AdminRoute><ActiveTrackingPage /></AdminRoute>} />
                 <Route path="ai-upgrade" element={<AdminRoute><AIUpgradePage /></AdminRoute>} />
                 <Route path="audit-log" element={<AdminRoute><AuditLogPage /></AdminRoute>} />
                 <Route path="system-health" element={<AdminRoute><SystemHealthPage /></AdminRoute>} />

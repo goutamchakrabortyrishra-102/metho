@@ -10,7 +10,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { resolveAssetUrl, openWhatsAppShare } from "@/lib/utils";
 
-const isAdmin = (u) => u && (u.role === "super_admin" || u.role === "company_admin");
+const isAdmin = (u) => u && (["super_admin", "company_admin", "admin"].includes(u.role));
 const BRANDING_IMAGE_MAX_UPLOAD_BYTES = 2 * 1024 * 1024;
 
 const normalizeIdList = (value, maxItems) => {
@@ -1441,7 +1441,7 @@ export default function SettingsPage() {
             type="button"
             variant="outline"
             className="mt-2 rounded-full"
-            onClick={() => window.open("/app/products", "_blank")}
+            onClick={() => window.open("/admin/products", "_blank")}
             data-testid="settings-open-products-page"
           >
             Open Products Page
@@ -1454,7 +1454,7 @@ export default function SettingsPage() {
             type="button"
             variant="outline"
             className="mt-2 rounded-full"
-            onClick={() => window.open("/app/products?upload=1", "_blank")}
+            onClick={() => window.open("/admin/products?upload=1", "_blank")}
             data-testid="settings-open-product-upload"
           >
             Open Product Upload
@@ -2233,7 +2233,7 @@ export default function SettingsPage() {
                   type="button"
                   variant="outline"
                   className="rounded-full border-amber-300 bg-white text-amber-900 hover:bg-amber-100"
-                  onClick={() => window.open("/app/products?upload=1", "_blank")}
+                  onClick={() => window.open("/admin/products?upload=1", "_blank")}
                   data-testid="settings-go-products-upload"
                 >
                   Product Upload / Top Product Control এ যান
