@@ -421,6 +421,7 @@ function App() {
                 <Route path="business" element={<BusinessPage />} />
                 <Route path="profile" element={<ProfilePage />} />
                 <Route path="leaderboard" element={<LeaderboardPage />} />
+                <Route path="metho-store-owner" element={<StoreOwnerRoute><MethoStoreOwnerPage /></StoreOwnerRoute>} />
               </Route>
               <Route path="*" element={<Navigate to="/" replace />} />
             </Routes>
