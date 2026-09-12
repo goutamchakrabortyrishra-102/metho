@@ -12,7 +12,9 @@ const loadRegisterPage = () => import("@/pages/RegisterPage");
 const loadMemberTermsPage = () => import("@/pages/MemberTermsPage");
 const loadForgotPasswordPage = () => import("@/pages/ForgotPasswordPage");
 const loadResetPasswordPage = () => import("@/pages/ResetPasswordPage");
+const loadAdminLayout = () => import("@/layouts/AdminLayout");
 const loadDashboardLayout = () => import("@/layouts/DashboardLayout");
+const loadAdminHomePage = () => import("@/pages/dashboard/AdminHomePage");
 const loadDashboardHome = () => import("@/pages/dashboard/DashboardHome");
 const loadWalletPage = () => import("@/pages/dashboard/WalletPage");
 const loadMembersPage = () => import("@/pages/dashboard/MembersPage");
@@ -91,7 +93,9 @@ const RegisterPage = lazy(loadRegisterPage);
 const MemberTermsPage = lazy(loadMemberTermsPage);
 const ForgotPasswordPage = lazy(loadForgotPasswordPage);
 const ResetPasswordPage = lazy(loadResetPasswordPage);
+const AdminLayout = lazy(loadAdminLayout);
 const DashboardLayout = lazy(loadDashboardLayout);
+const AdminHomePage = lazy(loadAdminHomePage);
 const DashboardHome = lazy(loadDashboardHome);
 const WalletPage = lazy(loadWalletPage);
 const MembersPage = lazy(loadMembersPage);
@@ -267,7 +271,7 @@ const MemberRoute = ({ children }) => {
   const role = normalizeRole(user?.role);
   if (loading) return <div className="min-h-screen flex items-center justify-center">Loading...</div>;
   if (!user || !hasValidToken) return <Navigate to="/login" replace />;
-  if (adminRoles.has(role)) return children;
+  if (adminRoles.has(role)) return <Navigate to="/admin" replace />;
   if (role === "partner") return <Navigate to="/partner" replace />;
   if (role === "rider") return <Navigate to="/rider" replace />;
   if (ownerRoles.has(role)) return <Navigate to="/app/metho-store-owner" replace />;
@@ -329,19 +333,6 @@ const RuntimeMetaBindings = () => {
   return null;
 };
 
-const AdminLegacyRedirect = () => {
-  const location = useLocation();
-  const legacyPath = String(location.pathname || "").replace(/^\/admin\/?/, "");
-
-  // Keep old /admin links working while rendering the unified full-control dashboard under /app.
-  if (!legacyPath) return <Navigate to="/app" replace />;
-  if (legacyPath === "product-upload") return <Navigate to="/app/products?upload=1" replace />;
-
-  const nextPath = `/app/${legacyPath}`;
-  const nextWithQuery = `${nextPath}${location.search || ""}`;
-  return <Navigate to={nextWithQuery} replace />;
-};
-
 function App() {
   return (
     <AuthProvider>
@@ -391,6 +382,30 @@ function App() {
               <Route path="/partner-inventory" element={<PrivateRoute><RouteErrorBoundary><PartnerInventoryPage /></RouteErrorBoundary></PrivateRoute>} />
               <Route path="/partner/inventory" element={<PrivateRoute><RouteErrorBoundary><PartnerInventoryPage /></RouteErrorBoundary></PrivateRoute>} />
               <Route
+                path="/admin"
+                element={
+                  <AdminRoute>
+                    <AdminLayout />
+                  </AdminRoute>
+                }
+              >
+                <Route index element={<AdminHomePage />} />
+                <Route path="metho-store-admin" element={<AdminRoute><MethoStoreAdminPage /></AdminRoute>} />
+                <Route path="partners" element={<AdminRoute><PartnersPage /></AdminRoute>} />
+                <Route path="partner-approvals" element={<AdminRoute><PartnerApprovalsPage /></AdminRoute>} />
+                <Route path="product-approvals" element={<AdminRoute><ProductApprovalsPage /></AdminRoute>} />
+                <Route path="pending-payments" element={<AdminRoute><PendingPaymentsPage /></AdminRoute>} />
+                <Route path="accounts" element={<AdminRoute><AccountsPage /></AdminRoute>} />
+                <Route path="withdrawals" element={<AdminRoute><WithdrawalsPage /></AdminRoute>} />
+                <Route path="settlement" element={<AdminRoute><MonthlySettlementPage /></AdminRoute>} />
+                <Route path="mps-claims" element={<AdminRoute><MPSClaimsPage /></AdminRoute>} />
+                <Route path="product-upload" element={<AdminRoute><Navigate to="/app/products?upload=1" replace /></AdminRoute>} />
+                <Route path="ai-upgrade" element={<AdminRoute><AIUpgradePage /></AdminRoute>} />
+                <Route path="audit-log" element={<AdminRoute><AuditLogPage /></AdminRoute>} />
+                <Route path="system-health" element={<AdminRoute><SystemHealthPage /></AdminRoute>} />
+                <Route path="owner-guide" element={<AdminRoute><OwnerGuidePage /></AdminRoute>} />
+              </Route>
+              <Route
                 path="/app"
                 element={
                   <MemberRoute>
@@ -401,57 +416,12 @@ function App() {
                 <Route index element={<DashboardHome />} />
                 <Route path="smart-cycle" element={<SmartCyclePage />} />
                 <Route path="wallet" element={<WalletPage />} />
-                <Route path="members" element={<AdminRoute><MembersPage /></AdminRoute>} />
                 <Route path="genealogy" element={<GenealogyPage />} />
-                <Route path="products" element={<AdminRoute><ProductsPage /></AdminRoute>} />
-                <Route path="metho-vegetable-admin" element={<AdminRoute><ProductsPage /></AdminRoute>} />
-                <Route path="metho-vegetable-inventory" element={<AdminRoute><MethoVegetableInventoryPage /></AdminRoute>} />
                 <Route path="orders" element={<OrdersPage />} />
                 <Route path="business" element={<BusinessPage />} />
                 <Route path="profile" element={<ProfilePage />} />
-                <Route path="settings" element={<AdminRoute><SettingsPage /></AdminRoute>} />
-                <Route path="metho-store-owner" element={<StoreOwnerRoute><MethoStoreOwnerPage /></StoreOwnerRoute>} />
-                <Route path="pending-payments" element={<AdminRoute><PendingPaymentsPage /></AdminRoute>} />
-                <Route path="accounts" element={<AdminRoute><AccountsPage /></AdminRoute>} />
-                <Route path="settlement" element={<AdminRoute><MonthlySettlementPage /></AdminRoute>} />
-                <Route path="mps-claims" element={<AdminRoute><MPSClaimsPage /></AdminRoute>} />
-                <Route path="partners" element={<AdminRoute><PartnersPage /></AdminRoute>} />
-                <Route path="crm/leads" element={<AdminRoute><CRMLeadsPage /></AdminRoute>} />
-                <Route path="crm/active-members" element={<AdminRoute><ActiveMembersPage /></AdminRoute>} />
-                <Route path="crm/pipeline" element={<AdminRoute><CRMPipelinePage /></AdminRoute>} />
-                <Route path="crm/whatsapp" element={<AdminRoute><WhatsAppInboxPage /></AdminRoute>} />
-                <Route path="crm/whatsapp-ai" element={<AdminRoute><WhatsAppAISettingsPage /></AdminRoute>} />
-                <Route path="members/:memberId/360" element={<AdminRoute><Member360Page /></AdminRoute>} />
-                <Route path="ceo-dashboard" element={<AdminRoute><CEODashboardPage /></AdminRoute>} />
-                <Route path="metho-store-admin" element={<AdminRoute><MethoStoreAdminPage /></AdminRoute>} />
-                <Route path="company-inventory" element={<AdminRoute><CompanyInventoryPage /></AdminRoute>} />
-                <Route path="partner-approvals" element={<AdminRoute><PartnerApprovalsPage /></AdminRoute>} />
-                <Route path="product-approvals" element={<AdminRoute><ProductApprovalsPage /></AdminRoute>} />
-                <Route path="ai-upgrade" element={<AdminRoute><AIUpgradePage /></AdminRoute>} />
-                <Route path="audit-log" element={<AdminRoute><AuditLogPage /></AdminRoute>} />
-                <Route path="system-health" element={<AdminRoute><SystemHealthPage /></AdminRoute>} />
-                <Route path="owner-guide" element={<AdminRoute><OwnerGuidePage /></AdminRoute>} />
-                <Route path="withdrawals" element={<AdminRoute><WithdrawalsPage /></AdminRoute>} />
-                <Route path="transport-bookings" element={<AdminRoute><AdminTransportPage /></AdminRoute>} />
-                <Route path="stay-dining-bookings" element={<AdminRoute><AdminStayDiningBookingsPage /></AdminRoute>} />
-                <Route path="tourism-control" element={<AdminRoute><TourismControlCenterPage /></AdminRoute>} />
-                <Route path="property-buy-sell" element={<AdminRoute><AdminPropertyBuySellPage /></AdminRoute>} />
-                <Route path="service-sectors" element={<AdminRoute><AdminServiceSectorsPage /></AdminRoute>} />
-                <Route path="metho-delivery" element={<AdminRoute><MethoDeliveryAdminPage /></AdminRoute>} />
-                <Route path="shipments" element={<AdminRoute><ShipmentsPage /></AdminRoute>} />
-                <Route path="creative-media" element={<AdminRoute><AdminCreativeMediaPage /></AdminRoute>} />
-                <Route path="driver-registry" element={<AdminRoute><DriverRegistryPage /></AdminRoute>} />
-                <Route path="active-tracking" element={<AdminRoute><ActiveTrackingPage /></AdminRoute>} />
                 <Route path="leaderboard" element={<LeaderboardPage />} />
               </Route>
-              <Route
-                path="/admin/*"
-                element={
-                  <AdminRoute>
-                    <AdminLegacyRedirect />
-                  </AdminRoute>
-                }
-              />
               <Route path="*" element={<Navigate to="/" replace />} />
             </Routes>
           </Suspense>
