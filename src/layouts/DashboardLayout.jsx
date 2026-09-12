@@ -17,7 +17,7 @@ const links = [
   { to: "/app/genealogy", icon: Network, label: "Genealogy", testId: "nav-genealogy" },
   { to: "/app/leaderboard", icon: Trophy, label: "Leaderboard", testId: "nav-leaderboard" },
   { to: "/app/business", icon: TrendingUp, label: "Business", testId: "nav-business", section: "Member Area" },
-  { to: "/app/products", icon: Package, label: "Products", testId: "nav-products" },
+  { to: "/app/products", icon: Package, label: "Products", testId: "nav-products", adminOnly: true },
   { to: "/app/products?upload=1", icon: Upload, label: "Image Upload", testId: "nav-product-upload", adminOnly: true },
   { to: "/app/metho-vegetable-admin?type=metho_vegetable", icon: Package, label: "METHO Vegetable", testId: "nav-metho-vegetable-admin", adminOnly: true },
   { to: "/app/metho-store-owner", icon: Store, label: "METHO Store Products", testId: "nav-metho-store-owner", ownerOnly: true },

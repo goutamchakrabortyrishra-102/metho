@@ -233,6 +233,8 @@ const PrivateRoute = ({ children }) => {
 };
 
 const normalizeRole = (role) => String(role || "").toLowerCase();
+const adminRoles = new Set(["super_admin", "company_admin", "admin"]);
+const ownerRoles = new Set(["store_owner", "metho_store_owner", "owner"]);
 
 const AdminRoute = ({ children }) => {
   const { user, loading } = useAuth();
@@ -240,7 +242,12 @@ const AdminRoute = ({ children }) => {
   const role = normalizeRole(user?.role);
   if (loading) return <div className="min-h-screen flex items-center justify-center">Loading...</div>;
   if (!user || !hasValidToken) return <Navigate to="/login" replace />;
-  if (!["super_admin", "company_admin", "admin"].includes(role)) return <Navigate to="/app" replace />;
+  if (!adminRoles.has(role)) {
+    if (role === "partner") return <Navigate to="/partner" replace />;
+    if (role === "rider") return <Navigate to="/rider" replace />;
+    if (ownerRoles.has(role)) return <Navigate to="/app/metho-store-owner" replace />;
+    return <Navigate to="/app" replace />;
+  }
   return children;
 };
 
@@ -258,12 +265,12 @@ const MemberRoute = ({ children }) => {
   const { user, loading } = useAuth();
   const hasValidToken = Boolean(localStorage.getItem("metho_token"));
   const role = normalizeRole(user?.role);
-  const ownerRoles = ["store_owner", "metho_store_owner", "owner"];
   if (loading) return <div className="min-h-screen flex items-center justify-center">Loading...</div>;
   if (!user || !hasValidToken) return <Navigate to="/login" replace />;
+  if (adminRoles.has(role)) return children;
   if (role === "partner") return <Navigate to="/partner" replace />;
   if (role === "rider") return <Navigate to="/rider" replace />;
-  if (ownerRoles.includes(role)) return <Navigate to="/app/metho-store-owner" replace />;
+  if (ownerRoles.has(role)) return <Navigate to="/app/metho-store-owner" replace />;
   return children;
 };
 
@@ -396,7 +403,7 @@ function App() {
                 <Route path="wallet" element={<WalletPage />} />
                 <Route path="members" element={<AdminRoute><MembersPage /></AdminRoute>} />
                 <Route path="genealogy" element={<GenealogyPage />} />
-                <Route path="products" element={<ProductsPage />} />
+                <Route path="products" element={<AdminRoute><ProductsPage /></AdminRoute>} />
                 <Route path="metho-vegetable-admin" element={<AdminRoute><ProductsPage /></AdminRoute>} />
                 <Route path="metho-vegetable-inventory" element={<AdminRoute><MethoVegetableInventoryPage /></AdminRoute>} />
                 <Route path="orders" element={<OrdersPage />} />
