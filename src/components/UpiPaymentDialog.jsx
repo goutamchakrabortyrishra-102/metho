@@ -281,7 +281,12 @@ export default function UpiPaymentDialog({
   }, [isGuest, payerPhone, payerName, address, shippingCity, shippingState, shippingPincode, customerEmail]);
 
   useEffect(() => {
-    const ref = String(memberRef || "").trim();
+    const explicitRef = String(memberRef || "").trim();
+    const fallbackRef = !isGuest && normalizedUserRole === "member"
+      ? String(user?.member_code || user?.id || user?.email || "").trim()
+      : "";
+    const ref = explicitRef || fallbackRef;
+
     if (!open || !canUseMemberLookup || !ref) {
       setMemberLookupInfo(null);
       lastMemberLookupRef.current = "";
@@ -289,6 +294,7 @@ export default function UpiPaymentDialog({
     }
     if (lastMemberLookupRef.current === ref) return;
     lastMemberLookupRef.current = ref;
+
     const timer = setTimeout(async () => {
       setMemberLookupBusy(true);
       try {
@@ -310,7 +316,7 @@ export default function UpiPaymentDialog({
       }
     }, 350);
     return () => clearTimeout(timer);
-  }, [open, canUseMemberLookup, memberRef, payerName, payerPhone, address]);
+  }, [open, canUseMemberLookup, isGuest, normalizedUserRole, memberRef, user?.member_code, user?.id, user?.email, payerName, payerPhone, address]);
 
   const copyUpi = async () => {
     if (!settings?.upi_id) return;

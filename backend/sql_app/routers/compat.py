@@ -3911,7 +3911,7 @@ def wallet_statement_pdf(current_user=Depends(get_current_user)):
 
 @router.get("/members")
 def members(db: Session = Depends(get_db), current_user=Depends(get_current_user)):
-    rows = db.query(User).order_by(User.created_at.desc()).limit(200).all()
+    rows = db.query(User).filter(User.role == "member").order_by(User.created_at.desc()).limit(200).all()
     out = []
     for u in rows:
         extras = _load_user_profile_details(db, u.id)
@@ -3995,6 +3995,8 @@ def reset_member_password(user_id: str, payload: dict | None = None, db: Session
 
 @router.post("/admin/users/{user_id}/toggle-active")
 def toggle_member_active(user_id: str, db: Session = Depends(get_db), current_user=Depends(get_current_user)):
+    if current_user.role not in {"super_admin", "company_admin", "admin"}:
+        raise HTTPException(status_code=403, detail="Admin access required")
     user = db.query(User).filter(User.id == user_id).first()
     if user:
         user.is_active = not bool(user.is_active)

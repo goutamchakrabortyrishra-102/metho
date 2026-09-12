@@ -390,7 +390,7 @@ export default function MembersPage() {
                       </Button>
                     </DropdownMenuTrigger>
                     <DropdownMenuContent align="end">
-                      <DropdownMenuItem onClick={() => setProfileTarget(m)}>
+                      <DropdownMenuItem onClick={() => nav(`/app/members/${m.id}/360`)}>
                         <Eye className="w-4 h-4 mr-2" /> View Profile
                       </DropdownMenuItem>
                       <DropdownMenuItem onClick={() => openEdit(m)}>

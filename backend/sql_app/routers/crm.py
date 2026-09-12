@@ -28,7 +28,7 @@ from ..models import (
     UserReferral,
     CRM_ALLOWED_STAGES,
 )
-from .auth import get_current_user
+from .auth import get_current_user, member_code_for_user
 from .partner_public import partner_register
 
 router = APIRouter(prefix="/api", tags=["crm"])
@@ -1003,7 +1003,25 @@ def crm_dashboard(db: Session = Depends(get_db), current_user: User = Depends(ge
 @router.get("/admin/members/{member_id}/360")
 def member_360(member_id: str, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     _require_admin_user(current_user)
-    user = db.query(User).filter(User.id == member_id).first()
+    requested = str(member_id or "").strip()
+    user = db.query(User).filter(User.id == requested).first()
+
+    if not user:
+        lookup = requested.lower()
+        user = db.query(User).filter(User.email == lookup).first()
+
+    if not user:
+        lookup = requested.upper()
+        if lookup.startswith("MTH-"):
+            for candidate in db.query(User).filter(User.role == "member").all():
+                if member_code_for_user(candidate.id).upper() == lookup:
+                    user = candidate
+                    break
+
+    if not user:
+        # lastly, support a direct admin member search by phone or by the same user reference field
+        user = db.query(User).filter(or_(User.phone == requested, User.phone == requested.replace("+", ""))).first()
+
     if not user:
         raise HTTPException(status_code=404, detail="Member not found")
 
