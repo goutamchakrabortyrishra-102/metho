@@ -13,7 +13,7 @@ const links = [
   { to: "/app", icon: LayoutDashboard, label: "Overview", end: true, testId: "nav-overview", section: "Overview" },
   { to: "/app/smart-cycle", icon: Sparkles, label: "Smart Cycle™", testId: "nav-smart-cycle" },
   { to: "/app/wallet", icon: Wallet, label: "Wallet", testId: "nav-wallet" },
-  { to: "/app/members", icon: Users, label: "Members", testId: "nav-members" },
+  { to: "/app/members", icon: Users, label: "Members", testId: "nav-members", adminOnly: true },
   { to: "/app/genealogy", icon: Network, label: "Genealogy", testId: "nav-genealogy" },
   { to: "/app/leaderboard", icon: Trophy, label: "Leaderboard", testId: "nav-leaderboard" },
   { to: "/app/business", icon: TrendingUp, label: "Business", testId: "nav-business", section: "Member Area" },
@@ -53,7 +53,7 @@ const links = [
   { to: "/app/system-health", icon: Activity, label: "System Health", testId: "nav-system-health", adminOnly: true },
   { to: "/app/owner-guide", icon: BookOpenCheck, label: "Owner Guide", testId: "nav-owner-guide", adminOnly: true },
   { to: "/app/profile", icon: User, label: "Profile", testId: "nav-profile" },
-  { to: "/app/settings", icon: Settings, label: "Settings", testId: "nav-settings" },
+  { to: "/app/settings", icon: Settings, label: "Settings", testId: "nav-settings", adminOnly: true },
 ];
 
 export default function DashboardLayout() {
@@ -63,7 +63,7 @@ export default function DashboardLayout() {
   const [clearingCurrentData, setClearingCurrentData] = useState(false);
   const nav = useNavigate();
   const location = useLocation();
-  const isAdmin = user?.role === "super_admin" || user?.role === "company_admin" || user?.role === "admin";
+  const isAdmin = ["super_admin", "company_admin", "admin"].includes(String(user?.role || "").toLowerCase());
 
   React.useEffect(() => {
     if (!String(location.pathname || "").startsWith("/app/partners")) return;
@@ -122,9 +122,9 @@ export default function DashboardLayout() {
         </div>
         <nav className="flex-1 p-3 space-y-1 overflow-y-auto">
           {links.filter((l) => {
-            const isAdmin = user?.role === "super_admin" || user?.role === "company_admin" || user?.role === "admin";
-            if (l.adminOnly && !isAdmin) return false;
-            if (l.ownerOnly && !ownerRoles.includes(user?.role)) return false;
+            const isAdminRole = ["super_admin", "company_admin", "admin"].includes(String(user?.role || "").toLowerCase());
+            if (l.adminOnly && !isAdminRole) return false;
+            if (l.ownerOnly && !ownerRoles.includes(String(user?.role || "").toLowerCase())) return false;
             return true;
           }).map(l => (
             <React.Fragment key={l.to}>

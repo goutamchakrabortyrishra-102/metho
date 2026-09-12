@@ -232,30 +232,38 @@ const PrivateRoute = ({ children }) => {
   return children;
 };
 
+const normalizeRole = (role) => String(role || "").toLowerCase();
+
 const AdminRoute = ({ children }) => {
   const { user, loading } = useAuth();
   const hasValidToken = Boolean(localStorage.getItem("metho_token"));
+  const role = normalizeRole(user?.role);
   if (loading) return <div className="min-h-screen flex items-center justify-center">Loading...</div>;
   if (!user || !hasValidToken) return <Navigate to="/login" replace />;
-  if (!["super_admin", "company_admin", "admin"].includes(user?.role)) return <Navigate to="/app" replace />;
+  if (!["super_admin", "company_admin", "admin"].includes(role)) return <Navigate to="/app" replace />;
   return children;
 };
 
 const StoreOwnerRoute = ({ children }) => {
   const { user, loading } = useAuth();
   const hasValidToken = Boolean(localStorage.getItem("metho_token"));
+  const role = normalizeRole(user?.role);
   if (loading) return <div className="min-h-screen flex items-center justify-center">Loading...</div>;
   if (!user || !hasValidToken) return <Navigate to="/login?next=/app/metho-store-owner" replace />;
-  if (!["store_owner", "metho_store_owner", "owner"].includes(user?.role)) return <Navigate to="/app" replace />;
+  if (!["store_owner", "metho_store_owner", "owner"].includes(role)) return <Navigate to="/app" replace />;
   return children;
 };
 
 const MemberRoute = ({ children }) => {
   const { user, loading } = useAuth();
   const hasValidToken = Boolean(localStorage.getItem("metho_token"));
+  const role = normalizeRole(user?.role);
+  const ownerRoles = ["store_owner", "metho_store_owner", "owner"];
   if (loading) return <div className="min-h-screen flex items-center justify-center">Loading...</div>;
   if (!user || !hasValidToken) return <Navigate to="/login" replace />;
-  if (user?.role === "partner") return <Navigate to="/partner" replace />;
+  if (role === "partner") return <Navigate to="/partner" replace />;
+  if (role === "rider") return <Navigate to="/rider" replace />;
+  if (ownerRoles.includes(role)) return <Navigate to="/app/metho-store-owner" replace />;
   return children;
 };
 
@@ -362,7 +370,7 @@ function App() {
               <Route path="/partner" element={<PrivateRoute><PartnerDashboardPage /></PrivateRoute>} />
               <Route path="/directory" element={<DirectoryPage />} />
               <Route path="/metho-store" element={<MethoStorePage />} />
-              <Route path="/settings" element={<SettingsPage />} />
+              <Route path="/settings" element={<AdminRoute><SettingsPage /></AdminRoute>} />
               <Route path="/partner-register" element={<PartnerRegisterPage />} />
               <Route path="/partner-terms" element={<PartnerTermsPage />} />
               <Route path="/rider-register" element={<RiderRegisterPage />} />
@@ -386,7 +394,7 @@ function App() {
                 <Route index element={<DashboardHome />} />
                 <Route path="smart-cycle" element={<SmartCyclePage />} />
                 <Route path="wallet" element={<WalletPage />} />
-                <Route path="members" element={<MembersPage />} />
+                <Route path="members" element={<AdminRoute><MembersPage /></AdminRoute>} />
                 <Route path="genealogy" element={<GenealogyPage />} />
                 <Route path="products" element={<ProductsPage />} />
                 <Route path="metho-vegetable-admin" element={<AdminRoute><ProductsPage /></AdminRoute>} />
@@ -394,7 +402,7 @@ function App() {
                 <Route path="orders" element={<OrdersPage />} />
                 <Route path="business" element={<BusinessPage />} />
                 <Route path="profile" element={<ProfilePage />} />
-                <Route path="settings" element={<SettingsPage />} />
+                <Route path="settings" element={<AdminRoute><SettingsPage /></AdminRoute>} />
                 <Route path="metho-store-owner" element={<StoreOwnerRoute><MethoStoreOwnerPage /></StoreOwnerRoute>} />
                 <Route path="pending-payments" element={<AdminRoute><PendingPaymentsPage /></AdminRoute>} />
                 <Route path="accounts" element={<AdminRoute><AccountsPage /></AdminRoute>} />
@@ -425,7 +433,7 @@ function App() {
                 <Route path="metho-delivery" element={<AdminRoute><MethoDeliveryAdminPage /></AdminRoute>} />
                 <Route path="shipments" element={<AdminRoute><ShipmentsPage /></AdminRoute>} />
                 <Route path="creative-media" element={<AdminRoute><AdminCreativeMediaPage /></AdminRoute>} />
-                <Route path="driver-registry" element={<DriverRegistryPage />} />
+                <Route path="driver-registry" element={<AdminRoute><DriverRegistryPage /></AdminRoute>} />
                 <Route path="active-tracking" element={<AdminRoute><ActiveTrackingPage /></AdminRoute>} />
                 <Route path="leaderboard" element={<LeaderboardPage />} />
               </Route>
