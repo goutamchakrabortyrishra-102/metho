@@ -275,6 +275,7 @@ const MemberRoute = ({ children }) => {
   if (role === "partner") return <Navigate to="/partner" replace />;
   if (role === "rider") return <Navigate to="/rider" replace />;
   if (ownerRoles.has(role)) return <Navigate to="/app/metho-store-owner" replace />;
+  if (role !== "member") return <Navigate to="/login" replace />;
   return children;
 };
 

@@ -1,11 +1,9 @@
 import React, { useState } from "react";
-import { Outlet, NavLink, useLocation, useNavigate } from "react-router-dom";
-import { LayoutDashboard, Wallet, Users, Network, Package, ShoppingCart, TrendingUp, User, LogOut, Menu, X, Search, Settings, Sparkles, BadgeIndianRupee, Calculator, Shield, Store, Compass, Trophy, Send, CheckCircle2, Upload, Bot, ClipboardList, Activity, Warehouse, BookOpenCheck, CarTaxiFront, UtensilsCrossed, Building2, BriefcaseBusiness, Trash2, Boxes, Plane, MapPin, MessageCircle, Truck } from "lucide-react";
+import { Outlet, NavLink, useNavigate } from "react-router-dom";
+import { LayoutDashboard, Wallet, Network, ShoppingCart, TrendingUp, User, LogOut, Menu, X, Search, Sparkles, Store, Compass, Trophy } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { Logo } from "@/components/Logo";
 import { Button } from "@/components/ui/button";
-import { toast } from "sonner";
-import api from "@/services/api";
 
 const ownerRoles = ["store_owner", "metho_store_owner", "owner"];
 
@@ -26,67 +24,20 @@ export default function DashboardLayout() {
   const { user, logout } = useAuth();
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [headerSearch, setHeaderSearch] = useState("");
-  const [clearingCurrentData, setClearingCurrentData] = useState(false);
   const nav = useNavigate();
-  const location = useLocation();
-  const isAdmin = ["super_admin", "company_admin", "admin"].includes(String(user?.role || "").toLowerCase());
-
-  React.useEffect(() => {
-    if (!String(location.pathname || "").startsWith("/app/partners")) return;
-    const params = new URLSearchParams(location.search);
-    setHeaderSearch(params.get("search") || "");
-  }, [location.pathname, location.search]);
 
   const handleLogout = () => {
     logout();
     nav("/");
   };
 
-  const runHeaderSearch = async () => {
+  const runHeaderSearch = () => {
     const term = String(headerSearch || "").trim();
     if (!term) {
-      nav({ pathname: "/app/partners", search: "" });
+      nav("/directory");
       return;
     }
-
-    if (isAdmin) {
-      try {
-        await api.get(`/member-lookup/${encodeURIComponent(term)}`);
-        const params = new URLSearchParams();
-        params.set("search", term);
-        nav({ pathname: "/app/members", search: `?${params.toString()}` });
-        return;
-      } catch {
-        // Not a member lookup. Fall through to the partner/global search route below.
-      }
-    }
-
-    const params = new URLSearchParams();
-    params.set("search", term);
-    nav({ pathname: "/app/partners", search: `?${params.toString()}` });
-  };
-
-  const clearCurrentTestData = async () => {
-    if (!isAdmin || clearingCurrentData) return;
-    const ok = window.confirm("Clear current test/wrong transaction entries now? This removes current order/payment/booking history for a clean state.");
-    if (!ok) return;
-    const confirmText = window.prompt("Type CLEAR_CURRENT_DATA to confirm:", "");
-    if (String(confirmText || "").trim() !== "CLEAR_CURRENT_DATA") {
-      toast.error("Cleanup cancelled: confirmation text did not match");
-      return;
-    }
-
-    setClearingCurrentData(true);
-    try {
-      const { data } = await api.post("/admin/reset-current-data", {});
-      const deletedOrders = Number(data?.result?.deleted_public_orders || 0);
-      const deletedTrips = Number(data?.result?.cleared_transport_bookings || 0);
-      toast.success(`Current data cleared. Orders: ${deletedOrders}, transport bookings: ${deletedTrips}`);
-    } catch (err) {
-      toast.error(err?.response?.data?.detail || "Reset failed");
-    } finally {
-      setClearingCurrentData(false);
-    }
+    nav({ pathname: "/directory", search: `?q=${encodeURIComponent(term)}` });
   };
 
   return (
@@ -104,12 +55,7 @@ export default function DashboardLayout() {
           </div>
         </div>
         <nav className="flex-1 p-3 space-y-1 overflow-y-auto">
-          {links.filter((l) => {
-            const isAdminRole = ["super_admin", "company_admin", "admin"].includes(String(user?.role || "").toLowerCase());
-            if (l.adminOnly && !isAdminRole) return false;
-            if (l.ownerOnly && !ownerRoles.includes(String(user?.role || "").toLowerCase())) return false;
-            return true;
-          }).map(l => (
+          {links.filter((l) => !l.ownerOnly || ownerRoles.includes(String(user?.role || "").toLowerCase())).map(l => (
             <React.Fragment key={l.to}>
             {l.section ? <p className="px-3 pt-4 pb-1 text-[10px] font-bold uppercase tracking-[0.16em] text-slate-400 first:pt-1">{l.section}</p> : null}
             <NavLink
@@ -173,18 +119,6 @@ export default function DashboardLayout() {
               </div>
             </div>
             <div className="flex items-center gap-3">
-              {isAdmin ? (
-                <Button
-                  type="button"
-                  onClick={clearCurrentTestData}
-                  disabled={clearingCurrentData}
-                  variant="outline"
-                  className="hidden md:inline-flex rounded-full border-red-200 text-red-700 hover:bg-red-50"
-                  data-testid="header-clear-current-data"
-                >
-                  <Trash2 className="w-4 h-4 mr-2" /> {clearingCurrentData ? "Clearing..." : "Clear Test Data"}
-                </Button>
-              ) : null}
               <div className="flex items-center gap-2 pl-3 border-l border-border">
                 <div className="w-9 h-9 rounded-full bg-emerald-900 text-amber-400 flex items-center justify-center font-display font-bold">
                   {user?.name?.[0]?.toUpperCase()}
