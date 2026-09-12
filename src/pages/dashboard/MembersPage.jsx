@@ -6,7 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/contexts/AuthContext";
 import { matchesSearch } from "@/lib/search";
-import { useNavigate } from "react-router-dom";
+import { useLocation, useNavigate } from "react-router-dom";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
@@ -14,6 +14,7 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 export default function MembersPage() {
   const { user } = useAuth();
   const nav = useNavigate();
+  const location = useLocation();
   const isAdmin = user && (user.role === "super_admin" || user.role === "company_admin" || user.role === "admin");
   const [members, setMembers] = useState([]);
   const [q, setQ] = useState("");
@@ -121,6 +122,13 @@ export default function MembersPage() {
   };
 
   const getMemberDisplayId = (m) => String(m?.member_code || m?.id || m?.email || "-").trim().toUpperCase();
+
+  useEffect(() => {
+    const incomingSearch = new URLSearchParams(location.search).get("search") || "";
+    if (incomingSearch) {
+      setQ(incomingSearch);
+    }
+  }, [location.search]);
 
   const load = () => {
     if (isAdmin) {

@@ -76,11 +76,28 @@ export default function DashboardLayout() {
     nav("/");
   };
 
-  const runHeaderSearch = () => {
+  const runHeaderSearch = async () => {
     const term = String(headerSearch || "").trim();
+    if (!term) {
+      nav({ pathname: "/app/partners", search: "" });
+      return;
+    }
+
+    if (isAdmin) {
+      try {
+        await api.get(`/member-lookup/${encodeURIComponent(term)}`);
+        const params = new URLSearchParams();
+        params.set("search", term);
+        nav({ pathname: "/app/members", search: `?${params.toString()}` });
+        return;
+      } catch {
+        // Not a member lookup. Fall through to the partner/global search route below.
+      }
+    }
+
     const params = new URLSearchParams();
-    if (term) params.set("search", term);
-    nav({ pathname: "/app/partners", search: params.toString() ? `?${params.toString()}` : "" });
+    params.set("search", term);
+    nav({ pathname: "/app/partners", search: `?${params.toString()}` });
   };
 
   const clearCurrentTestData = async () => {
