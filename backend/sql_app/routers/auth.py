@@ -57,20 +57,60 @@ def _member_identity_setting_key(kind: str, value: str) -> str:
 def _member_phone_exists(db: Session, phone: str) -> bool:
     if not phone:
         return False
-    candidates = {phone}
-    if len(phone) >= 10:
-        candidates.add(phone[-10:])
+    phone_digits = _normalize_member_phone(phone)
+    if not phone_digits:
+        return False
+    candidates = {phone_digits}
+    if len(phone_digits) >= 10:
+        candidates.add(phone_digits[-10:])
     for user in db.query(User).filter(User.role == "member", User.phone != "").all():
         existing = _normalize_member_phone(user.phone)
         if existing in candidates or (len(existing) >= 10 and existing[-10:] in candidates):
             return True
-    return db.query(AppSetting).filter(AppSetting.key == _member_identity_setting_key("phone", phone)).first() is not None
+    if db.query(AppSetting).filter(AppSetting.key == _member_identity_setting_key("phone", phone_digits)).first() is not None:
+        return True
+
+    # Phone identity keys can also be mirrored by a partially-completed registration
+    # payload that has not reached the dedicated identity table row yet.
+    profile_rows = db.query(AppSetting).filter(AppSetting.key.like("user_profile:%")).all()
+    for row in profile_rows:
+        try:
+            payload = json.loads(row.value_json or "{}") if isinstance(row.value_json, str) else {}
+        except Exception:
+            payload = {}
+        if not isinstance(payload, dict):
+            payload = {}
+        stored_phone = _normalize_member_phone(str(payload.get("phone") or ""))
+        if stored_phone and stored_phone in candidates:
+            return True
+    return False
 
 
 def _member_pan_exists(db: Session, pan_no: str) -> bool:
     if not pan_no:
         return False
-    return db.query(AppSetting).filter(AppSetting.key == _member_identity_setting_key("pan", pan_no)).first() is not None
+
+    normalized_pan = _normalize_member_pan(pan_no)
+    if db.query(AppSetting).filter(AppSetting.key == _member_identity_setting_key("pan", normalized_pan)).first() is not None:
+        return True
+
+    # Registration side-effect payloads store the PAN inside the user_profile:<id>
+    # AppSetting record. Scan those snapshots too, because the stored identity key
+    # may be absent after partial or interrupted registration attempts.
+    profile_rows = db.query(AppSetting).filter(AppSetting.key.like("user_profile:%")).all()
+    for row in profile_rows:
+        try:
+            payload = json.loads(row.value_json or "{}") if isinstance(row.value_json, str) else {}
+        except Exception:
+            payload = {}
+        if not isinstance(payload, dict):
+            payload = {}
+        stored_pan = _normalize_member_pan(str(payload.get("pan_no") or ""))
+        if stored_pan == normalized_pan:
+            return True
+
+    return False
+
 ADMIN_LOGIN_ID = str(os.getenv("ADMIN_LOGIN_ID", "admin@metho.com") or "admin@metho.com").strip()
 
 

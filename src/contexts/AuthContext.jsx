@@ -208,9 +208,12 @@ export const AuthProvider = ({ children }) => {
       } catch (endpointErr) {
         const status = Number(endpointErr?.response?.status || 0);
         const detail = String(endpointErr?.response?.data?.detail || "").toLowerCase();
-        const looksDuplicate = detail.includes("username already registered") || (detail.includes("phone") && detail.includes("already"));
-        if (looksDuplicate) {
-          const ownedByThisRequest = await confirmCreatedByThisRequest();
+      const looksDuplicate =
+        detail.includes("username already registered") ||
+        detail.includes("phone number already registered") ||
+        detail.includes("pan number already registered") ||
+        (detail.includes("phone") && detail.includes("already")) ||
+        (detail.includes("pan") && detail.includes("already"));
           if (ownedByThisRequest) {
             return {
               registration_exists: true,

@@ -1,5 +1,6 @@
 import json
 import sys
+from datetime import datetime, timezone
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -108,6 +109,26 @@ def test_member_registration_rejects_duplicate_phone(monkeypatch):
         with pytest.raises(Exception, match="Phone number already registered"):
             register(RegisterRequest(name="Second", email="MAU22346", phone="+91 99999 99999", pan_no="EFGHI1234J", password="secret1"), db)
         assert db.query(User).filter(User.id == "MAU22346").count() == 0
+    finally:
+        db.close()
+
+
+def test_member_registration_rejects_duplicate_pan_from_profile_snapshot(monkeypatch):
+    db = make_session()
+    try:
+        add_user(db, "MAU00001", "super_admin")
+        db.add(AppSetting(
+            key="user_profile:MAU11111",
+            value_json=json.dumps({"pan_no": "ABCDE1234F"}),
+            updated_at=datetime.now(timezone.utc),
+        ))
+        db.commit()
+        monkeypatch.setattr("sql_app.routers.auth.hash_password", lambda value: "hashed")
+        monkeypatch.setattr("sql_app.routers.auth.build_welcome_pdf", lambda user: "")
+        monkeypatch.setattr("sql_app.routers.auth.send_welcome_email", lambda *args: False)
+        with pytest.raises(Exception, match="PAN number already registered"):
+            register(RegisterRequest(name="Second", email="MAU32346", phone="9777777777", pan_no="ABCDE1234F", password="secret1"), db)
+        assert db.query(User).filter(User.id == "MAU32346").count() == 0
     finally:
         db.close()
 
