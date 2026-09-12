@@ -1,6 +1,6 @@
 import React, { useState } from "react";
 import { Link } from "react-router-dom";
-import { AlertTriangle, BadgeIndianRupee, BriefcaseBusiness, CarTaxiFront, CheckCircle2, ClipboardList, Package, RefreshCw, Send, Shield, Store, UtensilsCrossed, Warehouse } from "lucide-react";
+import { Activity, AlertTriangle, BadgeIndianRupee, BriefcaseBusiness, Calculator, CarTaxiFront, CheckCircle2, ClipboardList, Package, RefreshCw, Send, Settings, Shield, Store, UtensilsCrossed, Warehouse } from "lucide-react";
 import { toast } from "sonner";
 import api from "@/services/api";
 import { Button } from "@/components/ui/button";
