@@ -12,8 +12,10 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from sql_app.database import Base
 from sql_app.models import AppSetting, AssociatePartner, User
+from sql_app.routers.auth import LoginRequest, _login_user
 from sql_app.routers.compat import admin_partners_update, admin_update_user
 from sql_app.routers.rider import _profile, admin_update_rider
+from sql_app.security import hash_password, verify_password
 
 
 def make_session():
@@ -115,6 +117,55 @@ def test_admin_can_edit_rider_full_profile_and_own_values():
         assert result["rider"]["name"] == "Updated Rider"
         assert profile["pan_no"] == "ABCDE1234F"
         assert profile["bank_name"] == "New Bank"
+    finally:
+        db.close()
+
+
+def test_admin_member_password_edit_flow():
+    db = make_session()
+    try:
+        admin_user = User(id="ADMIN-REAL", name="Admin", email="admin@test.local", phone="9999999999", password=hash_password("adminpass123"), role="super_admin", is_active=True)
+        db.add(admin_user)
+        target = User(id="MAU12345", name="Member Test", email="member@test.local", phone="9876543210", password=hash_password("oldpass123"), role="member", is_active=True)
+        db.add(target)
+        db.add(AppSetting(key=f"user_profile:{target.id}", value_json=json.dumps({"pan_no": "ABCDE1234F", "phone": "9876543210"})))
+        db.commit()
+
+        # a. Login with old password succeeds initially
+        res_old = _login_user(LoginRequest(email=target.email, password="oldpass123"), db)
+        assert res_old["token"] is not None
+
+        # b. Admin sets a new Member password
+        new_plain_password = "newsecretpass456"
+        res_edit = admin_update_user(target.id, {"password": new_plain_password, "name": "Updated Member"}, db, admin())
+        assert res_edit["ok"] is True
+
+        # c. New password is stored hashed (not plaintext)
+        db.refresh(target)
+        assert target.password != new_plain_password
+        assert verify_password(new_plain_password, target.password)
+
+        # d. Login with new password succeeds
+        res_new = _login_user(LoginRequest(email=target.email, password=new_plain_password), db)
+        assert res_new["token"] is not None
+
+        # e. Old password no longer succeeds
+        with pytest.raises(HTTPException, match="Invalid login ID or password"):
+            _login_user(LoginRequest(email=target.email, password="oldpass123"), db)
+
+        # f. Saving profile without a password (blank or omitted) keeps existing password unchanged
+        current_hash = target.password
+        admin_update_user(target.id, {"name": "Updated Again", "password": ""}, db, admin())
+        db.refresh(target)
+        assert target.password == current_hash
+
+        admin_update_user(target.id, {"name": "Updated Third Time"}, db, admin())
+        db.refresh(target)
+        assert target.password == current_hash
+
+        # Login with new password still succeeds
+        res_still = _login_user(LoginRequest(email=target.email, password=new_plain_password), db)
+        assert res_still["token"] is not None
     finally:
         db.close()
 

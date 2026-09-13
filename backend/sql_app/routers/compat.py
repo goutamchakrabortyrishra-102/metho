@@ -4042,7 +4042,7 @@ def admin_create_user(payload: dict, db: Session = Depends(get_db), current_user
 def admin_update_user(user_id: str, payload: dict, db: Session = Depends(get_db), current_user=Depends(get_current_user)):
     if current_user.role not in {"super_admin", "company_admin", "admin"}:
         raise HTTPException(status_code=403, detail="Admin access required")
-    user = db.query(User).filter(User.id == user_id).first()
+    user = db.query(User).filter(User.id == user_id).first() or _resolve_user_by_member_code(db, user_id)
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
     old_phone = _normalize_member_phone(user.phone) if user.role == "member" else ""
