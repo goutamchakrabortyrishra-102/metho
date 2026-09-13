@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from "react";
 import { Wallet, TrendingUp, Users, ShoppingCart, ArrowUpRight, Award } from "lucide-react";
 import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from "recharts";
+import { useLocation } from "react-router-dom";
 import api from "@/services/api";
 import { useAuth } from "@/contexts/AuthContext";
 import ReferralCard from "@/components/ReferralCard";
@@ -23,11 +24,20 @@ const StatCard = ({ icon: Icon, label, value, suffix, color = "emerald", testId 
 
 export default function DashboardHome() {
   const { user } = useAuth();
+  const location = useLocation();
   const [data, setData] = useState(null);
 
   useEffect(() => {
     api.get("/dashboard/overview").then(r => setData(r.data)).catch(() => {});
   }, []);
+
+  useEffect(() => {
+    if (!data || location.hash !== "#invite-grow") return;
+    const frame = window.requestAnimationFrame(() => {
+      document.getElementById("invite-grow")?.scrollIntoView({ behavior: "smooth", block: "start" });
+    });
+    return () => window.cancelAnimationFrame(frame);
+  }, [data, location.hash]);
 
   if (!data) return <div className="text-muted-foreground">Loading dashboard...</div>;
 
@@ -54,7 +64,9 @@ export default function DashboardHome() {
         <StatCard icon={ShoppingCart} label="Orders" value={data.orders_count} color="amber" testId="stat-orders" />
       </div>
 
-      <ReferralCard downlineCount={data.downline_count} />
+      <div id="invite-grow" className="scroll-mt-24">
+        <ReferralCard downlineCount={data.downline_count} />
+      </div>
 
       <MonthlyProjectionCard />
 

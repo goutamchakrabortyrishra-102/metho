@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { Wallet as WalletIcon, ArrowDown, ArrowUp, Users, Award, Shield, FileDown } from "lucide-react";
-import { Link } from "react-router-dom";
+import { Link, useLocation } from "react-router-dom";
 import api from "@/services/api";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -15,6 +15,7 @@ const inr = (v) => `Rs ${Number(v || 0).toLocaleString("en-IN", { maximumFractio
 
 export default function WalletPage() {
   const BACKEND = String(api?.defaults?.baseURL || "").replace(/\/?api\/?$/, "");
+  const location = useLocation();
   const [wallet, setWallet] = useState(null);
   const [txs, setTxs] = useState([]);
   const [wds, setWds] = useState([]);
@@ -35,6 +36,14 @@ export default function WalletPage() {
   };
 
   useEffect(() => { load(); }, []);
+
+  useEffect(() => {
+    if (!wallet || location.hash !== "#rewards") return;
+    const frame = window.requestAnimationFrame(() => {
+      document.getElementById("rewards")?.scrollIntoView({ behavior: "smooth", block: "start" });
+    });
+    return () => window.cancelAnimationFrame(frame);
+  }, [location.hash, wallet]);
 
   const requestedAmount = Number(amount || 0);
   const requestPreview = getWithdrawalBreakdown({ amount: requestedAmount }, deductionRates);
@@ -186,7 +195,7 @@ export default function WalletPage() {
       </div>
 
       {/* Reward source breakdown — where money came from */}
-      <div>
+      <div id="rewards" className="scroll-mt-24">
         <p className="text-xs uppercase tracking-widest text-slate-500 font-semibold mb-2">Reward Source Breakdown</p>
         <div className="grid md:grid-cols-3 gap-4">
           <div className="bg-white rounded-xl border border-border p-5" data-testid="wallet-member-reward">
