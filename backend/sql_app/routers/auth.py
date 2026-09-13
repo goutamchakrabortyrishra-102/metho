@@ -307,25 +307,27 @@ def send_welcome_email(to_email: str, user_name: str, member_code: str, welcome_
 
 def _send_registration_whatsapp_welcome(db: Session, user: User, member_code: str) -> None:
     try:
-        from ..whatsapp_cloud import public_whatsapp_image_url, send_whatsapp_image, send_whatsapp_message
+        from ..whatsapp_ai import enqueue_whatsapp_message
 
         text = (
             f"🌿 Welcome to METHO AAY-UPAY™! 🎉\n\nDear {user.name},\n\n"
             "Congratulations! Your Member Registration has been successfully completed. "
             "Welcome to the METHO AAY-UPAY™ family! 🤝\n\n"
+            f"🪪 Member ID: {member_code}\n\n"
             "You can now explore opportunities to Shop, Save, Earn & Grow with METHO.\n\n"
             "🎓 Next Step: Our team will guide you through free training and help you get started.\n\n"
             f"📩 Need any help? Reply to this chat or contact our WhatsApp executive: {METHO_SUPPORT_WHATSAPP}.\n\n"
             "METHO AAY-UPAY™ — Better People | Stronger Communities | Brighter Tomorrow 🌿"
         )
-        send_whatsapp_message(db, user.phone, text=text)
-        row = db.query(AppSetting).filter(AppSetting.key == "global").first()
-        settings = json.loads(row.value_json or "{}") if row and row.value_json else {}
-        logo_url = str(settings.get("site_logo_url") or "").strip()
-        if logo_url:
-            send_whatsapp_image(db, user.phone, public_whatsapp_image_url(logo_url), caption=text[:1024])
+        enqueue_whatsapp_message(
+            db,
+            f"member-registration-welcome:{user.id}",
+            user.phone,
+            text,
+            activity_type="member_registration_welcome",
+        )
     except Exception:
-        logger.exception("Registration WhatsApp welcome failed: member_id=%s", member_code)
+        logger.exception("Registration WhatsApp welcome queue failed: member_id=%s", member_code)
 
 
 def get_current_user(
