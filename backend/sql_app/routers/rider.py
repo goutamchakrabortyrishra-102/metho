@@ -235,14 +235,29 @@ def admin_update_rider(user_id: str, payload: dict, db: Session = Depends(get_db
         rider.name = str(payload.get("name") or "").strip() or rider.name
     if payload.get("phone") is not None:
         phone = str(payload.get("phone") or "").strip()
-        duplicate = db.query(User).filter(User.phone == phone, User.id != rider.id).first()
+        normalized_phone = "".join(ch for ch in phone if ch.isdigit())
+        duplicate = next((
+            other for other in db.query(User).filter(User.role == "rider", User.id != rider.id).all()
+            if "".join(ch for ch in str(other.phone or "") if ch.isdigit()) == normalized_phone
+        ), None)
         if duplicate:
             raise HTTPException(status_code=409, detail="Phone already registered")
         rider.phone = phone
     editable = {"vehicle_type", "vehicle_number", "whatsapp", "email", "dob", "address", "city", "district", "state", "pincode", "pan_no", "aadhaar_no", "emergency_contact_name", "emergency_contact_phone", "bank_account_holder", "bank_name", "bank_account_number", "bank_ifsc", "upi_id"}
+    next_pan = str(payload.get("pan_no") if payload.get("pan_no") is not None else profile.get("pan_no") or "").strip().upper()
+    if next_pan:
+        for row in db.query(AppSetting).filter(AppSetting.key.like(f"{RIDER_PROFILE_PREFIX}%"), AppSetting.key != rider_profile_key(rider.id)).all():
+            try:
+                other_profile = json.loads(row.value_json or "{}")
+            except (TypeError, ValueError):
+                other_profile = {}
+            if str(other_profile.get("pan_no") or "").strip().upper() == next_pan:
+                raise HTTPException(status_code=409, detail="PAN already registered")
     for key in editable:
         if payload.get(key) is not None:
             profile[key] = str(payload.get(key) or "").strip()
+    if payload.get("pan_no") is not None:
+        profile["pan_no"] = next_pan
     _save_profile(db, rider.id, profile)
     db.commit()
     return {"rider": _rider_response(rider, profile)}

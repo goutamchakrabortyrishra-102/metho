@@ -8045,22 +8045,33 @@ def admin_partners_create(payload: dict, db: Session = Depends(get_db), current_
 def admin_partners_update(partner_id: str, payload: dict, db: Session = Depends(get_db), current_user=Depends(get_current_user)):
     _require_admin_user(current_user)
     p = db.query(AssociatePartner).filter(AssociatePartner.id == partner_id).first()
-    if p:
-        p.business_name = str(payload.get("business_name") or p.business_name)
-        p.business_type = str(payload.get("business_type") or p.business_type)
-        p.contact_person = str(payload.get("contact_person") or p.contact_person)
-        p.phone = str(payload.get("phone") or p.phone)
-        p.email = str(payload.get("email") or p.email)
-        p.address = str(payload.get("address") or p.address)
-        p.city = str(payload.get("city") or p.city)
-        p.state = str(payload.get("state") or p.state)
-        p.pincode = str(payload.get("pincode") or p.pincode)
-        p.gst_no = str(payload.get("gst_no") or p.gst_no)
-        p.upi_id = str(payload.get("upi_id") or p.upi_id)
-        p.whatsapp_no = str(payload.get("whatsapp_no") or p.whatsapp_no)
-        p.commission_percent = float(payload.get("commission_percent") or p.commission_percent)
-        p.active = bool(payload.get("active", p.active))
-        db.commit()
+    if not p:
+        raise HTTPException(status_code=404, detail="Partner not found")
+    next_phone = str(payload.get("phone") if payload.get("phone") is not None else p.phone).strip()
+    next_gst = str(payload.get("gst_no") if payload.get("gst_no") is not None else p.gst_no).strip().upper()
+    normalized_phone = _normalize_member_phone(next_phone)
+    for other in db.query(AssociatePartner).filter(AssociatePartner.id != p.id).all():
+        if normalized_phone and _normalize_member_phone(other.phone) == normalized_phone:
+            raise HTTPException(status_code=409, detail="Phone number already belongs to another partner")
+        if next_gst and str(other.gst_no or "").strip().upper() == next_gst:
+            raise HTTPException(status_code=409, detail="PAN number already belongs to another partner")
+    for field in {"business_name", "business_type", "contact_person", "email", "address", "city", "state", "pincode", "upi_id", "whatsapp_no", "business_description", "logo_url"}:
+        if payload.get(field) is not None:
+            setattr(p, field, str(payload.get(field) or "").strip())
+    p.phone = next_phone
+    p.gst_no = next_gst
+    if payload.get("commission_percent") is not None:
+        p.commission_percent = float(payload["commission_percent"])
+    if payload.get("is_featured") is not None:
+        p.is_featured = bool(payload["is_featured"])
+    if payload.get("active") is not None:
+        p.active = bool(payload["active"])
+    partner_user = db.query(User).filter(User.role == "partner", User.email == p.email).first()
+    if partner_user:
+        partner_user.name = p.contact_person or partner_user.name
+        partner_user.email = p.email
+        partner_user.phone = p.phone
+    db.commit()
     return {"ok": True, "id": partner_id}
 
 
