@@ -1,5 +1,6 @@
 import uuid
 import json
+import logging
 from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -9,8 +10,10 @@ from ..database import get_db
 from ..crm_automation import record_lifecycle_event_by_phone
 from ..crm_identity import link_lead_to_registration
 from ..models import AppSetting, AssociatePartner, PartnerRequest, User
+from .auth import member_code_for_user, resolve_registration_sponsor
 
 router = APIRouter(prefix="/api", tags=["partner-public"])
+logger = logging.getLogger(__name__)
 
 TRANSPORT_HINTS = {"transport", "cab", "taxi", "car", "car rental", "bike", "bike rental", "travel", "vehicle", "auto", "rickshaw", "e-rickshaw", "autorickshaw"}
 DELIVERY_HINTS = {"delivery", "courier", "logistics", "cargo", "parcel", "shipment", "dispatch", "freight", "goods carrier", "delivery partner"}
@@ -204,6 +207,30 @@ def _compose_partner_description(payload: dict, sector: str) -> str:
     return f"{base}\n\n{meta_line}"
 
 
+def _queue_partner_registration_welcome(db: Session, request: PartnerRequest) -> None:
+    try:
+        from ..whatsapp_ai import enqueue_whatsapp_message
+
+        name = str(request.contact_person or request.business_name or "Partner").strip()
+        text = (
+            f"🌿 Welcome to METHO AAY-UPAY™! 🎉\n\nDear {name},\n\n"
+            "Congratulations! Your Partner application has been successfully submitted. "
+            "Welcome to the METHO AAY-UPAY™ family! 🤝\n\n"
+            "Your application is pending admin approval. Our team will guide you through the next steps.\n\n"
+            "METHO AAY-UPAY™ — Better People | Stronger Communities | Brighter Tomorrow 🌿"
+        )
+        enqueue_whatsapp_message(
+            db,
+            f"partner-registration-welcome:{request.id}",
+            request.whatsapp_no or request.phone,
+            text,
+            activity_type="partner_registration_welcome",
+        )
+    except Exception:
+        db.rollback()
+        logger.exception("Partner registration WhatsApp welcome queue failed: request_id=%s", request.id)
+
+
 @router.post("/partners/register")
 def partner_register(payload: dict, db: Session = Depends(get_db)):
     login_id = str(payload.get("login_id") or payload.get("email") or "").strip()
@@ -252,6 +279,14 @@ def partner_register(payload: dict, db: Session = Depends(get_db)):
     if existing_gst_partner:
         raise HTTPException(status_code=400, detail="This PAN is already linked to an existing shop/service account")
 
+    sponsor_user = resolve_registration_sponsor(db, payload.get("sponsor_code"))
+    if sponsor_user and (
+        str(sponsor_user.email or "").strip().lower() == login_id.lower()
+        or str(sponsor_user.phone or "").strip() == phone
+    ):
+        raise HTTPException(status_code=400, detail="A registration cannot sponsor itself")
+    sponsor_code = member_code_for_user(sponsor_user.id) if sponsor_user else ""
+
     request_id = str(uuid.uuid4())
     composed_description = _compose_partner_description(payload, sector)
 
@@ -284,6 +319,8 @@ def partner_register(payload: dict, db: Session = Depends(get_db)):
                 "shop_sector": inferred_shop_sector,
                 "shop_category": str(payload.get("shop_category") or "").strip(),
                 "district": str(payload.get("district") or "").strip(),
+                "sponsor_user_id": sponsor_user.id if sponsor_user else "",
+                "sponsor_code": sponsor_code,
             }),
             updated_at=datetime.now(timezone.utc),
         )
@@ -318,6 +355,7 @@ def partner_register(payload: dict, db: Session = Depends(get_db)):
     link_lead_to_registration(db, phone=phone, email=login_id, partner_request_id=request_id)
     db.commit()
     record_lifecycle_event_by_phone(db, phone, "partner_registration_submitted", f"Partner registration submitted: {request_id}. Admin approval is pending.", "Review partner KYC/application and guide onboarding after approval", 1)
+    _queue_partner_registration_welcome(db, row)
 
     return {
         "request_id": request_id,

@@ -36,13 +36,23 @@ function ReferralEntryStrip() {
         <div>
           <p className="text-[10px] uppercase tracking-widest text-emerald-800 font-bold">Referral Link Opened</p>
           <p className="text-sm md:text-base text-emerald-950 font-semibold mt-1">
-            Sponsor code <span className="font-mono">{ref}</span> saved. You can join now, or continue in Guest mode.
+            Sponsor code <span className="font-mono">{ref}</span> saved. Choose how you want to join.
           </p>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           <Link to={`/register?ref=${encodeURIComponent(ref)}`} data-testid="landing-ref-join">
             <Button className="bg-emerald-900 hover:bg-emerald-950 text-white rounded-full">
-              Join Now <ArrowRight className="ml-1 w-4 h-4" />
+              Member <ArrowRight className="ml-1 w-4 h-4" />
+            </Button>
+          </Link>
+          <Link to={`/partner-register?ref=${encodeURIComponent(ref)}`} data-testid="landing-ref-partner-join">
+            <Button variant="outline" className="rounded-full border-emerald-900/20 hover:bg-emerald-50 hover:text-emerald-900">
+              Partner
+            </Button>
+          </Link>
+          <Link to={`/rider-register?ref=${encodeURIComponent(ref)}`} data-testid="landing-ref-rider-join">
+            <Button variant="outline" className="rounded-full border-emerald-900/20 hover:bg-emerald-50 hover:text-emerald-900">
+              Rider
             </Button>
           </Link>
           <Link to={`/shop?ref=${encodeURIComponent(ref)}`} data-testid="landing-ref-guest">

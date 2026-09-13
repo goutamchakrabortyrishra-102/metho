@@ -174,7 +174,7 @@ export default function RegisterPage() {
       const dobValue = String(formData.get("dob") ?? form.dob).trim();
       if (dobValue) payload.dob = dobValue;
 
-      const sponsorCode = String(formData.get("sponsor_code") ?? form.sponsor_code).trim().toUpperCase() || defaultSponsorCode;
+      const sponsorCode = refFromUrl || String(formData.get("sponsor_code") ?? form.sponsor_code).trim().toUpperCase() || defaultSponsorCode;
       payload.sponsor_code = sponsorCode;
 
       const addressValue = String(formData.get("address") ?? form.address).trim();
@@ -361,8 +361,9 @@ export default function RegisterPage() {
                 name="sponsor_code"
                 required
                 value={form.sponsor_code}
-                onChange={setField("sponsor_code")}
-                placeholder="Default sponsor ID (you can change)"
+                onChange={refFromUrl ? undefined : setField("sponsor_code")}
+                readOnly={Boolean(refFromUrl)}
+                placeholder={refFromUrl ? "Referral-link sponsor" : "Default sponsor ID (you can change)"}
                 data-testid="register-sponsor-input"
                 className={"mt-1.5 h-11 " + (refFromUrl ? "bg-amber-50 border-amber-300" : "")}
               />

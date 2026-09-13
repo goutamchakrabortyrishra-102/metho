@@ -41,6 +41,7 @@ class RiderRegisterRequest(BaseModel):
     bank_account_number: str = ""
     bank_ifsc: str = ""
     upi_id: str = ""
+    sponsor_code: str | None = None
     agreed_to_terms: bool = False
 
 

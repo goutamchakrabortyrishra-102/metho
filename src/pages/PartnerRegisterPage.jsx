@@ -245,6 +245,7 @@ export default function PartnerRegisterPage() {
   const [searchParams] = useSearchParams();
   const crmLeadId = (searchParams.get("crm_lead_id") || "").trim();
   const trackedPhone = (searchParams.get("prefill_phone") || "").trim();
+  const referralSponsorCode = (searchParams.get("ref") || "").trim().toUpperCase();
   const [form, setForm] = useState({
     business_name: "", business_type: "Shop",
     contact_person: "", phone: "", dob: "", email: "", password: "", whatsapp_no: "",
@@ -550,6 +551,7 @@ export default function PartnerRegisterPage() {
     try {
       const payload = {
         ...form,
+        ...(referralSponsorCode ? { sponsor_code: referralSponsorCode } : {}),
         address: normalizeAddressForSearch({
           address: form.address,
           city: form.city,

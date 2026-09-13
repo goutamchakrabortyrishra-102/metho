@@ -1,4 +1,5 @@
 import json
+import logging
 from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -10,10 +11,11 @@ from ..crm_identity import link_lead_to_registration
 from ..models import AppSetting, User
 from ..schemas import RiderRegisterRequest
 from ..security import hash_password
-from .auth import ADMIN_ROLES, get_current_user, member_code_for_user
+from .auth import ADMIN_ROLES, get_current_user, member_code_for_user, resolve_registration_sponsor
 
 router = APIRouter(prefix="/api", tags=["rider"])
 RIDER_PROFILE_PREFIX = "rider_profile:"
+logger = logging.getLogger(__name__)
 
 
 def rider_profile_key(user_id: str) -> str:
@@ -33,6 +35,18 @@ def _profile(db: Session, user_id: str) -> dict:
     except (TypeError, ValueError):
         return {}
     return value if isinstance(value, dict) else {}
+
+
+def _rider_pan_exists(db: Session, pan_no: str) -> bool:
+    normalized_pan = str(pan_no or "").strip().upper()
+    for row in db.query(AppSetting).filter(AppSetting.key.like(f"{RIDER_PROFILE_PREFIX}%")).all():
+        try:
+            profile = json.loads(row.value_json or "{}")
+        except (TypeError, ValueError):
+            profile = {}
+        if str(profile.get("pan_no") or "").strip().upper() == normalized_pan:
+            return True
+    return False
 
 
 def _save_profile(db: Session, user_id: str, value: dict) -> None:
@@ -79,6 +93,29 @@ def _owned_rider(current_user: User, user_id: str) -> User:
     return current_user
 
 
+def _queue_rider_registration_welcome(db: Session, user: User, whatsapp: str) -> None:
+    try:
+        from ..whatsapp_ai import enqueue_whatsapp_message
+
+        text = (
+            f"🌿 Welcome to METHO AAY-UPAY™! 🎉\n\nDear {user.name},\n\n"
+            "Congratulations! Your Rider registration has been successfully submitted. "
+            "Welcome to the METHO AAY-UPAY™ family! 🤝\n\n"
+            "Your registration is pending admin approval. Our team will guide you through the next steps.\n\n"
+            "METHO AAY-UPAY™ — Better People | Stronger Communities | Brighter Tomorrow 🌿"
+        )
+        enqueue_whatsapp_message(
+            db,
+            f"rider-registration-welcome:{user.id}",
+            whatsapp or user.phone,
+            text,
+            activity_type="rider_registration_welcome",
+        )
+    except Exception:
+        db.rollback()
+        logger.exception("Rider registration WhatsApp welcome queue failed: rider_id=%s", user.id)
+
+
 @router.post("/rider/register")
 def rider_register(payload: RiderRegisterRequest, db: Session = Depends(get_db)):
     phone = str(payload.phone or "").strip()
@@ -96,8 +133,18 @@ def rider_register(payload: RiderRegisterRequest, db: Session = Depends(get_db))
         raise HTTPException(status_code=400, detail="Enter a valid mobile number")
     if email and db.query(User).filter(User.email == email).first():
         raise HTTPException(status_code=409, detail="Email already registered")
-    if db.query(User).filter(User.phone == phone).first():
+    if db.query(User).filter(User.phone == phone, User.role == "rider").first():
         raise HTTPException(status_code=409, detail="Phone already registered")
+    if _rider_pan_exists(db, payload.pan_no):
+        raise HTTPException(status_code=409, detail="PAN already registered")
+
+    sponsor_user = resolve_registration_sponsor(db, payload.sponsor_code)
+    if sponsor_user and (
+        (email and str(sponsor_user.email or "").strip().lower() == email)
+        or str(sponsor_user.phone or "").strip() == phone
+    ):
+        raise HTTPException(status_code=400, detail="A registration cannot sponsor itself")
+    sponsor_code = member_code_for_user(sponsor_user.id) if sponsor_user else ""
 
     user = User(
         name=payload.name.strip(),
@@ -133,11 +180,14 @@ def rider_register(payload: RiderRegisterRequest, db: Session = Depends(get_db))
         "approval_status": "pending",
         "availability": "offline",
         "registered_at": datetime.now(timezone.utc).isoformat(),
+        "sponsor_user_id": sponsor_user.id if sponsor_user else "",
+        "sponsor_code": sponsor_code,
     })
     db.commit()
     link_lead_to_registration(db, phone=phone, email=email, rider_user_id=user.id)
     db.commit()
     record_lifecycle_event_by_phone(db, phone, "rider_registration_submitted", f"Rider registration submitted: {user.id}. Admin approval is pending.", "Review rider application and guide onboarding after approval", 1)
+    _queue_rider_registration_welcome(db, user, payload.whatsapp.strip())
     return {"message": "Rider registration submitted for admin approval", "rider": _rider_response(user, _profile(db, user.id))}
 
 

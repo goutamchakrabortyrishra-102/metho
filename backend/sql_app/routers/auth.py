@@ -142,6 +142,16 @@ def _resolve_user_by_identifier(db: Session, identifier: str) -> User | None:
     if not ref:
         return None
 
+    if ref == DEFAULT_ADMIN_SPONSOR_ID:
+        admin_alias = (
+            db.query(User)
+            .filter(User.role.in_(list(ADMIN_ROLES)), User.is_active.is_(True))
+            .order_by(User.created_at.asc())
+            .first()
+        )
+        if admin_alias:
+            return admin_alias
+
     by_id = db.query(User).filter(User.id == ref).first()
     if by_id:
         return by_id
@@ -173,6 +183,28 @@ def _resolve_default_admin_sponsor(db: Session) -> User | None:
         .order_by(User.created_at.asc())
         .first()
     )
+
+
+def resolve_optional_registration_sponsor(db: Session, sponsor_code: str | None) -> User | None:
+    requested_sponsor = str(sponsor_code or "").strip().upper()
+    if not requested_sponsor:
+        return None
+    sponsor_user = _resolve_user_by_identifier(db, requested_sponsor)
+    if not sponsor_user:
+        raise HTTPException(status_code=400, detail="Sponsor code not found")
+    if not sponsor_user.is_active or sponsor_user.role not in ADMIN_ROLES | {"member"}:
+        sponsor_user = _resolve_default_admin_sponsor(db)
+    if not sponsor_user:
+        raise HTTPException(status_code=503, detail="Default METHO Admin sponsor is not configured")
+    return sponsor_user
+
+
+def resolve_registration_sponsor(db: Session, sponsor_code: str | None) -> User:
+    requested_sponsor = str(sponsor_code or "").strip().upper()
+    sponsor_user = _resolve_default_admin_sponsor(db) if not requested_sponsor else resolve_optional_registration_sponsor(db, requested_sponsor)
+    if not sponsor_user:
+        raise HTTPException(status_code=503, detail="Default METHO Admin sponsor is not configured")
+    return sponsor_user
 
 
 def _resolve_login_user(db: Session, identifier: str, admin_mode: bool = False) -> User | None:

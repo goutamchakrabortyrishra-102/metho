@@ -72,6 +72,8 @@ def test_paid_member_order_activates_exact_member_once():
 def test_partner_registration_is_pending_until_admin_approval():
     db = make_session()
     try:
+        db.add(User(id="ADMIN-REAL", name="METHO Admin", email="admin@test.local", phone="9000000000", password="hashed", role="super_admin", is_active=True))
+        db.commit()
         result = partner_register({
             "login_id": "partner@example.com",
             "password": "secret1",

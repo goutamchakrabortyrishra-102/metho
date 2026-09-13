@@ -28,9 +28,15 @@ def make_session():
     return sessionmaker(bind=engine)()
 
 
+def add_admin(db):
+    db.add(User(id="MAU00001", name="METHO Admin", email="admin@test.local", phone="9000000000", password="hashed", role="super_admin", is_active=True))
+    db.commit()
+
+
 def test_rider_registration_stores_profile_and_starts_pending():
     db = make_session()
     try:
+        add_admin(db)
         result = rider_register(RiderRegisterRequest(
             name="Rider One", phone="9000000001", password="secret1",
             vehicle_type="Bike", vehicle_number="WB01A1234", whatsapp="9000000001", address="Road 1", pan_no="ABCDE1234D", aadhaar_no="123456789011", agreed_to_terms=True,
@@ -47,6 +53,7 @@ def test_rider_registration_stores_profile_and_starts_pending():
 def test_rider_approval_allows_existing_login_and_pending_message_before_approval():
     db = make_session()
     try:
+        add_admin(db)
         result = rider_register(RiderRegisterRequest(
             name="Rider Two", phone="9000000002", password="secret1",
             vehicle_type="Auto", vehicle_number="WB02B2345", agreed_to_terms=True, whatsapp="9000000002", address="Road 2", pan_no="ABCDE1234F", aadhaar_no="123456789012",
@@ -67,6 +74,7 @@ def test_rider_approval_allows_existing_login_and_pending_message_before_approva
 def test_rider_admin_list_and_profile_endpoints_enforce_ownership():
     db = make_session()
     try:
+        add_admin(db)
         result = rider_register(RiderRegisterRequest(
             name="Rider Three", phone="9000000003", password="secret1",
             vehicle_type="Car", vehicle_number="WB03C3456", agreed_to_terms=True, whatsapp="9000000003", address="Road 3", pan_no="ABCDE1234G", aadhaar_no="123456789013",

@@ -3234,6 +3234,13 @@ def _resolve_user_by_member_code(db: Session, member_code: str) -> User | None:
     ref = str(member_code or "").strip().upper()
     if not ref:
         return None
+    if ref == DEFAULT_ADMIN_SPONSOR_ID:
+        admin_alias = db.query(User).filter(
+            User.role.in_(["admin", "company_admin", "super_admin"]),
+            User.is_active.is_(True),
+        ).order_by(User.created_at.asc()).first()
+        if admin_alias:
+            return admin_alias
     by_id = db.query(User).filter(User.id == ref).first()
     if by_id:
         return by_id
@@ -4109,6 +4116,13 @@ def admin_update_user(user_id: str, payload: dict, db: Session = Depends(get_db)
             raise HTTPException(status_code=400, detail="Sponsor is inactive. Activate the sponsor before assigning it.")
         if not sponsor or sponsor.role not in {"member", "admin", "company_admin", "super_admin"} or sponsor.id == user.id or _is_downline_of(db, sponsor.id, user.id):
             raise HTTPException(status_code=400, detail="Valid sponsor_code required; sponsor cannot be a member's downline")
+        admin_user = db.query(User).filter(User.id == current_user.id, User.role.in_(["admin", "company_admin", "super_admin"])).first()
+        if not admin_user:
+            raise HTTPException(status_code=403, detail="Admin identity required")
+        if sponsor.id != admin_user.id and (
+            sponsor.role != "member" or not _is_downline_of(db, sponsor.id, admin_user.id)
+        ):
+            raise HTTPException(status_code=400, detail="Sponsor must be the Admin or a member in the Admin's downline")
         resolved_code = member_code_for_user(sponsor.id)
         if not existing_rel:
             db.add(UserReferral(user_id=user.id, sponsor_user_id=sponsor.id, sponsor_code=resolved_code))

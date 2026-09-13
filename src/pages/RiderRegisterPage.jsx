@@ -12,6 +12,7 @@ export default function RiderRegisterPage() {
   const [searchParams] = useSearchParams();
   const crmLeadId = (searchParams.get("crm_lead_id") || "").trim();
   const trackedPhone = (searchParams.get("prefill_phone") || "").trim();
+  const referralSponsorCode = (searchParams.get("ref") || "").trim().toUpperCase();
   const [loading, setLoading] = useState(false);
   const [agreedToTerms, setAgreedToTerms] = useState(false);
   const nav = useNavigate();
@@ -30,7 +31,11 @@ export default function RiderRegisterPage() {
     setLoading(true);
     const form = new FormData(event.currentTarget);
     try {
-      await api.post("/rider/register", { ...Object.fromEntries(form.entries()), agreed_to_terms: agreedToTerms });
+      await api.post("/rider/register", {
+        ...Object.fromEntries(form.entries()),
+        ...(referralSponsorCode ? { sponsor_code: referralSponsorCode } : {}),
+        agreed_to_terms: agreedToTerms,
+      });
       await api.post("/public/crm/registration-event", { crm_lead_id: crmLeadId, phone: form.get("phone") || trackedPhone, event_type: "registration_form_submitted" });
       toast.success("Registration submitted. Please wait for admin approval.");
       nav("/login?role=rider");
