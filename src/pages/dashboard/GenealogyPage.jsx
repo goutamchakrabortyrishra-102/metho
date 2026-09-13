@@ -4,17 +4,19 @@ import Tree from "react-d3-tree";
 import { Users, Award, Network, Maximize2, ZoomIn, ZoomOut, RotateCcw, List } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/contexts/AuthContext";
+import { getDisplayedHierarchy } from "@/lib/genealogyHierarchy";
 
-function toD3(node) {
+function toD3(node, level = 0) {
   if (!node) return null;
   return {
     name: node.name || node.member_code || "—",
     attributes: {
       code: node.member_code || "",
       rank: node.rank || "Starter",
+      levelLabel: level === 1 ? "Level 1 · Direct Downline" : level > 1 ? `Level ${level}` : "",
     },
     _id: node.id,
-    children: (node.children || []).map(toD3),
+    children: (node.children || []).map((child) => toD3(child, level + 1)),
   };
 }
 
@@ -66,6 +68,11 @@ const NodeCard = ({ nodeDatum, toggleNode }) => {
           <div style={{ fontSize: 9, letterSpacing: 1, color, fontWeight: 800, textTransform: "uppercase" }}>
             {nodeDatum.attributes?.code || rank}
           </div>
+          {nodeDatum.attributes?.levelLabel && (
+            <div style={{ fontSize: 8, color: "#047857", fontWeight: 800, marginTop: 1 }}>
+              {nodeDatum.attributes.levelLabel}
+            </div>
+          )}
           <div style={{ fontSize: 13, color: "#052e29", fontWeight: 700, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
             {nodeDatum.name}
           </div>
@@ -87,6 +94,7 @@ export default function GenealogyPage() {
   const [translate, setTranslate] = useState({ x: 300, y: 80 });
   const wrapRef = useRef(null);
   const [orientation, setOrientation] = useState("vertical");
+  const [directOnly, setDirectOnly] = useState(false);
 
   useEffect(() => {
     api.get("/genealogy/tree").then(r => setTree(r.data)).catch(() => setTree({ id: "", name: user?.name || "You", children: [] }));
@@ -99,16 +107,17 @@ export default function GenealogyPage() {
     }
   }, [view]);
 
-  const d3Tree = useMemo(() => toD3(tree), [tree]);
+  const displayedTree = useMemo(() => getDisplayedHierarchy(tree, directOnly), [tree, directOnly]);
+  const d3Tree = useMemo(() => toD3(displayedTree), [displayedTree]);
   const totalNodes = tree ? countNodes(tree) - 1 : 0; // exclude self
   const depth = tree ? maxDepth(tree) - 1 : 0;
   const directs = tree?.children?.length || 0;
 
   const list = useMemo(() => {
     const out = [];
-    if (tree) flatten(tree, 0, "", out);
+    if (displayedTree) flatten(displayedTree, 0, "", out);
     return out.slice(1); // exclude self
-  }, [tree]);
+  }, [displayedTree]);
 
   if (!tree) return <div className="text-slate-500">Loading team tree...</div>;
 
@@ -134,6 +143,18 @@ export default function GenealogyPage() {
         <div className="bg-white rounded-xl border border-border p-4"><p className="text-[10px] uppercase tracking-widest text-slate-500 font-semibold">Direct Members</p><p className="font-display font-black text-2xl text-emerald-950">{directs}</p></div>
         <div className="bg-white rounded-xl border border-border p-4"><p className="text-[10px] uppercase tracking-widest text-slate-500 font-semibold">Total Downline</p><p className="font-display font-black text-2xl text-emerald-950">{totalNodes}</p></div>
         <div className="bg-white rounded-xl border border-border p-4"><p className="text-[10px] uppercase tracking-widest text-slate-500 font-semibold">Depth</p><p className="font-display font-black text-2xl text-emerald-950">{depth} <span className="text-xs font-normal text-slate-500">level{depth !== 1 ? "s" : ""}</span></p></div>
+      </div>
+
+      <div className="flex flex-wrap items-center justify-between gap-3 border-y border-border py-3">
+        <p className="text-sm font-semibold text-emerald-950" data-testid="direct-downline-count">Direct Downline: {directs}</p>
+        <div className="flex items-center gap-1 rounded-lg border border-border bg-white p-1" aria-label="Hierarchy scope">
+          <Button size="sm" variant={!directOnly ? "default" : "ghost"} onClick={() => setDirectOnly(false)} className={!directOnly ? "bg-emerald-900 hover:bg-emerald-950 text-white" : ""} aria-pressed={!directOnly} data-testid="full-hierarchy-button">
+            Full Hierarchy
+          </Button>
+          <Button size="sm" variant={directOnly ? "default" : "ghost"} onClick={() => setDirectOnly(true)} className={directOnly ? "bg-emerald-900 hover:bg-emerald-950 text-white" : ""} aria-pressed={directOnly} data-testid="direct-downline-only-button">
+            Direct Downline Only
+          </Button>
+        </div>
       </div>
 
       {view === "tree" ? (
