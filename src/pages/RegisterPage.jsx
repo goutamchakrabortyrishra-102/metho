@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { toast } from "sonner";
 import { ArrowRight, Loader2, Gift, CheckCircle2, AlertCircle, Sparkles } from "lucide-react";
@@ -34,6 +34,7 @@ export default function RegisterPage() {
     sponsor_code: refFromUrl || DEFAULT_METHO_ADMIN_SPONSOR_ID,
   }));
   const [loading, setLoading] = useState(false);
+  const submitInFlightRef = useRef(false);
   const [sponsorInfo, setSponsorInfo] = useState(null);
   const [signupBonus, setSignupBonus] = useState(0);
   const [smartCycleBonus, setSmartCycleBonus] = useState(10);
@@ -124,6 +125,7 @@ export default function RegisterPage() {
 
   const submit = async (e) => {
     e.preventDefault();
+    if (submitInFlightRef.current) return;
     if (!agreedToTerms) {
       return toast.error("Please accept Terms & Conditions to continue");
     }
@@ -158,6 +160,7 @@ export default function RegisterPage() {
     const submittedPassword = String(form.password || "");
 
     setLoading(true);
+    submitInFlightRef.current = true;
     try {
       // Read directly from form to avoid browser autofill/state desync issues.
       const formData = new FormData(e.currentTarget);
@@ -249,6 +252,7 @@ export default function RegisterPage() {
         toast.error(msg);
       }
     } finally {
+      submitInFlightRef.current = false;
       setLoading(false);
     }
   };

@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useEffect, useState } from "react";
 import api from "@/services/api";
+import { shouldRetryRegisterOnAliasEndpoint } from "@/lib/memberRegistrationIdentity";
 
 const AuthContext = createContext(null);
 
@@ -224,9 +225,9 @@ export const AuthProvider = ({ children }) => {
           }
         }
 
-        // Some backend builds create the member but return 500.
+        // Some backend builds create the member but return 500 or time out after commit.
         // Confirm ownership before treating as a hard failure.
-        if (status >= 500) {
+        if (status >= 500 || !endpointErr?.response) {
           const ownedByThisRequest = await confirmCreatedByThisRequest();
           if (ownedByThisRequest) {
             return {
@@ -245,10 +246,7 @@ export const AuthProvider = ({ children }) => {
       // Prefer /register because /auth/register is currently CORS-blocked for web clients.
       data = await tryRegisterEndpoint("/register");
     } catch (primaryErr) {
-      const status = Number(primaryErr?.response?.status || 0);
-      const isNetworkLike = !primaryErr?.response;
-      const shouldTryAuthRegister = isNetworkLike || status >= 500 || status === 404 || status === 405;
-      if (!shouldTryAuthRegister) throw primaryErr;
+      if (!shouldRetryRegisterOnAliasEndpoint(primaryErr)) throw primaryErr;
 
       data = await tryRegisterEndpoint("/auth/register");
     }
