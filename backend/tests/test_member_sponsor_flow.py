@@ -13,7 +13,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from sql_app.database import Base
 from sql_app.models import AppSetting, User, UserReferral
 from sql_app.routers.auth import register
-from sql_app.routers.compat import _leader_qualification_snapshot, _member_activation_datetime, admin_update_user
+from sql_app.routers.compat import _leader_qualification_snapshot, _member_activation_datetime, admin_update_user, members, toggle_member_active
 from sql_app.schemas import RegisterRequest
 from sql_app.voice_caller import registration_type_for
 
@@ -29,6 +29,31 @@ def add_user(db, member_id, role="member"):
     db.add(user)
     db.flush()
     return user
+
+
+def test_members_endpoint_filters_to_member_role_only():
+    db = make_session()
+    try:
+        add_user(db, "MAU00011", "member")
+        add_user(db, "MAU00012", "partner")
+        add_user(db, "MAU00013", "rider")
+        db.commit()
+        result = members(db, current_user=SimpleNamespace(role="member"))
+        roles = sorted(row["role"] for row in result)
+        assert roles == ["member"]
+    finally:
+        db.close()
+
+
+def test_toggle_member_active_requires_admin_role():
+    db = make_session()
+    try:
+        target = add_user(db, "MAU00014", "member")
+        db.commit()
+        with pytest.raises(Exception, match="Admin access required"):
+            toggle_member_active(target.id, db, current_user=SimpleNamespace(role="member"))
+    finally:
+        db.close()
 
 
 def test_registration_defaults_to_admin_sponsor(monkeypatch):

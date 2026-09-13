@@ -8,6 +8,7 @@ import { Label } from "@/components/ui/label";
 import { useAuth } from "@/contexts/AuthContext";
 import { Logo } from "@/components/Logo";
 import api from "@/services/api";
+import { isMemberIdCollisionMessage, resolveAssignedMemberId } from "@/lib/memberRegistrationIdentity";
 
 const DEFAULT_METHO_ADMIN_SPONSOR_ID = "MAU00001";
 
@@ -190,9 +191,7 @@ export default function RegisterPage() {
           break;
         } catch (attemptErr) {
           const msg = getErrorMessage(attemptErr);
-          const lower = String(msg || "").toLowerCase();
-          const isUsernameDuplicate = lower.includes("username already registered");
-          if (!isUsernameDuplicate) {
+          if (!isMemberIdCollisionMessage(msg)) {
             throw attemptErr;
           }
           lastRegistrationError = attemptErr;
@@ -211,12 +210,13 @@ export default function RegisterPage() {
       await api.post("/public/crm/registration-event", { crm_lead_id: crmLeadId, phone: payload.phone, event_type: "registration_form_submitted" });
 
       if (result?.token || result?.user) logout();
+      const assignedMemberId = resolveAssignedMemberId(result, submittedMemberId);
 
       if (result?.registration_exists) {
-        toast.success(`Registration already submitted. Member ID: ${submittedMemberId}. Please wait for admin approval.`);
+        toast.success(`Registration already submitted. Member ID: ${assignedMemberId}. Please wait for admin approval.`);
         nav("/login");
       } else {
-        toast.success(`Registration submitted. Member ID: ${submittedMemberId}. Please wait for admin approval.`);
+        toast.success(`Registration submitted. Member ID: ${assignedMemberId}. Please wait for admin approval.`);
         nav("/login");
       }
     } catch (err) {

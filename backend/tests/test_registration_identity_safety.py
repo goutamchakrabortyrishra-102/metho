@@ -12,11 +12,12 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from sql_app.database import Base
 from sql_app.models import AppSetting, PartnerRequest, User, UserReferral
-from sql_app.routers.auth import register
+from sql_app.routers.auth import _login_user, _resolve_login_user, register
 from sql_app.routers.compat import admin_update_user
 from sql_app.routers.partner_public import partner_register
 from sql_app.routers.rider import rider_register
-from sql_app.schemas import RegisterRequest, RiderRegisterRequest
+from sql_app.schemas import LoginRequest, RegisterRequest, RiderRegisterRequest
+from sql_app.security import hash_password
 
 
 def make_session():
@@ -145,6 +146,72 @@ def test_same_role_duplicate_mobile_and_pan_are_rejected(monkeypatch):
             rider_register(rider_payload("9876543210", "BCDEF1234G"), db)
         with pytest.raises(HTTPException, match="PAN already registered"):
             rider_register(rider_payload("9876543211", "ABCDE1234F"), db)
+    finally:
+        db.close()
+
+
+def test_orphaned_member_phone_identity_and_profile_do_not_block_registration(monkeypatch):
+    db = make_session()
+    try:
+        add_admin(db)
+        db.add(AppSetting(
+            key="member_registration_identity:phone:7278469905",
+            value_json=json.dumps({"user_id": "MAU-DELETED"}),
+        ))
+        db.add(AppSetting(
+            key="user_profile:MAU-DELETED",
+            value_json=json.dumps({"phone": "+91 7278469905"}),
+        ))
+        db.add(AppSetting(
+            key="member_registration_identity:phone:917278469905",
+            value_json=json.dumps({"user_id": "MAU-ALSO-DELETED"}),
+        ))
+        db.commit()
+        monkeypatch.setattr("sql_app.routers.auth.hash_password", lambda value: "hashed")
+        monkeypatch.setattr("sql_app.routers.auth.build_welcome_pdf", lambda user: "")
+        monkeypatch.setattr("sql_app.routers.auth.send_welcome_email", lambda *args: False)
+
+        result = register(member_payload("MAU12345", "7278469905", "ABCDE1234F"), db)
+
+        identity = db.query(AppSetting).filter_by(key="member_registration_identity:phone:7278469905").one()
+        assert result["user"]["id"] == "MAU12345"
+        assert json.loads(identity.value_json)["user_id"] == "MAU12345"
+    finally:
+        db.close()
+
+
+def test_member_id_collision_is_rejected_without_silent_reassignment(monkeypatch):
+    db = make_session()
+    try:
+        add_admin(db)
+        db.add(User(id="MAU99529", name="Existing", email="existing@test.local", phone="9000000001", password="hashed", role="member", is_active=True))
+        db.commit()
+        monkeypatch.setattr("sql_app.routers.auth.hash_password", lambda value: "hashed")
+
+        with pytest.raises(HTTPException, match="Member ID already registered"):
+            register(member_payload("MAU99529", "7278469905", "ABCDE1234F"), db)
+
+        assert db.query(User).filter(User.phone == "7278469905").count() == 0
+    finally:
+        db.close()
+
+
+def test_login_resolves_exact_mau99529_and_preserves_auth_failures():
+    db = make_session()
+    try:
+        expected = User(id="MAU99529", name="Expected", email="expected@test.local", phone="9000000001", password=hash_password("correct-password"), role="member", is_active=True)
+        conflicting_email = User(id="OTHER-USER", name="Other", email="MAU99529", phone="9000000002", password=hash_password("other-password"), role="member", is_active=True)
+        db.add_all([expected, conflicting_email])
+        db.commit()
+
+        assert _resolve_login_user(db, "MAU99529") is expected
+        result = _login_user(LoginRequest(email="MAU99529", password="correct-password"), db)
+        assert result["user"]["id"] == expected.id
+
+        with pytest.raises(HTTPException, match="Invalid login ID or password"):
+            _login_user(LoginRequest(email="MAU99529", password="wrong-password"), db)
+        with pytest.raises(HTTPException, match="Invalid login ID or password"):
+            _login_user(LoginRequest(email="MAU99999", password="correct-password"), db)
     finally:
         db.close()
 

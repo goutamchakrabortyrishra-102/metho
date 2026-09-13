@@ -54,6 +54,20 @@ def _member_identity_setting_key(kind: str, value: str) -> str:
     return f"member_registration_identity:{kind}:{value}"
 
 
+def _phone_matches_candidates(value: str, candidates: set[str]) -> bool:
+    normalized = _normalize_member_phone(value)
+    return bool(normalized) and (
+        normalized in candidates or (len(normalized) >= 10 and normalized[-10:] in candidates)
+    )
+
+
+def _member_identity_owner(db: Session, user_id: object) -> User | None:
+    normalized_user_id = str(user_id or "").strip()
+    if not normalized_user_id:
+        return None
+    return db.query(User).filter(User.id == normalized_user_id, User.role == "member").first()
+
+
 def _member_phone_exists(db: Session, phone: str) -> bool:
     if not phone:
         return False
@@ -64,11 +78,21 @@ def _member_phone_exists(db: Session, phone: str) -> bool:
     if len(phone_digits) >= 10:
         candidates.add(phone_digits[-10:])
     for user in db.query(User).filter(User.role == "member", User.phone != "").all():
-        existing = _normalize_member_phone(user.phone)
-        if existing in candidates or (len(existing) >= 10 and existing[-10:] in candidates):
+        if _phone_matches_candidates(user.phone, candidates):
             return True
-    if db.query(AppSetting).filter(AppSetting.key == _member_identity_setting_key("phone", phone_digits)).first() is not None:
-        return True
+    identity_prefix = _member_identity_setting_key("phone", "")
+    identity_rows = db.query(AppSetting).filter(AppSetting.key.like(f"{identity_prefix}%")).all()
+    for row in identity_rows:
+        identity_phone = row.key[len(identity_prefix):]
+        if not _phone_matches_candidates(identity_phone, candidates):
+            continue
+        try:
+            payload = json.loads(row.value_json or "{}") if isinstance(row.value_json, str) else {}
+        except Exception:
+            payload = {}
+        owner = _member_identity_owner(db, payload.get("user_id") if isinstance(payload, dict) else None)
+        if owner and (not _normalize_member_phone(owner.phone) or _phone_matches_candidates(owner.phone, candidates)):
+            return True
 
     # Phone identity keys can also be mirrored by a partially-completed registration
     # payload that has not reached the dedicated identity table row yet.
@@ -81,7 +105,13 @@ def _member_phone_exists(db: Session, phone: str) -> bool:
         if not isinstance(payload, dict):
             payload = {}
         stored_phone = _normalize_member_phone(str(payload.get("phone") or ""))
-        if stored_phone and stored_phone in candidates:
+        if not _phone_matches_candidates(stored_phone, candidates):
+            continue
+        profile_user_id = row.key.split(":", 1)[1] if ":" in row.key else ""
+        owner = _member_identity_owner(db, profile_user_id)
+        if owner and (
+            not _normalize_member_phone(owner.phone) or _phone_matches_candidates(owner.phone, candidates)
+        ):
             return True
     return False
 
@@ -419,7 +449,7 @@ def register(payload: RegisterRequest, request: Request, db: Session = Depends(g
 
     member_id = requested_member_id if _is_member_id(requested_member_id) else _next_member_id(db)
     if db.query(User).filter(User.id == member_id).first() or db.query(User).filter(User.email == member_id).first():
-        member_id = _next_member_id(db)
+        raise HTTPException(status_code=409, detail="Member ID already registered")
 
     requested_sponsor = (payload.sponsor_code or "").strip().upper()
     sponsor_user = _resolve_user_by_identifier(db, requested_sponsor) if requested_sponsor else _resolve_default_admin_sponsor(db)
@@ -443,11 +473,18 @@ def register(payload: RegisterRequest, request: Request, db: Session = Depends(g
     )
     try:
         db.add(user)
-        db.add(AppSetting(
-            key=_member_identity_setting_key("phone", normalized_phone),
-            value_json=json.dumps({"user_id": member_id, "registered_at": datetime.now(timezone.utc).isoformat()}),
-            updated_at=datetime.now(timezone.utc),
-        ))
+        phone_identity_key = _member_identity_setting_key("phone", normalized_phone)
+        phone_identity_payload = json.dumps({"user_id": member_id, "registered_at": datetime.now(timezone.utc).isoformat()})
+        phone_identity = db.query(AppSetting).filter(AppSetting.key == phone_identity_key).first()
+        if phone_identity:
+            phone_identity.value_json = phone_identity_payload
+            phone_identity.updated_at = datetime.now(timezone.utc)
+        else:
+            db.add(AppSetting(
+                key=phone_identity_key,
+                value_json=phone_identity_payload,
+                updated_at=datetime.now(timezone.utc),
+            ))
         db.add(AppSetting(
             key=_member_identity_setting_key("pan", normalized_pan),
             value_json=json.dumps({"user_id": member_id, "registered_at": datetime.now(timezone.utc).isoformat()}),
