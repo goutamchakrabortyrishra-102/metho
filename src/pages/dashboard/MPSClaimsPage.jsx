@@ -23,7 +23,7 @@ const StatusBadge = ({ status }) => {
 
 export default function MPSClaimsPage() {
   const { user } = useAuth();
-  const isAdmin = user && (user.role === "super_admin" || user.role === "company_admin");
+  const isAdmin = user && (["super_admin", "company_admin", "admin"].includes(user.role));
   const [claims, setClaims] = useState([]);
   const [fund, setFund] = useState(null);
   const [members, setMembers] = useState([]);

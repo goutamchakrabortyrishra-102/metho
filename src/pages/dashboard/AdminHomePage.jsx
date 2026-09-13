@@ -1,6 +1,6 @@
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
-import { Activity, AlertTriangle, BadgeIndianRupee, BriefcaseBusiness, Calculator, CarTaxiFront, CheckCircle2, ClipboardList, Package, RefreshCw, Send, Settings, Shield, Store, UtensilsCrossed, Warehouse } from "lucide-react";
+import { Activity, AlertTriangle, BadgeIndianRupee, BriefcaseBusiness, Calculator, CarTaxiFront, CheckCircle2, ClipboardList, Package, RefreshCw, Send, Settings, Shield, Store, TrendingUp, Trophy, Users, UtensilsCrossed, Wallet, Warehouse } from "lucide-react";
 import { toast } from "sonner";
 import api from "@/services/api";
 import { Button } from "@/components/ui/button";
@@ -31,14 +31,65 @@ const sections = [
   { to: "/admin/settings", icon: Settings, title: "Admin Settings", text: "Restore meta/admin configuration, product settings, smart cycle and admin controls." },
 ];
 
+const currency = (value) => `₹${Number(value || 0).toLocaleString("en-IN", { maximumFractionDigits: 2 })}`;
+
+const currentPeriod = () => {
+  const now = new Date();
+  return { year: now.getFullYear(), month: now.getMonth() + 1 };
+};
+
 export default function AdminHomePage() {
   const [resetting, setResetting] = useState(false);
+  const [snapshot, setSnapshot] = useState(null);
+  const [snapshotLoading, setSnapshotLoading] = useState(true);
   const [passwordForm, setPasswordForm] = useState({
     current_password: "",
     new_password: "",
     confirm_password: "",
   });
   const [changingPassword, setChangingPassword] = useState(false);
+
+  useEffect(() => {
+    let active = true;
+    const { year, month } = currentPeriod();
+
+    Promise.allSettled([
+      api.get("/admin/ceo-dashboard"),
+      api.get(`/admin/settlement/preview?year=${year}&month=${month}`),
+      api.get("/admin/mps-fund"),
+      api.get("/admin/system-health"),
+    ]).then(([business, settlement, mps, health]) => {
+      if (!active) return;
+      setSnapshot({
+        business: business.status === "fulfilled" ? business.value.data : null,
+        settlement: settlement.status === "fulfilled" ? settlement.value.data : null,
+        mps: mps.status === "fulfilled" ? mps.value.data : null,
+        health: health.status === "fulfilled" ? health.value.data : null,
+      });
+    }).finally(() => {
+      if (active) setSnapshotLoading(false);
+    });
+
+    return () => { active = false; };
+  }, []);
+
+  const overviewMetrics = [
+    { label: "Today's Sales", value: currency(snapshot?.business?.today_sales), icon: BadgeIndianRupee, to: "/admin/ceo-dashboard" },
+    { label: "Monthly Sales", value: currency(snapshot?.business?.monthly_sales), icon: TrendingUp, to: "/admin/ceo-dashboard" },
+    { label: "Active Members", value: snapshot?.business?.active_members ?? 0, icon: Users, to: "/admin/members" },
+    { label: "Active Partners", value: snapshot?.business?.active_partners ?? 0, icon: Store, to: "/admin/partners" },
+    { label: "Member Reward Pool", value: currency(snapshot?.settlement?.pool_snapshot?.member_pool), icon: Wallet, to: "/admin/settlement" },
+    { label: "Leader Reward Pool", value: currency(snapshot?.settlement?.pool_snapshot?.leader_pool), icon: Trophy, to: "/admin/settlement" },
+    { label: "Qualified Leaders", value: snapshot?.settlement?.leader_settlement?.qualified_count ?? 0, icon: CheckCircle2, to: "/admin/settlement" },
+    { label: "MPS Available", value: currency(snapshot?.mps?.available_balance), icon: Shield, to: "/admin/mps-claims" },
+  ];
+
+  const queueMetrics = [
+    { label: "Pending Orders", value: snapshot?.business?.pending_orders ?? 0, to: "/admin/orders" },
+    { label: "Pending Withdrawals", value: snapshot?.business?.pending_withdrawals ?? 0, to: "/admin/withdrawals" },
+    { label: "Partner Approvals", value: snapshot?.business?.pending_partner_approvals ?? 0, to: "/admin/partner-approvals" },
+    { label: "Hot CRM Leads", value: snapshot?.business?.hot_leads ?? 0, to: "/admin/crm/leads" },
+  ];
 
   const clearCurrentData = async () => {
     if (!window.confirm("Clear current admin-side transaction totals and test booking/payment/order data now? This keeps partner/store master data but removes current accumulated transaction history for a fresh start.")) {
@@ -106,6 +157,39 @@ export default function AdminHomePage() {
       <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900 font-body">
         This reset is one-time operational cleanup. Future partner, service, store, cart, checkout, payment, and booking records will calculate normally again after the fresh start.
       </div>
+
+      <section aria-labelledby="admin-overview-heading" className="space-y-4">
+        <div className="flex flex-wrap items-end justify-between gap-3">
+          <div>
+            <p className="text-xs uppercase tracking-[0.2em] text-emerald-800 font-semibold">Live Control Center</p>
+            <h2 id="admin-overview-heading" className="font-display font-bold text-2xl text-emerald-950 mt-1">Operational Snapshot</h2>
+          </div>
+          <Link to="/admin/system-health" className="inline-flex items-center gap-2 text-sm font-semibold text-emerald-900 hover:text-emerald-700">
+            <Activity className="w-4 h-4" /> System: {snapshotLoading ? "Checking" : (snapshot?.health?.overall_status || "Unavailable")}
+          </Link>
+        </div>
+
+        <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+          {overviewMetrics.map((metric) => (
+            <Link key={metric.label} to={metric.to} className="min-h-28 border border-border bg-white p-4 hover:border-emerald-300 transition-colors">
+              <div className="flex items-start justify-between gap-3">
+                <p className="text-xs font-semibold uppercase text-slate-500">{metric.label}</p>
+                <metric.icon className="w-5 h-5 shrink-0 text-emerald-800" />
+              </div>
+              <p className="mt-4 text-2xl font-black text-emerald-950">{snapshotLoading ? "..." : metric.value}</p>
+            </Link>
+          ))}
+        </div>
+
+        <div className="grid gap-px overflow-hidden border border-border bg-border sm:grid-cols-2 xl:grid-cols-4">
+          {queueMetrics.map((metric) => (
+            <Link key={metric.label} to={metric.to} className="flex min-h-20 items-center justify-between gap-3 bg-white px-4 py-3 hover:bg-emerald-50">
+              <span className="text-sm font-semibold text-slate-700">{metric.label}</span>
+              <span className="text-xl font-black text-emerald-950">{snapshotLoading ? "..." : metric.value}</span>
+            </Link>
+          ))}
+        </div>
+      </section>
 
       <div className="rounded-2xl border border-border bg-white p-5">
         <div className="flex items-center justify-between gap-3">

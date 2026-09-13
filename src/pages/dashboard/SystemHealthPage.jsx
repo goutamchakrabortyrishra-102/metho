@@ -14,7 +14,7 @@ const STATUS_META = {
 
 export default function SystemHealthPage() {
   const { user } = useAuth();
-  const isAdmin = user && (user.role === "super_admin" || user.role === "company_admin");
+  const isAdmin = user && (["super_admin", "company_admin", "admin"].includes(user.role));
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
 

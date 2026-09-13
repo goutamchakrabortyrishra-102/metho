@@ -28,7 +28,7 @@ const StatCard = ({ icon: Icon, label, value, hint, tone = "emerald" }) => (
 
 export default function MonthlySettlementPage() {
   const { user } = useAuth();
-  const isAdmin = user && (user.role === "super_admin" || user.role === "company_admin");
+  const isAdmin = user && (["super_admin", "company_admin", "admin"].includes(user.role));
 
   const now = new Date();
   const [year, setYear] = useState(now.getFullYear());

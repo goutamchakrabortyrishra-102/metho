@@ -7,7 +7,7 @@ from urllib.error import HTTPError
 from urllib.parse import parse_qsl, urlencode, urljoin, urlsplit, urlunsplit
 from urllib.request import Request, urlopen
 
-from fastapi import APIRouter, Depends, Header, HTTPException
+from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import JSONResponse
 from sqlalchemy.orm import Session
 
@@ -15,7 +15,7 @@ from ..database import get_db
 from ..models import AppSetting, PublicOrder, User
 from ..meta_ads import encrypt_secret, resolve_config, test_meta_config
 from ..voice_caller import PROFILE_KEYS, resolve_voice_config, validate_voice_config
-from .auth import get_current_user
+from .auth import get_current_user, get_current_user_optional
 
 router = APIRouter(prefix="/api", tags=["settings"])
 logger = logging.getLogger(__name__)
@@ -257,9 +257,9 @@ def _sanitize_public_settings(payload: dict) -> dict:
 
 
 @router.get("/settings")
-def get_settings(authorization: str | None = Header(default=None), db: Session = Depends(get_db)):
+def get_settings(current_user: User | None = Depends(get_current_user_optional), db: Session = Depends(get_db)):
     payload = load_settings(db)
-    if str(authorization or "").strip():
+    if current_user and getattr(current_user, "role", "") in ADMIN_ROLES:
         return payload
     return _sanitize_public_settings(payload)
 

@@ -7789,6 +7789,7 @@ def kyc_submit(payload: dict, db: Session = Depends(get_db), current_user=Depend
 
 @router.get("/admin/system-health")
 def system_health(db: Session = Depends(get_db), current_user=Depends(get_current_user)):
+    _require_admin_user(current_user)
     total_users = db.query(User).count()
     total_orders = db.query(Order).count()
     total_products = db.query(Product).count()
@@ -8356,6 +8357,7 @@ def admin_partner_request_reject(request_id: str, payload: dict | None = None, d
 
 @router.get("/admin/mps-fund")
 def admin_mps_fund(db: Session = Depends(get_db), current_user=Depends(get_current_user)):
+    _require_admin_user(current_user)
     settings = load_settings(db)
     period = datetime.now(timezone.utc).strftime("%Y-%m")
     pool = _calculate_sql_pool(db, period)
@@ -8375,6 +8377,7 @@ def admin_mps_fund(db: Session = Depends(get_db), current_user=Depends(get_curre
 
 @router.get("/admin/mps-claims")
 def admin_mps_claims(current_user=Depends(get_current_user)):
+    _require_admin_user(current_user)
     return MPS_CLAIMS
 
 
@@ -8417,6 +8420,7 @@ def admin_mps_claims_approve(claim_id: str, db: Session = Depends(get_db), curre
 
 @router.post("/admin/mps-claims/{claim_id}/reject")
 def admin_mps_claims_reject(claim_id: str, payload: dict | None = None, current_user=Depends(get_current_user)):
+    _require_admin_user(current_user)
     for c in MPS_CLAIMS:
         if c["id"] == claim_id:
             c["status"] = "rejected"
@@ -8426,6 +8430,7 @@ def admin_mps_claims_reject(claim_id: str, payload: dict | None = None, current_
 
 @router.get("/admin/settlement/preview")
 def settlement_preview(year: int, month: int, db: Session = Depends(get_db), current_user=Depends(get_current_user)):
+    _require_admin_user(current_user)
     period = f"{year}-{str(month).zfill(2)}"
     pool = _calculate_sql_pool(db, period)
     member_totals = {}
@@ -8522,6 +8527,7 @@ def settlement_execute(year: int, month: int, db: Session = Depends(get_db), cur
 
 @router.get("/admin/settlements")
 def settlement_history(current_user=Depends(get_current_user)):
+    _require_admin_user(current_user)
     return []
 
 

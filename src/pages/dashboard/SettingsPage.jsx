@@ -480,9 +480,9 @@ function InstallShareSection() {
   );
 }
 
-function Section({ title, subtitle, icon: Icon, children, badge }) {
+function Section({ id, title, subtitle, icon: Icon, children, badge }) {
   return (
-    <div className="bg-white rounded-xl border border-border p-6">
+    <div id={id} className="scroll-mt-24 bg-white rounded-xl border border-border p-6">
       <div className="flex items-start justify-between">
         <div className="flex items-start gap-3">
           {Icon ? (
@@ -1428,6 +1428,22 @@ export default function SettingsPage() {
         ) : null}
       </div>
 
+      <nav className="flex flex-wrap gap-2 border-y border-border py-3" aria-label="Settings sections" data-testid="settings-section-navigation">
+        {[
+          ["settings-rewards", "Rewards"],
+          ["settings-finance", "Finance"],
+          ["settings-policies", "Policies"],
+          ["settings-integrations", "Integrations"],
+          ["settings-payments", "Payments & OTP"],
+          ["settings-compliance", "Compliance"],
+          ["settings-branding", "Branding"],
+        ].map(([target, label]) => (
+          <a key={target} href={`#${target}`} className="border border-emerald-200 bg-white px-3 py-2 text-xs font-semibold text-emerald-900 hover:bg-emerald-50">
+            {label}
+          </a>
+        ))}
+      </nav>
+
       <div className="grid gap-3 md:grid-cols-3" data-testid="settings-layout-summary-cards">
         <div className="rounded-xl border border-border bg-white p-4">
           <p className="text-[11px] uppercase tracking-[0.16em] text-emerald-800 font-semibold">Layout Mode</p>
@@ -1465,6 +1481,7 @@ export default function SettingsPage() {
       <form onSubmit={save} className="space-y-6">
         <fieldset disabled={readOnly} className="space-y-6">
           <Section
+            id="settings-rewards"
             title="Smart Cycle Engine™"
             subtitle="শুধু METHO product-এ চলে। Bonus Week-এ member qualified sales-এর উপর bonus পায়।"
             icon={Sparkles}
@@ -1593,7 +1610,7 @@ export default function SettingsPage() {
             </div>
           </Section>
 
-          <Section title="Wallet ও Withdrawal" subtitle="Member cash-out এর নিয়ম" icon={SettingsIcon}>
+          <Section id="settings-finance" title="Wallet ও Withdrawal" subtitle="Member cash-out এর নিয়ম" icon={SettingsIcon}>
             <Field
               label="Minimum Withdrawal"
               testId="settings-min-withdrawal"
@@ -1739,6 +1756,7 @@ export default function SettingsPage() {
           </Section>
 
           <Section
+            id="settings-policies"
             title="Mission, Vision & Policies"
             subtitle="METHO mission/vision, rules-conditions, return policy এবং partner agreement policy আলাদাভাবে editable।"
             icon={SettingsIcon}
@@ -1804,6 +1822,10 @@ export default function SettingsPage() {
             onPersist={(value) => persistBrandingField("upi_qr_url", value)}
           />
 
+          <div id="settings-integrations" className="scroll-mt-24 border-b border-border pb-2">
+            <p className="text-xs uppercase tracking-[0.16em] text-emerald-800 font-semibold">External Integrations</p>
+            <p className="mt-1 text-sm text-slate-600">Meta, WhatsApp, voice calling, and shipping provider controls.</p>
+          </div>
 
           {!readOnly && metaForm ? (
             <Section title="Meta Lead Ads" subtitle="Configure Facebook Lead Ads without editing source code or environment files." icon={SettingsIcon} badge="Admin">
@@ -1903,6 +1925,7 @@ export default function SettingsPage() {
           ) : null}
 
           <Section
+            id="settings-payments"
             title="Razorpay Gateway"
             subtitle="Instant online payment via Razorpay Checkout. Enable only after entering live/test key pair."
             icon={QrCode}
@@ -2113,6 +2136,7 @@ export default function SettingsPage() {
           </Section>
 
           <Section
+            id="settings-compliance"
             title="E-Invoice IRN (GSTN / GSP)"
             subtitle="GST Suvidha Provider বা NIC portal-এর সাথে আপনার invoice submit করুন। Mock mode-এ IRN generate হবে demo/dev-এর জন্য।"
             icon={FileCheck2}
@@ -2174,6 +2198,7 @@ export default function SettingsPage() {
           </Section>
 
           <Section
+            id="settings-branding"
             title="Brand & Landing Essentials"
             subtitle="Landing page, shop, PWA — সব জায়গায় দেখানো logo/hero images এখান থেকে control করুন।"
             icon={ImageIcon}
