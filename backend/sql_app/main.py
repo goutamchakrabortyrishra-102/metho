@@ -13,7 +13,8 @@ import time
 
 from .database import Base, SessionLocal, engine
 from .models import AssociatePartner, PartnerProduct, User
-from .routers import auth, checkout, commerce, compat, company_inventory, crm, directory, direct_booking, health, meta_ads, partner_public, rider, settings, voice_caller, whatsapp, whatsapp_ai
+from .followup_scheduler import send_due_lifecycle_followups
+from .routers import auth, checkout, commerce, compat, company_inventory, crm, directory, direct_booking, health, lifecycle_followups, meta_ads, partner_public, rider, settings, voice_caller, whatsapp, whatsapp_ai
 from .security import hash_password
 
 logger = logging.getLogger(__name__)
@@ -483,6 +484,7 @@ app.include_router(direct_booking.router)
 app.include_router(checkout.router)
 app.include_router(crm.router)
 app.include_router(meta_ads.router)
+app.include_router(lifecycle_followups.router)
 app.include_router(voice_caller.router)
 app.include_router(whatsapp.router)
 app.include_router(whatsapp_ai.router)
@@ -493,6 +495,11 @@ app.include_router(compat.router)
 def startup_db_init():
     _initialize_database_with_retry()
     Thread(target=_whatsapp_followup_worker, name="whatsapp-followups", daemon=True).start()
+    def _lifecycle_followup_scheduler_loop():
+        while True:
+            sleep(1800)
+            send_due_lifecycle_followups()
+    Thread(target=_lifecycle_followup_scheduler_loop, name="lifecycle-followups", daemon=True).start()
 
 
 def _whatsapp_followup_worker():
