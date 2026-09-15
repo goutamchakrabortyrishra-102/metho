@@ -1,11 +1,9 @@
 import React from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { Link } from "react-router-dom";
 import { useSettings } from "@/contexts/SettingsContext";
 
 const DEFAULT_LOGO_URL = "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 200 200'><rect width='200' height='200' rx='100' fill='%23e53935'/><text x='50%25' y='44%25' dominant-baseline='middle' text-anchor='middle' fill='white' font-size='26' font-family='Arial, sans-serif' font-weight='700'>Metho</text><text x='50%25' y='62%25' dominant-baseline='middle' text-anchor='middle' fill='white' font-size='17' font-family='Arial, sans-serif' font-weight='700'>STORE</text></svg>";
 const LOGO_LOGISTICS_URL = "https://customer-assets-lxgj4vgw.emergentagent.net/job_metho-aay-upay/artifacts/o5mnsf6a_metho-logistics.png";
-const LOGO_TAP_COUNT_KEY = "metho_logo_tap_count";
-const LOGO_TAP_TS_KEY = "metho_logo_tap_ts";
 const MAX_INLINE_LOGO_LENGTH = 40000;
 
 const getSafeCustomLogoSrc = (value) => {
@@ -18,7 +16,6 @@ const getSafeCustomLogoSrc = (value) => {
 };
 
 export const Logo = ({ className = "", showTagline = false, variant = "store", size = "md" }) => {
-  const nav = useNavigate();
   const { settings } = useSettings();
   const settingsLoaded = settings !== null;
   const rawCustomLogoSrc = String(settings?.site_logo_url_full || "").trim();
@@ -47,25 +44,8 @@ export const Logo = ({ className = "", showTagline = false, variant = "store", s
   const primary = parts[0] || "METHO";
   const secondary = parts.slice(1).join(" ") || "AAY-UPAY";
 
-  const onLogoClick = (e) => {
-    const now = Date.now();
-    let count = Number(localStorage.getItem(LOGO_TAP_COUNT_KEY) || 0);
-    let ts = Number(localStorage.getItem(LOGO_TAP_TS_KEY) || 0);
-    if (now - ts > 2200) count = 0;
-    count += 1;
-    localStorage.setItem(LOGO_TAP_COUNT_KEY, String(count));
-    localStorage.setItem(LOGO_TAP_TS_KEY, String(now));
-    if (count >= 5) {
-      localStorage.removeItem(LOGO_TAP_COUNT_KEY);
-      localStorage.removeItem(LOGO_TAP_TS_KEY);
-      e.preventDefault();
-      nav("/admin-login");
-      return;
-    }
-  };
-
   return (
-    <Link to="/" onClick={onLogoClick} className={`flex items-center gap-3 ${className}`} data-testid="brand-logo">
+    <Link to="/" className={`flex items-center gap-3 ${className}`} data-testid="brand-logo">
       <span className={`${dim} inline-flex items-center justify-center ${badgeRadius} bg-white p-1.5 shadow-md ring-2 ring-white overflow-hidden shrink-0`}>
         <img
           src={imgSrc}

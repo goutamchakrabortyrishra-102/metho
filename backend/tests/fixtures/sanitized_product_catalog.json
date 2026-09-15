@@ -1,0 +1,59 @@
+{
+  "format": "metho-product-catalog",
+  "version": 1,
+  "source": "sanitized-production-catalog",
+  "products": [
+    {
+      "id": "qa-product-001",
+      "name": "QA Honey",
+      "category": "Nutrition",
+      "description": "Fake fixture product only.",
+      "price": 100.0,
+      "stock": 5,
+      "created_at": "2026-08-25T00:00:00+00:00"
+    },
+    {
+      "id": "qa-product-002",
+      "name": "QA Tea",
+      "category": "Health",
+      "description": "Fake fixture product only.",
+      "price": 80.0,
+      "stock": 8,
+      "created_at": "2026-08-25T00:00:00+00:00"
+    }
+  ],
+  "product_meta": [
+    {
+      "product_id": "qa-product-001",
+      "product_type": "metho",
+      "image_url": "data:image/png;base64,QUZBS0VfSU1BR0VfMQ==",
+      "mrp": 100.0,
+      "discount_percent": 0.0,
+      "gst_percent": 0.0,
+      "created_at": "2026-08-25T00:00:00+00:00"
+    },
+    {
+      "product_id": "qa-product-002",
+      "product_type": "metho",
+      "image_url": "data:image/jpeg;base64,QUZBS0VfSU1BR0VfMg==",
+      "mrp": 80.0,
+      "discount_percent": 0.0,
+      "gst_percent": 0.0,
+      "created_at": "2026-08-25T00:00:00+00:00"
+    }
+  ],
+  "app_settings": [
+    {
+      "key": "product_code:qa-product-001",
+      "value_json": "{\"code\":\"QA-PROD-001\"}"
+    },
+    {
+      "key": "product_code:qa-product-002",
+      "value_json": "{\"code\":\"QA-PROD-002\"}"
+    },
+    {
+      "key": "product_pricing_tiers",
+      "value_json": "{}"
+    }
+  ]
+}

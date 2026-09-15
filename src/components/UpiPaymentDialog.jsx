@@ -430,7 +430,12 @@ export default function UpiPaymentDialog({
         if (looksLikeMemberCode) payload.member_code = ref.toUpperCase();
         else payload.member_id = ref;
       } else if (!isGuest && shouldAutoAttachMemberId) {
-        payload.member_id = user.id;
+        const memberCode = String(user?.member_code || "").trim().toUpperCase();
+        if (memberCode) {
+          payload.member_code = memberCode;
+        } else {
+          payload.member_id = String(user?.id || "").trim();
+        }
       }
       const endpoint = existingOrderId ? `/orders/${existingOrderId}/submit-payment` : "/orders";
       const { data } = await api.post(endpoint, payload);
@@ -530,7 +535,12 @@ export default function UpiPaymentDialog({
         if (looksLikeMemberCode) orderPayload.member_code = ref.toUpperCase();
         else orderPayload.member_id = ref;
       } else if (!isGuest && shouldAutoAttachMemberId) {
-        orderPayload.member_id = user.id;
+        const memberCode = String(user?.member_code || "").trim().toUpperCase();
+        if (memberCode) {
+          orderPayload.member_code = memberCode;
+        } else {
+          orderPayload.member_id = String(user?.id || "").trim();
+        }
       }
 
       const { data: created } = await api.post("/orders", orderPayload);
