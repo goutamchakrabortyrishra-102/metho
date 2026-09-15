@@ -11,6 +11,10 @@ from .whatsapp_cloud import WHATSAPP_PRESET_MESSAGE_DEFAULTS, get_whatsapp_prese
 logger = logging.getLogger(__name__)
 
 SCHEDULER_ENABLED_KEY = "lifecycle_followup_scheduler_enabled"
+TEMPLATE_NAME_KEY = "lifecycle_followup_template_name"
+TEMPLATE_LANGUAGE_KEY = "lifecycle_followup_template_language"
+DEFAULT_TEMPLATE_NAME = "registration_reminder"
+DEFAULT_TEMPLATE_LANGUAGE = "en"
 MARKER_PREFIX = "followup_notified:"
 
 
@@ -31,6 +35,33 @@ def _setting_enabled(db) -> bool:
     if isinstance(value, bool):
         return value
     return str(value).strip().lower() not in {"0", "false", "off", "no", "disabled"}
+
+
+def _setting_text(db, key: str, default: str) -> str:
+    row = db.query(AppSetting).filter(AppSetting.key == key).first()
+    if not row:
+        return default
+    value = _json_value(row.value_json, default)
+    return str(value or "").strip()
+
+
+def _hours_since_last_inbound(db, lead_id: str, now: datetime) -> float:
+    activity = (
+        db.query(CRMLeadActivity)
+        .filter(CRMLeadActivity.lead_id == lead_id, CRMLeadActivity.activity_type == "whatsapp_message_received")
+        .order_by(CRMLeadActivity.created_at.desc())
+        .first()
+    )
+    if not activity or not activity.created_at:
+        return 24.0
+    created_at = activity.created_at
+    if created_at.tzinfo is None:
+        created_at = created_at.replace(tzinfo=timezone.utc)
+    return (now - created_at).total_seconds() / 3600
+
+
+def _lead_display_name(lead: CRMLead) -> str:
+    return str(lead.contact_person or lead.business_name or "there").strip() or "there"
 
 
 def _marker_key(followup_id: str) -> str:
@@ -77,7 +108,7 @@ def _lead_phone(lead: CRMLead) -> str:
 
 
 def send_due_lifecycle_followups() -> dict:
-    summary = {"sent": 0, "skipped": 0, "failed": 0}
+    summary = {"sent": 0, "skipped": 0, "skipped_outside_24h_window": 0, "failed": 0}
     db = SessionLocal()
     try:
         if not _setting_enabled(db):
@@ -115,7 +146,27 @@ def send_due_lifecycle_followups() -> dict:
                     contact_person=lead.contact_person,
                     notes=followup.notes,
                 )
-                send_whatsapp_message(db, phone, text=reminder_text)
+                if _hours_since_last_inbound(db, lead.id, now) < 24:
+                    send_whatsapp_message(db, phone, text=reminder_text)
+                else:
+                    template_name = _setting_text(db, TEMPLATE_NAME_KEY, DEFAULT_TEMPLATE_NAME)
+                    template_language = _setting_text(db, TEMPLATE_LANGUAGE_KEY, DEFAULT_TEMPLATE_LANGUAGE)
+                    if not template_name or not template_language:
+                        _release_marker(db, followup.id)
+                        summary["skipped_outside_24h_window"] += 1
+                        continue
+                    try:
+                        send_whatsapp_message(
+                            db,
+                            phone,
+                            template_name=template_name,
+                            template_language_code=template_language,
+                            template_parameters=[_lead_display_name(lead)],
+                        )
+                    except Exception as exc:
+                        if "language" in str(exc).lower():
+                            logger.error("Lifecycle follow-up template send failed with language code %s; correct lifecycle_followup_template_language AppSetting, for example to en_US", template_language)
+                        raise
 
                 sent_at = datetime.now(timezone.utc)
                 _finalize_marker(db, followup.id, sent_at)
