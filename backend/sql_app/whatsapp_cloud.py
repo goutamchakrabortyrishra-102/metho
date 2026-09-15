@@ -4,6 +4,7 @@ import hmac
 import json
 import logging
 import os
+import re
 import secrets
 from datetime import datetime, timedelta, timezone
 from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
@@ -1039,18 +1040,50 @@ def _send_introduction(db, session: WhatsAppRegistrationSession, lead: CRMLead, 
     return True
 
 
+PASTED_REGISTRATION_DETAIL_MARKERS = ("name-", "address-", "pin-", "father name")
+
+
+def _looks_like_pasted_registration_details(text: str) -> bool:
+    lowered = str(text or "").lower()
+    marker_hits = sum(1 for marker in PASTED_REGISTRATION_DETAIL_MARKERS if marker in lowered)
+    if re.search(r"\b\d{6}\b", str(text or "")):
+        marker_hits += 1
+    return marker_hits >= 2
+
+
 def _continue_introduction(db, session: WhatsAppRegistrationSession, lead: CRMLead, text: str, recipient: str) -> bool:
     normalized = _whatsapp_command_text(text)
-    choices = {"1": "member", "member": "member", "মেম্বার": "member", "2": "partner", "partner": "partner", "পার্টনার": "partner", "3": "rider", "rider": "rider", "রাইডার": "rider"}
+    config = resolve_config(db)
+    role_hint = _registration_role_for_text(config, text)
     if normalized == "4":
         reply = get_whatsapp_preset_message(db, "preset_metho_info", WHATSAPP_PRESET_MESSAGE_DEFAULTS["preset_metho_info"], introduction=_configured_introduction_message(db))
         session.state = WHATSAPP_ROLE_SELECTION
-    elif normalized in choices:
-        session.role = choices[normalized]
+        data = _session_data(session)
+        data["fallback_count"] = 0
+        _save_session_data(session, data)
+    elif _looks_like_pasted_registration_details(text):
+        # Pasted registration blocks (e.g. a stray digit forming a "1" keyword hit inside a PIN code)
+        # take priority over an incidental role-keyword match.
+        session.state = WHATSAPP_ROLE_SELECTION
+        db.add(CRMLeadActivity(lead_id=lead.id, activity_type="whatsapp_unrouted_registration_details", message=text))
+        return _request_whatsapp_human_handoff(db, lead, session, recipient)
+    elif role_hint in REGISTRATION_ROLE_SETTINGS:
+        session.role = role_hint
         session.state = WHATSAPP_ROLE_SELECTION
         reply = _role_registration_reply(db, session.role, lead.id, recipient)
+        data = _session_data(session)
+        data["fallback_count"] = 0
+        _save_session_data(session, data)
     else:
         session.state = WHATSAPP_ROLE_SELECTION
+        data = _session_data(session)
+        fallback_count = int(data.get("fallback_count") or 0)
+        if fallback_count >= 2:
+            data["fallback_count"] = 0
+            _save_session_data(session, data)
+            return _request_whatsapp_human_handoff(db, lead, session, recipient)
+        data["fallback_count"] = fallback_count + 1
+        _save_session_data(session, data)
         reply = get_whatsapp_preset_message(db, "preset_role_selection_fallback", WHATSAPP_PRESET_MESSAGE_DEFAULTS["preset_role_selection_fallback"])
     if not _send_member_registration_reply(db, recipient, reply):
         return False
