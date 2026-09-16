@@ -225,26 +225,35 @@ export default function RegisterPage() {
     } catch (err) {
       const msg = getErrorMessage(err);
       const m = String(msg || "").toLowerCase();
-      if (m.includes("username already registered")) {
-        // If backend partially created the account earlier, treat it as submitted.
+      // A retried submit (network drop, slow response) can hit the backend after an
+      // earlier attempt already committed the account, so username/phone/PAN collisions
+      // here may just be this same registration succeeding silently the first time.
+      // Confirm by logging in with the credentials just submitted: a 403 means the
+      // account exists and is simply pending approval, so it's safe to treat as submitted.
+      const tryRecoverAsAlreadySubmitted = async () => {
         try {
           await login(submittedMemberId, submittedPassword, { adminMode: false });
           logout();
           toast.success(`Registration already submitted for Member ID: ${submittedMemberId}. Please wait for admin approval.`);
           nav("/login");
-          return;
+          return true;
         } catch (loginErr) {
-          const lm = String(loginErr?.response?.data?.detail || loginErr?.message || "").toLowerCase();
-          if (lm.includes("not active yet") || lm.includes("first approved purchase")) {
+          if (Number(loginErr?.response?.status || 0) === 403) {
             toast.success(`Registration submitted for Member ID: ${submittedMemberId}. Please wait for admin approval.`);
             nav("/login");
-            return;
+            return true;
           }
+          return false;
         }
+      };
+      if (m.includes("username already registered")) {
+        if (await tryRecoverAsAlreadySubmitted()) return;
         toast.error("Auto-generated member ID collided multiple times. Please retry registration.");
       } else if (m.includes("phone") && m.includes("already")) {
+        if (await tryRecoverAsAlreadySubmitted()) return;
         toast.error("This phone number is already registered. Use a different phone number.");
       } else if (m.includes("pan") && m.includes("already")) {
+        if (await tryRecoverAsAlreadySubmitted()) return;
         toast.error("This PAN is already registered. Use a different PAN number.");
       } else if (m.includes("date of birth is required")) {
         toast.error("Date of birth is currently required by server. Please select DOB and try again.");
