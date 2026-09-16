@@ -1713,6 +1713,11 @@ def ingest_whatsapp_message(db, payload: dict, request=None) -> str:
         elif registration_session and registration_session.state in {WHATSAPP_INTRODUCTION, WHATSAPP_ROLE_SELECTION} and _is_executive_enquiry(incoming_text):
             reply = get_whatsapp_preset_message(db, "preset_business_enquiry_executive", WHATSAPP_PRESET_MESSAGE_DEFAULTS["preset_business_enquiry_executive"])
             native_member_handled = _send_member_registration_reply(db, normalized["phone"], reply)
+        elif registration_session and registration_session.state in {WHATSAPP_INTRODUCTION, WHATSAPP_ROLE_SELECTION} and not role_hint and is_ai_freeform_query:
+            # Info questions asked mid role-selection fall through to the contextual/AI
+            # reply below instead of the role-selection fallback; session state is untouched
+            # so the user can still answer 1/2/3 afterwards.
+            pass
         elif registration_session and registration_session.state in {WHATSAPP_INTRODUCTION, WHATSAPP_ROLE_SELECTION}:
             native_member_handled = _continue_introduction(db, registration_session, lead, incoming_text, normalized["phone"])
         elif registration_session and registration_session.role == "member" and registration_session.state in {WHATSAPP_MEMBER_REGISTERED, WHATSAPP_MEMBER_ACTIVATION_PENDING, WHATSAPP_MEMBER_ACTIVE, WHATSAPP_MEMBER_ONBOARDING}:
