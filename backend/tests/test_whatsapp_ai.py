@@ -3,6 +3,7 @@ import sys
 from pathlib import Path
 from types import SimpleNamespace
 
+import pytest
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
@@ -382,6 +383,29 @@ def test_gemini_unavailable_models_return_fallback(monkeypatch):
     assert model == "local"
     assert "মেঠো প্রতিনিধি" in reply
     assert [call[0] for call in generated] == ["gemini-1.5-flash", "gemini-1.5-pro", "gemini-pro"]
+
+
+@pytest.mark.parametrize(
+    ("message", "expected"),
+    [
+        ("এই পণ্যের অজানা শর্ত কী?", "এই বিষয়ে সঠিক তথ্যের জন্য আমাদের Executive-এর সঙ্গে সরাসরি যোগাযোগ করুন: 9339566110"),
+        ("What is the unlisted condition?", "For accurate information on this matter, please contact our Executive directly: 9339566110"),
+        ("इसकी अज्ञात शर्त क्या है?", "इस विषय में सही जानकारी के लिए हमारे Executive से सीधे संपर्क करें: 9339566110"),
+        ("Eta kivabe hobe jante chai", "এই বিষয়ে সঠিক তথ্যের জন্য আমাদের Executive-এর সঙ্গে সরাসরি যোগাযোগ করুন: 9339566110"),
+    ],
+)
+def test_gemini_business_information_unavailable_uses_localized_executive_fallback(monkeypatch, message, expected):
+    from sql_app.whatsapp_ai import BUSINESS_INFO_UNAVAILABLE, _generate_reply
+
+    generated = install_fake_gemini_rest(monkeypatch, text=BUSINESS_INFO_UNAVAILABLE)
+    monkeypatch.setenv("GEMINI_API_KEY", "test-key")
+    reply, provider, model = _generate_reply(
+        {"system_prompt": "help", "knowledge_base": "METHO", "model": "gemini-1.5-flash"},
+        message,
+    )
+    assert (reply, provider, model) == (expected, "gemini", "gemini-1.5-flash")
+    prompt = generated[0][3]["contents"][0]["parts"][0]["text"]
+    assert f"reply with exactly {BUSINESS_INFO_UNAVAILABLE}" in prompt
 
 
 def test_openai_config_is_ignored_when_gemini_key_is_available(monkeypatch):
