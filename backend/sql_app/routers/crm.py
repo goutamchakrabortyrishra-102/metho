@@ -1,4 +1,5 @@
 import json
+import logging
 from datetime import datetime, timedelta, timezone
 from typing import Any
 
@@ -28,6 +29,9 @@ from ..models import (
     UserReferral,
     CRM_ALLOWED_STAGES,
 )
+
+logger = logging.getLogger(__name__)
+
 from .auth import get_current_user, member_code_for_user
 from .partner_public import partner_register
 
@@ -325,12 +329,17 @@ def get_whatsapp_conversation(lead_id: str, db: Session = Depends(get_db), curre
 def _delete_whatsapp_activities(db: Session, lead_ids: list[str]) -> dict[str, int]:
     if not lead_ids:
         return {"messages": 0, "queued_messages": 0}
-    activity_ids = [row.id for row in db.query(CRMLeadActivity.id).filter(CRMLeadActivity.lead_id.in_(lead_ids), CRMLeadActivity.activity_type.in_(WHATSAPP_CONVERSATION_ACTIVITY_TYPES)).all()]
-    if activity_ids:
-        db.query(CRMWhatsAppAISuggestion).filter(CRMWhatsAppAISuggestion.activity_id.in_(activity_ids)).delete(synchronize_session=False)
-    deleted = db.query(CRMLeadActivity).filter(CRMLeadActivity.id.in_(activity_ids)).delete(synchronize_session=False) if activity_ids else 0
-    deleted_outbox = db.query(WhatsAppMessageOutbox).filter(WhatsAppMessageOutbox.lead_id.in_(lead_ids)).delete(synchronize_session=False)
-    db.commit()
+    try:
+        activity_ids = [row.id for row in db.query(CRMLeadActivity.id).filter(CRMLeadActivity.lead_id.in_(lead_ids)).all()]
+        if activity_ids:
+            db.query(CRMWhatsAppAISuggestion).filter(CRMWhatsAppAISuggestion.activity_id.in_(activity_ids)).delete(synchronize_session=False)
+        deleted = db.query(CRMLeadActivity).filter(CRMLeadActivity.lead_id.in_(lead_ids), CRMLeadActivity.activity_type.in_(WHATSAPP_CONVERSATION_ACTIVITY_TYPES)).delete(synchronize_session=False)
+        deleted_outbox = db.query(WhatsAppMessageOutbox).filter(WhatsAppMessageOutbox.lead_id.in_(lead_ids)).delete(synchronize_session=False)
+        db.commit()
+    except Exception as exc:
+        db.rollback()
+        logger.exception("WhatsApp conversation delete failed: lead_ids=%s", lead_ids)
+        raise HTTPException(status_code=500, detail=f"WhatsApp conversation could not be deleted: {exc}") from exc
     return {"messages": deleted, "queued_messages": deleted_outbox}
 
 

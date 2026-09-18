@@ -70,22 +70,30 @@ export default function WhatsAppInboxPage() {
 
   const deleteSelectedConversations = async () => {
     if (selectedLeadIds.length === 0 || !window.confirm(`Delete ${selectedLeadIds.length} selected WhatsApp chat(s)? CRM lead and follow-up data will remain.`)) return;
-    try {
-      const idsToDelete = [...selectedLeadIds];
-      await Promise.all(idsToDelete.map((leadId) => api.delete(`/admin/crm/whatsapp/conversations/${leadId}`)));
-      setConversations((current) => current.filter((conversation) => !idsToDelete.includes(conversation.lead_id)));
-      setSelectedLeadIds([]);
-      if (selected && idsToDelete.includes(selected.lead_id)) {
-        setSelected(null);
-        setMessages([]);
-        setSuggestions([]);
-        setDraft("");
+    setError("");
+    const idsToDelete = [...selectedLeadIds];
+    const results = await Promise.allSettled(idsToDelete.map((leadId) => api.delete(`/admin/crm/whatsapp/conversations/${leadId}`)));
+    const removedIds = [];
+    const failures = [];
+    results.forEach((result, index) => {
+      const leadId = idsToDelete[index];
+      if (result.status === "fulfilled" || result.reason?.response?.status === 404) {
+        removedIds.push(leadId);
+      } else {
+        failures.push(result.reason?.response?.data?.detail || `${leadId}: delete failed`);
       }
-      toast.success(`${idsToDelete.length} selected chat(s) deleted`);
-      await loadConversations();
-    } catch (err) {
-      setError(err?.response?.data?.detail || "Selected chats could not be deleted");
+    });
+    setConversations((current) => current.filter((conversation) => !removedIds.includes(conversation.lead_id)));
+    setSelectedLeadIds((current) => current.filter((id) => !removedIds.includes(id)));
+    if (selected && removedIds.includes(selected.lead_id)) {
+      setSelected(null);
+      setMessages([]);
+      setSuggestions([]);
+      setDraft("");
     }
+    if (removedIds.length) toast.success(`${removedIds.length} selected chat(s) deleted`);
+    if (failures.length) setError(`${failures.length} chat(s) could not be deleted: ${failures.join("; ")}`);
+    await loadConversations();
   };
 
   const loadConversations = useCallback(async () => {
@@ -193,7 +201,16 @@ export default function WhatsAppInboxPage() {
   const deleteSelectedConversation = async () => {
     if (!selected || !window.confirm("Delete this WhatsApp chat? CRM lead and follow-up data will remain.")) return;
     try { await api.delete(`/admin/crm/whatsapp/conversations/${selected.lead_id}`); setConversations((current) => current.filter((conversation) => conversation.lead_id !== selected.lead_id)); setSelected(null); setMessages([]); setSuggestions([]); toast.success("Chat deleted"); await loadConversations(); }
-    catch (err) { setError(err?.response?.data?.detail || "Chat could not be deleted"); }
+    catch (err) {
+      if (err?.response?.status === 404) {
+        setConversations((current) => current.filter((conversation) => conversation.lead_id !== selected.lead_id));
+        setSelected(null); setMessages([]); setSuggestions([]);
+        toast.success("Chat already deleted");
+        await loadConversations();
+        return;
+      }
+      setError(err?.response?.data?.detail || "Chat could not be deleted");
+    }
   };
 
   const deleteAllConversations = async () => {
