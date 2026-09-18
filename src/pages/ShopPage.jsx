@@ -527,6 +527,8 @@ export default function ShopPage({ travelOnly = false }) {
                   src={getDisplayImage(p, placeholder)}
                   alt={p.name}
                   className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                  loading="lazy"
+                  decoding="async"
                   onError={(e) => {
                     applyOrderedImageFallback(e, fallbackCandidates, FALLBACK_IMAGE);
                   }}
