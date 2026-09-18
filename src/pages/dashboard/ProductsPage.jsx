@@ -99,6 +99,8 @@ export default function ProductsPage() {
   const [editOpen, setEditOpen] = useState(false);
   const [editingProduct, setEditingProduct] = useState(null);
   const [selectedCategory, setSelectedCategory] = useState("all");
+  const [productSearch, setProductSearch] = useState("");
+  const [stockFilter, setStockFilter] = useState("all");
   const [categoryOrder, setCategoryOrder] = useState([]);
   const [landingTopProductIds, setLandingTopProductIds] = useState([]);
   const [savingTopProducts, setSavingTopProducts] = useState(false);
@@ -334,6 +336,15 @@ export default function ProductsPage() {
     ? products.filter((product) => String(product?.product_type || "").toLowerCase() === visibleProductType)
     : products.filter((product) => String(product?.product_type || "").toLowerCase() !== "metho_vegetable");
   const categories = categoryOrder.filter((category) => scopedProducts.some((product) => product.category === category));
+  const normalizedProductSearch = productSearch.trim().toLowerCase();
+  const filteredScopedProducts = scopedProducts.filter((product) => {
+    const matchesCategory = selectedCategory === "all" || product.category === selectedCategory;
+    const matchesSearch = !normalizedProductSearch || [product.name, product.category]
+      .some((value) => String(value || "").toLowerCase().includes(normalizedProductSearch));
+    const stock = getStock(product);
+    const matchesStock = stockFilter === "all" || (stockFilter === "in_stock" ? stock > 0 : stock <= 0);
+    return matchesCategory && matchesSearch && matchesStock;
+  });
   const productsById = new Map(scopedProducts.map((item) => [String(item?.id || ""), item]));
   const selectedTopProducts = landingTopProductIds
     .map((id) => {
@@ -346,13 +357,11 @@ export default function ProductsPage() {
     })
     .filter((item) => item.id);
   const selectedTopProductSlots = Array.from({ length: LANDING_TOP_PRODUCTS_LIMIT }, (_, idx) => selectedTopProducts[idx] || null);
-  const filteredProducts = selectedCategory === "all"
-    ? scopedProducts
-    : scopedProducts.filter((p) => p.category === selectedCategory);
+  const filteredProducts = filteredScopedProducts;
 
   const groupedProducts = categories.map((category) => ({
     category,
-    items: scopedProducts.filter((p) => p.category === category),
+    items: filteredScopedProducts.filter((p) => p.category === category),
   })).filter((g) => g.items.length > 0);
 
   const productCard = (p, i) => (
@@ -660,6 +669,29 @@ export default function ProductsPage() {
         })}
       </div>
 
+      <div className="flex flex-col gap-2 sm:flex-row" data-testid="admin-product-search-filters">
+        <div className="relative flex-1">
+          <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+          <Input
+            value={productSearch}
+            onChange={(event) => setProductSearch(event.target.value)}
+            placeholder="Search product or category"
+            className="h-11 pl-9"
+            data-testid="admin-product-search-input"
+          />
+        </div>
+        <select
+          value={stockFilter}
+          onChange={(event) => setStockFilter(event.target.value)}
+          className="h-11 rounded-md border border-input bg-white px-3 text-sm"
+          data-testid="admin-product-stock-filter"
+        >
+          <option value="all">All stock</option>
+          <option value="in_stock">In stock</option>
+          <option value="out_of_stock">Out of stock</option>
+        </select>
+      </div>
+
       {productLoadError ? (
         <div className="flex flex-wrap items-center gap-3 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-800">
           <span>{productLoadError}</span>
@@ -809,7 +841,7 @@ export default function ProductsPage() {
       {selectedCategory === "all" ? (
         <div className="space-y-7" data-testid="products-grouped-by-category">
           {loadingProducts ? <div className="grid grid-cols-2 gap-4 md:grid-cols-3 lg:grid-cols-4">{Array.from({ length: 8 }, (_, index) => <div key={`admin-product-skeleton-${index}`} className="overflow-hidden rounded-xl border border-border bg-white p-4"><Skeleton className="aspect-square w-full" /><Skeleton className="mt-4 h-3 w-20" /><Skeleton className="mt-2 h-5 w-4/5" /><Skeleton className="mt-4 h-8 w-full rounded-full" /></div>)}</div> : null}
-          {!loadingProducts && scopedProducts.length === 0 && !productLoadError ? <p className="text-sm text-slate-500">No {isVegetableAdmin ? "vegetables" : "products"} found. Use Product Upload to add one.</p> : null}
+          {!loadingProducts && filteredScopedProducts.length === 0 && !productLoadError ? <p className="text-sm text-slate-500">No matching {isVegetableAdmin ? "vegetables" : "products"} found.</p> : null}
           {groupedProducts.map((group) => (
             <section key={group.category} className="space-y-3">
               <div className="flex items-center justify-between gap-2">
