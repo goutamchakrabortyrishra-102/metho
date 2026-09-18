@@ -277,6 +277,7 @@ export default function MethoVegetablePage() {
       toast.error(`${product?.name || "Item"}: out of stock`);
       return;
     }
+    const isFirstAdd = !cart[product.id];
     setCart((c) => {
       const step = measureStepInBaseUnit(product, selectedUnitFor(product));
       const current = Number(c[product.id] || 0);
@@ -286,6 +287,7 @@ export default function MethoVegetablePage() {
       }
       return { ...c, [product.id]: Number((current + step).toFixed(3)) };
     });
+    if (isFirstAdd) toast.success(`${product?.name || "Item"} added to cart`);
   };
 
   const dec = (product) => setCart((c) => ({ ...c, [product.id]: Math.max(0, Number((Number(c[product.id] || 0) - measureStepInBaseUnit(product, selectedUnitFor(product))).toFixed(3))) }));

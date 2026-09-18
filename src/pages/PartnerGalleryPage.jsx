@@ -808,8 +808,10 @@ export default function PartnerGalleryPage() {
     const id = product?.id;
     if (!id) return;
     const isService = isServiceListing(product);
+    const isFirstAdd = !cart[id];
     if (isService) {
       setCart((c) => ({ ...c, [id]: (c[id] || 0) + 1 }));
+      if (isFirstAdd) toast.success(`${product?.name || "Service"} added to cart`);
       if (!user && !guestServiceHintRef.current) {
         guestServiceHintRef.current = true;
         toast.info("Guest mode: reward attribution-এর জন্য checkout-এ Member ID/Code দিন");
@@ -835,6 +837,7 @@ export default function PartnerGalleryPage() {
       return { ...c, [id]: nextQty };
     });
     setCartUnits((prev) => ({ ...prev, [id]: activeMeasureUnit }));
+    if (isFirstAdd) toast.success(`${product?.name || "Product"} added to cart`);
   };
   const decCart = (productOrId, preferredUnit = "") => {
     const product = typeof productOrId === "object"

@@ -852,6 +852,7 @@ export default function PartnerShopPage() {
     }
     setCart({ ...cart, [id]: nextQty });
     setCartUnits((prev) => ({ ...prev, [id]: activeMeasureUnit }));
+    if (current <= 0) toast.success(`${product?.name || "Product"} added to cart`);
   };
   const dec = (product, preferredUnit = "") => {
     const id = product?.id;

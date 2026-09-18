@@ -201,6 +201,7 @@ export default function ShopPage({ travelOnly = false }) {
       toast.error(`${product?.name || "Product"}: out of stock`);
       return;
     }
+    const isFirstAdd = !cart[product.id];
 
     setCart((c) => {
       const current = c[product.id] || 0;
@@ -210,6 +211,7 @@ export default function ShopPage({ travelOnly = false }) {
       }
       return { ...c, [product.id]: current + 1 };
     });
+    if (isFirstAdd) toast.success(`${product?.name || "Product"} added to cart`);
   };
 
   const dec = (id) => setCart((c) => ({ ...c, [id]: Math.max(0, (c[id] || 0) - 1) }));
