@@ -417,14 +417,27 @@ def list_products(limit: int | None = None, authorization: str | None = Header(d
 
 
 @router.get("/products/public")
-def list_public_products(limit: int | None = None, db: Session = Depends(get_db)):
-    safe_limit = max(1, min(int(limit), 500)) if limit is not None else None
-    rows = list_products(limit=safe_limit, db=db)
+def list_public_products(limit: int | None = None, offset: int | None = None, db: Session = Depends(get_db)):
+    rows = list_products(authorization="", db=db)
     for item in rows:
         item.pop("purchase_cost", None)
         item.pop("commission_percent", None)
         item["image_url"] = _public_image_ref(item.get("id") or "", item.get("image_url") or "")
-    return rows
+    if limit is None and offset is None:
+        return rows
+    safe_offset = max(0, int(offset or 0))
+    safe_limit = max(1, min(int(limit or 24), 500))
+    page = rows[safe_offset:safe_offset + safe_limit]
+    next_offset = safe_offset + len(page)
+    total = len(rows)
+    return {
+        "items": page,
+        "offset": safe_offset,
+        "limit": safe_limit,
+        "total": total,
+        "has_more": next_offset < total,
+        "next_offset": next_offset if next_offset < total else None,
+    }
 
 
 @router.get("/products/{product_id}/image")
