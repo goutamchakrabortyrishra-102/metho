@@ -7,6 +7,7 @@ import { Logo } from "@/components/Logo";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import UpiPaymentDialog from "@/components/UpiPaymentDialog";
+import { Skeleton } from "@/components/ui/skeleton";
 import { useAuth } from "@/contexts/AuthContext";
 import { useSettings } from "@/contexts/SettingsContext";
 import { getMethoPriceDetails, getGstInclusivePrice, resolveAssetUrl, getAssetImageFallbackCandidates } from "@/lib/utils";
@@ -201,6 +202,7 @@ export default function MethoVegetablePage() {
   const [products, setProducts] = useState([]);
   const [query, setQuery] = useState(searchParams.get("q") || "");
   const [loadError, setLoadError] = useState("");
+  const [loadingProducts, setLoadingProducts] = useState(true);
   const [cart, setCart] = useState(readStoredVegetableCart);
   const [previewProduct, setPreviewProduct] = useState(null);
   const [checkoutOpen, setCheckoutOpen] = useState(false);
@@ -210,6 +212,7 @@ export default function MethoVegetablePage() {
   const getStock = (product) => Math.max(0, Number(product?.stock ?? 0));
 
   useEffect(() => {
+    setLoadingProducts(true);
     loadVegetableStartupProducts(240)
       .then((rows) => {
         setProducts(rows);
@@ -218,7 +221,8 @@ export default function MethoVegetablePage() {
       .catch(() => {
         setProducts([]);
         setLoadError("Vegetables could not be loaded right now. Please try again in a moment.");
-      });
+      })
+      .finally(() => setLoadingProducts(false));
   }, []);
 
   useEffect(() => {
@@ -417,7 +421,14 @@ export default function MethoVegetablePage() {
         ) : null}
 
         <div className="mt-10 grid gap-4 grid-cols-2 md:grid-cols-3 lg:grid-cols-4">
-          {visibleProducts.map((p, i) => {
+          {loadingProducts ? Array.from({ length: 8 }, (_, index) => (
+            <div key={`vegetable-skeleton-${index}`} className="overflow-hidden rounded-xl border border-emerald-900/10 bg-white p-4">
+              <Skeleton className="aspect-square w-full" />
+              <Skeleton className="mt-4 h-3 w-20" />
+              <Skeleton className="mt-2 h-5 w-4/5" />
+              <Skeleton className="mt-4 h-9 w-full rounded-full" />
+            </div>
+          )) : visibleProducts.map((p, i) => {
             const stock = getStock(p);
             const isOutOfStock = stock <= 0;
             const discountInfo = getDiscountInfo(p);
@@ -515,7 +526,7 @@ export default function MethoVegetablePage() {
               </div>
             );
           })}
-          {visibleProducts.length === 0 && !loadError ? (
+          {!loadingProducts && visibleProducts.length === 0 && !loadError ? (
             <div className="col-span-full rounded-2xl border border-emerald-900/10 bg-white/90 p-8 text-center">
               <p className="font-display font-bold text-emerald-950">Vegetables are being added</p>
               <p className="mt-1 text-sm text-slate-600">Please check back soon.</p>

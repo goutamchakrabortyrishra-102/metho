@@ -4,6 +4,7 @@ import { Building2, MapPin, Phone, ArrowLeft, Store, ShoppingCart, Plus, Minus, 
 import { toast } from "sonner";
 import api from "@/services/api";
 import { Button } from "@/components/ui/button";
+import { Skeleton } from "@/components/ui/skeleton";
 import { Input } from "@/components/ui/input";
 import { Logo } from "@/components/Logo";
 import { useAuth } from "@/contexts/AuthContext";
@@ -1097,7 +1098,7 @@ export default function PartnerShopPage() {
       <Link to="/directory" className="mt-4 text-emerald-800 hover:underline text-sm">← Back to directory</Link>
     </div>
   );
-  if (!data) return <div className="min-h-screen flex items-center justify-center text-slate-500">Loading shop...</div>;
+  if (!data) return <div className="min-h-screen bg-background p-4 md:p-6"><div className="mx-auto grid max-w-4xl grid-cols-2 gap-4 md:grid-cols-4">{Array.from({ length: 8 }, (_, index) => <div key={`partner-shop-skeleton-${index}`} className="overflow-hidden rounded-2xl border border-slate-200 bg-white p-3"><Skeleton className="aspect-square w-full" /><Skeleton className="mt-3 h-4 w-4/5" /><Skeleton className="mt-2 h-3 w-3/5" /><Skeleton className="mt-4 h-9 w-full rounded-full" /></div>)}</div></div>;
 
   const addr = [p.address, p.city, p.state, p.pincode].filter(Boolean).join(", ");
 

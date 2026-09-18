@@ -8,6 +8,7 @@ import { useSettings } from "@/contexts/SettingsContext";
 import AddProductDialog from "@/components/AddProductDialog";
 import UpiPaymentDialog from "@/components/UpiPaymentDialog";
 import { Button } from "@/components/ui/button";
+import { Skeleton } from "@/components/ui/skeleton";
 import { getGstInclusivePrice, resolveAssetUrl, getAssetImageFallbackCandidates } from "@/lib/utils";
 
 const applyOrderedImageFallback = (event, candidates, terminalFallback) => {
@@ -807,7 +808,7 @@ export default function ProductsPage() {
 
       {selectedCategory === "all" ? (
         <div className="space-y-7" data-testid="products-grouped-by-category">
-          {loadingProducts ? <p className="text-sm text-slate-500">Loading products...</p> : null}
+          {loadingProducts ? <div className="grid grid-cols-2 gap-4 md:grid-cols-3 lg:grid-cols-4">{Array.from({ length: 8 }, (_, index) => <div key={`admin-product-skeleton-${index}`} className="overflow-hidden rounded-xl border border-border bg-white p-4"><Skeleton className="aspect-square w-full" /><Skeleton className="mt-4 h-3 w-20" /><Skeleton className="mt-2 h-5 w-4/5" /><Skeleton className="mt-4 h-8 w-full rounded-full" /></div>)}</div> : null}
           {!loadingProducts && scopedProducts.length === 0 && !productLoadError ? <p className="text-sm text-slate-500">No {isVegetableAdmin ? "vegetables" : "products"} found. Use Product Upload to add one.</p> : null}
           {groupedProducts.map((group) => (
             <section key={group.category} className="space-y-3">
