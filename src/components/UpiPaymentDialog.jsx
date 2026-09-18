@@ -134,6 +134,7 @@ export default function UpiPaymentDialog({
   onMemberRefChange,
   paymentConfig = null,
   onItemQtyChange = null,
+  onBackToCart = null,
 }) {
   const { user } = useAuth();
   const [settings, setSettings] = useState(null);
@@ -659,6 +660,7 @@ export default function UpiPaymentDialog({
     : !!settings?.razorpay_enabled && !!settings?.razorpay_key_id;
   const goBackToCart = () => {
     onOpenChange?.(false);
+    onBackToCart?.();
   };
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>

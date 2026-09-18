@@ -1727,6 +1727,9 @@ export default function PartnerGalleryPage() {
         isGuest={!user}
         memberRef={guestMemberRef}
         onMemberRefChange={setGuestMemberRef}
+        onBackToCart={() => {
+          api.get(`/directory/partner/${partnerCode}`).then((response) => setData(normalizePartnerPayload(response.data))).catch(() => {});
+        }}
         onOrderPlaced={() => {
           setCheckoutOpen(false);
           setGuestMemberRef("");

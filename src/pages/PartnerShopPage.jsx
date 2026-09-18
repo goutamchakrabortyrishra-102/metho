@@ -2459,6 +2459,9 @@ export default function PartnerShopPage() {
         isGuest={!user}
         memberRef={guestMemberRef}
         onMemberRefChange={setGuestMemberRef}
+        onBackToCart={() => {
+          api.get(`/directory/partner/${partnerCode}`).then((response) => setData(normalizePartnerPayload(response.data))).catch(() => {});
+        }}
         onOrderPlaced={() => {
           setGuestMemberRef("");
           setCart({});

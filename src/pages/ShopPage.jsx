@@ -706,6 +706,9 @@ export default function ShopPage({ travelOnly = false }) {
           if (delta > 0) inc(product);
           else dec(item.id);
         }}
+        onBackToCart={() => {
+          loadShopStartupProducts(240).then(setProducts).catch(() => {});
+        }}
         onOrderPlaced={() => {
           setCheckoutOpen(false);
           setCart({});

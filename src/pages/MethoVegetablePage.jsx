@@ -598,6 +598,9 @@ export default function MethoVegetablePage() {
           if (delta > 0) inc(product);
           else dec(product);
         }}
+        onBackToCart={() => {
+          loadVegetableStartupProducts(240).then(setProducts).catch(() => {});
+        }}
         onOrderPlaced={() => {
           setCheckoutOpen(false);
           setCart({});
