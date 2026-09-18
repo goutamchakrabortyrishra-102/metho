@@ -5,6 +5,7 @@ import { toast } from "sonner";
 import api from "@/services/api";
 import { Logo } from "@/components/Logo";
 import { Button } from "@/components/ui/button";
+import { Breadcrumb, BreadcrumbItem, BreadcrumbLink, BreadcrumbList, BreadcrumbPage, BreadcrumbSeparator } from "@/components/ui/breadcrumb";
 import { Input } from "@/components/ui/input";
 import UpiPaymentDialog from "@/components/UpiPaymentDialog";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -425,6 +426,18 @@ export default function ShopPage({ travelOnly = false }) {
     else next.delete("q");
     setSearchParams(next, { replace: true });
   };
+  const matchingCategory = methoProducts.find((product) => (
+    String(product?.category || "").trim().toLowerCase() === query.trim().toLowerCase()
+  ))?.category || "";
+  const breadcrumbCategory = previewProduct?.category || matchingCategory;
+  const resetShopView = () => {
+    setPreviewProduct(null);
+    setQuery("");
+  };
+  const showBreadcrumbCategory = () => {
+    setPreviewProduct(null);
+    setQuery(breadcrumbCategory);
+  };
 
   return (
     <div className="min-h-screen bg-background" data-testid="shop-page">
@@ -436,6 +449,13 @@ export default function ShopPage({ travelOnly = false }) {
       </header>
 
       <div className="max-w-7xl mx-auto px-6 py-12">
+        <Breadcrumb className="mb-4">
+          <BreadcrumbList>
+            {breadcrumbCategory ? <BreadcrumbItem><BreadcrumbLink asChild><button type="button" onClick={resetShopView}>Shop</button></BreadcrumbLink></BreadcrumbItem> : <BreadcrumbItem><BreadcrumbPage>Shop</BreadcrumbPage></BreadcrumbItem>}
+            {breadcrumbCategory ? <><BreadcrumbSeparator /><BreadcrumbItem>{previewProduct ? <BreadcrumbLink asChild><button type="button" onClick={showBreadcrumbCategory}>{breadcrumbCategory}</button></BreadcrumbLink> : <BreadcrumbPage>{breadcrumbCategory}</BreadcrumbPage>}</BreadcrumbItem></> : null}
+            {previewProduct ? <><BreadcrumbSeparator /><BreadcrumbItem><BreadcrumbPage>{previewProduct.name}</BreadcrumbPage></BreadcrumbItem></> : null}
+          </BreadcrumbList>
+        </Breadcrumb>
         <p className="text-xs uppercase tracking-[0.25em] text-emerald-800 font-semibold">{isTravelBookingView ? "METHO Tour & Travels" : "Shop"}</p>
         <h1 className="mt-2 font-display font-black text-4xl md:text-5xl tracking-tight text-emerald-950">{isTravelBookingView ? "Plan the journey. Book with confidence." : "Shop & Travel"}</h1>
         <p className="text-slate-600 font-body mt-2 max-w-2xl">
