@@ -90,7 +90,13 @@ ROLE_IDENTITY_KEYWORDS = {
     "partner": ("2", "partner", "পার্টনার"),
     "rider": ("3", "rider", "রাইডার"),
 }
-INFORMATIONAL_QUESTION_MARKERS = ("?", "কীভাবে", "কিভাবে", "কি ভাবে", "কী ভাবে", "কেমন করে", "জানতে চাই", "জানতে", "প্রোডাক্ট", "পণ্য", "সম্বন্ধে", "সম্পর্কে", "what", "how")
+INFORMATIONAL_QUESTION_MARKERS = (
+    "?", "কীভাবে", "কিভাবে", "কি ভাবে", "কী ভাবে", "কেমন করে", "জানতে চাই", "জানতে", "প্রোডাক্ট", "পণ্য", "সম্বন্ধে", "সম্পর্কে", "what", "how",
+    # Banglish (Bengali typed with Latin letters) equivalents of the above so freeform questions are still recognized.
+    "jante chai", "jante", "janar", "bapare", "bishoye", "bisoye", "somporke", "sombondhe", "sombonde", "kivabe", "ki vabe", "kemon kore", "bistarito", "bistarita", "aro details", "aro info", "ektu bolun", "aktu bolun",
+    # Hinglish (Hindi typed with Latin letters) equivalents so those freeform questions are also recognized.
+    "batao", "bataiye", "bata do", "janna", "jaanna", "chahta hu", "chahti hu", "chahata hu", "chahati hu", "jankari", "ke bare mein", "ke baare mein", "kaise", "kya hai",
+)
 BROAD_EARNING_KEYWORDS = ("কাজ", "আয়", "আয়", "income", "earn", "earning", "work")
 PRODUCT_QUERY_KEYWORDS = ("product", "catalog", "catalogue", "price", "পণ্য", "প্রোডাক্ট", "দাম")
 ORDER_QUERY_KEYWORDS = ("order", "অর্ডার")
