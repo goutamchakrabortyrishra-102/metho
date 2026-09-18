@@ -269,7 +269,7 @@ export default function UpiPaymentDialog({
   }, [open, isGuest, payerPhone, payerName, address, shippingCity, shippingState, shippingPincode, customerEmail]);
 
   useEffect(() => {
-    if (!isGuest) return;
+    if (!open || !isGuest) return;
     writeGuestCheckoutPrefs({
       payer_phone: String(payerPhone || "").trim(),
       payer_name: String(payerName || "").trim(),
@@ -279,7 +279,7 @@ export default function UpiPaymentDialog({
       shipping_pincode: String(shippingPincode || "").replace(/\D/g, "").slice(-6),
       customer_email: String(customerEmail || "").trim(),
     });
-  }, [isGuest, payerPhone, payerName, address, shippingCity, shippingState, shippingPincode, customerEmail]);
+  }, [open, isGuest, payerPhone, payerName, address, shippingCity, shippingState, shippingPincode, customerEmail]);
 
   useEffect(() => {
     const explicitRef = String(memberRef || "").trim();
