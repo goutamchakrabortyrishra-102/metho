@@ -24,6 +24,13 @@ def admin():
     return SimpleNamespace(role="super_admin", id="ADMIN", name="Admin")
 
 
+def seed_admin_sponsor(db):
+    sponsor = User(id="ADMIN", name="Admin", email="admin@example.com", phone="", password="hash", role="super_admin", is_active=True)
+    db.add(sponsor)
+    db.commit()
+    return sponsor
+
+
 def lead(db, **values):
     fields = {
         "business_name": "Conversion Shop",
@@ -59,6 +66,7 @@ def registration_payload():
 def test_conversion_creates_pending_request_without_partner_then_approval_links_crm():
     db = make_session()
     try:
+        seed_admin_sponsor(db)
         row = lead(db)
         result = convert_lead_to_partner(row.id, registration_payload(), db, admin())
         request = db.query(PartnerRequest).filter(PartnerRequest.id == result["request_id"]).one()
@@ -81,6 +89,7 @@ def test_conversion_creates_pending_request_without_partner_then_approval_links_
 def test_conversion_is_idempotent_for_pending_request_and_rejects_after_approval():
     db = make_session()
     try:
+        seed_admin_sponsor(db)
         row = lead(db)
         first = convert_lead_to_partner(row.id, registration_payload(), db, admin())
         second = convert_lead_to_partner(row.id, registration_payload(), db, admin())
