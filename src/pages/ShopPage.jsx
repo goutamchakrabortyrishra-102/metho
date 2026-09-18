@@ -604,7 +604,7 @@ export default function ShopPage({ travelOnly = false }) {
                       <button
                         type="button"
                         onClick={() => dec(p.id)}
-                        className="w-7 h-7 rounded-full bg-white hover:bg-emerald-100 flex items-center justify-center"
+                        className="h-11 w-11 rounded-full bg-white hover:bg-emerald-100 flex items-center justify-center sm:h-7 sm:w-7"
                         data-testid={`shop-dec-${i}`}
                       >
                         <Minus className="w-3.5 h-3.5" />
@@ -613,7 +613,7 @@ export default function ShopPage({ travelOnly = false }) {
                       <button
                         type="button"
                         onClick={() => inc(p)}
-                        className="w-7 h-7 rounded-full bg-white hover:bg-emerald-100 flex items-center justify-center"
+                        className="h-11 w-11 rounded-full bg-white hover:bg-emerald-100 flex items-center justify-center sm:h-7 sm:w-7"
                         data-testid={`shop-inc-${i}`}
                       >
                         <Plus className="w-3.5 h-3.5" />
@@ -622,7 +622,7 @@ export default function ShopPage({ travelOnly = false }) {
                   ) : (
                     <Button
                       size="sm"
-                      className="w-full bg-emerald-900 hover:bg-emerald-950 rounded-full text-xs"
+                      className="h-11 w-full bg-emerald-900 hover:bg-emerald-950 rounded-full text-xs sm:h-8"
                       data-testid={`shop-buy-${i}`}
                       onClick={() => inc(p)}
                       disabled={isOutOfStock}
@@ -669,7 +669,7 @@ export default function ShopPage({ travelOnly = false }) {
                   applyOrderedImageFallback(e, candidates, FALLBACK_IMAGE);
                 }}
               />
-              <button onClick={() => setPreviewProduct(null)} className="absolute top-3 right-3 w-8 h-8 rounded-full bg-black/40 text-white flex items-center justify-center hover:bg-black/60">
+              <button onClick={() => setPreviewProduct(null)} className="absolute top-3 right-3 h-11 w-11 rounded-full bg-black/40 text-white flex items-center justify-center hover:bg-black/60 sm:h-8 sm:w-8">
                 <X className="w-4 h-4" />
               </button>
             </div>
