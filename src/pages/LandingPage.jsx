@@ -898,10 +898,10 @@ const Hero = () => {
                   return (
                     <div
                       key={id || i}
-                      className="w-[210px] sm:w-[230px] shrink-0 snap-start bg-white rounded-xl overflow-hidden border border-slate-200 hover:shadow-lg transition-all"
+                      className="flex h-full w-[214px] shrink-0 snap-start flex-col overflow-hidden rounded-2xl border border-emerald-900/10 bg-white shadow-sm transition-all hover:-translate-y-0.5 hover:shadow-lg sm:w-[232px]"
                       data-testid={`hero-best-product-${i + 1}`}
                     >
-                      <div className="aspect-square overflow-hidden bg-slate-100 relative">
+                      <div className="aspect-square overflow-hidden bg-gradient-to-br from-slate-100 via-white to-emerald-50/70 relative">
                         <img
                           src={pickProductImageSrc(p) || FALLBACK_PRODUCT_IMG}
                           alt={p?.name || "METHO Product"}
@@ -913,7 +913,7 @@ const Hero = () => {
                           {String(p?.product_type || "metho").toLowerCase() === "metho_vegetable" ? "METHO VEGETABLE" : "METHO"}
                         </span>
                       </div>
-                      <div className="p-3">
+                      <div className="flex min-h-[188px] flex-1 flex-col p-3.5">
                         <p className="text-[10px] uppercase tracking-wider text-emerald-800 font-semibold truncate">{p?.category || group.category}</p>
                         <p className="font-display font-bold text-emerald-950 text-sm line-clamp-1 mt-0.5">{p?.name || `Best Product ${i + 1}`}</p>
                         <div className="mt-1.5 flex items-center justify-between">
@@ -933,7 +933,7 @@ const Hero = () => {
                           ) : <span />}
                           <span className="text-[10px] px-2 py-0.5 rounded-full font-semibold bg-amber-100 text-amber-900">{String(p?.product_type || "metho").toLowerCase() === "metho_vegetable" ? "VEGETABLE" : "METHO"}</span>
                         </div>
-                        <div className="mt-3">
+                        <div className="mt-auto pt-3">
                           {isVegetable && vegetableMeasureOptions.length > 1 ? (
                             <select
                               value={selectedVegetableUnit}
@@ -1557,10 +1557,10 @@ const Products = () => {
             <Link
               key={p.id}
               to={p?.name ? `/shop?q=${encodeURIComponent(p.name)}` : "/shop"}
-              className="group block bg-white/95 backdrop-blur rounded-xl overflow-hidden border border-emerald-900/10 hover:shadow-lg hover:shadow-emerald-900/10 hover:-translate-y-0.5 transition-all"
+              className="group flex h-full flex-col overflow-hidden rounded-2xl border border-emerald-900/10 bg-white/95 shadow-sm backdrop-blur transition-all hover:-translate-y-0.5 hover:shadow-lg hover:shadow-emerald-900/10"
               data-testid={`product-card-${i}`}
             >
-              <div className="aspect-[4/3] overflow-hidden bg-gradient-to-br from-white to-emerald-50/40">
+              <div className="aspect-square overflow-hidden bg-gradient-to-br from-slate-100 via-white to-emerald-50/70">
                 <img
                   src={pickProductImageSrc(p) || placeholder}
                   alt={p.name}
@@ -1570,7 +1570,7 @@ const Products = () => {
                   onError={(e) => { applyLandingImageFallback(e, [pickProductImageSrc(p)], placeholder || FALLBACK_PRODUCT_IMG); }}
                 />
               </div>
-              <div className="p-3">
+              <div className="flex min-h-[154px] flex-1 flex-col p-3.5">
                 <p className="text-[10px] uppercase tracking-wider text-emerald-800 font-semibold">{p.category}</p>
                 <h4 className="mt-1 font-display font-bold text-emerald-950 line-clamp-1">{p.name}</h4>
                 <div className="mt-2 flex items-center justify-between">
@@ -1589,7 +1589,7 @@ const Products = () => {
                     <span className="text-xs bg-amber-100 text-amber-900 px-2 py-0.5 rounded-full font-semibold">METHO</span>
                   )}
                 </div>
-                <div className="mt-2">
+                <div className="mt-auto pt-3">
                   <span className="inline-flex items-center text-xs font-semibold text-emerald-800">
                     Open Product <ChevronRight className="ml-1 w-3.5 h-3.5" />
                   </span>
@@ -1656,10 +1656,10 @@ const TopLeaders = () => {
           <h2 className="mt-2 font-display font-black text-3xl md:text-4xl tracking-tight text-emerald-950">Top Leaders of METHO</h2>
           <p className="mt-3 text-sm text-slate-600 max-w-2xl">Leadership profiles are managed from admin settings and presented here for corporate trust visibility.</p>
         </div>
-        <div className="mt-8 grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-4">
+        <div className="mt-8 grid grid-cols-2 gap-4 md:grid-cols-3 xl:grid-cols-6">
           {leaders.map((leader, i) => (
-            <div key={i} className="mx-auto w-full max-w-[220px] bg-white rounded-2xl border border-emerald-900/10 overflow-hidden shadow-sm hover:shadow-md transition-shadow" data-testid={`top-leader-card-${i + 1}`}>
-              <div className="aspect-[3/4] overflow-hidden bg-secondary">
+            <div key={i} className="mx-auto flex h-full w-full max-w-[210px] flex-col overflow-hidden rounded-2xl border border-emerald-900/10 bg-white shadow-sm transition-shadow hover:shadow-md" data-testid={`top-leader-card-${i + 1}`}>
+              <div className="aspect-[4/5] overflow-hidden bg-gradient-to-br from-slate-100 via-white to-amber-50/70">
                 <img
                   src={leader.image || FALLBACK_LEADER_IMG}
                   alt={leader.name}
@@ -1693,7 +1693,7 @@ const TopLeaders = () => {
                   }}
                 />
               </div>
-              <div className="p-3.5 bg-emerald-50/45 border-t border-emerald-100">
+              <div className="flex min-h-[76px] flex-col justify-center border-t border-emerald-100 bg-emerald-50/45 p-3.5">
                 <p className="font-display font-bold text-sm text-emerald-950 truncate" title={leader.name}>{leader.name}</p>
                 <p className="mt-0.5 text-[11px] text-amber-700 font-semibold tracking-wide uppercase truncate" title={leader.title}>{leader.title}</p>
               </div>
