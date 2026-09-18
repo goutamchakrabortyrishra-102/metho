@@ -717,7 +717,7 @@ export default function ShopPage({ travelOnly = false }) {
             </div>
             <Button
               onClick={() => setCheckoutOpen(true)}
-              className="bg-emerald-900 hover:bg-emerald-950 text-white rounded-full px-5"
+              className="h-11 bg-emerald-900 hover:bg-emerald-950 text-white rounded-full px-5 sm:h-9"
               data-testid="shop-checkout-button"
             >
               <ShoppingCart className="w-4 h-4 mr-2" />

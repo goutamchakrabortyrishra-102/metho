@@ -429,7 +429,7 @@ function ProductModal({ product, onClose, onAdd, onDec, qty, galleryUrl, isBookN
               View PDF
             </button>
           ) : null}
-          <button onClick={onClose} className="absolute top-3 right-3 w-8 h-8 rounded-full bg-black/40 text-white flex items-center justify-center hover:bg-black/60">
+          <button onClick={onClose} className="absolute top-3 right-3 h-11 w-11 rounded-full bg-black/40 text-white flex items-center justify-center hover:bg-black/60 sm:h-8 sm:w-8">
             <X className="w-4 h-4" />
           </button>
           {product.stock <= 0 && !isService && (
@@ -454,7 +454,7 @@ function ProductModal({ product, onClose, onAdd, onDec, qty, galleryUrl, isBookN
               <select
                 value={activeMeasureUnit}
                 onChange={(e) => onMeasureUnitChange?.(product.id, e.target.value)}
-                className="h-10 w-full rounded-full border border-input bg-white px-4 text-sm"
+                className="h-11 w-full rounded-full border border-input bg-white px-4 text-sm sm:h-10"
               >
                 {selectableUnits.map((unit) => (
                   <option key={unit} value={unit}>{unit}</option>
@@ -470,11 +470,11 @@ function ProductModal({ product, onClose, onAdd, onDec, qty, galleryUrl, isBookN
             ) : qty > 0 ? (
               <div className="space-y-2">
                 <div className="flex items-center justify-between bg-emerald-50 rounded-full px-3 py-2">
-                  <button onClick={() => onDec(product.id)} className="w-9 h-9 rounded-full bg-white flex items-center justify-center hover:bg-emerald-100">
+                  <button onClick={() => onDec(product.id)} className="h-11 w-11 rounded-full bg-white flex items-center justify-center hover:bg-emerald-100 sm:h-9 sm:w-9">
                     <Minus className="w-4 h-4" />
                   </button>
                   <span className="font-black text-emerald-950 text-lg">{formatQtyForMeasureUnit(qty, product, activeMeasureUnit)}</span>
-                  <button onClick={() => onAdd(product.id)} className="w-9 h-9 rounded-full bg-white flex items-center justify-center hover:bg-emerald-100">
+                  <button onClick={() => onAdd(product.id)} className="h-11 w-11 rounded-full bg-white flex items-center justify-center hover:bg-emerald-100 sm:h-9 sm:w-9">
                     <Plus className="w-4 h-4" />
                   </button>
                 </div>
@@ -1420,7 +1420,7 @@ export default function PartnerGalleryPage() {
             ? "Tap the image to view details and start ride booking"
             : ((activeTab === "stay-dining" || activeTab === "doorstep" || activeTab === "other-services") ? "Tap the image to view details and book the service" : "Tap the image to view details and add to cart")}
         </p>
-        <div className="flex flex-wrap gap-2 w-full sm:w-auto">
+        <div className="flex flex-wrap gap-2 w-full sm:w-auto [&_button]:h-11 sm:[&_button]:h-8">
           {allowedTabs.includes("products") ? (
           <Link to={`/gallery/${partnerCode}?tab=products${gallerySearch ? `&q=${encodeURIComponent(gallerySearch)}` : ""}`}>
             <Button variant={activeTab === "products" ? "default" : "outline"} size="sm" className={`rounded-full text-xs ${activeTab === "products" ? "bg-emerald-900 hover:bg-emerald-950 text-white" : "border-emerald-300 text-emerald-900 hover:bg-emerald-50"}`}>
@@ -1504,7 +1504,7 @@ export default function PartnerGalleryPage() {
             <Button
               type="button"
               variant="outline"
-              className="rounded-full border-emerald-300 text-emerald-900 hover:bg-emerald-50 shrink-0"
+              className="h-11 rounded-full border-emerald-300 text-emerald-900 hover:bg-emerald-50 shrink-0 sm:h-9"
               onClick={() => setGallerySearch("")}
             >
               Clear Search
@@ -1576,7 +1576,7 @@ export default function PartnerGalleryPage() {
                           updateCartMeasureUnit(p.id, e.target.value);
                         }}
                         onClick={(e) => e.stopPropagation()}
-                        className="mt-2 h-9 w-full rounded-full border border-input bg-white px-3 text-xs"
+                        className="mt-2 h-11 w-full rounded-full border border-input bg-white px-3 text-xs sm:h-9"
                       >
                         {selectableUnits.map((unit) => (
                           <option key={unit} value={unit}>{unit}</option>
@@ -1609,7 +1609,7 @@ export default function PartnerGalleryPage() {
                             }
                             handleBookNow(p);
                           }}
-                          className={`w-full rounded-full h-9 text-white ${isTransport ? "bg-sky-700 hover:bg-sky-800" : "bg-emerald-900 hover:bg-emerald-950"}`}
+                          className={`h-11 w-full rounded-full text-white sm:h-9 ${isTransport ? "bg-sky-700 hover:bg-sky-800" : "bg-emerald-900 hover:bg-emerald-950"}`}
                           data-testid={`quick-add-${p.id}`}
                         >
                           {activeTab === "delivery-partner" || isDeliveryServiceLike(p) ? "Book Delivery" : "Book Now"}
@@ -1627,7 +1627,7 @@ export default function PartnerGalleryPage() {
                               e.stopPropagation();
                               decCart(p.id, activeMeasureUnit);
                             }}
-                            className="w-8 h-8 rounded-full bg-white flex items-center justify-center hover:bg-emerald-100"
+                            className="h-11 w-11 rounded-full bg-white flex items-center justify-center hover:bg-emerald-100 sm:h-8 sm:w-8"
                             data-testid={`quick-dec-${p.id}`}
                             aria-label={`Decrease ${p.name}`}
                           >
@@ -1642,7 +1642,7 @@ export default function PartnerGalleryPage() {
                               e.stopPropagation();
                               addToCart(p.id, activeMeasureUnit);
                             }}
-                            className="w-8 h-8 rounded-full bg-white flex items-center justify-center hover:bg-emerald-100"
+                            className="h-11 w-11 rounded-full bg-white flex items-center justify-center hover:bg-emerald-100 sm:h-8 sm:w-8"
                             data-testid={`quick-inc-${p.id}`}
                             aria-label={`Increase ${p.name}`}
                           >
@@ -1705,7 +1705,7 @@ export default function PartnerGalleryPage() {
             </div>
             <Button
               onClick={() => setCheckoutOpen(true)}
-              className="bg-emerald-900 hover:bg-emerald-950 text-white rounded-full px-5 shrink-0 w-full sm:w-auto"
+              className="h-11 bg-emerald-900 hover:bg-emerald-950 text-white rounded-full px-5 shrink-0 w-full sm:h-9 sm:w-auto"
               data-testid="gallery-checkout-btn"
             >
               Checkout · ₹{total.toLocaleString("en-IN")}

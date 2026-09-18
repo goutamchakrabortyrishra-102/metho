@@ -664,7 +664,7 @@ export default function UpiPaymentDialog({
   };
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-3xl max-h-[92vh] overflow-y-auto">
+      <DialogContent className="max-w-3xl max-h-[92vh] overflow-y-auto [&>button]:h-11 [&>button]:w-11 sm:[&>button]:h-auto sm:[&>button]:w-auto">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <QrCode className="w-5 h-5 text-emerald-700" />
@@ -696,7 +696,7 @@ export default function UpiPaymentDialog({
                 type="button"
                 variant="outline"
                 onClick={goBackToCart}
-                className="shrink-0 border-emerald-300 text-emerald-900 hover:bg-emerald-100"
+                className="h-11 shrink-0 border-emerald-300 text-emerald-900 hover:bg-emerald-100 sm:h-9"
                 data-testid="upi-back-to-cart-button"
               >
                 <ShoppingCart className="w-4 h-4 mr-2" /> Back to Cart
@@ -723,7 +723,7 @@ export default function UpiPaymentDialog({
                       <button
                         type="button"
                         onClick={() => onItemQtyChange(item, -1)}
-                        className="w-7 h-7 rounded-full border border-emerald-200 bg-white hover:bg-emerald-100 text-emerald-950 font-bold"
+                        className="h-11 w-11 rounded-full border border-emerald-200 bg-white hover:bg-emerald-100 text-emerald-950 font-bold sm:h-7 sm:w-7"
                         data-testid={`checkout-qty-dec-${item.id}`}
                       >
                         −
@@ -732,7 +732,7 @@ export default function UpiPaymentDialog({
                       <button
                         type="button"
                         onClick={() => onItemQtyChange(item, 1)}
-                        className="w-7 h-7 rounded-full border border-emerald-200 bg-white hover:bg-emerald-100 text-emerald-950 font-bold"
+                        className="h-11 w-11 rounded-full border border-emerald-200 bg-white hover:bg-emerald-100 text-emerald-950 font-bold sm:h-7 sm:w-7"
                         data-testid={`checkout-qty-inc-${item.id}`}
                       >
                         +

@@ -492,27 +492,27 @@ export default function MethoVegetablePage() {
                       const isWeighted = getUnitType(p) !== "piece";
                       return <div className="space-y-2">
                         <div className={isWeighted ? "grid grid-cols-2 gap-2" : "grid grid-cols-1"}>
-                          {isWeighted ? <select value={selectedUnit} onChange={(event) => { const unit = event.target.value; setSelectedUnits((current) => ({ ...current, [p.id]: unit })); if (cart[p.id] > 0) setQuantity(p, quantityChoices(p, unit)[0] || 0); }} className="h-9 rounded-md border border-emerald-200 bg-white px-2 text-xs font-semibold text-emerald-950" data-testid={`vegetable-unit-${i}`}>
+                          {isWeighted ? <select value={selectedUnit} onChange={(event) => { const unit = event.target.value; setSelectedUnits((current) => ({ ...current, [p.id]: unit })); if (cart[p.id] > 0) setQuantity(p, quantityChoices(p, unit)[0] || 0); }} className="h-11 rounded-md border border-emerald-200 bg-white px-2 text-xs font-semibold text-emerald-950 sm:h-9" data-testid={`vegetable-unit-${i}`}>
                             {getMeasureOptions(p).map((unit) => <option key={unit} value={unit}>{unit.toUpperCase()}</option>)}
                           </select> : null}
-                          <select value={String(cart[p.id] || choices[0] || "")} onChange={(event) => setQuantity(p, Number(event.target.value))} disabled={!choices.length} className="h-9 rounded-md border border-emerald-200 bg-white px-2 text-xs font-semibold text-emerald-950" data-testid={`vegetable-quantity-${i}`}>
+                          <select value={String(cart[p.id] || choices[0] || "")} onChange={(event) => setQuantity(p, Number(event.target.value))} disabled={!choices.length} className="h-11 rounded-md border border-emerald-200 bg-white px-2 text-xs font-semibold text-emerald-950 sm:h-9" data-testid={`vegetable-quantity-${i}`}>
                             {choices.map((quantity) => <option key={quantity} value={quantity}>{formatMeasureQuantity(quantity, p, selectedUnit)}</option>)}
                           </select>
                         </div>
                         {(cart[p.id] || 0) > 0 ? (
                       <div className="flex items-center justify-between bg-emerald-50 rounded-full px-2 py-1" data-testid={`vegetable-qty-wrap-${i}`}>
-                        <button type="button" onClick={() => dec(p)} className="w-7 h-7 rounded-full bg-white hover:bg-emerald-100 flex items-center justify-center" data-testid={`vegetable-dec-${i}`}>
+                        <button type="button" onClick={() => dec(p)} className="h-11 w-11 rounded-full bg-white hover:bg-emerald-100 flex items-center justify-center sm:h-7 sm:w-7" data-testid={`vegetable-dec-${i}`}>
                           <Minus className="w-3.5 h-3.5" />
                         </button>
                         <span className="font-bold text-emerald-950 text-sm" data-testid={`vegetable-qty-${i}`}>{formatQuantity(cart[p.id], p)}</span>
-                        <button type="button" onClick={() => inc(p)} className="w-7 h-7 rounded-full bg-white hover:bg-emerald-100 flex items-center justify-center" data-testid={`vegetable-inc-${i}`}>
+                        <button type="button" onClick={() => inc(p)} className="h-11 w-11 rounded-full bg-white hover:bg-emerald-100 flex items-center justify-center sm:h-7 sm:w-7" data-testid={`vegetable-inc-${i}`}>
                           <Plus className="w-3.5 h-3.5" />
                         </button>
                       </div>
                     ) : (
                       <Button
                         size="sm"
-                        className="w-full bg-emerald-900 hover:bg-emerald-950 rounded-full text-xs"
+                        className="h-11 w-full bg-emerald-900 hover:bg-emerald-950 rounded-full text-xs sm:h-8"
                         data-testid={`vegetable-buy-${i}`}
                         onClick={() => inc(p)}
                         disabled={isOutOfStock}
@@ -549,7 +549,7 @@ export default function MethoVegetablePage() {
                   applyOrderedImageFallback(e, candidates, FALLBACK_IMAGE);
                 }}
               />
-              <button onClick={() => setPreviewProduct(null)} className="absolute top-3 right-3 w-8 h-8 rounded-full bg-black/40 text-white flex items-center justify-center hover:bg-black/60">
+              <button onClick={() => setPreviewProduct(null)} className="absolute top-3 right-3 h-11 w-11 rounded-full bg-black/40 text-white flex items-center justify-center hover:bg-black/60 sm:h-8 sm:w-8">
                 <X className="w-4 h-4" />
               </button>
             </div>
@@ -586,7 +586,7 @@ export default function MethoVegetablePage() {
             </div>
             <Button
               onClick={() => setCheckoutOpen(true)}
-              className="bg-emerald-900 hover:bg-emerald-950 text-white rounded-full px-5"
+              className="h-11 bg-emerald-900 hover:bg-emerald-950 text-white rounded-full px-5 sm:h-9"
               data-testid="vegetable-checkout-button"
             >
               <ShoppingCart className="w-4 h-4 mr-2" />

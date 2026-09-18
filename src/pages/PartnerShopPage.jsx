@@ -1333,7 +1333,7 @@ export default function PartnerShopPage() {
               onClick={() => {
                 document.getElementById("partner-shop-products-section")?.scrollIntoView({ behavior: "smooth", block: "start" });
               }}
-              className="bg-emerald-900 hover:bg-emerald-950 text-white rounded-full shrink-0 w-full sm:w-auto"
+              className="h-11 bg-emerald-900 hover:bg-emerald-950 text-white rounded-full shrink-0 w-full sm:h-9 sm:w-auto"
               data-testid="partner-shop-product-search-btn"
             >
               Search
@@ -1391,7 +1391,7 @@ export default function PartnerShopPage() {
                               value={activeMeasureUnit}
                               onChange={(e) => updateCartMeasureUnit(item.id, e.target.value)}
                               onClick={(e) => e.stopPropagation()}
-                              className="mt-2 h-9 w-full rounded-full border border-input bg-white px-3 text-xs"
+                              className="mt-2 h-11 w-full rounded-full border border-input bg-white px-3 text-xs sm:h-9"
                               aria-label={`Select measure unit for ${item.name}`}
                               data-testid={`partner-shop-product-unit-${item.id}`}
                             >
@@ -1408,7 +1408,7 @@ export default function PartnerShopPage() {
                                 <button
                                   type="button"
                                   onClick={() => dec(item, activeMeasureUnit)}
-                                  className="w-7 h-7 rounded-full bg-white hover:bg-emerald-100 flex items-center justify-center text-emerald-950 font-bold"
+                                  className="h-11 w-11 rounded-full bg-white hover:bg-emerald-100 flex items-center justify-center text-emerald-950 font-bold sm:h-7 sm:w-7"
                                   data-testid={`partner-shop-product-dec-${item.id}`}
                                 >
                                   −
@@ -1419,7 +1419,7 @@ export default function PartnerShopPage() {
                                 <button
                                   type="button"
                                   onClick={() => inc(item, activeMeasureUnit)}
-                                  className="w-7 h-7 rounded-full bg-white hover:bg-emerald-100 flex items-center justify-center text-emerald-950 font-bold"
+                                  className="h-11 w-11 rounded-full bg-white hover:bg-emerald-100 flex items-center justify-center text-emerald-950 font-bold sm:h-7 sm:w-7"
                                   data-testid={`partner-shop-product-inc-${item.id}`}
                                 >
                                   +
@@ -1428,7 +1428,7 @@ export default function PartnerShopPage() {
                             ) : (
                               <Button
                                 size="sm"
-                                className="w-full bg-amber-500 hover:bg-amber-600 text-emerald-950 rounded-full text-xs font-bold"
+                                className="h-11 w-full bg-amber-500 hover:bg-amber-600 text-emerald-950 rounded-full text-xs font-bold sm:h-8"
                                 onClick={() => inc(item, activeMeasureUnit)}
                                 data-testid={`partner-shop-product-add-${item.id}`}
                               >
@@ -2428,7 +2428,7 @@ export default function PartnerShopPage() {
                   );
                 }}
               />
-              <button onClick={closePreview} className="absolute top-3 right-3 w-8 h-8 rounded-full bg-black/40 text-white flex items-center justify-center hover:bg-black/60">
+              <button onClick={closePreview} className="absolute top-3 right-3 h-11 w-11 rounded-full bg-black/40 text-white flex items-center justify-center hover:bg-black/60 sm:h-8 sm:w-8">
                 <X className="w-4 h-4" />
               </button>
             </div>
