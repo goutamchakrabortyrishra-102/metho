@@ -756,10 +756,15 @@ def _role_registration_reply(db, role: str, lead_id: str = "", phone: str = "") 
 
 
 def _send_direct_ai_reply(db, lead: CRMLead, recipient: str, incoming_text: str) -> bool:
-    from .whatsapp_ai import _business_unknown_fallback, _generate_reply, resolve_ai_config
+    from .whatsapp_ai import _business_unknown_fallback, _catalog_context, _conversation_context, _crm_context, _generate_reply, resolve_ai_config
 
     try:
-        reply, _provider, _model = _generate_reply(resolve_ai_config(db), incoming_text, db=db)
+        context = f"{_crm_context(db, lead)}\nPrevious WhatsApp conversation:\n{_conversation_context(db, lead)}\nAvailable METHO catalog:\n{_catalog_context(db)}"
+    except Exception:
+        logger.exception("WhatsApp direct AI reply context build failed")
+        context = ""
+    try:
+        reply, _provider, _model = _generate_reply(resolve_ai_config(db), incoming_text, context, db=db)
     except Exception:
         logger.exception("WhatsApp direct AI reply generation failed")
         reply = ""
