@@ -4,6 +4,7 @@ import { ArrowLeft, CalendarDays, MapPinned, Minus, Plus, ShoppingCart, Images, 
 import { toast } from "sonner";
 import api from "@/services/api";
 import { Logo } from "@/components/Logo";
+import WelcomeGuideModal from "@/components/WelcomeGuideModal";
 import { Button } from "@/components/ui/button";
 import { Breadcrumb, BreadcrumbItem, BreadcrumbLink, BreadcrumbList, BreadcrumbPage, BreadcrumbSeparator } from "@/components/ui/breadcrumb";
 import { Input } from "@/components/ui/input";
@@ -798,6 +799,7 @@ export default function ShopPage({ travelOnly = false }) {
           setGuestMemberRef("");
         }}
       />
+      <WelcomeGuideModal />
     </div>
   );
 }

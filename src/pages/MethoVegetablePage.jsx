@@ -4,6 +4,7 @@ import { ArrowLeft, Minus, Plus, ShoppingCart, Search, X } from "lucide-react";
 import { toast } from "sonner";
 import api from "@/services/api";
 import { Logo } from "@/components/Logo";
+import WelcomeGuideModal from "@/components/WelcomeGuideModal";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import UpiPaymentDialog from "@/components/UpiPaymentDialog";
@@ -671,6 +672,7 @@ export default function MethoVegetablePage() {
           setGuestMemberRef("");
         }}
       />
+      <WelcomeGuideModal />
     </div>
   );
 }

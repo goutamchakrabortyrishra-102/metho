@@ -14,6 +14,7 @@ import { getMethoPriceDetails, resolveAssetUrl, getAssetImageFallbackCandidates 
 import { isCompletePincode, normalizePincode } from "@/lib/indiaLocation";
 import useDebouncedValue from "@/hooks/useDebouncedValue";
 import SeoMeta from "@/components/SeoMeta";
+import WelcomeGuideModal from "@/components/WelcomeGuideModal";
 import WhatsAppOrderButton from "@/components/WhatsAppOrderButton";
 import { getOrganizationSchema } from "@/utils/seoSchema";
 
@@ -1964,6 +1965,7 @@ export default function LandingPage() {
       <TopLeaders />
       <ReturnPolicyBox />
       <Footer />
+      <WelcomeGuideModal />
       <WhatsAppOrderButton />
     </div>
   );
