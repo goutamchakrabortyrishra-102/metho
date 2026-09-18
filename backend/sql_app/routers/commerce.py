@@ -294,6 +294,10 @@ def _public_image_ref(product_id: str, value: str) -> str:
     return raw
 
 
+def _is_product_image_proxy(value: str, product_id: str) -> bool:
+    return str(value or "").strip().split("?", 1)[0].rstrip("/") == f"/api/products/{product_id}/image"
+
+
 def _compact_public_image_url(value: str) -> str:
     return str(value or "").strip()
 
@@ -375,7 +379,7 @@ def list_products(limit: int | None = None, authorization: str | None = Header(d
                 "stock": p.stock,
                 "purchase_cost": float(inventory_record.get("purchase_cost") or 0),
                 "product_type": (m.product_type if m else "metho"),
-                "image_url": (m.image_url if m else ""),
+                "image_url": _public_image_ref(p.id, m.image_url if m else ""),
                 "pricing_tiers": pricing_tier_map.get(p.id, []),
                 "youtube_url": str(youtube_map.get(str(p.id)) or "").strip(),
                 "hidden": bool(hidden_map.get(p.id, False)),
@@ -636,7 +640,9 @@ def update_product(product_id: str, payload: ProductCreate, db: Session = Depend
         meta = ProductMeta(product_id=product_id)
         db.add(meta)
     meta.product_type = product_type
-    meta.image_url = (payload.image_url or "").strip()
+    submitted_image_url = (payload.image_url or "").strip()
+    if not (_is_product_image_proxy(submitted_image_url, product_id) and str(meta.image_url or "").strip().startswith("data:")):
+        meta.image_url = submitted_image_url
     meta.mrp = mrp
     meta.discount_percent = discount_percent
     meta.gst_percent = (gst_percent if product_type in GST_QUALIFIED_PRODUCT_TYPES else 0)
