@@ -290,7 +290,7 @@ def test_whatsapp_freeform_question_in_intro_uses_ai_path(monkeypatch):
         db.close()
 
 
-def test_whatsapp_freeform_falls_back_to_configured_reply_when_ai_unavailable(monkeypatch):
+def test_whatsapp_new_freeform_starts_welcome_before_ai_flow(monkeypatch):
     db = make_session()
     try:
         sent = []
@@ -298,7 +298,9 @@ def test_whatsapp_freeform_falls_back_to_configured_reply_when_ai_unavailable(mo
         monkeypatch.setattr("sql_app.whatsapp_ai.should_ai_handle_freeform_reply", lambda _db: False)
         update_whatsapp_settings({"phone_number_id": "123456", "access_token": "secret-token", "default_auto_reply": "METHO configured fallback"}, db, admin())
         assert ingest_whatsapp_message(db, message_payload("wamid.ai-fallback", "METHO সম্পর্কে জানতে চাই"), None) == "created"
-        assert sent == ["METHO configured fallback"]
+        assert len(sent) == 1
+        assert "METHO AAY-UPAY" in sent[0]
+        assert "1 লিখুন Member" in sent[0]
     finally:
         db.close()
 

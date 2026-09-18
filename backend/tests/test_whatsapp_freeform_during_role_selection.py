@@ -81,18 +81,22 @@ def test_info_question_during_role_selection_sends_direct_ai_reply_with_auto_sen
         db.close()
 
 
-def test_new_customer_info_question_sends_direct_ai_reply_and_keeps_introduction_state(monkeypatch):
+def test_new_customer_info_question_starts_welcome_before_ai_flow(monkeypatch):
     db = make_session()
     try:
         sent = []
         monkeypatch.setattr("sql_app.whatsapp_cloud.send_whatsapp_message", lambda _db, recipient, text: sent.append(text) or {"messages": [{"id": "wamid.reply"}]})
-        monkeypatch.setattr("sql_app.whatsapp_ai._generate_reply", lambda *_args, **_kwargs: ("Direct AI answer", "gemini", "gemini-1.5-flash"))
+        monkeypatch.setattr("sql_app.whatsapp_ai._generate_reply", lambda *_args, **_kwargs: (_ for _ in ()).throw(AssertionError("AI should not answer before welcome")))
         update_whatsapp_settings({"phone_number_id": "123456", "access_token": "secret-token"}, db, admin())
 
         assert ingest_whatsapp_message(db, message_payload("wamid.new-info-ai", "Hello! Can I get more info on this?"), None) == "created"
         session = db.query(WhatsAppRegistrationSession).one()
         assert session.state == "INTRODUCTION"
-        assert sent == ["Direct AI answer"]
+        assert sent
+        assert "METHO AAY-UPAY" in sent[-1]
+        assert "1 লিখুন Member" in sent[-1]
+        assert "2 লিখুন Partner" in sent[-1]
+        assert "3 লিখুন Rider" in sent[-1]
     finally:
         db.close()
 
@@ -110,7 +114,9 @@ def test_info_question_sends_executive_text_when_direct_ai_reply_is_empty_or_fai
         monkeypatch.setattr("sql_app.whatsapp_cloud.get_configured_whatsapp_reply", lambda *_args, **_kwargs: "")
         update_whatsapp_settings({"phone_number_id": "123456", "access_token": "secret-token"}, db, admin())
 
-        assert ingest_whatsapp_message(db, message_payload("wamid.info-ai-fallback", "Hello! Can I get more info on this?"), None) == "created"
+        assert ingest_whatsapp_message(db, message_payload("wamid.info-ai-fallback-welcome", "Hi"), None) == "created"
+        sent.clear()
+        assert ingest_whatsapp_message(db, message_payload("wamid.info-ai-fallback", "Hello! Can I get more info on this?"), None) == "updated"
         assert sent == ["For accurate information on this matter, please contact our Executive directly: 9339566110"]
     finally:
         db.close()

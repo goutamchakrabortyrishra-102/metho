@@ -1741,8 +1741,8 @@ def ingest_whatsapp_message(db, payload: dict, request=None) -> str:
             native_member_handled = _send_introduction(db, registration_session, lead, normalized["phone"])
         elif registration_session is None and not role_hint and is_ai_freeform_query:
             registration_session = _member_registration_session(db, normalized["phone"], normalized["whatsapp_no"], lead)
-            registration_session.state = WHATSAPP_INTRODUCTION
-            native_member_handled = _send_direct_ai_reply(db, lead, normalized["phone"], incoming_text)
+            _clear_member_registration_session(registration_session)
+            native_member_handled = _send_introduction(db, registration_session, lead, normalized["phone"])
         elif role_hint in {"member", "partner", "rider"}:
             registration_session = _member_registration_session(db, normalized["phone"], normalized["whatsapp_no"], lead)
             registration_session.role = role_hint
