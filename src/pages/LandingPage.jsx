@@ -617,21 +617,25 @@ const Hero = () => {
                 </h1>
               )}
             </div>
-            <Link to="/metho-vegetable" className="hidden lg:inline-flex shrink-0 mt-2" data-testid="landing-highlight-vegetables">
-              <Button size="lg" className="rounded-full bg-red-600 hover:bg-red-700 text-white font-bold px-7 h-14 text-base shadow-[0_16px_34px_rgba(185,28,28,0.22)]">
-                Open METHO Vegetable
-              </Button>
-            </Link>
+            {companyVideoUrl ? (
+              <a href={companyVideoUrl} target="_blank" rel="noreferrer" className="hidden lg:inline-flex shrink-0 mt-2" data-testid="landing-highlight-watch-video">
+                <Button size="lg" className="rounded-full bg-red-600 hover:bg-red-700 text-white font-bold px-7 h-14 text-base shadow-[0_16px_34px_rgba(185,28,28,0.22)]">
+                  <PlayCircle className="mr-2 h-5 w-5" /> Watch VDO
+                </Button>
+              </a>
+            ) : null}
           </div>
           <div className="mt-5 flex flex-wrap items-center justify-between gap-4">
             <p className="inline-flex items-center rounded-full border border-emerald-200 bg-white/95 px-4 py-2 text-sm font-semibold tracking-wide text-emerald-900 shadow-sm">
               Powered By Metho Logistics Private Limited
             </p>
-            <Link to="/metho-vegetable" className="inline-flex lg:hidden" data-testid="landing-highlight-vegetables-mobile">
-              <Button size="lg" className="rounded-full bg-red-600 hover:bg-red-700 text-white font-bold px-7 h-14 text-base shadow-[0_16px_34px_rgba(185,28,28,0.22)]">
-                Open METHO Vegetable
-              </Button>
-            </Link>
+            {companyVideoUrl ? (
+              <a href={companyVideoUrl} target="_blank" rel="noreferrer" className="inline-flex lg:hidden" data-testid="landing-highlight-watch-video-mobile">
+                <Button size="lg" className="rounded-full bg-red-600 hover:bg-red-700 text-white font-bold px-7 h-14 text-base shadow-[0_16px_34px_rgba(185,28,28,0.22)]">
+                  <PlayCircle className="mr-2 h-5 w-5" /> Watch VDO
+                </Button>
+              </a>
+            ) : null}
           </div>
           <div className="mt-8 rounded-[2rem] border border-emerald-900/12 bg-white/90 p-3 shadow-[0_18px_42px_rgba(15,23,42,0.08)] md:p-4" data-testid="hero-direct-access-card">
             <div className="flex flex-wrap items-center gap-3 rounded-[1.5rem] border border-emerald-900/10 bg-gradient-to-r from-white via-emerald-50/75 to-white p-2.5">
