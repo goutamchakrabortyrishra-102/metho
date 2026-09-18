@@ -156,10 +156,23 @@ const getCustomerPricingTiers = (product) => {
   return tiers.map((tier) => ({ ...tier, price: getGstInclusivePrice(tier?.price, gstPercent) }));
 };
 
-const loadVegetableStartupProducts = async (limit = 240) => {
+const PRODUCT_PAGE_SIZE = 24;
+
+const uniqueById = (rows) => {
+  const seen = new Set();
+  return rows.filter((item) => {
+    const id = String(item?.id || "");
+    if (!id || seen.has(id)) return false;
+    seen.add(id);
+    return true;
+  });
+};
+
+const loadVegetableStartupProducts = async (limit = PRODUCT_PAGE_SIZE, offset = 0) => {
   const safeLimit = Math.max(1, Math.min(Number(limit) || 240, 500));
+  const safeOffset = Math.max(0, Number(offset) || 0);
   const candidates = [
-    `/products/public?limit=${safeLimit}`,
+    `/products/public?limit=${safeLimit}&offset=${safeOffset}`,
     `/products?limit=${safeLimit}&compact=1`,
     `/products?limit=${safeLimit}`,
     "/products",
@@ -168,7 +181,12 @@ const loadVegetableStartupProducts = async (limit = 240) => {
   for (const path of candidates) {
     try {
       const r = await api.get(path);
-      return normalizeCollection(r.data);
+      return {
+        rows: normalizeCollection(r.data),
+        hasMore: Boolean(r.data?.has_more),
+        nextOffset: r.data?.next_offset ?? null,
+        total: Number(r.data?.total || 0),
+      };
     } catch (err) {
       lastError = err;
     }
@@ -203,6 +221,10 @@ export default function MethoVegetablePage() {
   const [query, setQuery] = useState(searchParams.get("q") || "");
   const [loadError, setLoadError] = useState("");
   const [loadingProducts, setLoadingProducts] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [hasMoreProducts, setHasMoreProducts] = useState(false);
+  const [nextProductOffset, setNextProductOffset] = useState(null);
+  const [productTotal, setProductTotal] = useState(0);
   const [cart, setCart] = useState(readStoredVegetableCart);
   const [previewProduct, setPreviewProduct] = useState(null);
   const [checkoutOpen, setCheckoutOpen] = useState(false);
@@ -213,9 +235,12 @@ export default function MethoVegetablePage() {
 
   useEffect(() => {
     setLoadingProducts(true);
-    loadVegetableStartupProducts(240)
-      .then((rows) => {
+    loadVegetableStartupProducts(PRODUCT_PAGE_SIZE, 0)
+      .then(({ rows, hasMore, nextOffset, total }) => {
         setProducts(rows);
+        setHasMoreProducts(hasMore);
+        setNextProductOffset(nextOffset);
+        setProductTotal(total);
         setLoadError("");
       })
       .catch(() => {
@@ -224,6 +249,22 @@ export default function MethoVegetablePage() {
       })
       .finally(() => setLoadingProducts(false));
   }, []);
+
+  const loadMoreProducts = async () => {
+    if (loadingMore || nextProductOffset === null) return;
+    setLoadingMore(true);
+    try {
+      const { rows, hasMore, nextOffset, total } = await loadVegetableStartupProducts(PRODUCT_PAGE_SIZE, nextProductOffset);
+      setProducts((current) => uniqueById([...current, ...rows]));
+      setHasMoreProducts(hasMore);
+      setNextProductOffset(nextOffset);
+      setProductTotal(total);
+    } catch {
+      toast.error("More vegetables could not be loaded right now");
+    } finally {
+      setLoadingMore(false);
+    }
+  };
 
   useEffect(() => {
     setQuery(searchParams.get("q") || "");
@@ -533,6 +574,13 @@ export default function MethoVegetablePage() {
             </div>
           ) : null}
         </div>
+        {hasMoreProducts ? (
+          <div className="mt-6 flex justify-center">
+            <Button type="button" variant="outline" onClick={loadMoreProducts} disabled={loadingMore} className="h-11 rounded-full border-emerald-300 text-emerald-900 hover:bg-emerald-50" data-testid="vegetable-load-more">
+              {loadingMore ? "Loading..." : `Load More${productTotal ? ` (${products.length}/${productTotal})` : ""}`}
+            </Button>
+          </div>
+        ) : null}
       </div>
 
       {previewProduct ? (
@@ -612,7 +660,7 @@ export default function MethoVegetablePage() {
           else dec(product);
         }}
         onBackToCart={() => {
-          loadVegetableStartupProducts(240).then(setProducts).catch(() => {});
+          loadVegetableStartupProducts(Math.max(PRODUCT_PAGE_SIZE, products.length), 0).then(({ rows, hasMore, nextOffset, total }) => { setProducts(rows); setHasMoreProducts(hasMore); setNextProductOffset(nextOffset); setProductTotal(total); }).catch(() => {});
         }}
         onOrderPlaced={() => {
           setCheckoutOpen(false);

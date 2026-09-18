@@ -135,10 +135,23 @@ const getCustomerPricingTiers = (product) => {
   }));
 };
 
-const loadShopStartupProducts = async (limit = 240) => {
+const PRODUCT_PAGE_SIZE = 24;
+
+const uniqueById = (rows) => {
+  const seen = new Set();
+  return rows.filter((item) => {
+    const id = String(item?.id || "");
+    if (!id || seen.has(id)) return false;
+    seen.add(id);
+    return true;
+  });
+};
+
+const loadShopStartupProducts = async (limit = PRODUCT_PAGE_SIZE, offset = 0) => {
   const safeLimit = Math.max(1, Math.min(Number(limit) || 240, 500));
+  const safeOffset = Math.max(0, Number(offset) || 0);
   const candidates = [
-    `/products/public?limit=${safeLimit}`,
+    `/products/public?limit=${safeLimit}&offset=${safeOffset}`,
     `/products?limit=${safeLimit}&compact=1`,
     `/products?limit=${safeLimit}`,
     "/products",
@@ -147,7 +160,12 @@ const loadShopStartupProducts = async (limit = 240) => {
   for (const path of candidates) {
     try {
       const r = await api.get(path);
-      return normalizeCollection(r.data);
+      return {
+        rows: normalizeCollection(r.data),
+        hasMore: Boolean(r.data?.has_more),
+        nextOffset: r.data?.next_offset ?? null,
+        total: Number(r.data?.total || 0),
+      };
     } catch (err) {
       lastError = err;
     }
@@ -166,6 +184,10 @@ export default function ShopPage({ travelOnly = false }) {
   const [query, setQuery] = useState(searchParams.get("q") || "");
   const [loadError, setLoadError] = useState("");
   const [loadingProducts, setLoadingProducts] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [hasMoreProducts, setHasMoreProducts] = useState(false);
+  const [nextProductOffset, setNextProductOffset] = useState(null);
+  const [productTotal, setProductTotal] = useState(0);
   const [cart, setCart] = useState({});
   const [previewProduct, setPreviewProduct] = useState(null);
   const [checkoutOpen, setCheckoutOpen] = useState(false);
@@ -183,9 +205,12 @@ export default function ShopPage({ travelOnly = false }) {
       api.post("/seed").catch(() => {});
     }
     setLoadingProducts(true);
-    loadShopStartupProducts(240)
-      .then((rows) => {
+    loadShopStartupProducts(PRODUCT_PAGE_SIZE, 0)
+      .then(({ rows, hasMore, nextOffset, total }) => {
         setProducts(rows);
+        setHasMoreProducts(hasMore);
+        setNextProductOffset(nextOffset);
+        setProductTotal(total);
         setLoadError("");
       })
       .catch(() => {
@@ -194,6 +219,22 @@ export default function ShopPage({ travelOnly = false }) {
       })
       .finally(() => setLoadingProducts(false));
   }, []);
+
+  const loadMoreProducts = async () => {
+    if (loadingMore || nextProductOffset === null) return;
+    setLoadingMore(true);
+    try {
+      const { rows, hasMore, nextOffset, total } = await loadShopStartupProducts(PRODUCT_PAGE_SIZE, nextProductOffset);
+      setProducts((current) => uniqueById([...current, ...rows]));
+      setHasMoreProducts(hasMore);
+      setNextProductOffset(nextOffset);
+      setProductTotal(total);
+    } catch {
+      toast.error("More products could not be loaded right now");
+    } finally {
+      setLoadingMore(false);
+    }
+  };
 
   useEffect(() => {
     setQuery(searchParams.get("q") || "");
@@ -646,6 +687,13 @@ export default function ShopPage({ travelOnly = false }) {
             </div>
           );})}
         </div>
+        {hasMoreProducts ? (
+          <div className="mt-6 flex justify-center">
+            <Button type="button" variant="outline" onClick={loadMoreProducts} disabled={loadingMore} className="h-11 rounded-full border-emerald-300 text-emerald-900 hover:bg-emerald-50" data-testid="shop-load-more">
+              {loadingMore ? "Loading..." : `Load More${productTotal ? ` (${products.length}/${productTotal})` : ""}`}
+            </Button>
+          </div>
+        ) : null}
         <p className="mt-6 text-xs leading-5 text-slate-500">Travel services are subject to <Link to="/travel-booking-terms" className="font-semibold text-sky-800 underline">Travel Booking Terms</Link>. Supplier availability, itinerary, inclusions and final confirmation are provided for each booking.</p>
       </div>
 
@@ -742,7 +790,7 @@ export default function ShopPage({ travelOnly = false }) {
           else dec(item.id);
         }}
         onBackToCart={() => {
-          loadShopStartupProducts(240).then(setProducts).catch(() => {});
+          loadShopStartupProducts(Math.max(PRODUCT_PAGE_SIZE, products.length), 0).then(({ rows, hasMore, nextOffset, total }) => { setProducts(rows); setHasMoreProducts(hasMore); setNextProductOffset(nextOffset); setProductTotal(total); }).catch(() => {});
         }}
         onOrderPlaced={() => {
           setCheckoutOpen(false);
