@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from "react";
 import { toast } from "sonner";
-import { ShoppingCart, Plus, Minus, Trash2, Upload, Pencil, FileDown, FileText, Printer, ArrowUp, ArrowDown, Eye, EyeOff, RefreshCw } from "lucide-react";
+import { ShoppingCart, Plus, Minus, Trash2, Upload, Pencil, FileDown, FileText, Printer, ArrowUp, ArrowDown, Eye, EyeOff, RefreshCw, Search } from "lucide-react";
 import { Link, useSearchParams } from "react-router-dom";
 import api from "@/services/api";
 import { useAuth } from "@/contexts/AuthContext";
@@ -8,6 +8,7 @@ import { useSettings } from "@/contexts/SettingsContext";
 import AddProductDialog from "@/components/AddProductDialog";
 import UpiPaymentDialog from "@/components/UpiPaymentDialog";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import { getGstInclusivePrice, resolveAssetUrl, getAssetImageFallbackCandidates } from "@/lib/utils";
 
