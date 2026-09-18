@@ -755,6 +755,19 @@ def _role_registration_reply(db, role: str, lead_id: str = "", phone: str = "") 
     ))
 
 
+def _send_direct_ai_reply(db, lead: CRMLead, recipient: str, incoming_text: str) -> bool:
+    from .whatsapp_ai import _business_unknown_fallback, _generate_reply, resolve_ai_config
+
+    try:
+        reply, _provider, _model = _generate_reply(resolve_ai_config(db), incoming_text, db=db)
+    except Exception:
+        logger.exception("WhatsApp direct AI reply generation failed")
+        reply = ""
+    if not str(reply or "").strip():
+        reply = get_configured_whatsapp_reply(db, "default") or _business_unknown_fallback(incoming_text)
+    return _send_member_registration_reply(db, recipient, reply)
+
+
 def _is_informational_question(text: str) -> bool:
     lowered = str(text or "").lower()
     return any(marker in lowered for marker in INFORMATIONAL_QUESTION_MARKERS)
@@ -1714,10 +1727,7 @@ def ingest_whatsapp_message(db, payload: dict, request=None) -> str:
             reply = get_whatsapp_preset_message(db, "preset_business_enquiry_executive", WHATSAPP_PRESET_MESSAGE_DEFAULTS["preset_business_enquiry_executive"])
             native_member_handled = _send_member_registration_reply(db, normalized["phone"], reply)
         elif registration_session and registration_session.state in {WHATSAPP_INTRODUCTION, WHATSAPP_ROLE_SELECTION} and not role_hint and is_ai_freeform_query:
-            # Info questions asked mid role-selection fall through to the contextual/AI
-            # reply below instead of the role-selection fallback; session state is untouched
-            # so the user can still answer 1/2/3 afterwards.
-            pass
+            native_member_handled = _send_direct_ai_reply(db, lead, normalized["phone"], incoming_text)
         elif registration_session and registration_session.state in {WHATSAPP_INTRODUCTION, WHATSAPP_ROLE_SELECTION}:
             native_member_handled = _continue_introduction(db, registration_session, lead, incoming_text, normalized["phone"])
         elif registration_session and registration_session.role == "member" and registration_session.state in {WHATSAPP_MEMBER_REGISTERED, WHATSAPP_MEMBER_ACTIVATION_PENDING, WHATSAPP_MEMBER_ACTIVE, WHATSAPP_MEMBER_ONBOARDING}:
@@ -1732,6 +1742,7 @@ def ingest_whatsapp_message(db, payload: dict, request=None) -> str:
         elif registration_session is None and not role_hint and is_ai_freeform_query:
             registration_session = _member_registration_session(db, normalized["phone"], normalized["whatsapp_no"], lead)
             registration_session.state = WHATSAPP_INTRODUCTION
+            native_member_handled = _send_direct_ai_reply(db, lead, normalized["phone"], incoming_text)
         elif role_hint in {"member", "partner", "rider"}:
             registration_session = _member_registration_session(db, normalized["phone"], normalized["whatsapp_no"], lead)
             registration_session.role = role_hint

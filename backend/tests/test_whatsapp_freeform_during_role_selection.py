@@ -2,6 +2,7 @@ import sys
 from pathlib import Path
 from types import SimpleNamespace
 
+import pytest
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
@@ -57,6 +58,60 @@ def test_info_question_during_role_selection_skips_role_fallback_and_keeps_state
         assert ingest_whatsapp_message(db, message_payload("wamid.pick-role", "member"), None) == "updated"
         assert session.state == "ROLE_SELECTION"
         assert session.role == "member"
+    finally:
+        db.close()
+
+
+def test_info_question_during_role_selection_sends_direct_ai_reply_with_auto_send_disabled(monkeypatch):
+    db = make_session()
+    try:
+        sent = []
+        monkeypatch.setattr("sql_app.whatsapp_cloud.send_whatsapp_message", lambda _db, recipient, text: sent.append(text) or {"messages": [{"id": "wamid.reply"}]})
+        monkeypatch.setattr("sql_app.whatsapp_ai._generate_reply", lambda *_args, **_kwargs: ("Direct AI answer", "gemini", "gemini-1.5-flash"))
+        update_whatsapp_settings({"phone_number_id": "123456", "access_token": "secret-token"}, db, admin())
+
+        ingest_whatsapp_message(db, message_payload("wamid.greet-ai", "Hi"), None)
+        session = db.query(WhatsAppRegistrationSession).one()
+        sent.clear()
+
+        assert ingest_whatsapp_message(db, message_payload("wamid.info-ai", "Hello! Can I get more info on this?"), None) == "updated"
+        assert session.state == "INTRODUCTION"
+        assert sent == ["Direct AI answer"]
+    finally:
+        db.close()
+
+
+def test_new_customer_info_question_sends_direct_ai_reply_and_keeps_introduction_state(monkeypatch):
+    db = make_session()
+    try:
+        sent = []
+        monkeypatch.setattr("sql_app.whatsapp_cloud.send_whatsapp_message", lambda _db, recipient, text: sent.append(text) or {"messages": [{"id": "wamid.reply"}]})
+        monkeypatch.setattr("sql_app.whatsapp_ai._generate_reply", lambda *_args, **_kwargs: ("Direct AI answer", "gemini", "gemini-1.5-flash"))
+        update_whatsapp_settings({"phone_number_id": "123456", "access_token": "secret-token"}, db, admin())
+
+        assert ingest_whatsapp_message(db, message_payload("wamid.new-info-ai", "Hello! Can I get more info on this?"), None) == "created"
+        session = db.query(WhatsAppRegistrationSession).one()
+        assert session.state == "INTRODUCTION"
+        assert sent == ["Direct AI answer"]
+    finally:
+        db.close()
+
+
+@pytest.mark.parametrize("ai_result", [("", "fallback", "local"), RuntimeError("Gemini unavailable")])
+def test_info_question_sends_executive_text_when_direct_ai_reply_is_empty_or_fails(monkeypatch, ai_result):
+    db = make_session()
+    try:
+        sent = []
+        monkeypatch.setattr("sql_app.whatsapp_cloud.send_whatsapp_message", lambda _db, recipient, text: sent.append(text) or {"messages": [{"id": "wamid.reply"}]})
+        if isinstance(ai_result, Exception):
+            monkeypatch.setattr("sql_app.whatsapp_ai._generate_reply", lambda *_args, **_kwargs: (_ for _ in ()).throw(ai_result))
+        else:
+            monkeypatch.setattr("sql_app.whatsapp_ai._generate_reply", lambda *_args, **_kwargs: ai_result)
+        monkeypatch.setattr("sql_app.whatsapp_cloud.get_configured_whatsapp_reply", lambda *_args, **_kwargs: "")
+        update_whatsapp_settings({"phone_number_id": "123456", "access_token": "secret-token"}, db, admin())
+
+        assert ingest_whatsapp_message(db, message_payload("wamid.info-ai-fallback", "Hello! Can I get more info on this?"), None) == "created"
+        assert sent == ["For accurate information on this matter, please contact our Executive directly: 9339566110"]
     finally:
         db.close()
 
