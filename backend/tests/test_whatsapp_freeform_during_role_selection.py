@@ -125,6 +125,64 @@ def test_new_customer_welcome_rejects_incomplete_registration_hallucination(monk
         db.close()
 
 
+@pytest.mark.parametrize("message", ["Metho ki", "Ki ki product ache", "Smart cycle ki?", "5 slot asole ki"])
+def test_short_roman_bangla_questions_use_ai_without_repeating_welcome(monkeypatch, message):
+    db = make_session()
+    try:
+        sent = []
+        ai_calls = []
+        monkeypatch.setattr("sql_app.whatsapp_cloud.send_whatsapp_message", lambda _db, recipient, text: sent.append(text) or {"messages": [{"id": "wamid.reply"}]})
+
+        def generate_reply(_config, incoming, _context="", event_type="", **_kwargs):
+            ai_calls.append((incoming, event_type))
+            if event_type == "whatsapp_welcome":
+                return "Welcome to METHO. 1. Member 2. Partner 3. Rider", "gemini", "test"
+            return f"KB answer for: {incoming}", "gemini", "test"
+
+        monkeypatch.setattr("sql_app.whatsapp_ai._generate_reply", generate_reply)
+        update_whatsapp_settings({"phone_number_id": "123456", "access_token": "secret-token"}, db, admin())
+        ingest_whatsapp_message(db, message_payload(f"wamid.short-welcome-{message}", "Hi"), None)
+        session = db.query(WhatsAppRegistrationSession).one()
+        sent.clear()
+        ai_calls.clear()
+
+        assert _is_informational_question(message) is True
+        assert ingest_whatsapp_message(db, message_payload(f"wamid.short-question-{message}", message), None) == "updated"
+        assert ai_calls == [(message, "whatsapp_info_question")]
+        assert sent == [f"KB answer for: {message}"]
+        assert session.state == "INTRODUCTION"
+        assert session.role == ""
+    finally:
+        db.close()
+
+
+def test_info_question_retries_when_ai_repeats_welcome(monkeypatch):
+    db = make_session()
+    try:
+        sent = []
+        event_types = []
+        monkeypatch.setattr("sql_app.whatsapp_cloud.send_whatsapp_message", lambda _db, recipient, text: sent.append(text) or {"messages": [{"id": "wamid.reply"}]})
+
+        def generate_reply(_config, incoming, _context="", event_type="", **_kwargs):
+            if event_type == "whatsapp_welcome":
+                return "Welcome to METHO. 1. Member 2. Partner 3. Rider", "gemini", "test"
+            event_types.append(event_type)
+            if event_type == "whatsapp_info_question":
+                return "Welcome to METHO. 1. Member 2. Partner 3. Rider", "gemini", "test"
+            return "Smart Cycle has 5 slots.", "gemini", "test"
+
+        monkeypatch.setattr("sql_app.whatsapp_ai._generate_reply", generate_reply)
+        update_whatsapp_settings({"phone_number_id": "123456", "access_token": "secret-token"}, db, admin())
+        ingest_whatsapp_message(db, message_payload("wamid.retry-welcome", "Hi"), None)
+        sent.clear()
+
+        assert ingest_whatsapp_message(db, message_payload("wamid.retry-question", "Smart cycle ki?"), None) == "updated"
+        assert event_types == ["whatsapp_info_question", "whatsapp_info_question_retry"]
+        assert sent == ["Smart Cycle has 5 slots."]
+    finally:
+        db.close()
+
+
 @pytest.mark.parametrize("ai_result", [("", "fallback", "local"), RuntimeError("Gemini unavailable")])
 def test_info_question_sends_executive_text_when_direct_ai_reply_is_empty_or_fails(monkeypatch, ai_result):
     db = make_session()

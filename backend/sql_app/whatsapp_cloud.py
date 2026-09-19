@@ -849,18 +849,35 @@ def _send_direct_ai_reply(db, lead: CRMLead, recipient: str, incoming_text: str)
         logger.exception("WhatsApp direct AI reply context build failed")
         context = ""
     try:
-        reply, _provider, _model = _generate_reply(resolve_ai_config(db), incoming_text, context, db=db)
+        reply, _provider, _model = _generate_reply(resolve_ai_config(db), incoming_text, context, "whatsapp_info_question", db=db)
     except Exception:
         logger.exception("WhatsApp direct AI reply generation failed")
         reply = ""
+    if _is_repeated_welcome_reply(reply):
+        try:
+            retry_context = f"{context}\n\nAnswer only the customer's latest question. Do not repeat the welcome, role descriptions, or role-selection menu."
+            reply, _provider, _model = _generate_reply(resolve_ai_config(db), incoming_text, retry_context, "whatsapp_info_question_retry", db=db)
+        except Exception:
+            logger.exception("WhatsApp direct AI reply retry failed")
+            reply = ""
     if not str(reply or "").strip():
         reply = _business_unknown_fallback(incoming_text)
     return _send_member_registration_reply(db, recipient, reply)
 
 
+def _is_repeated_welcome_reply(reply: str) -> bool:
+    lowered = str(reply or "").lower()
+    role_menu_hits = sum(marker in lowered for marker in ("1. member", "2. partner", "3. rider", "1 লিখুন member", "2 লিখুন partner", "3 লিখুন rider"))
+    return role_menu_hits >= 2 or any(marker in lowered for marker in ("welcome to metho", "metho aay-upay-এ আপনাকে স্বাগতম", "metho aay-upay परिवार में आपका स्वागत"))
+
+
 def _is_informational_question(text: str) -> bool:
     lowered = str(text or "").lower()
-    return any(marker in lowered for marker in INFORMATIONAL_QUESTION_MARKERS)
+    if any(marker in lowered for marker in INFORMATIONAL_QUESTION_MARKERS):
+        return True
+    words = set(re.findall(r"[a-z]+", lowered))
+    roman_question_words = {"ache", "asole", "hain", "hai", "ki", "kaise", "kitna", "kitne", "kothay", "koyta", "kyu", "milta"}
+    return len(words) >= 2 and bool(words.intersection(roman_question_words))
 
 
 def _has_registration_intent(text: str) -> bool:
