@@ -12,7 +12,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from sql_app.database import Base
 from sql_app.models import AppSetting, CRMLead, CRMLeadActivity, CRMWhatsAppAISuggestion, WhatsAppMessageOutbox
 from sql_app.routers.whatsapp_ai import approve_suggestion, reject_suggestion
-from sql_app.whatsapp_ai import create_suggestion_for_activity, process_pending_whatsapp_ai_activities, save_ai_config, should_ai_handle_freeform_reply
+from sql_app.whatsapp_ai import create_suggestion_for_activity, process_pending_whatsapp_ai_activities, resolve_ai_config, save_ai_config, should_ai_handle_freeform_reply
 
 
 def make_session():
@@ -90,6 +90,27 @@ def test_ai_freeform_requires_enabled_and_auto_send():
         assert should_ai_handle_freeform_reply(db) is False
         save_ai_config(db, {"enabled": True, "auto_send_enabled": False})
         assert should_ai_handle_freeform_reply(db) is False
+    finally:
+        db.close()
+
+
+def test_default_knowledge_base_contains_required_business_details():
+    db = make_session()
+    try:
+        kb = resolve_ai_config(db)["knowledge_base"]
+        required = [
+            "5-স্লট",
+            "Smart Cycle",
+            "MPS",
+            "Reward Pool",
+            "Partner Referral Commission",
+            "DP (Dealer Price)",
+            "Health & Wellness",
+            "FMCG",
+            "Beauty & Personal Care",
+        ]
+        for item in required:
+            assert item in kb, f"missing knowledge base detail: {item}"
     finally:
         db.close()
 

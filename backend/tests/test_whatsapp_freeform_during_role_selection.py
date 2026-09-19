@@ -11,7 +11,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from sql_app.database import Base
 from sql_app.models import CRMLeadActivity, WhatsAppRegistrationSession
 from sql_app.routers.whatsapp import update_whatsapp_settings
-from sql_app.whatsapp_cloud import ingest_whatsapp_message
+from sql_app.whatsapp_cloud import _configured_executive_fallback, _detect_language, _has_registration_intent, _is_executive_enquiry, _is_informational_question, ingest_whatsapp_message
 
 
 def make_session():
@@ -140,5 +140,78 @@ def test_unrecognized_text_during_role_selection_still_uses_fallback_loop(monkey
 
         handoff = db.query(CRMLeadActivity).filter(CRMLeadActivity.activity_type == "whatsapp_human_handoff_requested").count()
         assert handoff == 1
+    finally:
+        db.close()
+
+
+@pytest.mark.parametrize(
+    ("message", "expected_language", "ai_reply"),
+    [
+        ("Smart Cycle e koyta slot ache?", "bn", "স্মার্ট সাইকেলে ৫টি স্লট আছে।"),
+        ("5 slot theke ki vabe income hoy bolo", "bn", "৫ নম্বর স্লটে সাইকেল কমিশন হিসাব হয়।"),
+        ("commission kaise milta hai", "hi", "कमीशन योग्य नियमों के अनुसार मिलता है।"),
+    ],
+)
+def test_roman_script_business_questions_route_to_ai(monkeypatch, message, expected_language, ai_reply):
+    db = make_session()
+    try:
+        sent = []
+        ai_messages = []
+        monkeypatch.setattr("sql_app.whatsapp_cloud.send_whatsapp_message", lambda _db, recipient, text: sent.append(text) or {"messages": [{"id": "wamid.reply"}]})
+
+        def generate_reply(_config, incoming, *_args, **_kwargs):
+            ai_messages.append(incoming)
+            return ai_reply, "gemini", "gemini-1.5-flash"
+
+        monkeypatch.setattr("sql_app.whatsapp_ai._generate_reply", generate_reply)
+        update_whatsapp_settings({"phone_number_id": "123456", "access_token": "secret-token"}, db, admin())
+
+        ingest_whatsapp_message(db, message_payload(f"wamid.roman-welcome-{expected_language}", "Hi"), None)
+        session = db.query(WhatsAppRegistrationSession).one()
+        sent.clear()
+        ai_messages.clear()
+
+        assert _is_informational_question(message) is True
+        assert _has_registration_intent(message) is False
+        assert _is_executive_enquiry(message) is False
+        assert _detect_language(message) == expected_language
+        assert ingest_whatsapp_message(db, message_payload(f"wamid.roman-question-{expected_language}", message), None) == "updated"
+        assert ai_messages == [message]
+        assert sent == [ai_reply]
+        assert session.state == "INTRODUCTION"
+    finally:
+        db.close()
+
+
+def test_roman_bangla_registration_intent_and_role_selection(monkeypatch):
+    db = make_session()
+    try:
+        sent = []
+        monkeypatch.setattr("sql_app.whatsapp_cloud.send_whatsapp_message", lambda _db, recipient, text: sent.append(text) or {"messages": [{"id": "wamid.reply"}]})
+        update_whatsapp_settings({"phone_number_id": "123456", "access_token": "secret-token"}, db, admin())
+        ingest_whatsapp_message(db, message_payload("wamid.roman-role-welcome", "Hi"), None)
+
+        message = "ami member hote chai"
+        assert _has_registration_intent(message) is True
+        assert _detect_language(message) == "bn"
+        assert ingest_whatsapp_message(db, message_payload("wamid.roman-member", message), None) == "updated"
+        session = db.query(WhatsAppRegistrationSession).one()
+        assert session.role == "member"
+
+        session.role = ""
+        session.state = "INTRODUCTION"
+        assert ingest_whatsapp_message(db, message_payload("wamid.numeric-partner", "2"), None) == "updated"
+        assert session.role == "partner"
+    finally:
+        db.close()
+
+
+def test_executive_fallback_uses_input_language_when_custom_preset_does_not_match():
+    db = make_session()
+    try:
+        update_whatsapp_settings({"preset_business_enquiry_executive": "Executive contact: 9339566110"}, db, admin())
+        assert _configured_executive_fallback(db, "en") == "Executive contact: 9339566110"
+        assert _configured_executive_fallback(db, "bn") == "এই বিষয়ে সঠিক তথ্যের জন্য আমাদের Executive-এর সঙ্গে সরাসরি যোগাযোগ করুন: 9339566110"
+        assert _configured_executive_fallback(db, "hi") == "इस विषय में सही जानकारी के लिए हमारे Executive से सीधे संपर्क करें: 9339566110"
     finally:
         db.close()

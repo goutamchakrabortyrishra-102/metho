@@ -104,8 +104,10 @@ PAYMENT_QUERY_KEYWORDS = ("payment", "pay", "paid", "টাকা", "পেম�
 WALLET_QUERY_KEYWORDS = ("wallet", "reward", "rewards", "smart cycle", "ওয়ালেট", "রিওয়ার্ড", "স্মার্ট সাইকেল")
 DELIVERY_QUERY_KEYWORDS = ("delivery", "deliver", "metho move", "ডেলিভারি")
 SUPPORT_QUERY_KEYWORDS = ("support", "help", "contact", "executive", "সাপোর্ট", "সহায়তা", "যোগাযোগ")
-EXECUTIVE_ENQUIRY_KEYWORDS = ("plan", "details", "detail", "income", "earning", "earn", "business opportunity", "work opportunity", "commission", "benefit", "how it works", "income hoy", "income হবে", "ইনকাম", "আয়", "আয়", "ব্যবসার সুযোগ", "কাজের সুযোগ", "কী ভাবে ইনকাম", "কিভাবে ইনকাম", "কীভাবে আয়", "কিভাবে আয়", "প্ল্যান", "ডিটেইল", "বিস্তারিত", "সুবিধা", "কমিশন")
-REGISTRATION_INTENT_MARKERS = ("রেজিস্ট", "register", "registration", "যুক্ত", "join", "হতে চাই", "করতে চাই", "হব", "হবো", "চালু", "অনবোর্ডিং", "onboarding", "interested")
+EXECUTIVE_ENQUIRY_KEYWORDS = ("executive", "human", "agent", "representative", "complaint", "manager", "support person", "এক্সিকিউটিভ", "মানুষের সাথে", "প্রতিনিধি", "অভিযোগ")
+REGISTRATION_INTENT_MARKERS = ("রেজিস্ট", "register", "registration", "যুক্ত", "join", "হতে চাই", "করতে চাই", "হব", "হবো", "চালু", "অনবোর্ডিং", "onboarding", "interested", "hote chai", "jog dite chai", "jog hote chai")
+BANGLISH_LANGUAGE_MARKERS = {"ache", "ami", "apnader", "apnar", "bolo", "chai", "hobe", "hote", "hoy", "jante", "kemon", "ki", "kivabe", "kothay", "koyta", "theke"}
+HINGLISH_LANGUAGE_MARKERS = {"aap", "hai", "hain", "kaise", "kitna", "kitne", "kyu", "mein", "milta", "mujhe"}
 WHATSAPP_REGISTRATION_IDLE = "IDLE"
 WHATSAPP_REGISTRATION_CONFIRMATION_PENDING = "REGISTRATION_CONFIRMATION_PENDING"
 WHATSAPP_INTRODUCTION = "INTRODUCTION"
@@ -452,8 +454,19 @@ def get_configured_whatsapp_reply_mode(db, role: str | None = None) -> str:
     return mode if mode in {"text", "image"} else "text"
 
 
-def _configured_executive_fallback(db) -> str:
+def _configured_executive_fallback(db, language: str = "bn") -> str:
+    from .whatsapp_ai import EXECUTIVE_FALLBACKS
+
     config = resolve_config(db)
+    preset = get_whatsapp_preset_message(db, "preset_business_enquiry_executive", WHATSAPP_PRESET_MESSAGE_DEFAULTS["preset_business_enquiry_executive"])
+    default_preset = WHATSAPP_PRESET_MESSAGE_DEFAULTS["preset_business_enquiry_executive"]
+    if preset and preset != default_preset and _detect_language(preset) == language:
+        return preset
+    localized = EXECUTIVE_FALLBACKS.get(language, EXECUTIVE_FALLBACKS["en"])
+    if localized:
+        return localized
+    if preset:
+        return preset
     values = (
         str(config.get("customer_auto_reply") or "").strip(),
         str(config.get("default_auto_reply") or "").strip(),
@@ -475,12 +488,14 @@ def _configured_executive_fallback(db) -> str:
 
 
 def _preset_role_for_common_query(config: dict, text: str) -> str | None:
+    if _is_informational_question(text) and not _has_registration_intent(text):
+        return None
     lowered = str(text or "").lower()
     if any(keyword in lowered for keyword in ("partner", "পার্টনার")):
         return "partner"
     if any(keyword in lowered for keyword in ("rider", "রাইডার")):
         return "rider"
-    if any(keyword in lowered for keyword in (*PRODUCT_QUERY_KEYWORDS, *PAYMENT_QUERY_KEYWORDS, *WALLET_QUERY_KEYWORDS, *DELIVERY_QUERY_KEYWORDS)):
+    if any(keyword in lowered for keyword in (*PRODUCT_QUERY_KEYWORDS, *PAYMENT_QUERY_KEYWORDS, *DELIVERY_QUERY_KEYWORDS)):
         return "customer" if str(config.get("customer_auto_reply") or "").strip() else "default"
     if any(keyword in lowered for keyword in (*ORDER_QUERY_KEYWORDS, *SUPPORT_QUERY_KEYWORDS, *BROAD_EARNING_KEYWORDS)):
         return "default"
@@ -761,8 +776,57 @@ def _role_registration_reply(db, role: str, lead_id: str = "", phone: str = "") 
     ))
 
 
+def _role_menu_text(language: str = "bn") -> str:
+    menu = {
+        "bn": "\n\n1 \u09b2\u09bf\u0996\u09c1\u09a8 Member\n1. Member\n2 \u09b2\u09bf\u0996\u09c1\u09a8 Partner\n2. Partner\n3 \u09b2\u09bf\u0996\u09c1\u09a8 Rider\n3. Rider",
+        "hi": "\n\n1 Member \u0915\u0947 \u0932\u093f\u090f\n1. Member\n2 Partner \u0915\u0947 \u0932\u093f\u090f\n2. Partner\n3 Rider \u0915\u0947 \u0932\u093f\u090f\n3. Rider",
+        "en": "\n\n1 for Member\n1. Member\n2 for Partner\n2. Partner\n3 for Rider\n3. Rider",
+    }
+    return menu.get(language, menu["bn"])
+
+
+def _welcome_intro_fallback(language: str = "bn") -> str:
+    base = {
+        "bn": "নমস্কার! METHO AAY-UPAY-এ আপনাকে স্বাগতম। METHO একটি ব্যবসায়িক প্ল্যাটফর্ম, যেখানে Member, Partner ও Rider-এর মাধ্যমে মানুষ প্রোডাক্ট, সার্ভিস ও নেটওয়ার্কের সুবিধা পায়। এটি MLM, Money Market বা Pyramid Scheme নয়; যুক্ত হতে কোনো বাধ্যতামূলক বিনিয়োগ লাগে না.\n\nMember: প্রোডাক্ট/সার্ভিস ব্যবহার ও রিওয়ার্ড সুবিধা\nPartner: ব্যবসা/সার্ভিস অনবোর্ডিং ও প্রমোশন\nRider: ডেলিভারি/ফিল্ড-সার্ভিস কাজ",
+        "hi": "नमस्कार! METHO AAY-UPAY में आपका स्वागत है। METHO एक बिज़नेस प्लेटफ़ॉर्म है जहाँ Member, Partner और Rider के रूप में लोग प्रोडक्ट, सेवा और नेटवर्क के लाभ उठा सकते हैं। यह MLM, Money Market या Pyramid Scheme नहीं है; जुड़ने के लिए कोई बाध्यकारी निवेश जरूरी नहीं है.\n\nMember: प्रोडक्ट/सेवा उपयोग और Reward सुविधा\nPartner: बिज़नेस/सेवा onboarding और प्रमोशन\nRider: delivery/field-service work",
+        "en": "Hello! Welcome to METHO AAY-UPAY. METHO is a business ecosystem where people can join as a Member, Partner, or Rider to access products, services, and earning opportunities. It is not an MLM, Money Market, or Pyramid Scheme, and there is no mandatory investment required to join.\n\nMember: product/service use and reward benefits\nPartner: business/service onboarding and promotion\nRider: delivery and field-service work",
+    }
+    return base.get(language, base["bn"]) + _role_menu_text(language)
+
+
+def _generate_welcome_message(db, lead: CRMLead, recipient: str, language: str = "bn") -> str:
+    from .whatsapp_ai import _generate_reply, _catalog_context, _conversation_context, _crm_context, resolve_ai_config
+
+    try:
+        context = f"{_crm_context(db, lead)}\nPrevious WhatsApp conversation:\n{_conversation_context(db, lead)}\nAvailable METHO catalog:\n{_catalog_context(db)}"
+    except Exception:
+        logger.exception("WhatsApp welcome AI reply context build failed")
+        context = ""
+
+    prompt_message = (
+        "I am a new customer. Welcome me to METHO AAY-UPAY in my language, explain clearly that METHO is not an MLM, Money Market, or Pyramid Scheme, and that there is no mandatory investment required. Mention the short role overview for Member, Partner, and Rider, then end with the role menu for choosing 1, 2, or 3. Keep it friendly and concise."
+    )
+    try:
+        reply, _provider, _model = _generate_reply(resolve_ai_config(db), prompt_message, context, "whatsapp_welcome", db=db)
+    except Exception:
+        logger.exception("WhatsApp welcome AI reply generation failed")
+        reply = ""
+
+    if not str(reply or "").strip():
+        return _welcome_intro_fallback("bn")
+
+    menu_text = _role_menu_text("bn")
+    if any(marker in reply for marker in ("1 \u09b2\u09bf\u0996\u09c1\u09a8 Member", "1. Member", "2 \u09b2\u09bf\u0996\u09c1\u09a8 Partner", "2. Partner", "3 \u09b2\u09bf\u0996\u09c1\u09a8 Rider", "3. Rider")):
+        return reply.strip()
+    return (reply.strip() + menu_text).strip()
+
+
 def _send_direct_ai_reply(db, lead: CRMLead, recipient: str, incoming_text: str) -> bool:
     from .whatsapp_ai import _business_unknown_fallback, _catalog_context, _conversation_context, _crm_context, _generate_reply, resolve_ai_config
+
+    if _is_executive_enquiry(incoming_text):
+        reply = _configured_executive_fallback(db, _detect_language(incoming_text)) or _business_unknown_fallback(incoming_text)
+        return _send_member_registration_reply(db, recipient, reply)
 
     try:
         context = f"{_crm_context(db, lead)}\nPrevious WhatsApp conversation:\n{_conversation_context(db, lead)}\nAvailable METHO catalog:\n{_catalog_context(db)}"
@@ -775,7 +839,7 @@ def _send_direct_ai_reply(db, lead: CRMLead, recipient: str, incoming_text: str)
         logger.exception("WhatsApp direct AI reply generation failed")
         reply = ""
     if not str(reply or "").strip():
-        reply = get_configured_whatsapp_reply(db, "default") or _business_unknown_fallback(incoming_text)
+        reply = _business_unknown_fallback(incoming_text)
     return _send_member_registration_reply(db, recipient, reply)
 
 
@@ -813,6 +877,13 @@ def _detect_language(text: str) -> str:
     if any("\u0980" <= char <= "\u09ff" for char in value):
         return "bn"
     if any("\u0900" <= char <= "\u097f" for char in value):
+        return "hi"
+    words = set(re.findall(r"[a-z]+", value.lower()))
+    banglish_score = len(words.intersection(BANGLISH_LANGUAGE_MARKERS))
+    hinglish_score = len(words.intersection(HINGLISH_LANGUAGE_MARKERS))
+    if banglish_score > hinglish_score:
+        return "bn"
+    if hinglish_score > banglish_score:
         return "hi"
     return "en"
 
@@ -898,6 +969,22 @@ def _is_registration_reminder_opt_out(text: str) -> bool:
 def _is_executive_enquiry(text: str) -> bool:
     normalized = _whatsapp_command_text(text)
     return bool(normalized) and any(keyword in normalized for keyword in EXECUTIVE_ENQUIRY_KEYWORDS)
+
+
+def _is_probably_gibberish(text: str) -> bool:
+    normalized = _whatsapp_command_text(text)
+    if not normalized:
+        return True
+    if normalized in {"hi", "hello", "hey", "namaste", "namaskar", "assalamualaikum", "salam", "member", "partner", "rider", "1", "2", "3"}:
+        return False
+    if len(normalized.split()) > 1:
+        return False
+    token = normalized.strip("?!.,")
+    if len(token) < 6:
+        return False
+    if any(marker in token.lower() for marker in ("member", "partner", "rider", "metho", "hello", "hi", "hey", "kivabe", "jante", "chai", "register", "join", "support", "executive")):
+        return False
+    return True
 
 
 def _stop_abandoned_registration_reminders(db, lead: CRMLead, reason: str) -> None:
@@ -1053,10 +1140,11 @@ def _role_explanation(db, role: str) -> str:
     return get_whatsapp_preset_message(db, f"preset_{role}_role_explanation", WHATSAPP_PRESET_MESSAGE_DEFAULTS[f"preset_{role}_role_explanation"])
 
 
-def _send_introduction(db, session: WhatsAppRegistrationSession, lead: CRMLead, recipient: str) -> bool:
+def _send_introduction(db, session: WhatsAppRegistrationSession, lead: CRMLead, recipient: str, language: str = "bn") -> bool:
     session.state = WHATSAPP_INTRODUCTION
     session.role = ""
-    reply = _configured_introduction_message(db)
+    selected_language = language if language in {"bn", "hi", "en"} else "bn"
+    reply = _generate_welcome_message(db, lead, recipient, language=selected_language)
     if not _send_member_registration_reply(db, recipient, reply):
         return False
     db.add(CRMLeadActivity(lead_id=lead.id, activity_type="whatsapp_introduction_started", message="WhatsApp METHO introduction started"))
@@ -1713,7 +1801,7 @@ def ingest_whatsapp_message(db, payload: dict, request=None) -> str:
         if _is_registration_start_command(incoming_text):
             registration_session = _member_registration_session(db, normalized["phone"], normalized["whatsapp_no"], lead)
             _clear_member_registration_session(registration_session)
-            native_member_handled = _send_introduction(db, registration_session, lead, normalized["phone"])
+            native_member_handled = _send_introduction(db, registration_session, lead, normalized["phone"], language=_detect_language(incoming_text) or "bn")
         elif _is_registration_reminder_opt_out(incoming_text):
             if registration_session:
                 _clear_member_registration_session(registration_session)
@@ -1729,15 +1817,16 @@ def ingest_whatsapp_message(db, payload: dict, request=None) -> str:
         elif _is_new_conversation_greeting(incoming_text):
             registration_session = _member_registration_session(db, normalized["phone"], normalized["whatsapp_no"], lead)
             _clear_member_registration_session(registration_session)
-            native_member_handled = _send_introduction(db, registration_session, lead, normalized["phone"])
+            native_member_handled = _send_introduction(db, registration_session, lead, normalized["phone"], language=_detect_language(incoming_text) or "bn")
         elif registration_session and registration_session.state in WHATSAPP_LEGACY_NATIVE_REGISTRATION_STATES:
             # Legacy field-by-field sessions must re-enter the website-form flow.
             _clear_member_registration_session(registration_session)
-            native_member_handled = _send_introduction(db, registration_session, lead, normalized["phone"])
-        elif registration_session and registration_session.state in {WHATSAPP_INTRODUCTION, WHATSAPP_ROLE_SELECTION} and _is_executive_enquiry(incoming_text):
-            reply = get_whatsapp_preset_message(db, "preset_business_enquiry_executive", WHATSAPP_PRESET_MESSAGE_DEFAULTS["preset_business_enquiry_executive"])
-            native_member_handled = _send_member_registration_reply(db, normalized["phone"], reply)
-        elif registration_session and registration_session.state in {WHATSAPP_INTRODUCTION, WHATSAPP_ROLE_SELECTION} and not role_hint and is_ai_freeform_query:
+            native_member_handled = _send_introduction(db, registration_session, lead, normalized["phone"], language=_detect_language(incoming_text) or "bn")
+        elif (
+            registration_session is not None
+            and not _is_probably_gibberish(incoming_text)
+            and ((not role_hint and is_ai_freeform_query) or _is_executive_enquiry(incoming_text))
+        ):
             native_member_handled = _send_direct_ai_reply(db, lead, normalized["phone"], incoming_text)
         elif registration_session and registration_session.state in {WHATSAPP_INTRODUCTION, WHATSAPP_ROLE_SELECTION}:
             native_member_handled = _continue_introduction(db, registration_session, lead, incoming_text, normalized["phone"])
@@ -1749,11 +1838,11 @@ def ingest_whatsapp_message(db, payload: dict, request=None) -> str:
             native_member_handled = _continue_member_registration_flow(db, registration_session, lead, incoming_text, normalized["phone"])
         elif registration_session is None and not role_hint and not is_ai_freeform_query:
             registration_session = _member_registration_session(db, normalized["phone"], normalized["whatsapp_no"], lead)
-            native_member_handled = _send_introduction(db, registration_session, lead, normalized["phone"])
+            native_member_handled = _send_introduction(db, registration_session, lead, normalized["phone"], language=_detect_language(incoming_text) or "bn")
         elif registration_session is None and not role_hint and is_ai_freeform_query:
             registration_session = _member_registration_session(db, normalized["phone"], normalized["whatsapp_no"], lead)
             _clear_member_registration_session(registration_session)
-            native_member_handled = _send_introduction(db, registration_session, lead, normalized["phone"])
+            native_member_handled = _send_introduction(db, registration_session, lead, normalized["phone"], language=_detect_language(incoming_text) or "bn")
         elif role_hint in {"member", "partner", "rider"}:
             registration_session = _member_registration_session(db, normalized["phone"], normalized["whatsapp_no"], lead)
             registration_session.role = role_hint
@@ -1780,7 +1869,7 @@ def ingest_whatsapp_message(db, payload: dict, request=None) -> str:
                 if role_hint == "default" and any(keyword in incoming_text.lower() for keyword in ORDER_QUERY_KEYWORDS) and str(config.get("order_template") or "").strip():
                     auto_reply = str(config.get("order_template") or "").strip()
                 elif role_hint == "default" and any(keyword in incoming_text.lower() for keyword in SUPPORT_QUERY_KEYWORDS):
-                    auto_reply = _configured_executive_fallback(db) or get_configured_whatsapp_reply(db, "default", DEFAULT_AUTO_REPLY)
+                    auto_reply = _configured_executive_fallback(db, language) or get_configured_whatsapp_reply(db, "default", DEFAULT_AUTO_REPLY)
                 else:
                     auto_reply = get_configured_whatsapp_reply(db, role_hint, DEFAULT_AUTO_REPLY)
             else:
