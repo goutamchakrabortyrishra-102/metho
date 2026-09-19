@@ -253,13 +253,16 @@ def test_direct_role_intent_sends_tracked_form_url_only(monkeypatch, message, ro
         from sql_app.routers.whatsapp import update_whatsapp_settings
         update_whatsapp_settings({"phone_number_id": "123456", "access_token": "secret-token", f"{role}_registration_url": f"https://example.com/{role}-join"}, db, SimpleNamespace(role="admin", id="ADMIN"))
         assert ingest_whatsapp_message(db, message_payload(f"wamid.{role}.direct", message), None) == "created"
-        assert len(sent) == 1
-        assert f"https://example.com/{role}-join" in sent[0]
-        assert f"registration_role={role}" in sent[0]
-        assert "আপনার নাম লিখুন" not in sent[0]
-        assert "business type" not in sent[0]
-        assert "পূর্ণ নাম লিখুন" not in sent[0]
         session = db.query(WhatsAppRegistrationSession).one()
+        assert session.state == "INTRODUCTION"
+        assert session.role == ""
+        assert ingest_whatsapp_message(db, message_payload(f"wamid.{role}.choice", role), None) == "updated"
+        assert len(sent) == 2
+        assert f"https://example.com/{role}-join" in sent[-1]
+        assert f"registration_role={role}" in sent[-1]
+        assert "আপনার নাম লিখুন" not in sent[-1]
+        assert "business type" not in sent[-1]
+        assert "পূর্ণ নাম লিখুন" not in sent[-1]
         assert session.state == "ROLE_SELECTION"
         assert session.role == role
     finally:

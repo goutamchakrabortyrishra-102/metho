@@ -183,6 +183,43 @@ def test_info_question_retries_when_ai_repeats_welcome(monkeypatch):
         db.close()
 
 
+def test_first_entry_always_welcomes_then_readable_conversation_uses_ai(monkeypatch):
+    db = make_session()
+    try:
+        sent = []
+        ai_messages = []
+        monkeypatch.setattr("sql_app.whatsapp_cloud.send_whatsapp_message", lambda _db, recipient, text: sent.append(text) or {"messages": [{"id": "wamid.reply"}]})
+
+        def generate_reply(_config, incoming, _context="", event_type="", **_kwargs):
+            if event_type == "whatsapp_welcome":
+                return "Welcome to METHO. 1. Member 2. Partner 3. Rider", "gemini", "test"
+            ai_messages.append(incoming)
+            return f"Conversation answer: {incoming}", "gemini", "test"
+
+        monkeypatch.setattr("sql_app.whatsapp_ai._generate_reply", generate_reply)
+        update_whatsapp_settings({"phone_number_id": "123456", "access_token": "secret-token"}, db, admin())
+
+        assert ingest_whatsapp_message(db, message_payload("wamid.first-role", "ami member hote chai"), None) == "created"
+        session = db.query(WhatsAppRegistrationSession).one()
+        assert session.state == "INTRODUCTION"
+        assert session.role == ""
+        assert "Welcome to METHO" in sent[-1]
+
+        sent.clear()
+        assert ingest_whatsapp_message(db, message_payload("wamid.conversation", "accha ami aro details sunte chai"), None) == "updated"
+        assert ai_messages == ["accha ami aro details sunte chai"]
+        assert sent == ["Conversation answer: accha ami aro details sunte chai"]
+        assert session.state == "INTRODUCTION"
+
+        sent.clear()
+        assert ingest_whatsapp_message(db, message_payload("wamid.role-after-welcome", "2"), None) == "updated"
+        assert session.state == "ROLE_SELECTION"
+        assert session.role == "partner"
+        assert "registration_role=partner" in sent[-1]
+    finally:
+        db.close()
+
+
 @pytest.mark.parametrize("ai_result", [("", "fallback", "local"), RuntimeError("Gemini unavailable")])
 def test_info_question_sends_executive_text_when_direct_ai_reply_is_empty_or_fails(monkeypatch, ai_result):
     db = make_session()

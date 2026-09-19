@@ -1745,7 +1745,8 @@ def ingest_whatsapp_message(db, payload: dict, request=None) -> str:
 
         reply_text = ""
         config = resolve_config(db)
-        role_hint = _registration_role_for_text(config, incoming_text)
+        registration_role_hint = _registration_role_for_text(config, incoming_text)
+        role_hint = registration_role_hint
         lowered = incoming_text.lower()
         is_ai_freeform_query = _is_informational_question(incoming_text) and not _has_registration_intent(incoming_text)
         if not role_hint:
@@ -1846,7 +1847,7 @@ def ingest_whatsapp_message(db, payload: dict, request=None) -> str:
             native_member_handled = _registration_confirmation_reply(db, registration_session, lead, incoming_text, normalized["phone"])
         elif lead.member_user_id or lead.partner_request_id or lead.rider_user_id:
             native_member_handled = _route_existing_identity(db, lead, normalized["phone"], incoming_text)
-        elif _is_new_conversation_greeting(incoming_text):
+        elif registration_session is None:
             registration_session = _member_registration_session(db, normalized["phone"], normalized["whatsapp_no"], lead)
             _clear_member_registration_session(registration_session)
             native_member_handled = _send_introduction(db, registration_session, lead, normalized["phone"], language=_detect_language(incoming_text) or "bn")
@@ -1854,10 +1855,11 @@ def ingest_whatsapp_message(db, payload: dict, request=None) -> str:
             # Legacy field-by-field sessions must re-enter the website-form flow.
             _clear_member_registration_session(registration_session)
             native_member_handled = _send_introduction(db, registration_session, lead, normalized["phone"], language=_detect_language(incoming_text) or "bn")
+        elif registration_session.state in {WHATSAPP_INTRODUCTION, WHATSAPP_ROLE_SELECTION} and registration_role_hint in REGISTRATION_ROLE_SETTINGS:
+            native_member_handled = _continue_introduction(db, registration_session, lead, incoming_text, normalized["phone"])
         elif (
-            registration_session is not None
+            registration_session.state in {WHATSAPP_INTRODUCTION, WHATSAPP_ROLE_SELECTION}
             and not _is_probably_gibberish(incoming_text)
-            and ((not role_hint and is_ai_freeform_query) or _is_executive_enquiry(incoming_text))
         ):
             native_member_handled = _send_direct_ai_reply(db, lead, normalized["phone"], incoming_text)
         elif registration_session and registration_session.state in {WHATSAPP_INTRODUCTION, WHATSAPP_ROLE_SELECTION}:
@@ -1868,23 +1870,6 @@ def ingest_whatsapp_message(db, payload: dict, request=None) -> str:
             native_member_handled = _continue_role_registration_flow(db, registration_session, lead, incoming_text, normalized["phone"])
         elif registration_session and registration_session.role == "member" and registration_session.state in WHATSAPP_MEMBER_ACTIVE_STATES:
             native_member_handled = _continue_member_registration_flow(db, registration_session, lead, incoming_text, normalized["phone"])
-        elif registration_session is None and not role_hint and not is_ai_freeform_query:
-            registration_session = _member_registration_session(db, normalized["phone"], normalized["whatsapp_no"], lead)
-            native_member_handled = _send_introduction(db, registration_session, lead, normalized["phone"], language=_detect_language(incoming_text) or "bn")
-        elif registration_session is None and not role_hint and is_ai_freeform_query:
-            registration_session = _member_registration_session(db, normalized["phone"], normalized["whatsapp_no"], lead)
-            _clear_member_registration_session(registration_session)
-            native_member_handled = _send_introduction(db, registration_session, lead, normalized["phone"], language=_detect_language(incoming_text) or "bn")
-        elif role_hint in {"member", "partner", "rider"}:
-            registration_session = _member_registration_session(db, normalized["phone"], normalized["whatsapp_no"], lead)
-            registration_session.role = role_hint
-            registration_session.state = WHATSAPP_ROLE_SELECTION
-            reply = _role_registration_reply(db, role_hint, lead.id, normalized["phone"])
-            native_member_handled = _send_member_registration_reply(db, normalized["phone"], reply)
-            if native_member_handled:
-                db.add(CRMLeadActivity(lead_id=lead.id, activity_type="whatsapp_message_sent", message=reply))
-                db.add(CRMLeadActivity(lead_id=lead.id, activity_type="whatsapp_role_selected", message=role_hint))
-
         if native_member_handled:
             logger.info("WhatsApp final reply path: registration message_id=%s", message_id)
             db.add(CRMLeadActivity(lead_id=lead.id, activity_type="whatsapp_message_received", message=f"{activity_prefix}: {body}"))
