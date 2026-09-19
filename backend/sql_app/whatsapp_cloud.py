@@ -794,25 +794,40 @@ def _welcome_intro_fallback(language: str = "bn") -> str:
     return base.get(language, base["bn"]) + _role_menu_text(language)
 
 
-def _generate_welcome_message(db, lead: CRMLead, recipient: str, language: str = "bn") -> str:
-    from .whatsapp_ai import _generate_reply, _catalog_context, _conversation_context, _crm_context, resolve_ai_config
+def _is_invalid_welcome_reply(reply: str) -> bool:
+    lowered = str(reply or "").lower()
+    incomplete_registration_markers = (
+        "started your metho registration",
+        "started registration",
+        "haven't completed",
+        "have not completed",
+        "registration is incomplete",
+        "registration is still incomplete",
+        "শুরু করেছিলেন",
+        "শুরু করেছিলাম",
+        "সম্পূর্ণ করিনি",
+        "সম্পূর্ণ হয়নি",
+        "এখনও সম্পূর্ণ",
+        "অসম্পূর্ণ",
+        "शुरू किया",
+        "पूरा नहीं",
+    )
+    return "metho" not in lowered or any(marker in lowered for marker in incomplete_registration_markers)
 
-    try:
-        context = f"{_crm_context(db, lead)}\nPrevious WhatsApp conversation:\n{_conversation_context(db, lead)}\nAvailable METHO catalog:\n{_catalog_context(db)}"
-    except Exception:
-        logger.exception("WhatsApp welcome AI reply context build failed")
-        context = ""
+
+def _generate_welcome_message(db, lead: CRMLead, recipient: str, language: str = "bn") -> str:
+    from .whatsapp_ai import _generate_reply, resolve_ai_config
 
     prompt_message = (
-        "I am a new customer. Welcome me to METHO AAY-UPAY in my language, explain clearly that METHO is not an MLM, Money Market, or Pyramid Scheme, and that there is no mandatory investment required. Mention the short role overview for Member, Partner, and Rider, then end with the role menu for choosing 1, 2, or 3. Keep it friendly and concise."
+        "This is the customer's first welcome or a fresh restart. Do not claim that they previously started, submitted, or left a registration incomplete. Welcome them to METHO AAY-UPAY in their language, explain clearly that METHO is not an MLM, Money Market, or Pyramid Scheme, and that there is no mandatory investment required. Mention the short role overview for Member, Partner, and Rider, then end with the role menu for choosing 1, 2, or 3. Keep it friendly and concise."
     )
     try:
-        reply, _provider, _model = _generate_reply(resolve_ai_config(db), prompt_message, context, "whatsapp_welcome", db=db)
+        reply, _provider, _model = _generate_reply(resolve_ai_config(db), prompt_message, "First-contact welcome. No prior registration state applies.", "whatsapp_welcome", db=db)
     except Exception:
         logger.exception("WhatsApp welcome AI reply generation failed")
         reply = ""
 
-    if not str(reply or "").strip():
+    if not str(reply or "").strip() or _is_invalid_welcome_reply(reply):
         return _welcome_intro_fallback("bn")
 
     menu_text = _role_menu_text("bn")

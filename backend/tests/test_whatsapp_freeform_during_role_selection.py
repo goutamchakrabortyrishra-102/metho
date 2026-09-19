@@ -101,6 +101,30 @@ def test_new_customer_info_question_starts_welcome_before_ai_flow(monkeypatch):
         db.close()
 
 
+def test_new_customer_welcome_rejects_incomplete_registration_hallucination(monkeypatch):
+    db = make_session()
+    try:
+        sent = []
+        generated_contexts = []
+        monkeypatch.setattr("sql_app.whatsapp_cloud.send_whatsapp_message", lambda _db, recipient, text: sent.append(text) or {"messages": [{"id": "wamid.reply"}]})
+
+        def generate_bad_welcome(_config, _message, context, *_args, **_kwargs):
+            generated_contexts.append(context)
+            return "You started your METHO Registration but haven't completed it yet.", "gemini", "gemini-1.5-flash"
+
+        monkeypatch.setattr("sql_app.whatsapp_ai._generate_reply", generate_bad_welcome)
+        update_whatsapp_settings({"phone_number_id": "123456", "access_token": "secret-token"}, db, admin())
+
+        assert ingest_whatsapp_message(db, message_payload("wamid.bad-welcome", "Hello! Can I get more info on this?"), None) == "created"
+        assert generated_contexts == ["First-contact welcome. No prior registration state applies."]
+        assert sent
+        assert "METHO AAY-UPAY-এ আপনাকে স্বাগতম" in sent[-1]
+        assert "haven't completed" not in sent[-1]
+        assert "শুরু করেছিলাম" not in sent[-1]
+    finally:
+        db.close()
+
+
 @pytest.mark.parametrize("ai_result", [("", "fallback", "local"), RuntimeError("Gemini unavailable")])
 def test_info_question_sends_executive_text_when_direct_ai_reply_is_empty_or_fails(monkeypatch, ai_result):
     db = make_session()
