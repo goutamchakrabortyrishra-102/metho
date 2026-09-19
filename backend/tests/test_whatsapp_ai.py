@@ -12,7 +12,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from sql_app.database import Base
 from sql_app.models import AppSetting, CRMLead, CRMLeadActivity, CRMWhatsAppAISuggestion, WhatsAppMessageOutbox
 from sql_app.routers.whatsapp_ai import approve_suggestion, reject_suggestion
-from sql_app.whatsapp_ai import create_suggestion_for_activity, process_pending_whatsapp_ai_activities, resolve_ai_config, save_ai_config, should_ai_handle_freeform_reply
+from sql_app.whatsapp_ai import _system_business_context, create_suggestion_for_activity, process_pending_whatsapp_ai_activities, resolve_ai_config, save_ai_config, should_ai_handle_freeform_reply
 
 
 def make_session():
@@ -111,6 +111,38 @@ def test_default_knowledge_base_contains_required_business_details():
         ]
         for item in required:
             assert item in kb, f"missing knowledge base detail: {item}"
+    finally:
+        db.close()
+
+
+def test_system_business_context_uses_current_safe_settings_and_registration_urls():
+    from sql_app.routers.settings import save_settings
+    from sql_app.routers.whatsapp import update_whatsapp_settings
+
+    db = make_session()
+    try:
+        save_settings(db, {
+            "company_address": "Kolkata, West Bengal",
+            "smart_cycle_bonus_percent": 17,
+            "mps_max_claim_amount": 25000,
+            "metho_bank_account_number": "SECRET-ACCOUNT",
+        })
+        update_whatsapp_settings({
+            "member_registration_url": "https://example.com/member-live",
+            "partner_registration_url": "https://example.com/partner-live",
+            "rider_registration_url": "https://example.com/rider-live",
+            "access_token": "SECRET-TOKEN",
+        }, db, admin())
+
+        context = _system_business_context(db)
+        assert "Kolkata, West Bengal" in context
+        assert '"smart_cycle_bonus_percent": 17' in context
+        assert '"mps_max_claim_amount": 25000' in context
+        assert "https://example.com/member-live" in context
+        assert "https://example.com/partner-live" in context
+        assert "https://example.com/rider-live" in context
+        assert "SECRET-ACCOUNT" not in context
+        assert "SECRET-TOKEN" not in context
     finally:
         db.close()
 
