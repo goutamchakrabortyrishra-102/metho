@@ -480,6 +480,37 @@ def test_registration_submit_event_queues_next_whatsapp_followup(monkeypatch, ro
         db.close()
 
 
+def test_second_role_submit_uses_submitted_role_and_preserves_existing_identity(monkeypatch):
+    db = make_session()
+    try:
+        monkeypatch.setattr("sql_app.whatsapp_ai.create_suggestion_for_activity", lambda _activity_id: None)
+        lead = add_tracked_lead(db, "member")
+        member = User(id="MAU-MULTI-ROLE", name="Existing Member", email="multi-role-member", phone=lead.phone, password="hashed", role="member")
+        request = PartnerRequest(id="partner-multi-role", phone=lead.phone, whatsapp_no=lead.phone, status="pending", business_name="Second Role Business")
+        db.add_all([member, request])
+        lead.member_user_id = member.id
+        lead.partner_request_id = request.id
+        db.commit()
+
+        result = record_public_registration_event({
+            "crm_lead_id": lead.id,
+            "phone": lead.phone,
+            "event_type": "registration_form_submitted",
+            "registration_role": "partner",
+        }, db)
+
+        session = db.query(WhatsAppRegistrationSession).filter_by(phone=lead.phone).one()
+        assert result["linked"] is True
+        assert lead.member_user_id == member.id
+        assert lead.partner_request_id == request.id
+        assert session.role == "partner"
+        assert session.state == "REGISTRATION_CONFIRMATION_PENDING"
+        assert db.query(CRMLeadActivity).filter_by(lead_id=lead.id, activity_type="partner_registration_submitted").count() == 1
+        assert db.query(WhatsAppMessageOutbox).filter_by(dedupe_key=f"registration-confirmation:{lead.id}:partner").count() == 1
+    finally:
+        db.close()
+
+
 @pytest.mark.parametrize("role", ["member", "partner", "rider"])
 def test_registration_submit_reconciles_changed_phone_and_registered_routing(monkeypatch, role):
     db = make_session()

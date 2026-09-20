@@ -1,4 +1,5 @@
 import sys
+import uuid
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -8,7 +9,8 @@ from sqlalchemy.orm import sessionmaker
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from sql_app.database import Base
-from sql_app.models import CRMLead, WhatsAppRegistrationSession
+from sql_app.crm_identity import link_lead_to_registration
+from sql_app.models import CRMLead, PartnerRequest, User, WhatsAppRegistrationSession
 from sql_app.routers.whatsapp import update_whatsapp_settings
 from sql_app.whatsapp_cloud import (
     WHATSAPP_INTRODUCTION,
@@ -106,6 +108,73 @@ def test_ambiguous_followup_after_role_selected_sends_reminder_not_full_template
         assert reminder_reply != first_reply
         assert "registration_role=partner" in reminder_reply
         assert "Partner" in reminder_reply
+    finally:
+        db.close()
+
+
+def test_explicit_digit_switches_pending_role_and_sends_new_registration_link(monkeypatch):
+    db = make_session()
+    try:
+        sent = []
+        monkeypatch.setattr("sql_app.whatsapp_cloud.send_whatsapp_message", lambda _db, recipient, text: sent.append((recipient, text)) or {"messages": [{"id": "wamid.reply"}]})
+        update_whatsapp_settings({"phone_number_id": "123456", "access_token": "secret-token"}, db, admin())
+
+        assert ingest_whatsapp_message(db, message_payload("wamid.start-rider", "Hi"), None) == "created"
+        assert ingest_whatsapp_message(db, message_payload("wamid.pick-rider", "3"), None) == "updated"
+        session = db.query(WhatsAppRegistrationSession).one()
+        assert session.state == WHATSAPP_ROLE_REGISTRATION_PENDING
+        assert session.role == "rider"
+        assert "registration_role=rider" in sent[-1][1]
+
+        sent.clear()
+        assert ingest_whatsapp_message(db, message_payload("wamid.switch-member", "1"), None) == "updated"
+        assert session.state == WHATSAPP_ROLE_REGISTRATION_PENDING
+        assert session.role == "member"
+        assert len(sent) == 1
+        assert "registration_role=member" in sent[0][1]
+        assert "registration_role=rider" not in sent[0][1]
+    finally:
+        db.close()
+
+
+def test_existing_member_can_request_partner_registration_link(monkeypatch):
+    db = make_session()
+    try:
+        sent = []
+        monkeypatch.setattr("sql_app.whatsapp_cloud.send_whatsapp_message", lambda _db, recipient, text: sent.append((recipient, text)) or {"messages": [{"id": "wamid.reply"}]})
+        update_whatsapp_settings({"phone_number_id": "123456", "access_token": "secret-token"}, db, admin())
+        lead, session = _lead_and_session(db)
+        member = User(id=str(uuid.uuid4()), name="Existing Member", email=f"{uuid.uuid4()}@example.com", phone=lead.phone, password="x", role="member", is_active=False)
+        db.add(member)
+        lead.member_user_id = member.id
+        session.role = "member"
+        session.state = "MEMBER_ACTIVATION_PENDING"
+        db.commit()
+
+        assert ingest_whatsapp_message(db, message_payload("wamid.member-to-partner", "2"), None) == "updated"
+        assert session.state == WHATSAPP_ROLE_REGISTRATION_PENDING
+        assert session.role == "partner"
+        assert len(sent) == 1
+        assert "registration_role=partner" in sent[0][1]
+        assert lead.member_user_id == member.id
+    finally:
+        db.close()
+
+
+def test_linking_second_registration_preserves_first_identity():
+    db = make_session()
+    try:
+        lead, _session = _lead_and_session(db)
+        member = User(id=str(uuid.uuid4()), name="Existing Member", email=f"{uuid.uuid4()}@example.com", phone=lead.phone, password="x", role="member")
+        request = PartnerRequest(id=str(uuid.uuid4()), business_name="Second Role Business", phone=lead.phone, status="pending")
+        db.add_all([member, request])
+        lead.member_user_id = member.id
+        db.flush()
+
+        link_lead_to_registration(db, phone=lead.phone, partner_request_id=request.id, lead=lead)
+
+        assert lead.member_user_id == member.id
+        assert lead.partner_request_id == request.id
     finally:
         db.close()
 

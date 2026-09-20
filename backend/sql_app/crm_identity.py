@@ -112,17 +112,19 @@ def link_lead_to_registration(db, *, phone: str, email: str = "", user_id: str |
     return lead
 
 
-def reconcile_registration_identity(db, lead: CRMLead, phone: str) -> CRMLead | None:
+def reconcile_registration_identity(db, lead: CRMLead, phone: str, preferred_role: str | None = None) -> CRMLead | None:
     candidates = phone_keys(phone)
     if not candidates:
         return lead
-    for user in db.query(User).filter(User.phone != "", User.role.in_(["member", "rider"])).all():
+    user_roles = [preferred_role] if preferred_role in {"member", "rider"} else ["member", "rider"]
+    for user in db.query(User).filter(User.phone != "", User.role.in_(user_roles)).all():
         if not phone_keys(user.phone).intersection(candidates):
             continue
         if user.role == "member":
             return link_lead_to_registration(db, phone=phone, user_id=user.id, lead=lead)
         return link_lead_to_registration(db, phone=phone, rider_user_id=user.id, lead=lead)
-    for request in db.query(PartnerRequest).filter(PartnerRequest.phone != "").all():
-        if phone_keys(request.phone).intersection(candidates) or phone_keys(request.whatsapp_no).intersection(candidates):
-            return link_lead_to_registration(db, phone=phone, partner_request_id=request.id, lead=lead)
+    if preferred_role in {None, "partner"}:
+        for request in db.query(PartnerRequest).filter(PartnerRequest.phone != "").all():
+            if phone_keys(request.phone).intersection(candidates) or phone_keys(request.whatsapp_no).intersection(candidates):
+                return link_lead_to_registration(db, phone=phone, partner_request_id=request.id, lead=lead)
     return lead

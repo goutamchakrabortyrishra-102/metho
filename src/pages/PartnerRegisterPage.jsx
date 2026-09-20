@@ -271,7 +271,7 @@ export default function PartnerRegisterPage() {
   const isService = form.business_type === "Service";
   useEffect(() => {
     if (!crmLeadId && !trackedPhone) return;
-    api.post("/public/crm/registration-event", { crm_lead_id: crmLeadId, phone: trackedPhone, event_type: "registration_form_opened" }).catch(() => {});
+    api.post("/public/crm/registration-event", { crm_lead_id: crmLeadId, phone: trackedPhone, event_type: "registration_form_opened", registration_role: "partner" }).catch(() => {});
   }, [crmLeadId, trackedPhone]);
   const serviceSectorOptions = useMemo(
     () => mergeUniqueInOrder(SERVICE_SECTOR_OPTIONS, registrationCustomOptions.service_sectors),
@@ -575,7 +575,7 @@ export default function PartnerRegisterPage() {
         delete payload.shop_category;
       }
       const { data } = await api.post("/partners/register", payload);
-      await api.post("/public/crm/registration-event", { crm_lead_id: crmLeadId, phone: form.phone || trackedPhone, event_type: "registration_form_submitted" });
+      await api.post("/public/crm/registration-event", { crm_lead_id: crmLeadId, phone: form.phone || trackedPhone, event_type: "registration_form_submitted", registration_role: "partner" });
       setDone(data);
       toast.success("Application submitted!");
     } catch (err) {

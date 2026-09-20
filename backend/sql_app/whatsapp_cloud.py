@@ -1342,10 +1342,24 @@ def _continue_role_registration_pending(db, session: WhatsAppRegistrationSession
     if role not in REGISTRATION_ROLE_SETTINGS:
         return False
     text = str(incoming_text or "").strip()
+    config = resolve_config(db)
+    selected_role = _registration_role_for_text(config, text)
+    if selected_role in REGISTRATION_ROLE_SETTINGS and selected_role != role:
+        session.role = selected_role
+        session.state = WHATSAPP_ROLE_REGISTRATION_PENDING
+        data = _session_data(session)
+        data["fallback_count"] = 0
+        data["role_reply_sent"] = True
+        _save_session_data(session, data)
+        reply = _role_registration_reply(db, selected_role, lead.id, recipient)
+        if not _send_member_registration_reply(db, recipient, reply):
+            return False
+        db.add(CRMLeadActivity(lead_id=lead.id, activity_type="whatsapp_message_sent", message=reply))
+        db.add(CRMLeadActivity(lead_id=lead.id, activity_type="whatsapp_role_changed", message=f"{role} -> {selected_role}"))
+        return True
     if not _is_probably_gibberish(text) and _is_informational_question(text):
         status_context = _registration_status_context(db, lead, session, role)
         return _send_status_aware_ai_reply(db, lead, recipient, text, status_context)
-    config = resolve_config(db)
     link = _tracked_registration_url(_role_registration_url(config, role), role, lead.id, recipient)
     reply = get_whatsapp_preset_message(
         db,
@@ -1422,14 +1436,22 @@ def _route_registered_member(db, session: WhatsAppRegistrationSession, lead: CRM
     return True
 
 
-def _route_existing_identity(db, lead: CRMLead, recipient: str, incoming_text: str = "") -> bool:
-    if lead.member_user_id:
+def _lead_has_role_identity(lead: CRMLead, role: str) -> bool:
+    return bool({
+        "member": lead.member_user_id,
+        "partner": lead.partner_request_id,
+        "rider": lead.rider_user_id,
+    }.get(role))
+
+
+def _route_existing_identity(db, lead: CRMLead, recipient: str, incoming_text: str = "", preferred_role: str | None = None) -> bool:
+    if lead.member_user_id and preferred_role in {None, "member"}:
         session = _member_registration_session(db, recipient, recipient, lead)
         session.role = "member"
         session.data_json = json.dumps({"member_user_id": lead.member_user_id}, ensure_ascii=False)
         return _route_registered_member(db, session, lead, recipient, incoming_text)
     request = db.query(PartnerRequest).filter(PartnerRequest.id == lead.partner_request_id).first() if lead.partner_request_id else None
-    if request:
+    if request and preferred_role in {None, "partner"}:
         status = str(request.status or "pending").lower()
         session = _member_registration_session(db, recipient, recipient, lead)
         session.role = "partner"
@@ -1452,7 +1474,9 @@ def _route_existing_identity(db, lead: CRMLead, recipient: str, incoming_text: s
             else get_whatsapp_preset_message(db, "preset_partner_status_reply", WHATSAPP_PRESET_MESSAGE_DEFAULTS["preset_partner_status_reply"], status=status)
         )
         return _send_member_registration_reply(db, recipient, reply)
-    rider = db.query(User).filter(User.id == lead.rider_user_id, User.role == "rider").first() if lead.rider_user_id else db.query(User).filter(User.phone == recipient, User.role == "rider").first()
+    rider = None
+    if preferred_role in {None, "rider"}:
+        rider = db.query(User).filter(User.id == lead.rider_user_id, User.role == "rider").first() if lead.rider_user_id else db.query(User).filter(User.phone == recipient, User.role == "rider").first()
     if rider:
         profile = db.query(AppSetting).filter(AppSetting.key == f"rider_profile:{rider.id}").first()
         try:
@@ -2009,6 +2033,12 @@ def ingest_whatsapp_message(db, payload: dict, request=None) -> str:
             native_member_handled = _request_whatsapp_human_handoff(db, lead, registration_session, normalized["phone"])
         elif registration_session and registration_session.state == WHATSAPP_REGISTRATION_CONFIRMATION_PENDING:
             native_member_handled = _registration_confirmation_reply(db, registration_session, lead, incoming_text, normalized["phone"])
+        elif registration_role_hint in REGISTRATION_ROLE_SETTINGS and (lead.member_user_id or lead.partner_request_id or lead.rider_user_id):
+            if _lead_has_role_identity(lead, registration_role_hint):
+                native_member_handled = _route_existing_identity(db, lead, normalized["phone"], incoming_text, preferred_role=registration_role_hint)
+            else:
+                registration_session = registration_session or _member_registration_session(db, normalized["phone"], normalized["whatsapp_no"], lead)
+                native_member_handled = _continue_introduction(db, registration_session, lead, incoming_text, normalized["phone"])
         elif lead.member_user_id or lead.partner_request_id or lead.rider_user_id:
             native_member_handled = _route_existing_identity(db, lead, normalized["phone"], incoming_text)
         elif registration_session is None:

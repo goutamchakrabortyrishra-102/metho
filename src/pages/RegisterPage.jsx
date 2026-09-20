@@ -54,7 +54,7 @@ export default function RegisterPage() {
 
   useEffect(() => {
     if (!crmLeadId && !prefillPhone) return;
-    api.post("/public/crm/registration-event", { crm_lead_id: crmLeadId, phone: prefillPhone, event_type: "registration_form_opened" }).catch(() => {});
+    api.post("/public/crm/registration-event", { crm_lead_id: crmLeadId, phone: prefillPhone, event_type: "registration_form_opened", registration_role: "member" }).catch(() => {});
   }, [crmLeadId, prefillPhone]);
 
   // Resolve the real default METHO Admin sponsor code so the form shows the actual working code.
@@ -210,7 +210,7 @@ export default function RegisterPage() {
         throw lastRegistrationError;
       }
 
-      await api.post("/public/crm/registration-event", { crm_lead_id: crmLeadId, phone: payload.phone, event_type: "registration_form_submitted" });
+      await api.post("/public/crm/registration-event", { crm_lead_id: crmLeadId, phone: payload.phone, event_type: "registration_form_submitted", registration_role: "member" });
 
       if (result?.token || result?.user) logout();
       const assignedMemberId = resolveAssignedMemberId(result, submittedMemberId);

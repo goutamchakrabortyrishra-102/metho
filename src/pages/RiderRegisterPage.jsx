@@ -19,7 +19,7 @@ export default function RiderRegisterPage() {
 
   useEffect(() => {
     if (!crmLeadId && !trackedPhone) return;
-    api.post("/public/crm/registration-event", { crm_lead_id: crmLeadId, phone: trackedPhone, event_type: "registration_form_opened" }).catch(() => {});
+    api.post("/public/crm/registration-event", { crm_lead_id: crmLeadId, phone: trackedPhone, event_type: "registration_form_opened", registration_role: "rider" }).catch(() => {});
   }, [crmLeadId, trackedPhone]);
 
   const submit = async (event) => {
@@ -36,7 +36,7 @@ export default function RiderRegisterPage() {
         ...(referralSponsorCode ? { sponsor_code: referralSponsorCode } : {}),
         agreed_to_terms: agreedToTerms,
       });
-      await api.post("/public/crm/registration-event", { crm_lead_id: crmLeadId, phone: form.get("phone") || trackedPhone, event_type: "registration_form_submitted" });
+      await api.post("/public/crm/registration-event", { crm_lead_id: crmLeadId, phone: form.get("phone") || trackedPhone, event_type: "registration_form_submitted", registration_role: "rider" });
       toast.success("Registration submitted. Please wait for admin approval.");
       nav("/login?role=rider");
     } catch (error) {

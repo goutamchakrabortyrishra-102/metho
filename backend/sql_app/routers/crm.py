@@ -127,14 +127,26 @@ def record_public_registration_event(payload: dict, db: Session = Depends(get_db
     lead_id = str(data.get("crm_lead_id") or "").strip()
     phone = str(data.get("phone") or data.get("prefill_phone") or "").strip()
     event_type = str(data.get("event_type") or "registration_form_opened").strip()
+    registration_role = str(data.get("registration_role") or "").strip().lower()
+    registration_role = registration_role if registration_role in {"member", "partner", "rider"} else ""
     if event_type not in {"registration_form_opened", "registration_form_submitted"}:
         raise HTTPException(status_code=400, detail="Invalid registration event")
     lead = db.query(CRMLead).filter(CRMLead.id == lead_id).first() if lead_id else find_lead_by_phone(db, phone)
     if not lead:
         return {"ok": True, "linked": False}
-    if event_type == "registration_form_submitted" and not (lead.member_user_id or lead.partner_request_id or lead.rider_user_id):
-        reconcile_registration_identity(db, lead, phone)
-    registration_linked = bool(lead.member_user_id or lead.partner_request_id or lead.rider_user_id or lead.converted_partner_id)
+    role_identity = {
+        "member": lead.member_user_id,
+        "partner": lead.partner_request_id,
+        "rider": lead.rider_user_id,
+    }
+    if event_type == "registration_form_submitted" and not (role_identity.get(registration_role) if registration_role else any(role_identity.values())):
+        reconcile_registration_identity(db, lead, phone, preferred_role=registration_role or None)
+        role_identity = {
+            "member": lead.member_user_id,
+            "partner": lead.partner_request_id,
+            "rider": lead.rider_user_id,
+        }
+    registration_linked = bool(role_identity.get(registration_role) if registration_role else any(role_identity.values()) or lead.converted_partner_id)
     if event_type == "registration_form_submitted" and lead.status == "NEW":
         lead.status = "APPLICATION"
     reminder_notes = "Abandoned registration reminder"
@@ -170,24 +182,25 @@ def record_public_registration_event(payload: dict, db: Session = Depends(get_db
     if event_type == "registration_form_submitted" and registration_linked:
         from ..whatsapp_cloud import WHATSAPP_REGISTRATION_CONFIRMATION_PENDING, WHATSAPP_PRESET_MESSAGE_DEFAULTS, _member_registration_session, get_whatsapp_preset_message
         session = _member_registration_session(db, phone, phone, lead)
-        session.role = "member" if lead.member_user_id else "partner" if lead.partner_request_id else "rider"
+        session.role = registration_role or ("member" if lead.member_user_id else "partner" if lead.partner_request_id else "rider")
         session.state = WHATSAPP_REGISTRATION_CONFIRMATION_PENDING
         session.data_json = json.dumps({"registration_confirmed": False, "registration_role": session.role}, ensure_ascii=False)
         confirmation = get_whatsapp_preset_message(db, "preset_registration_submit_confirmation", WHATSAPP_PRESET_MESSAGE_DEFAULTS["preset_registration_submit_confirmation"])
-        if not db.query(WhatsAppMessageOutbox).filter(WhatsAppMessageOutbox.dedupe_key == f"registration-confirmation:{lead.id}").first():
+        confirmation_key = f"registration-confirmation:{lead.id}:{session.role}"
+        if not db.query(WhatsAppMessageOutbox).filter(WhatsAppMessageOutbox.dedupe_key == confirmation_key).first():
             db.add(WhatsAppMessageOutbox(
-                dedupe_key=f"registration-confirmation:{lead.id}",
+                dedupe_key=confirmation_key,
                 lead_id=lead.id,
                 activity_type="registration_confirmation_requested",
                 recipient=lead.whatsapp_no or lead.phone or phone,
                 message=confirmation,
             ))
         db.commit()
-        if lead.member_user_id:
+        if session.role == "member" and lead.member_user_id:
             record_lifecycle_event(db, lead, "member_registration_completed", f"Member registration completed: {lead.member_user_id}. Activation/payment is pending.", "Complete member activation/payment and explain first purchase steps", 1)
-        elif lead.partner_request_id:
+        elif session.role == "partner" and lead.partner_request_id:
             record_lifecycle_event(db, lead, "partner_registration_submitted", f"Partner registration submitted: {lead.partner_request_id}. Admin approval is pending.", "Review partner KYC/application and guide onboarding after approval", 1)
-        elif lead.rider_user_id:
+        elif session.role == "rider" and lead.rider_user_id:
             record_lifecycle_event(db, lead, "rider_registration_submitted", f"Rider registration submitted: {lead.rider_user_id}. Admin approval is pending.", "Review rider application and guide onboarding", 1)
         record_lifecycle_event(db, lead, "registration_form_followup_started", "Registration form submitted; waiting for account activation or partner approval.", "Confirm registration status and next activation/approval step", 1)
     return {"ok": True, "linked": True, "lead_id": lead.id, "status": lead.status}
