@@ -92,10 +92,12 @@ ROLE_IDENTITY_KEYWORDS = {
 }
 INFORMATIONAL_QUESTION_MARKERS = (
     "?", "কীভাবে", "কিভাবে", "কি ভাবে", "কী ভাবে", "কেমন করে", "জানতে চাই", "জানতে", "প্রোডাক্ট", "পণ্য", "সম্বন্ধে", "সম্পর্কে", "what", "how",
+    # Standalone Bangla question/confusion words that do not require an exact phrase match.
+    "কি ", " কি", "কী ", " কী", "বিষয়ে", "বিষয়ের", "কেন", "বুঝতে পারছি না", "বুঝলাম না", "পারছি না", "বুঝিনি",
     # Banglish (Bengali typed with Latin letters) equivalents of the above so freeform questions are still recognized.
-    "jante chai", "jante", "janar", "bapare", "bishoye", "bisoye", "somporke", "sombondhe", "sombonde", "kivabe", "ki vabe", "kemon kore", "bistarito", "bistarita", "aro details", "aro info", "ektu bolun", "aktu bolun",
+    "jante chai", "jante", "janar", "bapare", "bishoye", "bisoye", "somporke", "sombondhe", "sombonde", "kivabe", "ki vabe", "kemon kore", "bistarito", "bistarita", "aro details", "aro info", "ektu bolun", "aktu bolun", "bujhini", "bujhte parchi na", "parchi na",
     # Hinglish (Hindi typed with Latin letters) equivalents so those freeform questions are also recognized.
-    "batao", "bataiye", "bata do", "janna", "jaanna", "chahta hu", "chahti hu", "chahata hu", "chahati hu", "jankari", "ke bare mein", "ke baare mein", "kaise", "kya hai",
+    "batao", "bataiye", "bata do", "janna", "jaanna", "chahta hu", "chahti hu", "chahata hu", "chahati hu", "jankari", "ke bare mein", "ke baare mein", "kaise", "kya hai", "samajh nahi", "samajh nahi aya",
 )
 BROAD_EARNING_KEYWORDS = ("কাজ", "আয়", "আয়", "income", "earn", "earning", "work")
 PRODUCT_QUERY_KEYWORDS = ("product", "catalog", "catalogue", "price", "পণ্য", "প্রোডাক্ট", "দাম")
@@ -187,7 +189,7 @@ WHATSAPP_NEW_CONVERSATION_GREETINGS = {"hi", "hello", "হাই", "হ্যা
 WHATSAPP_CONFIRMATION_YES = {"yes", "y", "হ্যাঁ", "submitted", "submit করেছি", "submit korechi", "hoyeche", "hoye গেছে", "হয়েছে", "হয়ে গেছে", "korediyechi", "kore diyechi", "করে দিয়েছি", "করে দিয়েছি", "done"}
 WHATSAPP_CONFIRMATION_NO = {"no", "n", "না", "not submitted", "not yet", "submit korini", "submit করি নি", "হয়নি", "হয়নি", "হয় নি", "হয় নি", "করিনি", "করি নি"}
 WHATSAPP_PRESET_MESSAGE_DEFAULTS = {
-    "preset_registration_intro": "নমস্কার! METHO AAY-UPAY-এ স্বাগতম।\nMETHO-তে Customer, Member, Business Partner অথবা Rider হিসেবে যুক্ত হতে পারেন।\nআপনি জানতে চান:\n1. Member\n2. Partner\n3. Rider\n4. METHO সম্পর্কে আরও জানতে চাই",
+    "preset_registration_intro": "নমস্কার! METHO AAY-UPAY-এ স্বাগতম।\nMETHO-তে Customer, Member, Business Partner অথবা Rider হিসেবে যুক্ত হয়ে পণ্য কেনাকাটা, ব্যবসা প্রচার বা ডেলিভারি কাজ থেকে আয় করতে পারেন—কোনো বাধ্যতামূলক বিনিয়োগ ছাড়াই।\nআপনি জানতে চান:\n1. Member (কিনুন ও পয়েন্ট/বোনাস পান)\n2. Partner (নিজের ব্যবসা/সার্ভিস প্রচার করুন)\n3. Rider (ডেলিভারি করে আয় করুন)\n4. METHO সম্পর্কে আরও জানতে চাই",
     "preset_metho_info": "METHO AAY-UPAY একটি ডিজিটাল platform যেখানে Customer, Member, Partner ও Rider হিসেবে যুক্ত হওয়ার পথ আছে।\n\n{introduction}",
     "preset_member_role_explanation": "Member হিসেবে METHO-র পণ্য ও সদস্য সুবিধা ব্যবহার করতে পারবেন। রেজিস্ট্রেশন করতে চাইলে 1 লিখুন।",
     "preset_partner_role_explanation": "Partner হিসেবে Shop বা Service business application জমা দিতে পারবেন। রেজিস্ট্রেশন করতে চাইলে 1 লিখুন।",
@@ -790,9 +792,9 @@ def _role_menu_text(language: str = "bn") -> str:
 
 def _welcome_intro_fallback(language: str = "bn") -> str:
     base = {
-        "bn": "নমস্কার! METHO AAY-UPAY-এ আপনাকে স্বাগতম। METHO একটি ব্যবসায়িক প্ল্যাটফর্ম, যেখানে Member, Partner ও Rider-এর মাধ্যমে মানুষ প্রোডাক্ট, সার্ভিস ও নেটওয়ার্কের সুবিধা পায়। এটি MLM, Money Market বা Pyramid Scheme নয়; যুক্ত হতে কোনো বাধ্যতামূলক বিনিয়োগ লাগে না.\n\nMember: প্রোডাক্ট/সার্ভিস ব্যবহার ও রিওয়ার্ড সুবিধা\nPartner: ব্যবসা/সার্ভিস অনবোর্ডিং ও প্রমোশন\nRider: ডেলিভারি/ফিল্ড-সার্ভিস কাজ",
-        "hi": "नमस्कार! METHO AAY-UPAY में आपका स्वागत है। METHO एक बिज़नेस प्लेटफ़ॉर्म है जहाँ Member, Partner और Rider के रूप में लोग प्रोडक्ट, सेवा और नेटवर्क के लाभ उठा सकते हैं। यह MLM, Money Market या Pyramid Scheme नहीं है; जुड़ने के लिए कोई बाध्यकारी निवेश जरूरी नहीं है.\n\nMember: प्रोडक्ट/सेवा उपयोग और Reward सुविधा\nPartner: बिज़नेस/सेवा onboarding और प्रमोशन\nRider: delivery/field-service work",
-        "en": "Hello! Welcome to METHO AAY-UPAY. METHO is a business ecosystem where people can join as a Member, Partner, or Rider to access products, services, and earning opportunities. It is not an MLM, Money Market, or Pyramid Scheme, and there is no mandatory investment required to join.\n\nMember: product/service use and reward benefits\nPartner: business/service onboarding and promotion\nRider: delivery and field-service work",
+        "bn": "নমস্কার! METHO AAY-UPAY-এ আপনাকে স্বাগতম। METHO LOGISTICS PRIVATE LIMITED-এর একটি বাস্তব ব্যবসায়িক প্ল্যাটফর্ম—এটি MLM, Money Market বা Pyramid Scheme নয়, যুক্ত হতে কোনো বাধ্যতামূলক বিনিয়োগ লাগে না।\n\nআপনি কীভাবে যুক্ত হবেন ও কী লাভ হবে:\nMember: METHO প্রোডাক্ট কিনুন, প্রতি পারচেজে পয়েন্ট জমান এবং মাসিক Reward Pool থেকে বোনাস পান।\nPartner: আপনার দোকান/সার্ভিস METHO নেটওয়ার্কে যুক্ত করে ফ্রি প্রমোশন, নতুন কাস্টমার ও বিজ্ঞাপন সুবিধা পান।\nRider: ডেলিভারি/ফিল্ড-সার্ভিস কাজ করে প্রতি অর্ডারে আয় করুন।\n\nফর্মটি মাত্র ২-৩ মিনিটে পূরণ হয়। নিচে থেকে আপনার ভূমিকা বেছে নিন:",
+        "hi": "नमस्कार! METHO AAY-UPAY में आपका स्वागत है। यह METHO LOGISTICS PRIVATE LIMITED का एक असली बिज़नेस प्लेटफ़ॉर्म है—यह MLM, Money Market या Pyramid Scheme नहीं है, जुड़ने के लिए कोई बाध्यकारी निवेश जरूरी नहीं है।\n\nआप कैसे जुड़ेंगे और क्या फ़ायदा होगा:\nMember: METHO प्रोडक्ट खरीदें, हर खरीद पर पॉइंट कमाएँ और मासिक Reward Pool से बोनस पाएँ।\nPartner: अपनी दुकान/सेवा METHO नेटवर्क से जोड़कर मुफ़्त प्रमोशन, नए कस्टमर और विज्ञापन सुविधा पाएँ।\nRider: डिलीवरी/फ़ील्ड-सर्विस काम करके हर ऑर्डर पर कमाएँ।\n\nफ़ॉर्म सिर्फ़ 2-3 मिनट में भर जाता है। नीचे से अपनी भूमिका चुनें:",
+        "en": "Hello! Welcome to METHO AAY-UPAY, a real business platform from METHO LOGISTICS PRIVATE LIMITED—it is not an MLM, Money Market, or Pyramid Scheme, and there is no mandatory investment required to join.\n\nHow you can join and what you gain:\nMember: buy METHO products, earn points on every purchase, and get monthly bonuses from the Reward Pool.\nPartner: connect your shop/service to the METHO network for free promotion, new customers, and advertising support.\nRider: earn on every order by doing delivery/field-service work.\n\nThe form only takes 2-3 minutes to fill in. Choose your role below:",
     }
     return base.get(language, base["bn"]) + _role_menu_text(language)
 
@@ -822,7 +824,7 @@ def _generate_welcome_message(db, lead: CRMLead, recipient: str, language: str =
     from .whatsapp_ai import _generate_reply, resolve_ai_config
 
     prompt_message = (
-        "This is the customer's first welcome or a fresh restart. Do not claim that they previously started, submitted, or left a registration incomplete. Welcome them to METHO AAY-UPAY in their language, explain clearly that METHO is not an MLM, Money Market, or Pyramid Scheme, and that there is no mandatory investment required. Mention the short role overview for Member, Partner, and Rider, then end with the role menu for choosing 1, 2, or 3. Keep it friendly and concise."
+        "This is the customer's first welcome or a fresh restart. Do not claim that they previously started, submitted, or left a registration incomplete. Welcome them to METHO AAY-UPAY in their language, explain clearly that METHO is not an MLM, Money Market, or Pyramid Scheme, and that there is no mandatory investment required. For each of Member, Partner, and Rider, give one concrete, concise benefit of joining (for example: Member earns points/bonus on purchases, Partner gets free promotion and new customers for their shop/service, Rider earns per delivery), and mention the form only takes a couple of minutes. Then end with the role menu for choosing 1, 2, or 3. Keep it friendly and concise."
     )
     try:
         reply, _provider, _model = _generate_reply(resolve_ai_config(db), prompt_message, "First-contact welcome. No prior registration state applies.", "whatsapp_welcome", db=db)

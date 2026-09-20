@@ -353,6 +353,21 @@ async def receive_whatsapp_webhook(request: Request, background_tasks: Backgroun
                 db.rollback()
                 logger.exception("WhatsApp webhook idempotency failure marker failed: message_id=%s", message_id)
         logger.exception("WhatsApp webhook ingestion failed: message_ids=%s", locals().get("claimed_message_ids", []))
+        # Never leave the customer with total silence: best-effort send an executive-contact
+        # fallback so an internal error never looks like an unanswered message on WhatsApp.
+        try:
+            from ..whatsapp_ai import _business_unknown_fallback
+            from ..whatsapp_cloud import send_whatsapp_message
+            for message in locals().get("messages", []):
+                sender = str((message or {}).get("from") or "").strip()
+                if not sender:
+                    continue
+                body_text = str(((message or {}).get("text") or {}).get("body") or "")
+                send_whatsapp_message(db, sender, text=_business_unknown_fallback(body_text))
+            db.commit()
+        except Exception:
+            db.rollback()
+            logger.exception("WhatsApp webhook fallback reply after ingestion failure also failed")
         raise HTTPException(status_code=503, detail=f"WhatsApp lead could not be stored: {str(exc)}") from exc
     for message_id in claimed_message_ids:
         mark_webhook_event(db, message_id, "processed")

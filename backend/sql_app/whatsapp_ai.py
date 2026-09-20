@@ -483,6 +483,10 @@ def _generate_reply(config: dict, message: str, context: str = "", event_type: s
         logger.error("WhatsApp AI Gemini provider selected but GEMINI_API_KEY/GOOGLE_API_KEY is not configured")
     if event_type in LIFECYCLE_SUGGESTIONS:
         return get_whatsapp_preset_message(db, f"preset_lifecycle_{event_type}", LIFECYCLE_SUGGESTIONS[event_type]), "fallback", "local"
+    # Genuine question events must always resolve to a concrete next step (the executive contact),
+    # never a vague "we'll get back to you" message, when the AI could not produce an answer.
+    if event_type in {"whatsapp_info_question", "whatsapp_info_question_retry", "whatsapp_status_question"}:
+        return _business_unknown_fallback(message), "fallback", "local"
     return get_whatsapp_preset_message(db, "preset_ai_local_fallback", WHATSAPP_PRESET_MESSAGE_DEFAULTS["preset_ai_local_fallback"]), "fallback", "local"
 
 
