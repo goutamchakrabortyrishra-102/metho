@@ -656,7 +656,15 @@ def process_due_followups(limit: int = 20) -> int:
                 role = session.role if session and session.role in {"member", "partner", "rider"} else "member"
                 config = resolve_config(db)
                 registration_url = _tracked_registration_url(_role_registration_url(config, role), role, lead.id, recipient)
-                fallback_text = get_whatsapp_preset_message(db, "preset_abandoned_registration_reminder", "", role=role.title(), registration_url=registration_url)
+                # Vary tone/cadence over time instead of repeating the identical message forever,
+                # and stop nagging altogether after a reasonable number of attempts.
+                reminder_count = db.query(CRMLeadActivity).filter(CRMLeadActivity.lead_id == lead.id, CRMLeadActivity.activity_type == "registration_reminder_queued").count()
+                if reminder_count <= 3:
+                    fallback_text = get_whatsapp_preset_message(db, "preset_abandoned_registration_reminder", "", role=role.title(), registration_url=registration_url)
+                elif reminder_count <= 7:
+                    fallback_text = get_whatsapp_preset_message(db, "preset_abandoned_registration_reminder_followup", WHATSAPP_PRESET_MESSAGE_DEFAULTS["preset_abandoned_registration_reminder_followup"], role=role.title(), registration_url=registration_url)
+                else:
+                    fallback_text = get_whatsapp_preset_message(db, "preset_abandoned_registration_reminder_final", WHATSAPP_PRESET_MESSAGE_DEFAULTS["preset_abandoned_registration_reminder_final"], role=role.title(), registration_url=registration_url)
                 outbox_activity_type = "registration_reminder_sent"
             elif is_partner_onboarding_checkin:
                 fallback_text = get_whatsapp_preset_message(db, "preset_partner_onboarding_checkin", WHATSAPP_PRESET_MESSAGE_DEFAULTS["preset_partner_onboarding_checkin"])
@@ -670,8 +678,18 @@ def process_due_followups(limit: int = 20) -> int:
                 db.commit()
             if queued or db.query(WhatsAppMessageOutbox).filter(WhatsAppMessageOutbox.dedupe_key == f"crm-followup:{followup.id}:{scheduled_marker}").first():
                 if is_abandoned_registration:
+                    if reminder_count > 7:
+                        # Final reminder already sent; stop the automated cadence so the lead
+                        # isn't nagged daily forever. A human follow-up task still exists from
+                        # the original schedule call for manual outreach if needed.
+                        followup.status = "Sent"
+                        lead.follow_up_status = "Completed"
+                        lead.next_follow_up_at = None
+                        processed += 1
+                        db.commit()
+                        continue
                     followup.status = "Pending"
-                    followup.scheduled_at = now + timedelta(hours=24)
+                    followup.scheduled_at = now + timedelta(hours=24) if reminder_count <= 3 else now + timedelta(days=3)
                     lead.follow_up_status = "Pending"
                     lead.next_follow_up_at = followup.scheduled_at
                     processed += 1
