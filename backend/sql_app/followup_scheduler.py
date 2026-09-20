@@ -118,7 +118,11 @@ def send_due_lifecycle_followups() -> dict:
         now = datetime.now(timezone.utc)
         due_followups = (
             db.query(CRMFollowUp)
-            .filter(CRMFollowUp.status == "Pending", CRMFollowUp.scheduled_at <= now)
+            .join(CRMLead, CRMLead.id == CRMFollowUp.lead_id)
+            # WhatsApp/Facebook leads already get richer, role-aware follow-up handling from
+            # process_due_followups() in whatsapp_ai.py; skip them here so the two schedulers
+            # never race to dispatch the same CRMFollowUp row.
+            .filter(CRMFollowUp.status == "Pending", CRMFollowUp.scheduled_at <= now, ~CRMLead.source.in_(["whatsapp", "facebook"]))
             .order_by(CRMFollowUp.scheduled_at.asc(), CRMFollowUp.created_at.asc())
             .all()
         )
