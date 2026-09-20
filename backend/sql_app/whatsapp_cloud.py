@@ -217,8 +217,8 @@ WHATSAPP_PRESET_MESSAGE_DEFAULTS = {
     "preset_lifecycle_rider_activated": "🎉 আপনার Rider account approved হয়েছে। Availability ও delivery/onboarding নিয়ে সাহায্য লাগলে এখানে reply করুন।",
     "preset_lifecycle_metho_move_booking_created": "আপনার METHO Move booking request পাওয়া গেছে। Payment বা rider assignment বিষয়ে সাহায্য লাগলে এখানে reply করুন।",
     "preset_ai_local_fallback": "ধন্যবাদ আপনার বার্তার জন্য। মেঠো প্রতিনিধি শীঘ্রই আপনার সাথে যোগাযোগ করবেন।",
-    "preset_member_active_reply": "আপনার METHO Member ID {member_code} Active ✅\nএখন প্রথম purchase করলেই আপনার Smart Cycle শুরু হয়ে যাবে এবং কমিশন/বোনাস জমা পড়া শুরু করবে। কোন প্রোডাক্ট দেখবেন বা wallet সম্পর্কে জানতে চাইলে এখানে জিজ্ঞাসা করুন।",
-    "preset_member_onboarding_started": "আপনার Member ID {member_code} এখন Active।\nMember onboarding শুরু হয়েছে। Products, wallet, rewards এবং support সম্পর্কে জানতে এখানে reply করুন।",
+    "preset_member_active_reply": "আপনার METHO Member ID {member_code} Active ✅\nএখন প্রথম purchase করলেই আপনার Smart Cycle শুরু হয়ে যাবে এবং কমিশন/বোনাস জমা পড়া শুরু করবে। কোন প্রোডাক্ট দেখবেন বা wallet সম্পর্কে জানতে চাইলে এখানে জিজ্ঞাসা করুন।\n\n💰 বন্ধুদের METHO-তে যুক্ত করান, আপনার referral link শেয়ার করুন: {referral_link}",
+    "preset_member_onboarding_started": "আপনার Member ID {member_code} এখন Active।\nMember onboarding শুরু হয়েছে। Products, wallet, rewards এবং support সম্পর্কে জানতে এখানে reply করুন।\n\n💰 বন্ধুদের METHO-তে যুক্ত করান, আপনার referral link শেয়ার করুন: {referral_link}",
     "preset_member_activation_pending": "🌱 আপনার Member registration সম্পন্ন হয়েছে।\nMember ID: {member_code}\n\nআপনার ID এখনও Active হয়নি। Activation সম্পন্ন করার পর আপনার ID Active হবে।\nSecure action: {activation_url}\n\nশুধু payment সম্পন্ন করলেই Active ধরে নেওয়া হবে না; backend verification-এর পর status বদলাবে।",
     "preset_order_status_header": "আপনার সাম্প্রতিক order status:",
     "preset_no_orders_found": "আপনার Member account-এ কোনো order পাওয়া যায়নি।",
@@ -1031,6 +1031,14 @@ def _tracked_registration_url(url: str, role: str, lead_id: str = "", phone: str
     return urlunsplit((parsed.scheme, parsed.netloc, parsed.path, urlencode(query), parsed.fragment))
 
 
+def _member_referral_link(config: dict, member_code: str) -> str:
+    """Shareable signup link carrying this member's sponsor code, for referral-based growth."""
+    parsed = urlsplit(str(config.get("registration_url") or ""))
+    query = dict(parse_qsl(parsed.query, keep_blank_values=True))
+    query["ref"] = member_code
+    return urlunsplit((parsed.scheme, parsed.netloc, parsed.path, urlencode(query), parsed.fragment))
+
+
 def _localized_default_reply(db, language: str) -> str:
     config = resolve_config(db)
     custom = str(config.get("default_auto_reply") or "").strip()
@@ -1360,6 +1368,8 @@ def _route_registered_member(db, session: WhatsAppRegistrationSession, lead: CRM
         active = bool(user.is_active and _member_purchase_active(db, user.id))
     except Exception:
         active = bool(user.is_active)
+    member_code = data.get("member_code") or user.id
+    referral_link = _member_referral_link(resolve_config(db), member_code)
     if active:
         was_onboarded = session.state == WHATSAPP_MEMBER_ONBOARDING
         session.state = WHATSAPP_MEMBER_ONBOARDING
@@ -1372,7 +1382,7 @@ def _route_registered_member(db, session: WhatsAppRegistrationSession, lead: CRM
             else:
                 reply = get_whatsapp_preset_message(db, "preset_no_orders_found", WHATSAPP_PRESET_MESSAGE_DEFAULTS["preset_no_orders_found"])
         else:
-            reply = get_whatsapp_preset_message(db, "preset_member_active_reply", WHATSAPP_PRESET_MESSAGE_DEFAULTS["preset_member_active_reply"], member_code=data.get("member_code") or user.id)
+            reply = get_whatsapp_preset_message(db, "preset_member_active_reply", WHATSAPP_PRESET_MESSAGE_DEFAULTS["preset_member_active_reply"], member_code=member_code, referral_link=referral_link)
         for followup in db.query(CRMFollowUp).filter(CRMFollowUp.lead_id == lead.id, CRMFollowUp.status == "Pending").all():
             if "activation" in str(followup.notes or "").lower() or "member" in str(followup.notes or "").lower():
                 followup.status = "Completed"
@@ -1381,7 +1391,7 @@ def _route_registered_member(db, session: WhatsAppRegistrationSession, lead: CRM
         _complete_lifecycle_followups(db, lead, "activation")
         if not was_onboarded:
             db.add(CRMLeadActivity(lead_id=lead.id, activity_type="onboarding_started", message="Member onboarding started after backend activation confirmation"))
-            activation_reply = get_whatsapp_preset_message(db, "preset_member_onboarding_started", WHATSAPP_PRESET_MESSAGE_DEFAULTS["preset_member_onboarding_started"], member_code=data.get("member_code") or user.id)
+            activation_reply = get_whatsapp_preset_message(db, "preset_member_onboarding_started", WHATSAPP_PRESET_MESSAGE_DEFAULTS["preset_member_onboarding_started"], member_code=member_code, referral_link=referral_link)
             if not _send_member_registration_reply(db, recipient, activation_reply):
                 return False
             db.add(CRMLeadActivity(lead_id=lead.id, activity_type="whatsapp_message_sent", message=activation_reply))
