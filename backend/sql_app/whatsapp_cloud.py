@@ -37,21 +37,22 @@ ROLE_REGISTRATION_PATHS = {
 }
 LOCALIZED_ROLE_REPLIES = {
     "bn": {
-        "member": "মেঠো মেম্বার হিসেবে যুক্ত হতে Member রেজিস্ট্রেশন করুন।",
-        "partner": "মেঠো বিজনেস পার্টনার হিসেবে যুক্ত হতে Partner রেজিস্ট্রেশন করুন।",
-        "rider": "মেঠো রাইডার হিসেবে যুক্ত হতে Rider রেজিস্ট্রেশন করুন।",
+        "member": "মেঠো মেম্বার হিসেবে যুক্ত হলে Smart Cycle কমিশন, ডাইরেক্টের কমিশনের ৫০% Matching Bonus, মাসিক Member Reward Pool বোনাস, এবং নেটওয়ার্ক বাড়ালে Leader Reward ও MPS সুবিধা পাবেন। Member রেজিস্ট্রেশন করুন।",
+        "partner": "মেঠো বিজনেস পার্টনার হিসেবে যুক্ত হলে ফ্রি প্রমোশন, নতুন কাস্টমার পাবেন এবং নতুন Partner যুক্ত করালে ওয়ান-টাইম Referral Commission পাবেন। Partner রেজিস্ট্রেশন করুন।",
+        "rider": "মেঠো রাইডার হিসেবে যুক্ত হয়ে প্রতি ডেলিভারি অর্ডারে আয় করুন। Rider রেজিস্ট্রেশন করুন।",
     },
     "hi": {
-        "member": "METHO Member के रूप में जुड़ने के लिए Member registration करें।",
-        "partner": "METHO Business Partner के रूप में जुड़ने के लिए Partner registration करें।",
-        "rider": "METHO Rider के रूप में जुड़ने के लिए Rider registration करें।",
+        "member": "METHO Member बनने पर Smart Cycle कमीशन, आपके डायरेक्ट की कमीशन का 50% Matching Bonus, मासिक Member Reward Pool बोनस, और नेटवर्क बढ़ने पर Leader Reward व MPS सुविधा मिलेगी। Member registration करें।",
+        "partner": "METHO Business Partner बनने पर मुफ़्त प्रमोशन, नए कस्टमर मिलेंगे और नया Partner जोड़ने पर वन-टाइम Referral Commission मिलेगा। Partner registration करें।",
+        "rider": "METHO Rider बनकर हर डिलीवरी ऑर्डर पर कमाएँ। Rider registration करें।",
     },
     "en": {
-        "member": "Register as a METHO Member to get started.",
-        "partner": "Register as a METHO Business Partner to get started.",
-        "rider": "Register as a METHO Rider to get started.",
+        "member": "As a METHO Member you earn Smart Cycle commission, a 50% Matching Bonus on your direct connection's commission, a monthly Member Reward Pool bonus, and Leader Reward plus MPS benefits as your network grows. Register as a METHO Member to get started.",
+        "partner": "As a METHO Business Partner you get free promotion, new customers, and a one-time Referral Commission for each new Partner you bring in. Register as a METHO Business Partner to get started.",
+        "rider": "As a METHO Rider you earn on every delivery order. Register as a METHO Rider to get started.",
     },
 }
+
 LOCALIZED_DEFAULT_REPLIES = {
     "bn": "নমস্কার! METHO-তে স্বাগতম। Member-এর জন্য 1, Partner-এর জন্য 2, Rider-এর জন্য 3 লিখুন।",
     "hi": "नमस्कार! METHO में आपका स्वागत है। Member के लिए 1, Partner के लिए 2, Rider के लिए 3 लिखें।",
@@ -189,7 +190,7 @@ WHATSAPP_NEW_CONVERSATION_GREETINGS = {"hi", "hello", "হাই", "হ্যা
 WHATSAPP_CONFIRMATION_YES = {"yes", "y", "হ্যাঁ", "submitted", "submit করেছি", "submit korechi", "hoyeche", "hoye গেছে", "হয়েছে", "হয়ে গেছে", "korediyechi", "kore diyechi", "করে দিয়েছি", "করে দিয়েছি", "done"}
 WHATSAPP_CONFIRMATION_NO = {"no", "n", "না", "not submitted", "not yet", "submit korini", "submit করি নি", "হয়নি", "হয়নি", "হয় নি", "হয় নি", "করিনি", "করি নি"}
 WHATSAPP_PRESET_MESSAGE_DEFAULTS = {
-    "preset_registration_intro": "নমস্কার! METHO AAY-UPAY-এ স্বাগতম।\nMETHO-তে Customer, Member, Business Partner অথবা Rider হিসেবে যুক্ত হয়ে পণ্য কেনাকাটা, ব্যবসা প্রচার বা ডেলিভারি কাজ থেকে আয় করতে পারেন—কোনো বাধ্যতামূলক বিনিয়োগ ছাড়াই।\nআপনি জানতে চান:\n1. Member (কিনুন ও পয়েন্ট/বোনাস পান)\n2. Partner (নিজের ব্যবসা/সার্ভিস প্রচার করুন)\n3. Rider (ডেলিভারি করে আয় করুন)\n4. METHO সম্পর্কে আরও জানতে চাই",
+    "preset_registration_intro": "নমস্কার! METHO AAY-UPAY-এ স্বাগতম।\nMETHO-তে Customer, Member, Business Partner অথবা Rider হিসেবে যুক্ত হয়ে পণ্য কেনাকাটা, ব্যবসা প্রচার বা ডেলিভারি কাজ থেকে আয় করতে পারেন—কোনো বাধ্যতামূলক বিনিয়োগ ছাড়াই।\nMember হলে Smart Cycle কমিশন, Matching Bonus, মাসিক Reward Pool ও Leader/MPS সুবিধা পাবেন। Partner হলে ফ্রি প্রমোশন ও নতুন Partner যুক্ত করালে ওয়ান-টাইম Referral Commission পাবেন।\nআপনি জানতে চান:\n1. Member (কিনুন ও পয়েন্ট/বোনাস পান)\n2. Partner (নিজের ব্যবসা/সার্ভিস প্রচার করুন)\n3. Rider (ডেলিভারি করে আয় করুন)\n4. METHO সম্পর্কে আরও জানতে চাই",
     "preset_metho_info": "METHO AAY-UPAY একটি ডিজিটাল platform যেখানে Customer, Member, Partner ও Rider হিসেবে যুক্ত হওয়ার পথ আছে।\n\n{introduction}",
     "preset_member_role_explanation": "Member হিসেবে METHO-র পণ্য ও সদস্য সুবিধা ব্যবহার করতে পারবেন। রেজিস্ট্রেশন করতে চাইলে 1 লিখুন।",
     "preset_partner_role_explanation": "Partner হিসেবে Shop বা Service business application জমা দিতে পারবেন। রেজিস্ট্রেশন করতে চাইলে 1 লিখুন।",
@@ -792,9 +793,9 @@ def _role_menu_text(language: str = "bn") -> str:
 
 def _welcome_intro_fallback(language: str = "bn") -> str:
     base = {
-        "bn": "নমস্কার! METHO AAY-UPAY-এ আপনাকে স্বাগতম। METHO LOGISTICS PRIVATE LIMITED-এর একটি বাস্তব ব্যবসায়িক প্ল্যাটফর্ম—এটি MLM, Money Market বা Pyramid Scheme নয়, যুক্ত হতে কোনো বাধ্যতামূলক বিনিয়োগ লাগে না।\n\nআপনি কীভাবে যুক্ত হবেন ও কী লাভ হবে:\nMember: METHO প্রোডাক্ট কিনুন, প্রতি পারচেজে পয়েন্ট জমান এবং মাসিক Reward Pool থেকে বোনাস পান।\nPartner: আপনার দোকান/সার্ভিস METHO নেটওয়ার্কে যুক্ত করে ফ্রি প্রমোশন, নতুন কাস্টমার ও বিজ্ঞাপন সুবিধা পান।\nRider: ডেলিভারি/ফিল্ড-সার্ভিস কাজ করে প্রতি অর্ডারে আয় করুন।\n\nফর্মটি মাত্র ২-৩ মিনিটে পূরণ হয়। নিচে থেকে আপনার ভূমিকা বেছে নিন:",
-        "hi": "नमस्कार! METHO AAY-UPAY में आपका स्वागत है। यह METHO LOGISTICS PRIVATE LIMITED का एक असली बिज़नेस प्लेटफ़ॉर्म है—यह MLM, Money Market या Pyramid Scheme नहीं है, जुड़ने के लिए कोई बाध्यकारी निवेश जरूरी नहीं है।\n\nआप कैसे जुड़ेंगे और क्या फ़ायदा होगा:\nMember: METHO प्रोडक्ट खरीदें, हर खरीद पर पॉइंट कमाएँ और मासिक Reward Pool से बोनस पाएँ।\nPartner: अपनी दुकान/सेवा METHO नेटवर्क से जोड़कर मुफ़्त प्रमोशन, नए कस्टमर और विज्ञापन सुविधा पाएँ।\nRider: डिलीवरी/फ़ील्ड-सर्विस काम करके हर ऑर्डर पर कमाएँ।\n\nफ़ॉर्म सिर्फ़ 2-3 मिनट में भर जाता है। नीचे से अपनी भूमिका चुनें:",
-        "en": "Hello! Welcome to METHO AAY-UPAY, a real business platform from METHO LOGISTICS PRIVATE LIMITED—it is not an MLM, Money Market, or Pyramid Scheme, and there is no mandatory investment required to join.\n\nHow you can join and what you gain:\nMember: buy METHO products, earn points on every purchase, and get monthly bonuses from the Reward Pool.\nPartner: connect your shop/service to the METHO network for free promotion, new customers, and advertising support.\nRider: earn on every order by doing delivery/field-service work.\n\nThe form only takes 2-3 minutes to fill in. Choose your role below:",
+        "bn": "নমস্কার! 🎉 METHO AAY-UPAY-এ আপনাকে স্বাগতম। METHO LOGISTICS PRIVATE LIMITED-এর একটি বাস্তব ব্যবসায়িক প্ল্যাটফর্ম—MLM, Money Market বা Pyramid Scheme নয়, যুক্ত হতে কোনো বাধ্যতামূলক বিনিয়োগ লাগে না।\n\n🚀 আপনি কীভাবে যুক্ত হবেন ও কী কী লাভ পাবেন:\n✅ Member: METHO প্রোডাক্ট কিনে ID অ্যাক্টিভ করুন—Smart Cycle কমপ্লিট হলে কমিশন, ডাইরেক্টের কমিশনের ৫০% Matching Bonus, প্রতি মাসে Member Reward Pool বোনাস, আর নেটওয়ার্ক বাড়লে Leader Reward ও MPS সুরক্ষা!\n✅ Partner: আপনার দোকান/সার্ভিস METHO নেটওয়ার্কে যুক্ত করে ফ্রি প্রমোশন, নতুন কাস্টমার পান, আর নতুন Partner যুক্ত করালেই ওয়ান-টাইম Referral Commission!\n✅ Rider: প্রতিটি ডেলিভারি/ফিল্ড-সার্ভিস অর্ডারে সরাসরি আয়!\n\n⏱️ ফর্মটি মাত্র ২-৩ মিনিটে পূরণ হয়—দেরি না করে এখনই যুক্ত হয়ে যান! নিচে থেকে আপনার ভূমিকা বেছে নিন:",
+        "hi": "नमस्कार! 🎉 METHO AAY-UPAY में आपका स्वागत है। यह METHO LOGISTICS PRIVATE LIMITED का एक असली बिज़नेस प्लेटफ़ॉर्म है—यह MLM, Money Market या Pyramid Scheme नहीं है, जुड़ने के लिए कोई बाध्यकारी निवेश जरूरी नहीं है।\n\n🚀 आप कैसे जुड़ेंगे और क्या-क्या फ़ायदा मिलेगा:\n✅ Member: METHO प्रोडक्ट खरीदकर ID एक्टिवेट करें—Smart Cycle पूरा होने पर कमीशन, आपके डायरेक्ट की कमीशन का 50% Matching Bonus, हर महीने Member Reward Pool बोनस, और नेटवर्क बढ़ने पर Leader Reward व MPS सुरक्षा!\n✅ Partner: अपनी दुकान/सेवा METHO नेटवर्क से जोड़कर मुफ़्त प्रमोशन और नए कस्टमर पाएँ, और किसी नए Partner को जोड़ने पर वन-टाइम Referral Commission!\n✅ Rider: हर डिलीवरी/फ़ील्ड-सर्विस काम पर सीधी कमाई!\n\n⏱️ फ़ॉर्म सिर्फ़ 2-3 मिनट में भर जाता है—देर मत कीजिए, अभी जुड़ जाएं! नीचे से अपनी भूमिका चुनें:",
+        "en": "Hello! 🎉 Welcome to METHO AAY-UPAY, a real business platform from METHO LOGISTICS PRIVATE LIMITED—it is not an MLM, Money Market, or Pyramid Scheme, and there is no mandatory investment required to join.\n\n🚀 How you can join and what you gain:\n✅ Member: buy a METHO product to activate your ID—earn commission when your Smart Cycle closes, a 50% Matching Bonus on your direct connection's commission, a monthly Member Reward Pool bonus, and Leader Reward plus MPS protection as your network grows!\n✅ Partner: free promotion and new customers for your shop/service, plus a one-time Referral Commission for every new Partner you bring in!\n✅ Rider: earn directly on every delivery/field-service order!\n\n⏱️ The form only takes 2-3 minutes to fill in—don't wait, join today! Choose your role below:",
     }
     return base.get(language, base["bn"]) + _role_menu_text(language)
 
@@ -824,7 +825,7 @@ def _generate_welcome_message(db, lead: CRMLead, recipient: str, language: str =
     from .whatsapp_ai import _generate_reply, resolve_ai_config
 
     prompt_message = (
-        "This is the customer's first welcome or a fresh restart. Do not claim that they previously started, submitted, or left a registration incomplete. Welcome them to METHO AAY-UPAY in their language, explain clearly that METHO is not an MLM, Money Market, or Pyramid Scheme, and that there is no mandatory investment required. For each of Member, Partner, and Rider, give one concrete, concise benefit of joining (for example: Member earns points/bonus on purchases, Partner gets free promotion and new customers for their shop/service, Rider earns per delivery), and mention the form only takes a couple of minutes. Then end with the role menu for choosing 1, 2, or 3. Keep it friendly and concise."
+        "This is the customer's first welcome or a fresh restart. Do not claim that they previously started, submitted, or left a registration incomplete. Write in an upbeat, marketing-style tone (short punchy lines, a checkmark bullet per benefit) so the customer feels excited to join. Welcome them to METHO AAY-UPAY in their language, explain clearly that METHO is not an MLM, Money Market, or Pyramid Scheme, and that there is no mandatory investment required. For Member, mention as bullet benefits: Smart Cycle commission when their 5-slot cycle closes, a 50% Matching Bonus on their direct connection's commission, a monthly Member Reward Pool bonus, and Leader Reward plus MPS family-protection benefits as their network grows. For Partner, mention as bullet benefits: free promotion and new customers for their shop/service, plus a one-time Referral Commission for each new Partner they bring in. For Rider, mention as a bullet benefit: earning per delivery/field-service order. End with an urgency line saying the form only takes a couple of minutes and encouraging them to join today, then the role menu for choosing 1, 2, or 3. Keep it friendly, exciting, and concise."
     )
     try:
         reply, _provider, _model = _generate_reply(resolve_ai_config(db), prompt_message, "First-contact welcome. No prior registration state applies.", "whatsapp_welcome", db=db)
