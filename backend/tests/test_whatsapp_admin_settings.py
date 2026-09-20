@@ -15,7 +15,7 @@ from sql_app.database import Base
 from sql_app.models import AppSetting, CRMLead, CRMLeadActivity, User, WhatsAppRegistrationSession
 from sql_app.routers.crm import get_whatsapp_conversation, list_whatsapp_conversations, send_whatsapp_conversation_message
 from sql_app.routers.whatsapp import get_whatsapp_settings, receive_whatsapp_webhook, run_whatsapp_settings_test, update_whatsapp_settings
-from sql_app.whatsapp_cloud import _is_informational_question, _registration_role_for_text, ingest_whatsapp_message, normalize_whatsapp_message, resolve_config, send_whatsapp_message
+from sql_app.whatsapp_cloud import WHATSAPP_PRESET_MESSAGE_DEFAULTS, _is_informational_question, _registration_role_for_text, get_whatsapp_preset_message, ingest_whatsapp_message, normalize_whatsapp_message, resolve_config, send_whatsapp_message
 from fastapi import BackgroundTasks, HTTPException
 
 
@@ -84,6 +84,48 @@ def test_whatsapp_settings_prefill_registration_funnel_templates():
         assert "https://methoaayupay.com/register" == settings["member_registration_url"]
         assert "METHO Business Partner" in settings["partner_registration_reply"]
         assert settings["rider_registration_keywords"].startswith("3,rider")
+    finally:
+        db.close()
+
+
+def test_get_whatsapp_preset_message_falls_back_when_stored_value_is_blank():
+    db = make_session()
+    try:
+        db.add(AppSetting(key="whatsapp_cloud_integration", value_json=json.dumps({"preset_handoff_requested": ""})))
+        db.commit()
+        assert get_whatsapp_preset_message(db, "preset_handoff_requested", WHATSAPP_PRESET_MESSAGE_DEFAULTS["preset_handoff_requested"]) == WHATSAPP_PRESET_MESSAGE_DEFAULTS["preset_handoff_requested"]
+    finally:
+        db.close()
+
+
+def test_partial_whatsapp_settings_save_does_not_blank_other_presets():
+    db = make_session()
+    try:
+        update_whatsapp_settings({"phone_number_id": "123456", "access_token": "secret-token"}, db, admin())
+        stored = json.loads(db.query(AppSetting).filter(AppSetting.key == "whatsapp_cloud_integration").one().value_json)
+        for key, default_text in WHATSAPP_PRESET_MESSAGE_DEFAULTS.items():
+            assert stored[key] == default_text
+            assert get_whatsapp_preset_message(db, key, default_text) == default_text
+
+        update_whatsapp_settings({"preset_handoff_requested": "Custom handoff text"}, db, admin())
+        stored = json.loads(db.query(AppSetting).filter(AppSetting.key == "whatsapp_cloud_integration").one().value_json)
+        assert stored["preset_handoff_requested"] == "Custom handoff text"
+        for key, default_text in WHATSAPP_PRESET_MESSAGE_DEFAULTS.items():
+            if key == "preset_handoff_requested":
+                continue
+            assert stored[key] == default_text
+    finally:
+        db.close()
+
+
+def test_admin_clearing_a_preset_still_resolves_to_hardcoded_default():
+    db = make_session()
+    try:
+        update_whatsapp_settings({"preset_handoff_requested": "Custom handoff text"}, db, admin())
+        update_whatsapp_settings({"preset_handoff_requested": ""}, db, admin())
+        stored = json.loads(db.query(AppSetting).filter(AppSetting.key == "whatsapp_cloud_integration").one().value_json)
+        assert stored["preset_handoff_requested"] == ""
+        assert get_whatsapp_preset_message(db, "preset_handoff_requested", WHATSAPP_PRESET_MESSAGE_DEFAULTS["preset_handoff_requested"]) == WHATSAPP_PRESET_MESSAGE_DEFAULTS["preset_handoff_requested"]
     finally:
         db.close()
 

@@ -413,7 +413,7 @@ def resolve_config(db=None) -> dict:
 
 def get_whatsapp_preset_message(db, key: str, fallback: str = "", **values) -> str:
     config = resolve_config(db)
-    template = str(config.get(key, fallback) or "").strip()
+    template = str(config.get(key) or fallback or "").strip()
     if not template:
         return ""
     safe_values = {name: "" if value is None else str(value) for name, value in values.items()}

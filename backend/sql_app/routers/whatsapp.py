@@ -125,7 +125,7 @@ def update_whatsapp_settings(payload: dict, db: Session = Depends(get_db), curre
         **{f"{role}_registration_{field}": str(data.get(f"{role}_registration_{field}", current.get(f"{role}_registration_{field}", "")) or "").strip() for role in ("member", "partner", "rider") for field in ("url", "reply", "keywords")},
         **{f"{role}_registration_reply_image_url": str(data.get(f"{role}_registration_reply_image_url", current.get(f"{role}_registration_reply_image_url", "")) or "").strip() for role in ("member", "partner", "rider")},
         **{f"{role}_registration_reply_mode": str(data.get(f"{role}_registration_reply_mode", current.get(f"{role}_registration_reply_mode", "text")) or "text").strip().lower() for role in ("member", "partner", "rider")},
-        **{key: str(data.get(key, current.get(key, "")) or "").strip() for key in WHATSAPP_PRESET_MESSAGE_DEFAULTS},
+        **{key: str(data.get(key, current.get(key) or WHATSAPP_PRESET_MESSAGE_DEFAULTS[key]) or "").strip() for key in WHATSAPP_PRESET_MESSAGE_DEFAULTS},
     }
     secret_update_requested = any(str(data.get(field) or "").strip() for field in ("webhook_verify_token", "app_secret", "access_token"))
     encryption_key = (
