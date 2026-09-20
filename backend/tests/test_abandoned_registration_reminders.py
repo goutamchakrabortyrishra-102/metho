@@ -232,7 +232,7 @@ def test_role_selection_sends_tracked_link_without_starting_native_registration(
         sent = []
         monkeypatch.setattr("sql_app.whatsapp_cloud._send_member_registration_reply", lambda _db, recipient, text: sent.append(text) or True)
         assert _continue_introduction(db, session, lead, choice, lead.phone)
-        assert session.state == "ROLE_SELECTION"
+        assert session.state == "ROLE_REGISTRATION_PENDING"
         assert session.role == role
         assert "crm_lead_id=" in sent[0]
         assert "prefill_phone=" in sent[0]
@@ -263,7 +263,7 @@ def test_direct_role_intent_sends_tracked_form_url_only(monkeypatch, message, ro
         assert "আপনার নাম লিখুন" not in sent[-1]
         assert "business type" not in sent[-1]
         assert "পূর্ণ নাম লিখুন" not in sent[-1]
-        assert session.state == "ROLE_SELECTION"
+        assert session.state == "ROLE_REGISTRATION_PENDING"
         assert session.role == role
     finally:
         db.close()

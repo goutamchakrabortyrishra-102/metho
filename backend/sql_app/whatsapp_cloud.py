@@ -112,6 +112,8 @@ WHATSAPP_REGISTRATION_IDLE = "IDLE"
 WHATSAPP_REGISTRATION_CONFIRMATION_PENDING = "REGISTRATION_CONFIRMATION_PENDING"
 WHATSAPP_INTRODUCTION = "INTRODUCTION"
 WHATSAPP_ROLE_SELECTION = "ROLE_SELECTION"
+# Role chosen and the website registration link has been sent; waiting for the customer to complete it externally.
+WHATSAPP_ROLE_REGISTRATION_PENDING = "ROLE_REGISTRATION_PENDING"
 WHATSAPP_MEMBER_NAME = "MEMBER_NAME"
 WHATSAPP_MEMBER_ADDRESS = "MEMBER_ADDRESS"
 WHATSAPP_MEMBER_PAN = "MEMBER_PAN"
@@ -191,6 +193,7 @@ WHATSAPP_PRESET_MESSAGE_DEFAULTS = {
     "preset_partner_role_explanation": "Partner হিসেবে Shop বা Service business application জমা দিতে পারবেন। রেজিস্ট্রেশন করতে চাইলে 1 লিখুন।",
     "preset_rider_role_explanation": "Rider হিসেবে delivery কাজের জন্য application জমা দিতে পারবেন। রেজিস্ট্রেশন করতে চাইলে 1 লিখুন।",
     "preset_role_selection_fallback": "METHO AAY-UPAY সম্পর্কে আরও জানতে পারেন। যুক্ত হওয়ার জন্য একটি option বেছে নিন:\n1. Member\n2. Partner\n3. Rider",
+    "preset_role_registration_reminder": "আপনি ইতিমধ্যে {role} হিসেবে নির্বাচন করেছেন। Registration ফর্মটি পূরণ করুন: {link}",
     "preset_support_fallback": "আপনার প্রশ্নটি আমাদের support team দেখবে। METHO WhatsApp executive: {support_number}",
     "preset_business_enquiry_executive": "এই বিষয়ে বিস্তারিত জানতে আমাদের Executive-এর সাথে যোগাযোগ করুন: 9339566110",
     "preset_handoff_requested": "আপনার অনুরোধটি আমাদের support team-কে পাঠানো হয়েছে। একজন representative শীঘ্রই যোগাযোগ করবেন।",
@@ -954,13 +957,19 @@ def _has_registration_intent(text: str) -> bool:
 
 def _registration_role_for_text(config: dict, text: str) -> str | None:
     lowered = str(text or "").lower()
+    # Numeric keywords ("1"/"2"/"3") must match the whole normalized message, not just appear as a
+    # substring, otherwise "1/2/3" would be misread as "1" (Member) even though it lists all options.
+    normalized_command = _whatsapp_command_text(text)
     if _is_informational_question(text) and not _has_registration_intent(text):
         return None
     role_matches = []
     for role in REGISTRATION_ROLE_SETTINGS:
         keywords = (keyword.strip().lower() for keyword in str(config.get(f"{role}_registration_keywords") or "").split(","))
         for keyword in keywords:
-            if keyword and keyword in lowered:
+            if not keyword:
+                continue
+            matched = normalized_command == keyword if keyword.isdigit() else keyword in lowered
+            if matched:
                 if keyword in ROLE_IDENTITY_KEYWORDS[role]:
                     return role
                 role_matches.append((role, keyword))
@@ -1283,10 +1292,13 @@ def _continue_introduction(db, session: WhatsAppRegistrationSession, lead: CRMLe
         return _request_whatsapp_human_handoff(db, lead, session, recipient)
     elif role_hint in REGISTRATION_ROLE_SETTINGS:
         session.role = role_hint
-        session.state = WHATSAPP_ROLE_SELECTION
+        # Move past ROLE_SELECTION so a follow-up message is not re-parsed for a role hint and does
+        # not re-trigger this branch (which previously caused the role to be silently overwritten).
+        session.state = WHATSAPP_ROLE_REGISTRATION_PENDING
         reply = _role_registration_reply(db, session.role, lead.id, recipient)
         data = _session_data(session)
         data["fallback_count"] = 0
+        data["role_reply_sent"] = True
         _save_session_data(session, data)
     else:
         session.state = WHATSAPP_ROLE_SELECTION
@@ -1303,6 +1315,34 @@ def _continue_introduction(db, session: WhatsAppRegistrationSession, lead: CRMLe
         return False
     db.add(CRMLeadActivity(lead_id=lead.id, activity_type="whatsapp_message_sent", message=reply))
     db.add(CRMLeadActivity(lead_id=lead.id, activity_type="whatsapp_role_selected", message=session.role or "none"))
+    return True
+
+
+def _continue_role_registration_pending(db, session: WhatsAppRegistrationSession, lead: CRMLead, incoming_text: str, recipient: str) -> bool:
+    """Handle follow-up messages after a role is chosen and the external registration link was already sent.
+
+    Genuine questions get an AI reply grounded in the verified status context; anything else gets a
+    short deterministic reminder with the same registration link instead of resending the full template.
+    """
+    role = session.role
+    if role not in REGISTRATION_ROLE_SETTINGS:
+        return False
+    text = str(incoming_text or "").strip()
+    if not _is_probably_gibberish(text) and _is_informational_question(text):
+        status_context = _registration_status_context(db, lead, session, role)
+        return _send_status_aware_ai_reply(db, lead, recipient, text, status_context)
+    config = resolve_config(db)
+    link = _tracked_registration_url(_role_registration_url(config, role), role, lead.id, recipient)
+    reply = get_whatsapp_preset_message(
+        db,
+        "preset_role_registration_reminder",
+        WHATSAPP_PRESET_MESSAGE_DEFAULTS["preset_role_registration_reminder"],
+        role=role.title(),
+        link=link,
+    )
+    if not _send_member_registration_reply(db, recipient, reply):
+        return False
+    db.add(CRMLeadActivity(lead_id=lead.id, activity_type="whatsapp_message_sent", message=reply))
     return True
 
 
@@ -1972,9 +2012,11 @@ def ingest_whatsapp_message(db, payload: dict, request=None) -> str:
             native_member_handled = _send_direct_ai_reply(db, lead, normalized["phone"], incoming_text)
         elif registration_session and registration_session.state in {WHATSAPP_INTRODUCTION, WHATSAPP_ROLE_SELECTION}:
             native_member_handled = _continue_introduction(db, registration_session, lead, incoming_text, normalized["phone"])
+        elif registration_session and registration_session.state == WHATSAPP_ROLE_REGISTRATION_PENDING:
+            native_member_handled = _continue_role_registration_pending(db, registration_session, lead, incoming_text, normalized["phone"])
         elif registration_session and registration_session.role == "member" and registration_session.state in {WHATSAPP_MEMBER_REGISTERED, WHATSAPP_MEMBER_ACTIVATION_PENDING, WHATSAPP_MEMBER_ACTIVE, WHATSAPP_MEMBER_ONBOARDING}:
             native_member_handled = _route_registered_member(db, registration_session, lead, normalized["phone"], incoming_text)
-        elif registration_session and registration_session.role in {"partner", "rider"} and registration_session.state not in {WHATSAPP_REGISTRATION_IDLE, WHATSAPP_INTRODUCTION, WHATSAPP_ROLE_SELECTION}:
+        elif registration_session and registration_session.role in {"partner", "rider"} and registration_session.state not in {WHATSAPP_REGISTRATION_IDLE, WHATSAPP_INTRODUCTION, WHATSAPP_ROLE_SELECTION, WHATSAPP_ROLE_REGISTRATION_PENDING}:
             native_member_handled = _continue_role_registration_flow(db, registration_session, lead, incoming_text, normalized["phone"])
         elif registration_session and registration_session.role == "member" and registration_session.state in WHATSAPP_MEMBER_ACTIVE_STATES:
             native_member_handled = _continue_member_registration_flow(db, registration_session, lead, incoming_text, normalized["phone"])

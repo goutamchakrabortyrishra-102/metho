@@ -56,7 +56,7 @@ def test_info_question_during_role_selection_skips_role_fallback_and_keeps_state
 
         sent.clear()
         assert ingest_whatsapp_message(db, message_payload("wamid.pick-role", "member"), None) == "updated"
-        assert session.state == "ROLE_SELECTION"
+        assert session.state == "ROLE_REGISTRATION_PENDING"
         assert session.role == "member"
     finally:
         db.close()
@@ -213,7 +213,7 @@ def test_first_entry_always_welcomes_then_readable_conversation_uses_ai(monkeypa
 
         sent.clear()
         assert ingest_whatsapp_message(db, message_payload("wamid.role-after-welcome", "2"), None) == "updated"
-        assert session.state == "ROLE_SELECTION"
+        assert session.state == "ROLE_REGISTRATION_PENDING"
         assert session.role == "partner"
         assert "registration_role=partner" in sent[-1]
     finally:
