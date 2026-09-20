@@ -684,7 +684,9 @@ def process_due_followups(limit: int = 20) -> int:
                     followup.scheduled_at = now + timedelta(days=3)
                     lead.follow_up_status = "Pending"
                     lead.next_follow_up_at = followup.scheduled_at
-                elif reorder_reminder and paid_orders <= 1:
+                elif reorder_reminder:
+                    # Keep nudging every purchase cycle, not just up to the 2nd order, so
+                    # repeat-purchase reminders don't silently stop for loyal members.
                     next_due = now + timedelta(days=30)
                     existing_reorder = db.query(CRMFollowUp).filter(
                         CRMFollowUp.lead_id == lead.id,
