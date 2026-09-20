@@ -865,6 +865,73 @@ def _send_direct_ai_reply(db, lead: CRMLead, recipient: str, incoming_text: str)
     return _send_member_registration_reply(db, recipient, reply)
 
 
+def _registration_status_context(db, lead: CRMLead, session: WhatsAppRegistrationSession, role: str) -> str:
+    """Build a ground-truth status summary from real DB records so AI replies never invent status details."""
+    data = _session_data(session)
+    lines = [f"Verified registration/account status for this WhatsApp customer (role: {role}):"]
+    if role == "member":
+        user_id = str(data.get("member_user_id") or lead.member_user_id or "").strip()
+        user = db.query(User).filter(User.id == user_id, User.role == "member").first() if user_id else None
+        if user:
+            try:
+                from .routers.compat import _member_purchase_active
+                active = bool(user.is_active and _member_purchase_active(db, user.id))
+            except Exception:
+                active = bool(user.is_active)
+            lines.append(f"Member ID: {data.get('member_code') or user.id}")
+            lines.append(f"Member account active: {'yes' if active else 'no'}")
+            if not active:
+                lines.append(f"Activation link: {DEFAULT_MEMBER_ACTIVATION_URL}")
+            orders = db.query(PublicOrder).filter(PublicOrder.customer_user_id == user.id).order_by(PublicOrder.created_at.desc()).limit(5).all()
+            lines.append("Recent orders: " + ("; ".join(f"{order.id}: {order.status}" for order in orders) if orders else "none found"))
+        else:
+            lines.append("Member record not found; do not assume active status.")
+    elif role == "partner":
+        request = db.query(PartnerRequest).filter(PartnerRequest.id == data.get("request_id")).first()
+        if request:
+            lines.append(f"Partner application status: {request.status}")
+            lines.append(f"Business name: {request.business_name}")
+        else:
+            lines.append("Partner application record not found.")
+    elif role == "rider":
+        rider_user_id = str(data.get("rider_user_id") or lead.rider_user_id or "").strip()
+        rider = db.query(User).filter(User.id == rider_user_id, User.role == "rider").first() if rider_user_id else None
+        profile = db.query(AppSetting).filter(AppSetting.key == f"rider_profile:{rider_user_id}").first() if rider_user_id else None
+        try:
+            approval_status = str((json.loads(profile.value_json or "{}") if profile else {}).get("approval_status") or "pending").lower()
+        except (TypeError, ValueError):
+            approval_status = "pending"
+        lines.append(f"Rider application status: {approval_status}")
+        if rider:
+            lines.append(f"Rider name: {rider.name}")
+        else:
+            lines.append("Rider record not found.")
+    lines.append("Use only this verified data to answer status questions; never invent order numbers, approval dates, or amounts not listed above.")
+    return "\n".join(lines)
+
+
+def _send_status_aware_ai_reply(db, lead: CRMLead, recipient: str, incoming_text: str, status_context: str) -> bool:
+    from .whatsapp_ai import _business_unknown_fallback, _catalog_context, _conversation_context, _crm_context, _generate_reply, _system_business_context, resolve_ai_config
+
+    if _is_executive_enquiry(incoming_text):
+        reply = _configured_executive_fallback(db, _detect_language(incoming_text)) or _business_unknown_fallback(incoming_text)
+        return _send_member_registration_reply(db, recipient, reply)
+
+    try:
+        context = f"{status_context}\n\n{_crm_context(db, lead)}\nPrevious WhatsApp conversation:\n{_conversation_context(db, lead)}\nVerified current system data:\n{_system_business_context(db)}\nAvailable METHO catalog:\n{_catalog_context(db)}"
+    except Exception:
+        logger.exception("WhatsApp status-aware AI reply context build failed")
+        context = status_context
+    try:
+        reply, _provider, _model = _generate_reply(resolve_ai_config(db), incoming_text, context, "whatsapp_status_question", db=db)
+    except Exception:
+        logger.exception("WhatsApp status-aware AI reply generation failed")
+        reply = ""
+    if not str(reply or "").strip():
+        reply = _business_unknown_fallback(incoming_text)
+    return _send_member_registration_reply(db, recipient, reply)
+
+
 def _is_repeated_welcome_reply(reply: str) -> bool:
     lowered = str(reply or "").lower()
     role_menu_hits = sum(marker in lowered for marker in ("1. member", "2. partner", "3. rider", "1 লিখুন member", "2 লিখুন partner", "3 লিখুন rider"))
@@ -1051,6 +1118,9 @@ def _registration_confirmation_reply(db, session: WhatsAppRegistrationSession, l
         _save_session_data(session, data)
         reply = get_whatsapp_preset_message(db, "preset_registration_confirmation_no", WHATSAPP_PRESET_MESSAGE_DEFAULTS["preset_registration_confirmation_no"])
         return _send_member_registration_reply(db, recipient, reply)
+    if not _is_probably_gibberish(text) and _is_informational_question(text):
+        status_context = _registration_status_context(db, lead, session, session.role or "member")
+        return _send_status_aware_ai_reply(db, lead, recipient, text, status_context)
     reply = get_whatsapp_preset_message(db, "preset_registration_submit_confirmation", WHATSAPP_PRESET_MESSAGE_DEFAULTS["preset_registration_submit_confirmation"])
     return _send_member_registration_reply(db, recipient, reply)
 
@@ -1251,7 +1321,8 @@ def _route_registered_member(db, session: WhatsAppRegistrationSession, lead: CRM
         was_onboarded = session.state == WHATSAPP_MEMBER_ONBOARDING
         session.state = WHATSAPP_MEMBER_ONBOARDING
         normalized = _whatsapp_command_text(incoming_text)
-        if "order" in normalized or "অর্ডার" in normalized:
+        is_order_query = "order" in normalized or "অর্ডার" in normalized
+        if is_order_query:
             orders = db.query(PublicOrder).filter(PublicOrder.customer_user_id == user.id).order_by(PublicOrder.created_at.desc()).limit(5).all()
             if orders:
                 reply = get_whatsapp_preset_message(db, "preset_order_status_header", WHATSAPP_PRESET_MESSAGE_DEFAULTS["preset_order_status_header"]) + "\n" + "\n".join(f"{order.id}: {order.status}" for order in orders)
@@ -1271,14 +1342,25 @@ def _route_registered_member(db, session: WhatsAppRegistrationSession, lead: CRM
             if not _send_member_registration_reply(db, recipient, activation_reply):
                 return False
             db.add(CRMLeadActivity(lead_id=lead.id, activity_type="whatsapp_message_sent", message=activation_reply))
+        elif not is_order_query and not _is_probably_gibberish(incoming_text) and _is_informational_question(incoming_text):
+            status_context = _registration_status_context(db, lead, session, "member")
+            if not _send_status_aware_ai_reply(db, lead, recipient, incoming_text, status_context):
+                return False
+            db.add(CRMLeadActivity(lead_id=lead.id, activity_type="whatsapp_message_sent", message="AI status-aware reply dispatched (member onboarding)"))
         else:
             if not _send_member_registration_reply(db, recipient, reply):
                 return False
             db.add(CRMLeadActivity(lead_id=lead.id, activity_type="whatsapp_message_sent", message=reply))
     else:
         session.state = WHATSAPP_MEMBER_ACTIVATION_PENDING
-        reply = get_whatsapp_preset_message(db, "preset_member_activation_pending", WHATSAPP_PRESET_MESSAGE_DEFAULTS["preset_member_activation_pending"], member_code=data.get("member_code") or user.id, activation_url=DEFAULT_MEMBER_ACTIVATION_URL)
         db.add(CRMLeadActivity(lead_id=lead.id, activity_type="activation_pending", message="WhatsApp member asked while activation is pending"))
+        if not _is_probably_gibberish(incoming_text) and _is_informational_question(incoming_text):
+            status_context = _registration_status_context(db, lead, session, "member")
+            if not _send_status_aware_ai_reply(db, lead, recipient, incoming_text, status_context):
+                return False
+            db.add(CRMLeadActivity(lead_id=lead.id, activity_type="whatsapp_message_sent", message="AI status-aware reply dispatched (member activation pending)"))
+            return True
+        reply = get_whatsapp_preset_message(db, "preset_member_activation_pending", WHATSAPP_PRESET_MESSAGE_DEFAULTS["preset_member_activation_pending"], member_code=data.get("member_code") or user.id, activation_url=DEFAULT_MEMBER_ACTIVATION_URL)
         db.add(CRMLeadActivity(lead_id=lead.id, activity_type="whatsapp_message_sent", message=reply))
         return _send_member_registration_reply(db, recipient, reply)
     return True
@@ -1302,6 +1384,10 @@ def _route_existing_identity(db, lead: CRMLead, recipient: str, incoming_text: s
             _add_lifecycle_activity_once(db, lead, "onboarding_started", "Partner onboarding started after approval")
         else:
             _schedule_lifecycle_followup(db, lead, "Partner approval follow-up", 2)
+        db.add(CRMLeadActivity(lead_id=lead.id, activity_type="partner_approved" if status == "approved" else "partner_application_pending", message=f"WhatsApp status check: {status}"))
+        if not _is_probably_gibberish(incoming_text) and _is_informational_question(incoming_text):
+            status_context = _registration_status_context(db, lead, session, "partner")
+            return _send_status_aware_ai_reply(db, lead, recipient, incoming_text, status_context)
         reply = (
             get_whatsapp_preset_message(db, "preset_partner_approved_reply", WHATSAPP_PRESET_MESSAGE_DEFAULTS["preset_partner_approved_reply"])
             if status == "approved"
@@ -1309,7 +1395,6 @@ def _route_existing_identity(db, lead: CRMLead, recipient: str, incoming_text: s
             if status == "rejected"
             else get_whatsapp_preset_message(db, "preset_partner_status_reply", WHATSAPP_PRESET_MESSAGE_DEFAULTS["preset_partner_status_reply"], status=status)
         )
-        db.add(CRMLeadActivity(lead_id=lead.id, activity_type="partner_approved" if status == "approved" else "partner_application_pending", message=f"WhatsApp status check: {status}"))
         return _send_member_registration_reply(db, recipient, reply)
     rider = db.query(User).filter(User.id == lead.rider_user_id, User.role == "rider").first() if lead.rider_user_id else db.query(User).filter(User.phone == recipient, User.role == "rider").first()
     if rider:
@@ -1328,8 +1413,11 @@ def _route_existing_identity(db, lead: CRMLead, recipient: str, incoming_text: s
             _add_lifecycle_activity_once(db, lead, "onboarding_started", "Rider onboarding started after approval")
         else:
             _schedule_lifecycle_followup(db, lead, "Rider approval follow-up", 2)
-        reply = get_whatsapp_preset_message(db, "preset_rider_approved_reply", WHATSAPP_PRESET_MESSAGE_DEFAULTS["preset_rider_approved_reply"]) if status == "approved" else get_whatsapp_preset_message(db, "preset_rider_status_reply", WHATSAPP_PRESET_MESSAGE_DEFAULTS["preset_rider_status_reply"], status=status)
         db.add(CRMLeadActivity(lead_id=lead.id, activity_type="rider_approved" if status == "approved" else "rider_application_pending", message=f"WhatsApp status check: {status}"))
+        if not _is_probably_gibberish(incoming_text) and _is_informational_question(incoming_text):
+            status_context = _registration_status_context(db, lead, session, "rider")
+            return _send_status_aware_ai_reply(db, lead, recipient, incoming_text, status_context)
+        reply = get_whatsapp_preset_message(db, "preset_rider_approved_reply", WHATSAPP_PRESET_MESSAGE_DEFAULTS["preset_rider_approved_reply"]) if status == "approved" else get_whatsapp_preset_message(db, "preset_rider_status_reply", WHATSAPP_PRESET_MESSAGE_DEFAULTS["preset_rider_status_reply"], status=status)
         return _send_member_registration_reply(db, recipient, reply)
     return False
 
@@ -1510,12 +1598,22 @@ def _continue_role_registration_flow(db, session: WhatsAppRegistrationSession, l
         elif session.state == WHATSAPP_PARTNER_APPLICATION_PENDING:
             request = db.query(PartnerRequest).filter(PartnerRequest.id == data.get("request_id")).first()
             status = str(request.status if request else "pending").lower()
-            reply = get_whatsapp_preset_message(db, "preset_partner_pending_status", WHATSAPP_PRESET_MESSAGE_DEFAULTS["preset_partner_pending_status"], status=status) if status != "approved" else get_whatsapp_preset_message(db, "preset_partner_pending_approved", WHATSAPP_PRESET_MESSAGE_DEFAULTS["preset_partner_pending_approved"])
             if status == "approved":
                 session.state = WHATSAPP_PARTNER_ONBOARDING
                 _complete_lifecycle_followups(db, lead, "Partner approval")
                 _add_lifecycle_activity_once(db, lead, "onboarding_started", "Partner onboarding started after approval")
                 record_lifecycle_event(db, lead, "partner_approved", "Partner application approved.", "Start Partner onboarding", 1)
+            if not _is_probably_gibberish(text) and _is_informational_question(text):
+                status_context = _registration_status_context(db, lead, session, "partner")
+                _save_session_data(session, data)
+                return _send_status_aware_ai_reply(db, lead, recipient, text, status_context)
+            reply = get_whatsapp_preset_message(db, "preset_partner_pending_status", WHATSAPP_PRESET_MESSAGE_DEFAULTS["preset_partner_pending_status"], status=status) if status != "approved" else get_whatsapp_preset_message(db, "preset_partner_pending_approved", WHATSAPP_PRESET_MESSAGE_DEFAULTS["preset_partner_pending_approved"])
+        elif session.state == WHATSAPP_PARTNER_ONBOARDING:
+            if not _is_probably_gibberish(text):
+                status_context = _registration_status_context(db, lead, session, "partner")
+                _save_session_data(session, data)
+                return _send_status_aware_ai_reply(db, lead, recipient, text, status_context)
+            reply = get_whatsapp_preset_message(db, "preset_lifecycle_partner_activated", WHATSAPP_PRESET_MESSAGE_DEFAULTS["preset_lifecycle_partner_activated"])
         else:
             reply = get_whatsapp_preset_message(db, "preset_role_registration_incomplete", WHATSAPP_PRESET_MESSAGE_DEFAULTS["preset_role_registration_incomplete"], role="Partner")
     else:
@@ -1589,12 +1687,22 @@ def _continue_role_registration_flow(db, session: WhatsAppRegistrationSession, l
                 status = str((json.loads(profile.value_json or "{}") if profile else {}).get("approval_status") or "pending").lower()
             except (TypeError, ValueError):
                 status = "pending"
-            reply = get_whatsapp_preset_message(db, "preset_rider_pending_status", WHATSAPP_PRESET_MESSAGE_DEFAULTS["preset_rider_pending_status"], status=status) if status != "approved" else get_whatsapp_preset_message(db, "preset_rider_pending_approved", WHATSAPP_PRESET_MESSAGE_DEFAULTS["preset_rider_pending_approved"])
             if rider and status == "approved":
                 session.state = WHATSAPP_RIDER_ONBOARDING
                 _complete_lifecycle_followups(db, lead, "Rider approval")
                 _add_lifecycle_activity_once(db, lead, "onboarding_started", "Rider onboarding started after approval")
                 record_lifecycle_event(db, lead, "rider_approved", "Rider application approved.", "Start Rider onboarding", 1)
+            if not _is_probably_gibberish(text) and _is_informational_question(text):
+                status_context = _registration_status_context(db, lead, session, "rider")
+                _save_session_data(session, data)
+                return _send_status_aware_ai_reply(db, lead, recipient, text, status_context)
+            reply = get_whatsapp_preset_message(db, "preset_rider_pending_status", WHATSAPP_PRESET_MESSAGE_DEFAULTS["preset_rider_pending_status"], status=status) if status != "approved" else get_whatsapp_preset_message(db, "preset_rider_pending_approved", WHATSAPP_PRESET_MESSAGE_DEFAULTS["preset_rider_pending_approved"])
+        elif session.state == WHATSAPP_RIDER_ONBOARDING:
+            if not _is_probably_gibberish(text):
+                status_context = _registration_status_context(db, lead, session, "rider")
+                _save_session_data(session, data)
+                return _send_status_aware_ai_reply(db, lead, recipient, text, status_context)
+            reply = get_whatsapp_preset_message(db, "preset_lifecycle_rider_activated", WHATSAPP_PRESET_MESSAGE_DEFAULTS["preset_lifecycle_rider_activated"])
         else:
             reply = get_whatsapp_preset_message(db, "preset_role_registration_incomplete", WHATSAPP_PRESET_MESSAGE_DEFAULTS["preset_role_registration_incomplete"], role="Rider")
     if data.pop("_editing", False) and session.state not in {WHATSAPP_PARTNER_CONFIRMATION, WHATSAPP_RIDER_CONFIRMATION}:
