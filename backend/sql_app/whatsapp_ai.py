@@ -642,6 +642,7 @@ def process_due_followups(limit: int = 20) -> int:
             reminder_notes = "Abandoned registration reminder"
             is_abandoned_registration = str(followup.notes or "") == reminder_notes
             is_pre_registration = not is_abandoned_registration and not lead.member_user_id and any(marker in str(followup.notes or "") for marker in ("Initial Meta", "Initial WhatsApp", "Follow-up for WhatsApp", "linked Meta/Facebook"))
+            is_partner_onboarding_checkin = str(followup.notes or "").lower() in {"start partner onboarding", "partner onboarding check-in (7-day)"}
             activity = CRMLeadActivity(
                 lead_id=lead.id,
                 activity_type="registration_reminder_queued" if is_abandoned_registration else "pre_registration_followup" if is_pre_registration else "crm_followup_due",
@@ -657,6 +658,9 @@ def process_due_followups(limit: int = 20) -> int:
                 registration_url = _tracked_registration_url(_role_registration_url(config, role), role, lead.id, recipient)
                 fallback_text = get_whatsapp_preset_message(db, "preset_abandoned_registration_reminder", "", role=role.title(), registration_url=registration_url)
                 outbox_activity_type = "registration_reminder_sent"
+            elif is_partner_onboarding_checkin:
+                fallback_text = get_whatsapp_preset_message(db, "preset_partner_onboarding_checkin", WHATSAPP_PRESET_MESSAGE_DEFAULTS["preset_partner_onboarding_checkin"])
+                outbox_activity_type = "whatsapp_message_sent"
             else:
                 fallback_text = get_whatsapp_preset_message(db, "preset_pre_registration_followup", PRE_REGISTRATION_FOLLOWUP) if is_pre_registration else (get_configured_whatsapp_reply(db, "default") or get_whatsapp_preset_message(db, "preset_crm_followup_due", LIFECYCLE_SUGGESTIONS["crm_followup_due"]))
                 outbox_activity_type = "whatsapp_message_sent"
@@ -699,6 +703,26 @@ def process_due_followups(limit: int = 20) -> int:
                         db.add(CRMFollowUp(lead_id=lead.id, scheduled_at=next_due, status="Pending", notes=followup.notes))
                     lead.follow_up_status = "Pending"
                     lead.next_follow_up_at = next_due
+                elif is_partner_onboarding_checkin:
+                    # Chain a single follow-up 7 days out ("Start Partner onboarding" -> the
+                    # 7-day check-in), then one more at 14 days, then stop.
+                    next_notes = "Partner onboarding check-in (7-day)" if str(followup.notes or "").lower() == "start partner onboarding" else "Partner onboarding check-in (14-day)" if str(followup.notes or "").lower() == "partner onboarding check-in (7-day)" else ""
+                    if next_notes:
+                        next_due = now + timedelta(days=7)
+                        existing_checkin = db.query(CRMFollowUp).filter(
+                            CRMFollowUp.lead_id == lead.id,
+                            CRMFollowUp.status == "Pending",
+                            CRMFollowUp.notes == next_notes,
+                        ).first()
+                        if existing_checkin:
+                            existing_checkin.scheduled_at = next_due
+                        else:
+                            db.add(CRMFollowUp(lead_id=lead.id, scheduled_at=next_due, status="Pending", notes=next_notes))
+                        lead.follow_up_status = "Pending"
+                        lead.next_follow_up_at = next_due
+                    else:
+                        lead.follow_up_status = "Completed"
+                        lead.next_follow_up_at = None
                 else:
                     lead.follow_up_status = "Completed"
                     lead.next_follow_up_at = None

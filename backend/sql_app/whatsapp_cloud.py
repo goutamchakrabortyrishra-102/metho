@@ -214,6 +214,7 @@ WHATSAPP_PRESET_MESSAGE_DEFAULTS = {
     "preset_lifecycle_member_activated": "🎉 আপনার Member account active হয়েছে। Smart Cycle, reward rules এবং product purchase নিয়ে সাহায্য লাগলে এখানে reply করুন।",
     "preset_lifecycle_partner_registration_submitted": "🙏 আপনার Partner registration জমা হয়েছে। KYC ও approval-এর পরবর্তী ধাপে সহায়তা লাগলে এখানে reply করুন।",
     "preset_lifecycle_partner_activated": "🎉 আপনার Partner account approved হয়েছে। Shop/service onboarding ও প্রথম listing-এর সাহায্য লাগলে এখানে reply করুন।",
+    "preset_partner_onboarding_checkin": "👋 আপনার Partner account active আছে। এখন পর্যন্ত প্রথম product/service listing বা customer পেয়েছেন কি? সাহায্য লাগলে এখানে reply করুন। আর মনে রাখবেন, নতুন কোনো Partner যুক্ত করালে আপনি ওয়ান-টাইম Referral Commission পাবেন।",
     "preset_lifecycle_rider_activated": "🎉 আপনার Rider account approved হয়েছে। Availability ও delivery/onboarding নিয়ে সাহায্য লাগলে এখানে reply করুন।",
     "preset_lifecycle_metho_move_booking_created": "আপনার METHO Move booking request পাওয়া গেছে। Payment বা rider assignment বিষয়ে সাহায্য লাগলে এখানে reply করুন।",
     "preset_ai_local_fallback": "ধন্যবাদ আপনার বার্তার জন্য। মেঠো প্রতিনিধি শীঘ্রই আপনার সাথে যোগাযোগ করবেন।",
