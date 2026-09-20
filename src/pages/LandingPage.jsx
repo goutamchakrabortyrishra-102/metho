@@ -1387,14 +1387,14 @@ const AssociatePartnerFinder = () => {
             <h3 className="mt-2 font-display font-black text-2xl leading-tight text-emerald-950">Featured Partner Shop List</h3>
             <p className="mt-1 text-xs text-slate-600 font-body">Admin-selected partner shop list with more room for cards.</p>
 
-            <div className="mt-4 grid md:grid-cols-2 xl:grid-cols-6 gap-2.5 rounded-2xl border border-emerald-300/70 bg-gradient-to-r from-emerald-100/90 via-emerald-50/95 to-amber-50/85 p-3 shadow-inner">
-              <div className="xl:col-span-2 relative">
+            <div className="mt-5 grid grid-cols-1 gap-3 rounded-2xl border border-emerald-200/70 bg-white/85 p-4 shadow-sm sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
+              <div className="relative sm:col-span-2 lg:col-span-3 xl:col-span-2">
                 <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
                 <input
                   value={nameQuery}
                   onChange={(e) => setNameQuery(e.target.value)}
                   placeholder="Name / Partner / Shop"
-                  className="h-11 w-full rounded-xl border border-emerald-200 bg-white/95 backdrop-blur-sm shadow-sm pl-9 pr-3 text-sm outline-none focus:ring-2 focus:ring-emerald-300"
+                  className="h-11 w-full rounded-xl border border-emerald-200 bg-white px-9 pr-3 text-sm shadow-sm outline-none focus:ring-2 focus:ring-emerald-300"
                   data-testid="landing-partner-search-name"
                 />
               </div>
@@ -1402,7 +1402,7 @@ const AssociatePartnerFinder = () => {
               <select
                 value={city}
                 onChange={(e) => setCity(e.target.value)}
-                className="h-11 rounded-xl border border-emerald-200 bg-white/95 backdrop-blur-sm shadow-sm px-3 text-sm outline-none focus:ring-2 focus:ring-emerald-300"
+                className="h-11 rounded-xl border border-emerald-200 bg-white px-3 text-sm shadow-sm outline-none focus:ring-2 focus:ring-emerald-300"
                 data-testid="landing-partner-search-city"
               >
                 <option value="">All city</option>
@@ -1414,14 +1414,14 @@ const AssociatePartnerFinder = () => {
                 onChange={(e) => setPincode(normalizePincode(e.target.value))}
                 placeholder="Pincode"
                 maxLength={6}
-                className="h-11 rounded-xl border border-emerald-200 bg-white/95 backdrop-blur-sm shadow-sm px-3 text-sm outline-none focus:ring-2 focus:ring-emerald-300 font-mono"
+                className="h-11 rounded-xl border border-emerald-200 bg-white px-3 text-sm shadow-sm outline-none focus:ring-2 focus:ring-emerald-300 font-mono"
                 data-testid="landing-partner-search-pincode"
               />
 
               <select
                 value={businessType}
                 onChange={(e) => setBusinessType(e.target.value)}
-                className="h-11 rounded-xl border border-emerald-200 bg-white/95 backdrop-blur-sm shadow-sm px-3 text-sm outline-none focus:ring-2 focus:ring-emerald-300"
+                className="h-11 rounded-xl border border-emerald-200 bg-white px-3 text-sm shadow-sm outline-none focus:ring-2 focus:ring-emerald-300"
                 data-testid="landing-partner-search-business"
               >
                 {ASSOCIATE_TYPES.map((t) => <option key={t} value={t}>{t}</option>)}
@@ -1431,14 +1431,14 @@ const AssociatePartnerFinder = () => {
                 value={serviceQuery}
                 onChange={(e) => setServiceQuery(e.target.value)}
                 placeholder="Service"
-                className="h-11 rounded-xl border border-emerald-200 bg-white/95 backdrop-blur-sm shadow-sm px-3 text-sm outline-none focus:ring-2 focus:ring-emerald-300"
+                className="h-11 rounded-xl border border-emerald-200 bg-white px-3 text-sm shadow-sm outline-none focus:ring-2 focus:ring-emerald-300"
                 data-testid="landing-partner-search-service"
               />
 
               <select
                 value={category}
                 onChange={(e) => setCategory(e.target.value)}
-                className="h-11 rounded-xl border border-emerald-200 bg-white/95 backdrop-blur-sm shadow-sm px-3 text-sm outline-none focus:ring-2 focus:ring-emerald-300"
+                className="h-11 rounded-xl border border-emerald-200 bg-white px-3 text-sm shadow-sm outline-none focus:ring-2 focus:ring-emerald-300"
                 data-testid="landing-partner-search-category"
               >
                 <option value="">All category</option>
