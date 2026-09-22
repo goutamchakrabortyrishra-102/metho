@@ -837,9 +837,9 @@ def _generate_welcome_message(db, lead: CRMLead, recipient: str, language: str =
         reply = ""
 
     if not str(reply or "").strip() or _is_invalid_welcome_reply(reply):
-        return _welcome_intro_fallback("bn")
+        return _welcome_intro_fallback(language)
 
-    menu_text = _role_menu_text("bn")
+    menu_text = _role_menu_text(language)
     if any(marker in reply for marker in ("1 \u09b2\u09bf\u0996\u09c1\u09a8 Member", "1. Member", "2 \u09b2\u09bf\u0996\u09c1\u09a8 Partner", "2. Partner", "3 \u09b2\u09bf\u0996\u09c1\u09a8 Rider", "3. Rider")):
         return reply.strip()
     return (reply.strip() + menu_text).strip()

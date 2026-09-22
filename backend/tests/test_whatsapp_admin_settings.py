@@ -190,8 +190,8 @@ def test_whatsapp_webhook_normalizes_incoming_message_to_crm_lead(monkeypatch):
         assert normalized["phone"] == "8801712345678"
         assert ingest_whatsapp_message(db, payload, None) == "created"
         assert sent[0][0] == "8801712345678"
-        assert "1 লিখুন Member" in sent[0][1]
-        assert "2 লিখুন Partner" in sent[0][1]
+        assert "1. Member" in sent[0][1]
+        assert "2. Partner" in sent[0][1]
         assert db.query(CRMLead).count() == 1
         assert db.query(CRMLeadActivity).filter(CRMLeadActivity.activity_type == "whatsapp_message_received").count() == 1
     finally:
@@ -205,7 +205,7 @@ def test_explicit_executive_enquiry_uses_matching_language_custom_reply(monkeypa
         monkeypatch.setattr("sql_app.whatsapp_cloud.send_whatsapp_message", lambda _db, recipient, text: sent.append(text) or {"messages": [{"id": "wamid.reply"}]})
         update_whatsapp_settings({"phone_number_id": "123456", "access_token": "secret-token", "preset_business_enquiry_executive": "Executive contact: 9339566110"}, db, admin())
         assert ingest_whatsapp_message(db, message_payload("wamid.executive-welcome", "Hi"), None) == "created"
-        assert "1 লিখুন Member" in sent[-1]
+        assert "1. Member" in sent[-1]
         assert ingest_whatsapp_message(db, message_payload("wamid.executive", "I need a manager"), None) == "updated"
         assert sent[-1] == "Executive contact: 9339566110"
     finally:
@@ -259,7 +259,7 @@ def test_whatsapp_default_auto_reply_is_sent_without_duplicate_funnel_content(mo
         assert ingest_whatsapp_message(db, message_payload("wamid.default", "Hello, I want more info"), None) == "created"
         assert len(sent) == 1
         assert "METHO AAY-UPAY" in sent[0][1]
-        assert "1 লিখুন Member" in sent[0][1]
+        assert "1. Member" in sent[0][1]
     finally:
         db.close()
 

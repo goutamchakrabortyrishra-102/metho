@@ -293,9 +293,9 @@ def test_registration_start_command_resets_stale_native_session(monkeypatch, rol
         assert session.name == ""
         assert session.address == ""
         assert session.data_json == "{}"
-        assert "1 লিখুন Member" in sent[-1]
-        assert "2 লিখুন Partner" in sent[-1]
-        assert "3 লিখুন Rider" in sent[-1]
+        assert "1. Member" in sent[-1]
+        assert "2. Partner" in sent[-1]
+        assert "3. Rider" in sent[-1]
         assert "PAN" not in sent[-1]
         assert db.query(CRMLeadActivity).filter_by(lead_id=lead.id, activity_type="whatsapp_registration_state", message=state).count() == 0
     finally:

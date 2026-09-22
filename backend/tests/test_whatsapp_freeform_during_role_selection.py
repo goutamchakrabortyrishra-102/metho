@@ -94,9 +94,9 @@ def test_new_customer_info_question_starts_welcome_before_ai_flow(monkeypatch):
         assert session.state == "INTRODUCTION"
         assert sent
         assert "METHO AAY-UPAY" in sent[-1]
-        assert "1 লিখুন Member" in sent[-1]
-        assert "2 লিখুন Partner" in sent[-1]
-        assert "3 লিখুন Rider" in sent[-1]
+        assert "1. Member" in sent[-1]
+        assert "2. Partner" in sent[-1]
+        assert "3. Rider" in sent[-1]
     finally:
         db.close()
 
@@ -118,7 +118,7 @@ def test_new_customer_welcome_rejects_incomplete_registration_hallucination(monk
         assert ingest_whatsapp_message(db, message_payload("wamid.bad-welcome", "Hello! Can I get more info on this?"), None) == "created"
         assert generated_contexts == ["First-contact welcome. No prior registration state applies."]
         assert sent
-        assert "METHO AAY-UPAY-এ আপনাকে স্বাগতম" in sent[-1]
+        assert "Welcome to METHO AAY-UPAY" in sent[-1]
         assert "haven't completed" not in sent[-1]
         assert "শুরু করেছিলাম" not in sent[-1]
     finally:
