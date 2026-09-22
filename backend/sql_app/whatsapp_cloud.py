@@ -1376,17 +1376,22 @@ def _continue_role_registration_pending(db, session: WhatsAppRegistrationSession
         db.add(CRMLeadActivity(lead_id=lead.id, activity_type="whatsapp_message_sent", message=reply))
         db.add(CRMLeadActivity(lead_id=lead.id, activity_type="whatsapp_role_changed", message=f"{role} -> {selected_role}"))
         return True
-    if not _is_probably_gibberish(text) and _is_informational_question(text):
+    if not _is_probably_gibberish(text) and (_is_informational_question(text) or any(keyword in text.lower() for keyword in PRODUCT_QUERY_KEYWORDS)):
         status_context = _registration_status_context(db, lead, session, role)
         return _send_status_aware_ai_reply(db, lead, recipient, text, status_context)
-    link = _tracked_registration_url(_role_registration_url(config, role), role, lead.id, recipient)
-    reply = get_whatsapp_preset_message(
-        db,
-        "preset_role_registration_reminder",
-        WHATSAPP_PRESET_MESSAGE_DEFAULTS["preset_role_registration_reminder"],
-        role=role.title(),
-        link=link,
-    )
+    try:
+        link = _tracked_registration_url(_role_registration_url(config, role), role, lead.id, recipient)
+        reply = get_whatsapp_preset_message(
+            db,
+            "preset_role_registration_reminder",
+            WHATSAPP_PRESET_MESSAGE_DEFAULTS["preset_role_registration_reminder"],
+            role=role.title(),
+            link=link,
+        )
+    except Exception:
+        # Never let a URL/template build failure leave the customer with no reply at all.
+        logger.exception("WhatsApp role-registration reminder build failed; using plain-text fallback")
+        reply = WHATSAPP_PRESET_MESSAGE_DEFAULTS["preset_role_registration_reminder"].format(role=role.title(), link="")
     if not _send_member_registration_reply(db, recipient, reply):
         return False
     db.add(CRMLeadActivity(lead_id=lead.id, activity_type="whatsapp_message_sent", message=reply))

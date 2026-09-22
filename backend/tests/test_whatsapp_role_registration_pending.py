@@ -312,3 +312,53 @@ def test_business_question_with_business_keyword_gets_ai_reply_not_role_switch(m
         assert sent == [("8801712345678", "AI ground-truth answer")]
     finally:
         db.close()
+
+
+def test_english_product_query_after_role_selection_gets_ai_reply_not_reminder(monkeypatch):
+    db = make_session()
+    try:
+        sent = []
+        monkeypatch.setattr("sql_app.whatsapp_cloud.send_whatsapp_message", lambda _db, recipient, text: sent.append((recipient, text)) or {"messages": [{"id": "wamid.reply"}]})
+
+        def fake_generate_reply(_config, _message, context="", event_type="", db=None):
+            return "Here are the product details", "gemini", "gemini-1.5-flash"
+
+        monkeypatch.setattr("sql_app.whatsapp_ai._generate_reply", fake_generate_reply)
+        update_whatsapp_settings({"phone_number_id": "123456", "access_token": "secret-token"}, db, admin())
+
+        assert ingest_whatsapp_message(db, message_payload("wamid.start-product", "Hi"), None) == "created"
+        assert ingest_whatsapp_message(db, message_payload("wamid.pick-product", "2"), None) == "updated"
+        session = db.query(WhatsAppRegistrationSession).one()
+        assert session.role == "partner"
+
+        sent.clear()
+        # "product details" has no "?" and no Bangla marker, but is a genuine product query and must
+        # not fall through to the generic role-registration reminder (or worse, get no reply at all).
+        assert ingest_whatsapp_message(db, message_payload("wamid.product-details", "product details"), None) == "updated"
+        assert len(sent) == 1
+        assert sent == [("8801712345678", "Here are the product details")]
+    finally:
+        db.close()
+
+
+def test_role_reminder_build_failure_still_sends_a_plain_fallback_reply(monkeypatch):
+    db = make_session()
+    try:
+        sent = []
+        monkeypatch.setattr("sql_app.whatsapp_cloud.send_whatsapp_message", lambda _db, recipient, text: sent.append((recipient, text)) or {"messages": [{"id": "wamid.reply"}]})
+        update_whatsapp_settings({"phone_number_id": "123456", "access_token": "secret-token"}, db, admin())
+        lead, session = _lead_and_session(db)
+        session.role = "member"
+        session.state = WHATSAPP_ROLE_REGISTRATION_PENDING
+        db.commit()
+
+        monkeypatch.setattr("sql_app.whatsapp_cloud._tracked_registration_url", lambda *_a, **_k: (_ for _ in ()).throw(RuntimeError("boom")))
+
+        # A non-question, non-role-switch follow-up that hits the deterministic reminder branch; if
+        # link-building throws, the customer must still get a plain-text reply, never silence.
+        assert ingest_whatsapp_message(db, message_payload("wamid.ambiguous-boom", "ok thanks"), None) == "updated"
+        assert len(sent) == 1
+        assert sent[0][1].strip()
+    finally:
+        db.close()
+
