@@ -986,6 +986,25 @@ def _registration_role_for_text(config: dict, text: str) -> str | None:
     return None
 
 
+def _explicit_role_switch_for_text(text: str) -> str | None:
+    """Strict role match used only to switch a role that already has a registration pending.
+
+    Unlike `_registration_role_for_text`, this ignores the broader marketing keywords (e.g.
+    "কেনাকাটা"/"ব্যবসা"/"গাড়ি") so a casual mention of those words mid-conversation can't silently
+    switch an in-progress registration; only explicit digit/role-name identity keywords count.
+    """
+    if _is_informational_question(text) and not _has_registration_intent(text):
+        return None
+    normalized_command = _whatsapp_command_text(text)
+    lowered = str(text or "").lower()
+    for role in REGISTRATION_ROLE_SETTINGS:
+        for keyword in ROLE_IDENTITY_KEYWORDS[role]:
+            matched = normalized_command == keyword if keyword.isdigit() else keyword in lowered
+            if matched:
+                return role
+    return None
+
+
 def _detect_language(text: str) -> str:
     value = str(text or "")
     if any("\u0980" <= char <= "\u09ff" for char in value):
@@ -1343,7 +1362,7 @@ def _continue_role_registration_pending(db, session: WhatsAppRegistrationSession
         return False
     text = str(incoming_text or "").strip()
     config = resolve_config(db)
-    selected_role = _registration_role_for_text(config, text)
+    selected_role = _explicit_role_switch_for_text(text)
     if selected_role in REGISTRATION_ROLE_SETTINGS and selected_role != role:
         session.role = selected_role
         session.state = WHATSAPP_ROLE_REGISTRATION_PENDING

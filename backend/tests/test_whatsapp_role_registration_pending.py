@@ -17,6 +17,7 @@ from sql_app.whatsapp_cloud import (
     WHATSAPP_ROLE_REGISTRATION_PENDING,
     WHATSAPP_ROLE_SELECTION,
     _continue_introduction,
+    _explicit_role_switch_for_text,
     _registration_role_for_text,
     ingest_whatsapp_message,
     resolve_config,
@@ -66,6 +67,21 @@ def test_slash_separated_digits_do_not_resolve_to_a_role(monkeypatch):
         assert _registration_role_for_text(config, "3") == "rider"
     finally:
         db.close()
+
+
+def test_explicit_role_switch_matcher_ignores_broad_marketing_keywords():
+    # Non-identity marketing keywords (কেনাকাটা/ইনকাম/দোকান/ব্যবসা/ডেলিভারি/গাড়ি) must never
+    # trigger a role switch on their own, even though the wider role-selection matcher allows them.
+    assert _explicit_role_switch_for_text("আমার গাড়ি নষ্ট হয়ে গেছে") is None
+    assert _explicit_role_switch_for_text("আমার একটা ব্যবসা আছে") is None
+    assert _explicit_role_switch_for_text("আমি আমার ব্যবসা বাড়াতে চাই কিভাবে হবে বলুন") is None
+    assert _explicit_role_switch_for_text("aj ki কেনাকাটা করব") is None
+    # Explicit identity keywords/digits still work.
+    assert _explicit_role_switch_for_text("1") == "member"
+    assert _explicit_role_switch_for_text("2") == "partner"
+    assert _explicit_role_switch_for_text("3") == "rider"
+    assert _explicit_role_switch_for_text("3rider") == "rider"
+    assert _explicit_role_switch_for_text("1/2/3") is None
 
 
 def test_role_selection_advances_past_role_selection_state(monkeypatch):
@@ -217,5 +233,82 @@ def test_registration_link_stays_deterministic_across_followups(monkeypatch):
         assert "https://example.com/partner-join" in second_reply
         assert "registration_role=partner" in second_reply
         assert "prefill_phone=" in second_reply
+    finally:
+        db.close()
+
+
+def test_casual_vehicle_mention_does_not_switch_pending_role_to_rider(monkeypatch):
+    db = make_session()
+    try:
+        sent = []
+        monkeypatch.setattr("sql_app.whatsapp_cloud.send_whatsapp_message", lambda _db, recipient, text: sent.append((recipient, text)) or {"messages": [{"id": "wamid.reply"}]})
+        update_whatsapp_settings({"phone_number_id": "123456", "access_token": "secret-token"}, db, admin())
+
+        assert ingest_whatsapp_message(db, message_payload("wamid.start-member", "Hi"), None) == "created"
+        assert ingest_whatsapp_message(db, message_payload("wamid.pick-member", "1"), None) == "updated"
+        session = db.query(WhatsAppRegistrationSession).one()
+        assert session.role == "member"
+
+        sent.clear()
+        # "গাড়ি" (car/vehicle) is a rider marketing keyword, but this message has no registration intent.
+        assert ingest_whatsapp_message(db, message_payload("wamid.car-broke-down", "আমার গাড়ি নষ্ট হয়ে গেছে"), None) == "updated"
+        assert session.role == "member"
+        assert session.state == WHATSAPP_ROLE_REGISTRATION_PENDING
+        assert len(sent) == 1
+        assert "registration_role=rider" not in sent[0][1]
+        assert "registration_role=member" in sent[0][1]
+    finally:
+        db.close()
+
+
+def test_casual_business_mention_does_not_switch_pending_role_to_partner(monkeypatch):
+    db = make_session()
+    try:
+        sent = []
+        monkeypatch.setattr("sql_app.whatsapp_cloud.send_whatsapp_message", lambda _db, recipient, text: sent.append((recipient, text)) or {"messages": [{"id": "wamid.reply"}]})
+        update_whatsapp_settings({"phone_number_id": "123456", "access_token": "secret-token"}, db, admin())
+
+        assert ingest_whatsapp_message(db, message_payload("wamid.start-member2", "Hi"), None) == "created"
+        assert ingest_whatsapp_message(db, message_payload("wamid.pick-member2", "1"), None) == "updated"
+        session = db.query(WhatsAppRegistrationSession).one()
+        assert session.role == "member"
+
+        sent.clear()
+        # "ব্যবসা" (business) is a partner marketing keyword, but this is a plain statement, not a role request.
+        assert ingest_whatsapp_message(db, message_payload("wamid.have-a-business", "আমার একটা ব্যবসা আছে"), None) == "updated"
+        assert session.role == "member"
+        assert session.state == WHATSAPP_ROLE_REGISTRATION_PENDING
+        assert len(sent) == 1
+        assert "registration_role=partner" not in sent[0][1]
+        assert "registration_role=member" in sent[0][1]
+    finally:
+        db.close()
+
+
+def test_business_question_with_business_keyword_gets_ai_reply_not_role_switch(monkeypatch):
+    db = make_session()
+    try:
+        sent = []
+        monkeypatch.setattr("sql_app.whatsapp_cloud.send_whatsapp_message", lambda _db, recipient, text: sent.append((recipient, text)) or {"messages": [{"id": "wamid.reply"}]})
+
+        def fake_generate_reply(_config, _message, context="", event_type="", db=None):
+            return "AI ground-truth answer", "gemini", "gemini-1.5-flash"
+
+        monkeypatch.setattr("sql_app.whatsapp_ai._generate_reply", fake_generate_reply)
+        update_whatsapp_settings({"phone_number_id": "123456", "access_token": "secret-token"}, db, admin())
+
+        assert ingest_whatsapp_message(db, message_payload("wamid.start-member3", "Hi"), None) == "created"
+        assert ingest_whatsapp_message(db, message_payload("wamid.pick-member3", "1"), None) == "updated"
+        session = db.query(WhatsAppRegistrationSession).one()
+        assert session.role == "member"
+
+        sent.clear()
+        # Contains "ব্যবসা" (business, a partner keyword) but is phrased as a genuine question, so it
+        # must be answered by the AI instead of silently switching the pending role to partner.
+        question = "আমি আমার ব্যবসা বাড়াতে চাই কিভাবে হবে বলুন"
+        assert ingest_whatsapp_message(db, message_payload("wamid.business-question", question), None) == "updated"
+        assert session.role == "member"
+        assert session.state == WHATSAPP_ROLE_REGISTRATION_PENDING
+        assert sent == [("8801712345678", "AI ground-truth answer")]
     finally:
         db.close()
