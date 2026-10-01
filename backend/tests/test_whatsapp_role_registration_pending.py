@@ -99,6 +99,24 @@ def test_role_selection_advances_past_role_selection_state(monkeypatch):
         db.close()
 
 
+def test_new_customer_digits_still_select_registration_role(monkeypatch):
+    db = make_session()
+    try:
+        sent = []
+        monkeypatch.setattr("sql_app.whatsapp_cloud._send_member_registration_reply", lambda _db, recipient, text: sent.append(text) or True)
+        lead, session = _lead_and_session(db)
+
+        for digit, role in (("1", "member"), ("2", "partner"), ("3", "rider")):
+            session.role = ""
+            session.state = WHATSAPP_INTRODUCTION
+            assert ingest_whatsapp_message(db, message_payload(f"wamid.new-role-{digit}", digit), None) == "updated"
+            assert session.role == role
+            assert session.state == WHATSAPP_ROLE_REGISTRATION_PENDING
+            assert f"registration_role={role}" in sent[-1]
+    finally:
+        db.close()
+
+
 def test_ambiguous_followup_after_role_selected_sends_reminder_not_full_template(monkeypatch):
     db = make_session()
     try:

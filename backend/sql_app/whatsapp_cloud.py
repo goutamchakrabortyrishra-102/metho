@@ -2057,6 +2057,12 @@ def ingest_whatsapp_message(db, payload: dict, request=None) -> str:
             native_member_handled = _request_whatsapp_human_handoff(db, lead, registration_session, normalized["phone"])
         elif registration_session and registration_session.state == WHATSAPP_REGISTRATION_CONFIRMATION_PENDING:
             native_member_handled = _registration_confirmation_reply(db, registration_session, lead, incoming_text, normalized["phone"])
+        elif registration_session and registration_session.state == WHATSAPP_ROLE_REGISTRATION_PENDING:
+            native_member_handled = _continue_role_registration_pending(db, registration_session, lead, incoming_text, normalized["phone"])
+        elif registration_session and registration_session.role == "member" and registration_session.state in {WHATSAPP_MEMBER_REGISTERED, WHATSAPP_MEMBER_ACTIVATION_PENDING, WHATSAPP_MEMBER_ACTIVE, WHATSAPP_MEMBER_ONBOARDING} and registration_role_hint == "member":
+            native_member_handled = _route_registered_member(db, registration_session, lead, normalized["phone"], incoming_text)
+        elif registration_session and registration_session.role in {"partner", "rider"} and registration_session.state in {WHATSAPP_PARTNER_APPLICATION_PENDING, WHATSAPP_PARTNER_ONBOARDING, WHATSAPP_RIDER_APPLICATION_PENDING, WHATSAPP_RIDER_ONBOARDING} and registration_role_hint == registration_session.role:
+            native_member_handled = _continue_role_registration_flow(db, registration_session, lead, incoming_text, normalized["phone"])
         elif registration_role_hint in REGISTRATION_ROLE_SETTINGS and (lead.member_user_id or lead.partner_request_id or lead.rider_user_id):
             if _lead_has_role_identity(lead, registration_role_hint):
                 native_member_handled = _route_existing_identity(db, lead, normalized["phone"], incoming_text, preferred_role=registration_role_hint)
@@ -2082,10 +2088,6 @@ def ingest_whatsapp_message(db, payload: dict, request=None) -> str:
             native_member_handled = _send_direct_ai_reply(db, lead, normalized["phone"], incoming_text)
         elif registration_session and registration_session.state in {WHATSAPP_INTRODUCTION, WHATSAPP_ROLE_SELECTION}:
             native_member_handled = _continue_introduction(db, registration_session, lead, incoming_text, normalized["phone"])
-        elif registration_session and registration_session.state == WHATSAPP_ROLE_REGISTRATION_PENDING:
-            native_member_handled = _continue_role_registration_pending(db, registration_session, lead, incoming_text, normalized["phone"])
-        elif registration_session and registration_session.role == "member" and registration_session.state in {WHATSAPP_MEMBER_REGISTERED, WHATSAPP_MEMBER_ACTIVATION_PENDING, WHATSAPP_MEMBER_ACTIVE, WHATSAPP_MEMBER_ONBOARDING}:
-            native_member_handled = _route_registered_member(db, registration_session, lead, normalized["phone"], incoming_text)
         elif registration_session and registration_session.role in {"partner", "rider"} and registration_session.state not in {WHATSAPP_REGISTRATION_IDLE, WHATSAPP_INTRODUCTION, WHATSAPP_ROLE_SELECTION, WHATSAPP_ROLE_REGISTRATION_PENDING}:
             native_member_handled = _continue_role_registration_flow(db, registration_session, lead, incoming_text, normalized["phone"])
         elif registration_session and registration_session.role == "member" and registration_session.state in WHATSAPP_MEMBER_ACTIVE_STATES:

@@ -4,6 +4,7 @@ import uuid
 from pathlib import Path
 from types import SimpleNamespace
 
+import pytest
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
@@ -194,6 +195,109 @@ def test_member_activation_pending_informational_question_uses_status_context(mo
         assert sent == ["AI ground-truth answer"]
         assert "Member account active: no" in contexts[0][1]
         assert member.id in contexts[0][1]
+    finally:
+        db.close()
+
+
+@pytest.mark.parametrize(
+    ("state", "is_active", "expected_state"),
+    [
+        ("MEMBER_ACTIVATION_PENDING", False, "MEMBER_ACTIVATION_PENDING"),
+        ("MEMBER_ACTIVE", True, "MEMBER_ONBOARDING"),
+        ("MEMBER_ONBOARDING", True, "MEMBER_ONBOARDING"),
+    ],
+)
+def test_registered_member_digit_one_uses_member_state_handler(monkeypatch, state, is_active, expected_state):
+    db = make_session()
+    try:
+        sent = []
+        _capture_ai(monkeypatch, sent)
+        monkeypatch.setattr(
+            "sql_app.whatsapp_cloud._route_existing_identity",
+            lambda *_args, **_kwargs: pytest.fail("role hint bypassed the active member state"),
+        )
+        lead = _setup(db)
+        member = User(id=str(uuid.uuid4()), name="Ayesha Member", email=f"{uuid.uuid4()}@example.com", password="x", role="member", is_active=is_active)
+        db.add(member)
+        lead.member_user_id = member.id
+        session = WhatsAppRegistrationSession(
+            phone=lead.phone,
+            wa_id=lead.phone,
+            lead_id=lead.id,
+            role="member",
+            state=state,
+            data_json=json.dumps({"member_user_id": member.id, "member_code": "M-100"}),
+        )
+        db.add(session)
+        db.commit()
+        if is_active:
+            monkeypatch.setattr("sql_app.routers.compat._member_purchase_active", lambda _db, _user_id: True)
+
+        ingest_whatsapp_message(db, message_payload(f"wamid.member.{state}", "1"), None)
+
+        assert session.state == expected_state
+        assert len(sent) == 1
+        reply = sent[0].lower()
+        assert "pyramid scheme" not in reply
+        assert "1. member" not in reply
+        assert "2. partner" not in reply
+        assert "3. rider" not in reply
+        if not is_active:
+            assert "activation" in reply or "সক্রিয়" in reply or "সক্রিয়" in reply
+    finally:
+        db.close()
+
+
+@pytest.mark.parametrize(
+    ("role", "state", "body"),
+    [
+        ("partner", "PARTNER_APPLICATION_PENDING", "2"),
+        ("partner", "PARTNER_ONBOARDING", "2"),
+        ("rider", "RIDER_APPLICATION_PENDING", "3"),
+        ("rider", "RIDER_ONBOARDING", "3"),
+    ],
+)
+def test_registered_partner_and_rider_digits_use_current_state_handler(monkeypatch, role, state, body):
+    db = make_session()
+    try:
+        sent = []
+        _capture_ai(monkeypatch, sent)
+        monkeypatch.setattr(
+            "sql_app.whatsapp_cloud._route_existing_identity",
+            lambda *_args, **_kwargs: pytest.fail("role hint bypassed the active partner/rider state"),
+        )
+        lead = _setup(db)
+        if role == "partner":
+            request = PartnerRequest(id=str(uuid.uuid4()), business_name="Green Grocery", status="pending")
+            db.add(request)
+            lead.partner_request_id = request.id
+            data = {"request_id": request.id}
+        else:
+            rider = User(id=str(uuid.uuid4()), name="Rahim Rider", email=f"{uuid.uuid4()}@example.com", password="x", role="rider")
+            db.add(rider)
+            lead.rider_user_id = rider.id
+            db.add(AppSetting(key=f"rider_profile:{rider.id}", value_json=json.dumps({"approval_status": "pending"})))
+            data = {"rider_user_id": rider.id}
+        session = WhatsAppRegistrationSession(
+            phone=lead.phone,
+            wa_id=lead.phone,
+            lead_id=lead.id,
+            role=role,
+            state=state,
+            data_json=json.dumps(data),
+        )
+        db.add(session)
+        db.commit()
+
+        ingest_whatsapp_message(db, message_payload(f"wamid.{role}.{state}", body), None)
+
+        assert session.state == state
+        assert len(sent) == 1
+        reply = sent[0].lower()
+        assert "pyramid scheme" not in reply
+        assert "1. member" not in reply
+        assert "2. partner" not in reply
+        assert "3. rider" not in reply
     finally:
         db.close()
 
