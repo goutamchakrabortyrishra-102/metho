@@ -33,7 +33,7 @@ function ReferralEntryStrip() {
 
   return (
     <section className="pt-24 pb-4 px-6" data-testid="landing-referral-entry-strip">
-      <div className="max-w-7xl mx-auto rounded-2xl border border-amber-300 bg-gradient-to-r from-amber-50 to-emerald-50 p-4 md:p-5 flex flex-wrap items-center justify-between gap-3">
+      <div className="max-w-7xl mx-auto rounded-2xl border border-emerald-900/10 bg-white p-4 md:p-5 flex flex-wrap items-center justify-between gap-3">
         <div>
           <p className="text-[10px] uppercase tracking-widest text-emerald-800 font-bold">Referral Link Opened</p>
           <p className="text-sm md:text-base text-emerald-950 font-semibold mt-1">
@@ -596,10 +596,10 @@ const Hero = () => {
   };
 
   return (
-  <section className="relative pt-32 pb-14 overflow-hidden bg-[radial-gradient(circle_at_12%_6%,rgba(245,158,11,0.14),transparent_28%),radial-gradient(circle_at_84%_10%,rgba(16,185,129,0.08),transparent_34%),linear-gradient(180deg,#fffefb_0%,#f9fbfa_44%,#f2f7f5_100%)]">
+  <section className="relative pt-28 pb-12 md:pt-32 md:pb-16 overflow-hidden bg-[radial-gradient(circle_at_12%_6%,rgba(16,185,129,0.10),transparent_28%),radial-gradient(circle_at_84%_10%,rgba(16,185,129,0.08),transparent_34%),linear-gradient(180deg,#fffefb_0%,#f9fbfa_44%,#f2f7f5_100%)]">
     <div className="absolute inset-0 grain" />
     <div className="absolute top-0 inset-x-0 h-1 bg-gradient-to-r from-[#ff9933] via-white to-[#138808] opacity-80" />
-    <div className="absolute -top-16 left-1/2 -translate-x-1/2 w-[28rem] h-[28rem] bg-amber-300/15 rounded-full blur-3xl" />
+    <div className="absolute -top-16 left-1/2 -translate-x-1/2 w-[28rem] h-[28rem] bg-emerald-300/10 rounded-full blur-3xl" />
     <div className="absolute right-0 top-24 w-72 h-72 bg-emerald-900/6 rounded-full blur-3xl" />
     <div className="max-w-7xl mx-auto px-6 relative">
       <div className="grid lg:grid-cols-12 gap-8 items-center">
@@ -619,7 +619,7 @@ const Hero = () => {
             </div>
             {companyVideoUrl ? (
               <a href={companyVideoUrl} target="_blank" rel="noreferrer" className="hidden lg:inline-flex shrink-0 mt-2" data-testid="landing-highlight-watch-video">
-                <Button size="lg" className="rounded-full bg-red-600 hover:bg-red-700 text-white font-bold px-7 h-14 text-base shadow-[0_16px_34px_rgba(185,28,28,0.22)]">
+                <Button size="lg" className="rounded-full bg-emerald-900 hover:bg-emerald-950 text-white font-bold px-7 h-14 text-base shadow-[0_16px_34px_rgba(6,78,59,0.18)]">
                   <PlayCircle className="mr-2 h-5 w-5" /> Watch VDO
                 </Button>
               </a>
@@ -631,14 +631,14 @@ const Hero = () => {
             </p>
             {companyVideoUrl ? (
               <a href={companyVideoUrl} target="_blank" rel="noreferrer" className="inline-flex lg:hidden" data-testid="landing-highlight-watch-video-mobile">
-                <Button size="lg" className="rounded-full bg-red-600 hover:bg-red-700 text-white font-bold px-7 h-14 text-base shadow-[0_16px_34px_rgba(185,28,28,0.22)]">
+                <Button size="lg" className="rounded-full bg-emerald-900 hover:bg-emerald-950 text-white font-bold px-7 h-14 text-base shadow-[0_16px_34px_rgba(6,78,59,0.18)]">
                   <PlayCircle className="mr-2 h-5 w-5" /> Watch VDO
                 </Button>
               </a>
             ) : null}
           </div>
-          <div className="mt-8 rounded-[2rem] border border-emerald-900/12 bg-white/90 p-3 shadow-[0_18px_42px_rgba(15,23,42,0.08)] md:p-4" data-testid="hero-direct-access-card">
-            <div className="flex flex-wrap items-center gap-3 rounded-[1.5rem] border border-emerald-900/10 bg-gradient-to-r from-white via-emerald-50/75 to-white p-2.5">
+          <div className="mt-8 rounded-[2rem] border border-emerald-900/10 bg-white/90 p-3 shadow-[0_18px_42px_rgba(15,23,42,0.08)] md:p-4" data-testid="hero-direct-access-card">
+            <div className="flex flex-wrap items-center gap-3 rounded-[1.5rem] border border-emerald-900/10 bg-emerald-50/50 p-2.5">
             <Link to="/shop" className="w-full sm:w-auto" data-testid="hero-cta-shop">
               <Button size="lg" variant="outline" className="rounded-full px-7 h-12 text-base border-emerald-900/20 bg-white/95 shadow-sm hover:bg-emerald-50 hover:text-emerald-900 w-full sm:w-auto">
                 Browse METHO Products <ChevronRight className="ml-1 w-4 h-4" />
@@ -666,20 +666,20 @@ const Hero = () => {
                 <Search className="w-4 h-4" />
               </Button>
             </div>
-            <div className="mt-4 overflow-hidden rounded-2xl border border-emerald-200/70 bg-white shadow-sm" data-testid="landing-public-booking-banner">
+            <div className="mt-4 overflow-hidden rounded-2xl border border-emerald-900/10 bg-white shadow-sm" data-testid="landing-public-booking-banner">
               <div className="grid min-h-[96px] grid-cols-[112px_1fr] sm:grid-cols-[150px_1fr]">
                 <img src={settings?.landing_tourism_banner_image_url_full || resolveAssetUrl(settings?.landing_tourism_banner_image_url) || NETWORK_IMG} alt="METHO Tour & Travels" className="h-full min-h-[96px] w-full object-cover" loading="lazy" />
                 <div className="p-3 sm:p-4">
                   <p className="text-[10px] uppercase tracking-widest text-emerald-700 font-bold">METHO Public Booking</p>
                   <div className="mt-2 grid gap-2 sm:grid-cols-3">
-                    <Link to="/metho-move" className="flex items-center justify-between gap-2 rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2 hover:bg-emerald-100" data-testid="landing-metho-move-cta"><span><span className="block text-sm font-black text-emerald-950">METHO Move</span><span className="block text-[11px] text-slate-600">Mobility booking</span></span><ArrowRight className="h-4 w-4 text-emerald-800" /></Link>
-                    <Link to="/metho-move?service=delivery" className="flex items-center justify-between gap-2 rounded-xl border border-cyan-200 bg-cyan-50 px-3 py-2 hover:bg-cyan-100" data-testid="landing-metho-delivery-cta"><span><span className="block text-sm font-black text-emerald-950">METHO Delivery</span><span className="block text-[11px] text-slate-600">Parcel / delivery booking</span></span><ArrowRight className="h-4 w-4 text-cyan-800" /></Link>
-                    <Link to="/tour-and-travel" className="flex w-full items-center justify-between gap-2 rounded-xl border border-sky-200 bg-sky-50 px-3 py-2 text-left hover:bg-sky-100" data-testid="landing-tour-travel-cta">
+                    <Link to="/metho-move" className="flex items-center justify-between gap-2 rounded-xl border border-emerald-900/10 bg-emerald-50 px-3 py-2 hover:bg-emerald-100" data-testid="landing-metho-move-cta"><span><span className="block text-sm font-black text-emerald-950">METHO Move</span><span className="block text-[11px] text-slate-600">Mobility booking</span></span><ArrowRight className="h-4 w-4 text-emerald-800" /></Link>
+                    <Link to="/metho-move?service=delivery" className="flex items-center justify-between gap-2 rounded-xl border border-emerald-900/10 bg-emerald-50 px-3 py-2 hover:bg-emerald-100" data-testid="landing-metho-delivery-cta"><span><span className="block text-sm font-black text-emerald-950">METHO Delivery</span><span className="block text-[11px] text-slate-600">Parcel / delivery booking</span></span><ArrowRight className="h-4 w-4 text-emerald-800" /></Link>
+                    <Link to="/tour-and-travel" className="flex w-full items-center justify-between gap-2 rounded-xl border border-emerald-900/10 bg-emerald-50 px-3 py-2 text-left hover:bg-emerald-100" data-testid="landing-tour-travel-cta">
                       <span>
                         <span className="block text-sm font-black text-emerald-950">Tour &amp; Travel</span>
                         <span className="block text-[11px] text-slate-600">Travel booking</span>
                       </span>
-                      <ArrowRight className="h-4 w-4 text-sky-800" />
+                      <ArrowRight className="h-4 w-4 text-emerald-800" />
                     </Link>
                   </div>
                 </div>
@@ -687,10 +687,10 @@ const Hero = () => {
             </div>
           </div>
             <div className="mt-4 grid gap-3 md:grid-cols-2" data-testid="hero-commerce-focus-cards">
-              <Link to="/shop" className="group rounded-2xl border border-emerald-900/12 bg-white/92 px-4 py-3.5 shadow-sm hover:shadow-md hover:border-emerald-900/20 transition-all" data-testid="hero-focus-metho-products">
+              <Link to="/shop" className="group rounded-2xl border border-emerald-900/10 bg-white/92 px-4 py-3.5 shadow-sm hover:shadow-md hover:border-emerald-900/10 transition-all" data-testid="hero-focus-metho-products">
                 <div className="flex items-center justify-between gap-3"><div><p className="text-[10px] uppercase tracking-[0.22em] text-emerald-800 font-semibold">METHO Product</p><p className="mt-1 font-display font-black text-lg text-emerald-950 leading-tight">Fast moving catalog</p><p className="mt-1 text-xs text-slate-600">Category-ready browsing with direct shop access.</p></div><div className="w-10 h-10 rounded-xl border border-emerald-200 bg-emerald-50 flex items-center justify-center text-emerald-900 group-hover:bg-emerald-100 transition-colors"><Store className="w-5 h-5" /></div></div>
               </Link>
-              <Link to="/directory" className="group rounded-2xl border border-emerald-900/12 bg-white/92 px-4 py-3.5 shadow-sm hover:shadow-md hover:border-emerald-900/20 transition-all" data-testid="hero-focus-partner-shop">
+              <Link to="/directory" className="group rounded-2xl border border-emerald-900/10 bg-white/92 px-4 py-3.5 shadow-sm hover:shadow-md hover:border-emerald-900/10 transition-all" data-testid="hero-focus-partner-shop">
                 <div className="flex items-center justify-between gap-3"><div><p className="text-[10px] uppercase tracking-[0.22em] text-emerald-800 font-semibold">Partner Shop</p><p className="mt-1 font-display font-black text-lg text-emerald-950 leading-tight">Verified local partners</p><p className="mt-1 text-xs text-slate-600">Find services by city, category, and business type.</p></div><div className="w-10 h-10 rounded-xl border border-emerald-200 bg-emerald-50 flex items-center justify-center text-emerald-900 group-hover:bg-emerald-100 transition-colors"><MapPin className="w-5 h-5" /></div></div>
               </Link>
             </div>
@@ -711,7 +711,7 @@ const Hero = () => {
           <div className="mt-8 grid grid-cols-2 sm:grid-cols-4 gap-2.5" data-testid="hero-rating-stars">
             {flowStats.map((item) => (
               <div key={item.label} className="rounded-xl border border-emerald-900/10 bg-white/80 px-3 py-2.5 shadow-sm">
-                <p className="text-[10px] uppercase tracking-widest text-slate-500 font-semibold">{item.label}</p>
+                <p className="text-[10px] uppercase tracking-widest text-emerald-700 font-semibold">{item.label}</p>
                 <p className="mt-1 text-sm font-bold text-emerald-950">{item.value}</p>
               </div>
             ))}
@@ -720,11 +720,11 @@ const Hero = () => {
 
         <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} transition={{ duration: 0.8, delay: 0.2 }} className="lg:col-span-5 relative">
           <div className="relative">
-            <div className="absolute -top-4 -left-4 w-28 h-28 bg-amber-300/30 rounded-full blur-3xl" />
+            <div className="absolute -top-4 -left-4 w-28 h-28 bg-emerald-300/15 rounded-full blur-3xl" />
             <div className="absolute -bottom-4 -right-4 w-40 h-40 bg-emerald-500/15 rounded-full blur-3xl" />
             <div className="absolute -left-3 top-10 bottom-10 w-1.5 rounded-full bg-gradient-to-b from-[#ff9933] via-white to-[#138808]" />
             <div className="relative rounded-[28px] overflow-hidden shadow-xl border border-emerald-900/10 bg-white p-2.5">
-              <div className="relative rounded-[22px] overflow-hidden bg-gradient-to-br from-emerald-950 via-emerald-900 to-emerald-950">
+              <div className="relative rounded-[22px] overflow-hidden bg-emerald-950">
                 <img
                   src={NETWORK_IMG}
                   alt="Associate partner network"
@@ -733,12 +733,12 @@ const Hero = () => {
                   decoding="async"
                   fetchPriority="low"
                 />
-                <div className="absolute inset-0 bg-gradient-to-br from-emerald-950 via-emerald-900 to-emerald-950" />
+                <div className="absolute inset-0 bg-emerald-950/85" />
 
                 <div className="relative z-10 p-4 md:p-5 flex flex-col">
                   <div className="flex items-start justify-between gap-3">
                     <div className="max-w-[78%]">
-                      <p className="text-[9px] uppercase tracking-[0.3em] text-amber-300 font-bold">Quick Access</p>
+                      <p className="text-[9px] uppercase tracking-[0.3em] text-emerald-200 font-bold">Quick Access</p>
                       <p className="mt-1 font-display text-xl font-black text-white">METHO direct access</p>
                     </div>
                     <div className="rounded-2xl bg-white/10 border border-white/15 p-2.5 md:p-3 text-white shrink-0 backdrop-blur-sm">
@@ -794,11 +794,11 @@ const Hero = () => {
                       },
                     ].map((item) => (
                       item.external ? (
-                        <a key={item.title} href={item.href} target="_blank" rel="noreferrer" className="group rounded-xl bg-white/95 border border-emerald-100/30 px-3.5 py-2.5 text-emerald-950 shadow-sm hover:bg-emerald-50 hover:border-amber-200/70 transition-colors" data-testid={item.testId}>
+                        <a key={item.title} href={item.href} target="_blank" rel="noreferrer" className="group rounded-xl bg-white/95 border border-emerald-900/10 px-3.5 py-2.5 text-emerald-950 shadow-sm hover:bg-emerald-50 hover:border-emerald-900/10 transition-colors" data-testid={item.testId}>
                           <div className="flex items-center justify-between gap-3"><p className="font-display font-bold text-sm leading-tight tracking-tight">{item.title}</p><div className="w-8 h-8 rounded-xl bg-emerald-50 border border-emerald-200 flex items-center justify-center text-emerald-900 group-hover:bg-emerald-100 transition-colors shrink-0"><item.icon className="w-4 h-4" /></div></div>
                         </a>
                       ) : (
-                        <Link key={item.title} to={item.href} className="group rounded-xl bg-white/95 border border-emerald-100/30 px-3.5 py-2.5 text-emerald-950 shadow-sm hover:bg-emerald-50 hover:border-amber-200/70 transition-colors" data-testid={item.testId}>
+                        <Link key={item.title} to={item.href} className="group rounded-xl bg-white/95 border border-emerald-900/10 px-3.5 py-2.5 text-emerald-950 shadow-sm hover:bg-emerald-50 hover:border-emerald-900/10 transition-colors" data-testid={item.testId}>
                           <div className="flex items-center justify-between gap-3"><p className="font-display font-bold text-sm leading-tight tracking-tight">{item.title}</p><div className="w-8 h-8 rounded-xl bg-emerald-50 border border-emerald-200 flex items-center justify-center text-emerald-900 group-hover:bg-emerald-100 transition-colors shrink-0"><item.icon className="w-4 h-4" /></div></div>
                         </Link>
                       )
@@ -809,7 +809,7 @@ const Hero = () => {
                         href={companyVideoUrl}
                         target="_blank"
                         rel="noreferrer"
-                        className="group rounded-xl bg-white/95 border border-emerald-100/30 px-3.5 py-2.5 text-emerald-950 shadow-sm hover:bg-emerald-50 hover:border-amber-200/70 transition-colors sm:col-span-2"
+                        className="group rounded-xl bg-white/95 border border-emerald-900/10 px-3.5 py-2.5 text-emerald-950 shadow-sm hover:bg-emerald-50 hover:border-emerald-900/10 transition-colors sm:col-span-2"
                         data-testid="landing-quick-watch-video"
                       >
                         <div className="flex items-center justify-between gap-3">
@@ -822,7 +822,7 @@ const Hero = () => {
                     ) : (
                       <Link
                         to="/shop"
-                        className="group rounded-xl bg-white/95 border border-emerald-100/30 px-3.5 py-2.5 text-emerald-950 shadow-sm hover:bg-emerald-50 hover:border-amber-200/70 transition-colors sm:col-span-2"
+                        className="group rounded-xl bg-white/95 border border-emerald-900/10 px-3.5 py-2.5 text-emerald-950 shadow-sm hover:bg-emerald-50 hover:border-emerald-900/10 transition-colors sm:col-span-2"
                         data-testid="landing-quick-watch-video"
                       >
                         <div className="flex items-center justify-between gap-3">
@@ -857,7 +857,7 @@ const Hero = () => {
         </div>
       ) : null}
 
-      <div id="products" className="mt-12 rounded-[2rem] border border-emerald-900/12 bg-[linear-gradient(180deg,rgba(255,255,255,0.98)_0%,rgba(240,251,246,0.95)_100%)] backdrop-blur p-4 md:p-6 shadow-[0_20px_44px_rgba(15,23,42,0.1)]" data-testid="hero-products-grid">
+      <div id="products" className="mt-12 rounded-[2rem] border border-emerald-900/10 bg-white/95 backdrop-blur p-4 md:p-6 shadow-[0_20px_44px_rgba(15,23,42,0.1)]" data-testid="hero-products-grid">
         <div className="flex items-center justify-between gap-3 mb-4">
           <div>
             <p className="text-[10px] uppercase tracking-[0.24em] text-emerald-800 font-semibold">METHO Products</p>
@@ -875,13 +875,13 @@ const Hero = () => {
             "Direct product search",
             "Corporate-ready listing",
           ].map((pill) => (
-            <span key={pill} className="rounded-full border border-emerald-900/12 bg-white px-3 py-1 text-emerald-900 font-semibold">{pill}</span>
+            <span key={pill} className="rounded-full border border-emerald-900/10 bg-white px-3 py-1 text-emerald-900 font-semibold">{pill}</span>
           ))}
         </div>
 
         <div className="space-y-6">
           {bestProductsLoading ? (
-            <div className="rounded-xl border border-dashed border-emerald-200 bg-white/70 p-6 text-center text-sm text-slate-500">
+            <div className="rounded-xl border border-dashed border-emerald-900/10 bg-white/70 p-6 text-center text-sm text-slate-600">
               Loading live METHO products...
             </div>
           ) : hasBestProducts ? groupedBestProducts.map((group) => (
@@ -927,7 +927,7 @@ const Hero = () => {
                                 <span className="font-display font-black text-lg text-emerald-950">₹{getMethoPriceDetails(p).price.toLocaleString("en-IN")}</span>
                                 {getMethoPriceDetails(p).hasDiscount ? (
                                   <span className="mt-0.5 flex items-center gap-1.5">
-                                    <span className="text-[10px] font-semibold text-slate-500">MRP <span className="line-through">₹{getMethoPriceDetails(p).mrp.toLocaleString("en-IN")}</span></span>
+                                    <span className="text-[10px] font-semibold text-slate-600">MRP <span className="line-through">₹{getMethoPriceDetails(p).mrp.toLocaleString("en-IN")}</span></span>
                                     <span className="rounded-full bg-amber-100 px-1.5 py-0.5 text-[9px] font-bold text-amber-900">{getMethoPriceDetails(p).percent}% OFF</span>
                                   </span>
                                 ) : null}
@@ -999,14 +999,14 @@ const Hero = () => {
               </div>
             </div>
           )) : (
-            <div className="rounded-xl border border-dashed border-emerald-200 bg-white/70 p-6 text-center text-sm text-slate-500">
+            <div className="rounded-xl border border-dashed border-emerald-900/10 bg-white/70 p-6 text-center text-sm text-slate-600">
               No live METHO products are available right now.
             </div>
           )}
         </div>
 
         {cartItemCount > 0 && !checkoutOpen ? (
-          <div className="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-emerald-900/15 bg-emerald-50/70 px-4 py-3" data-testid="hero-best-products-cart-summary">
+          <div className="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-emerald-900/10 bg-emerald-50/70 px-4 py-3" data-testid="hero-best-products-cart-summary">
             <p className="text-sm font-semibold text-emerald-950">
               {cartItemCount} item(s) selected{cartSubtotal > 0 ? ` · ₹${cartSubtotal.toLocaleString("en-IN")}` : ""}
             </p>
@@ -1122,7 +1122,7 @@ const Features = () => {
   if (!showMethoStore) return null;
 
   return (
-    <section ref={sectionRef} id="features" className="py-24 bg-[linear-gradient(180deg,#ffffff_0%,#f4faf7_100%)]">
+    <section ref={sectionRef} id="features" className="py-16 md:py-20 bg-[linear-gradient(180deg,#ffffff_0%,#f4faf7_100%)]">
       <div className="max-w-7xl mx-auto px-6">
         <div className="max-w-3xl">
           <p className="text-xs uppercase tracking-[0.25em] text-emerald-800 font-semibold">METHO Store &amp; Travel</p>
@@ -1138,7 +1138,7 @@ const Features = () => {
           {loadingStore ? (
             <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 md:gap-4">
               {Array.from({ length: 8 }).map((_, i) => (
-                <div key={i} className="rounded-2xl overflow-hidden border border-slate-200 bg-slate-50 animate-pulse">
+                <div key={i} className="rounded-2xl overflow-hidden border border-emerald-900/10 bg-slate-50 animate-pulse">
                   <div className="aspect-[4/3] bg-slate-200" />
                   <div className="p-3 space-y-2">
                     <div className="h-3 rounded bg-slate-200 w-3/4" />
@@ -1148,7 +1148,7 @@ const Features = () => {
               ))}
             </div>
           ) : storeListings.length === 0 ? (
-            <div className="rounded-2xl border border-dashed border-emerald-200 bg-emerald-50/60 p-6 text-center">
+            <div className="rounded-2xl border border-dashed border-emerald-900/10 bg-emerald-50/60 p-6 text-center">
               <p className="font-semibold text-emerald-900">No METHO Store listings yet.</p>
               <p className="mt-1 text-sm text-slate-600">Admin Metho Store API data will auto appear here after stores are available.</p>
             </div>
@@ -1164,7 +1164,7 @@ const Features = () => {
                 >
                   <Link
                     to="/metho-store"
-                    className="group block rounded-2xl overflow-hidden border border-slate-200 bg-slate-50 hover:bg-white hover:shadow-md transition-all"
+                    className="group block rounded-2xl overflow-hidden border border-emerald-900/10 bg-slate-50 hover:bg-white hover:shadow-md transition-all"
                     data-testid={`landing-feature-store-listing-${i + 1}`}
                   >
                     <div className="aspect-[4/3] bg-slate-100 overflow-hidden">
@@ -1184,7 +1184,7 @@ const Features = () => {
                     </div>
                     <div className="p-3">
                       <p className="font-semibold text-emerald-950 text-sm line-clamp-1">{store.store_name || store.business_name || "METHO Store"}</p>
-                      <p className="mt-1 text-xs text-slate-500 line-clamp-1">{store.city || "Unknown city"} • {store.state || "India"}</p>
+                      <p className="mt-1 text-xs text-slate-600 line-clamp-1">{store.city || "Unknown city"} • {store.state || "India"}</p>
                       <p className="mt-1.5 text-[10px] uppercase tracking-wider text-emerald-800 font-bold line-clamp-1">{store.owner_code || store.code || "STORE"}</p>
                     </div>
                   </Link>
@@ -1201,10 +1201,10 @@ const Features = () => {
             </Link>
           </div>
         </div>
-        <div className="rounded-3xl border border-sky-200 bg-sky-50/70 p-4 md:p-5 shadow-sm">
-          <div className="mb-4 flex items-center justify-between gap-3"><div><p className="text-xs font-bold uppercase tracking-wider text-sky-800">METHO Travel</p><p className="mt-1 text-sm text-slate-600">Reserve curated travel services</p></div><Plane className="h-6 w-6 text-sky-800" /></div>
-          {loadingTourism ? <div className="grid grid-cols-2 gap-3"><div className="aspect-[4/3] animate-pulse rounded-2xl bg-sky-100" /><div className="aspect-[4/3] animate-pulse rounded-2xl bg-sky-100" /></div> : tourismListings.length === 0 ? <div className="rounded-2xl border border-dashed border-sky-200 bg-white/80 p-6 text-center"><p className="font-semibold text-sky-950">Travel services are being curated.</p><p className="mt-1 text-sm text-slate-600">New destinations and packages will appear here.</p></div> : <div className="grid grid-cols-2 gap-3" data-testid="landing-features-tourism-grid">{tourismListings.map((service, index) => <article key={service.id} className="group overflow-hidden rounded-2xl border border-sky-100 bg-white hover:shadow-md" data-testid={`landing-feature-tourism-${index + 1}`}><Link to="/tour-and-travel"><div className="aspect-[4/3] overflow-hidden bg-sky-100"><img src={pickProductImageSrc(service) || FALLBACK_PRODUCT_IMG} alt={service.name} className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-105" loading="lazy" onError={(e) => applyLandingImageFallback(e, [pickProductImageSrc(service)])} /></div></Link><div className="p-3"><p className="text-[10px] font-bold uppercase tracking-wider text-sky-800">{service.category || "Tourism"}</p><p className="mt-1 text-sm font-semibold text-emerald-950 line-clamp-1">{service.name}</p><p className="mt-1 font-display text-base font-black text-emerald-950">₹{getCustomerUnitPrice(service).toLocaleString("en-IN")}</p><Link to="/tour-and-travel" className="mt-3 inline-flex w-full"><Button size="sm" className="w-full rounded-full bg-emerald-900 text-xs text-white hover:bg-emerald-950" data-testid={`landing-feature-tourism-book-${index + 1}`}>Book Now <ArrowRight className="ml-1 h-3.5 w-3.5" /></Button></Link></div></article>)}</div>}
-          <div className="mt-5 flex justify-center"><Link to="/tour-and-travel" data-testid="landing-features-tourism-view-all"><Button variant="outline" className="rounded-full border-sky-300 bg-white text-sky-900 hover:bg-sky-100">Explore Travel <Plane className="ml-1 h-4 w-4" /></Button></Link></div>
+        <div className="rounded-3xl border border-emerald-900/10 bg-white/90 p-4 md:p-5 shadow-sm">
+          <div className="mb-4 flex items-center justify-between gap-3"><div><p className="text-xs font-bold uppercase tracking-wider text-emerald-800">METHO Travel</p><p className="mt-1 text-sm text-slate-600">Reserve curated travel services</p></div><Plane className="h-6 w-6 text-emerald-800" /></div>
+          {loadingTourism ? <div className="grid grid-cols-2 gap-3"><div className="aspect-[4/3] animate-pulse rounded-2xl bg-emerald-50" /><div className="aspect-[4/3] animate-pulse rounded-2xl bg-emerald-50" /></div> : tourismListings.length === 0 ? <div className="rounded-2xl border border-dashed border-emerald-900/10 bg-white p-6 text-center"><p className="font-semibold text-emerald-950">Travel services are being curated.</p><p className="mt-1 text-sm text-slate-600">New destinations and packages will appear here.</p></div> : <div className="grid grid-cols-2 gap-3" data-testid="landing-features-tourism-grid">{tourismListings.map((service, index) => <article key={service.id} className="group overflow-hidden rounded-2xl border border-emerald-900/10 bg-white hover:shadow-md" data-testid={`landing-feature-tourism-${index + 1}`}><Link to="/tour-and-travel"><div className="aspect-[4/3] overflow-hidden bg-emerald-50"><img src={pickProductImageSrc(service) || FALLBACK_PRODUCT_IMG} alt={service.name} className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-105" loading="lazy" onError={(e) => applyLandingImageFallback(e, [pickProductImageSrc(service)])} /></div></Link><div className="p-3"><p className="text-[10px] font-bold uppercase tracking-wider text-emerald-800">{service.category || "Tourism"}</p><p className="mt-1 text-sm font-semibold text-emerald-950 line-clamp-1">{service.name}</p><p className="mt-1 font-display text-base font-black text-emerald-950">₹{getCustomerUnitPrice(service).toLocaleString("en-IN")}</p><Link to="/tour-and-travel" className="mt-3 inline-flex w-full"><Button size="sm" className="w-full rounded-full bg-emerald-900 text-xs text-white hover:bg-emerald-950" data-testid={`landing-feature-tourism-book-${index + 1}`}>Book Now <ArrowRight className="ml-1 h-3.5 w-3.5" /></Button></Link></div></article>)}</div>}
+          <div className="mt-5 flex justify-center"><Link to="/tour-and-travel" data-testid="landing-features-tourism-view-all"><Button variant="outline" className="rounded-full border-emerald-900/10 bg-white text-emerald-800 hover:bg-emerald-50">Explore Travel <Plane className="ml-1 h-4 w-4" /></Button></Link></div>
         </div>
         </div>
       </div>
@@ -1219,11 +1219,11 @@ const BusinessPlan = () => {
   const managementDirection = "Management operates a compliance-first, product-first execution model with unified onboarding, partner governance, and accountable payout operations.";
 
   return (
-    <section id="plan" className="py-20 bg-gradient-to-b from-emerald-950 to-emerald-900 text-white relative overflow-hidden">
+    <section id="plan" className="py-16 md:py-20 bg-gradient-to-b from-emerald-950 to-emerald-900 text-white relative overflow-hidden">
       <div className="absolute inset-0 grain opacity-30" />
       <div className="max-w-7xl mx-auto px-6 relative">
         <div className="max-w-3xl mx-auto text-center">
-          <p className="text-xs uppercase tracking-[0.25em] text-amber-400 font-semibold">Corporate Foundation</p>
+          <p className="text-xs uppercase tracking-[0.25em] text-emerald-200 font-semibold">Corporate Foundation</p>
           <h2 className="mt-3 font-display font-black text-4xl md:text-5xl tracking-tight">
             Mission, Vision & Management
             <br />
@@ -1233,15 +1233,15 @@ const BusinessPlan = () => {
 
         <div className="mt-10 grid md:grid-cols-3 gap-4">
           <div className="rounded-2xl border border-white/15 bg-white/10 backdrop-blur p-5">
-            <p className="text-[10px] uppercase tracking-[0.24em] text-amber-300 font-semibold">Mission</p>
+            <p className="text-[10px] uppercase tracking-[0.24em] text-emerald-200 font-semibold">Mission</p>
             <p className="mt-3 text-sm text-emerald-100/90 whitespace-pre-line font-body leading-relaxed">{mission}</p>
           </div>
           <div className="rounded-2xl border border-white/15 bg-white/10 backdrop-blur p-5">
-            <p className="text-[10px] uppercase tracking-[0.24em] text-amber-300 font-semibold">Vision</p>
+            <p className="text-[10px] uppercase tracking-[0.24em] text-emerald-200 font-semibold">Vision</p>
             <p className="mt-3 text-sm text-emerald-100/90 whitespace-pre-line font-body leading-relaxed">{vision}</p>
           </div>
           <div className="rounded-2xl border border-white/15 bg-white/10 backdrop-blur p-5">
-            <p className="text-[10px] uppercase tracking-[0.24em] text-amber-300 font-semibold">Management</p>
+            <p className="text-[10px] uppercase tracking-[0.24em] text-emerald-200 font-semibold">Management</p>
             <p className="mt-3 text-sm text-emerald-100/90 font-body leading-relaxed">{managementDirection}</p>
           </div>
         </div>
@@ -1371,7 +1371,7 @@ const AssociatePartnerFinder = () => {
   if (!showPartnerShop) return null;
 
   return (
-    <section ref={sectionRef} id="partner-finder" className="py-14 bg-[linear-gradient(180deg,#ffffff_0%,#f2f8f5_100%)]" data-testid="landing-associate-partner-finder">
+    <section ref={sectionRef} id="partner-finder" className="py-16 md:py-20 bg-[linear-gradient(180deg,#ffffff_0%,#f2f8f5_100%)]" data-testid="landing-associate-partner-finder">
       <div className="max-w-7xl mx-auto px-6">
         <div className="relative rounded-3xl overflow-hidden">
           {directoryHero ? (
@@ -1382,12 +1382,12 @@ const AssociatePartnerFinder = () => {
             />
           ) : null}
 
-          <div className="relative rounded-3xl border border-emerald-200/70 bg-gradient-to-b from-white via-emerald-50/30 to-white p-4 md:p-5 shadow-md">
+          <div className="relative rounded-3xl border border-emerald-900/10 bg-white p-4 md:p-5 shadow-md">
             <p className="text-[10px] uppercase tracking-[0.28em] text-emerald-800 font-bold">Landing Partner Shops</p>
             <h3 className="mt-2 font-display font-black text-2xl leading-tight text-emerald-950">Featured Partner Shop List</h3>
             <p className="mt-1 text-xs text-slate-600 font-body">Admin-selected partner shop list with more room for cards.</p>
 
-            <div className="mt-5 grid grid-cols-1 gap-3 rounded-2xl border border-emerald-200/70 bg-white/85 p-4 shadow-sm sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
+            <div className="mt-5 grid grid-cols-1 gap-3 rounded-2xl border border-emerald-900/10 bg-white p-4 shadow-sm sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
               <div className="relative sm:col-span-2 lg:col-span-3 xl:col-span-2">
                 <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
                 <input
@@ -1447,22 +1447,22 @@ const AssociatePartnerFinder = () => {
             </div>
 
             <div className="mt-3 grid gap-3 lg:grid-cols-2">
-              <div className="rounded-2xl border border-emerald-200/70 bg-gradient-to-b from-emerald-50/65 to-white p-3 shadow-inner max-h-[430px] overflow-y-auto">
+              <div className="rounded-2xl border border-emerald-900/10 bg-emerald-50/50 p-3 shadow-inner max-h-[430px] overflow-y-auto">
                 <div className="mb-3 flex items-center justify-between gap-2">
                   <p className="text-[10px] uppercase tracking-[0.22em] text-emerald-800 font-bold">Product Shops</p>
-                  <span className="text-[10px] text-slate-500 font-semibold">{productPartners.length} found</span>
+                  <span className="text-[10px] text-slate-600 font-semibold">{productPartners.length} found</span>
                 </div>
                 {loading ? (
-                  <p className="text-sm text-slate-500">Searching product shops...</p>
+                  <p className="text-sm text-slate-600">Searching product shops...</p>
                 ) : productPartners.length === 0 ? (
-                  <p className="text-sm text-slate-500">No product shop found.</p>
+                  <p className="text-sm text-slate-600">No product shop found.</p>
                 ) : (
                   <div className="grid grid-cols-1 gap-2.5">
                     {productPartners.slice(0, LANDING_PARTNER_CARD_LIMIT).map((p) => (
                       <Link
                         key={p.id || p.partner_code}
                         to={`/partner-shop/${p.partner_code}`}
-                        className="rounded-xl border border-emerald-300/45 bg-white hover:bg-emerald-50/70 p-3 shadow-sm transition-colors"
+                        className="rounded-xl border border-emerald-900/10 bg-white hover:bg-emerald-50/70 p-3 shadow-sm transition-colors"
                         data-testid={`landing-partner-result-product-${p.partner_code}`}
                       >
                         <div className="mb-2 inline-flex items-center rounded-full bg-emerald-100 text-emerald-900 px-2 py-0.5">
@@ -1470,29 +1470,29 @@ const AssociatePartnerFinder = () => {
                         </div>
                         <p className="font-display font-bold text-emerald-950 mt-0.5 line-clamp-1">{p.business_name}</p>
                         <p className="text-xs text-slate-600 mt-1 flex items-center gap-1"><MapPin className="w-3.5 h-3.5 text-emerald-700" /> {p.city || "Unknown city"}</p>
-                        <p className="text-[11px] text-slate-500 mt-0.5 line-clamp-1">{p.business_type || "Business"}</p>
+                        <p className="text-[11px] text-slate-600 mt-0.5 line-clamp-1">{p.business_type || "Business"}</p>
                       </Link>
                     ))}
                   </div>
                 )}
               </div>
 
-              <div className="rounded-2xl border border-emerald-200/70 bg-gradient-to-b from-emerald-50/65 to-white p-3 shadow-inner max-h-[430px] overflow-y-auto">
+              <div className="rounded-2xl border border-emerald-900/10 bg-emerald-50/50 p-3 shadow-inner max-h-[430px] overflow-y-auto">
                 <div className="mb-3 flex items-center justify-between gap-2">
                   <p className="text-[10px] uppercase tracking-[0.22em] text-emerald-800 font-bold">Service Shops</p>
-                  <span className="text-[10px] text-slate-500 font-semibold">{servicePartners.length} found</span>
+                  <span className="text-[10px] text-slate-600 font-semibold">{servicePartners.length} found</span>
                 </div>
                 {loading ? (
-                  <p className="text-sm text-slate-500">Searching service shops...</p>
+                  <p className="text-sm text-slate-600">Searching service shops...</p>
                 ) : servicePartners.length === 0 ? (
-                  <p className="text-sm text-slate-500">No service shop found.</p>
+                  <p className="text-sm text-slate-600">No service shop found.</p>
                 ) : (
                   <div className="grid grid-cols-1 gap-2.5">
                     {servicePartners.slice(0, LANDING_PARTNER_CARD_LIMIT).map((p) => (
                       <Link
                         key={p.id || p.partner_code}
                         to={`/partner-shop/${p.partner_code}`}
-                        className="rounded-xl border border-emerald-300/45 bg-white hover:bg-emerald-50/70 p-3 shadow-sm transition-colors"
+                        className="rounded-xl border border-emerald-900/10 bg-white hover:bg-emerald-50/70 p-3 shadow-sm transition-colors"
                         data-testid={`landing-partner-result-service-${p.partner_code}`}
                       >
                         <div className="mb-2 inline-flex items-center rounded-full bg-emerald-100 text-emerald-900 px-2 py-0.5">
@@ -1500,7 +1500,7 @@ const AssociatePartnerFinder = () => {
                         </div>
                         <p className="font-display font-bold text-emerald-950 mt-0.5 line-clamp-1">{p.business_name}</p>
                         <p className="text-xs text-slate-600 mt-1 flex items-center gap-1"><MapPin className="w-3.5 h-3.5 text-emerald-700" /> {p.city || "Unknown city"}</p>
-                        <p className="text-[11px] text-slate-500 mt-0.5 line-clamp-1">{p.business_type || "Business"}</p>
+                        <p className="text-[11px] text-slate-600 mt-0.5 line-clamp-1">{p.business_type || "Business"}</p>
                       </Link>
                     ))}
                   </div>
@@ -1528,13 +1528,13 @@ const Products = () => {
     loadLandingProducts().then((rows) => setProducts(mixProductsByCategory(rows.filter(isVisibleMethoProduct), 6))).catch(() => {});
   }, [isSectionActive]);
   return (
-    <section ref={sectionRef} id="products" className="relative py-24 overflow-hidden bg-[radial-gradient(circle_at_10%_20%,rgba(16,185,129,0.12),transparent_38%),radial-gradient(circle_at_90%_0%,rgba(245,158,11,0.14),transparent_42%),linear-gradient(180deg,#f8faf9_0%,#eef7f2_100%)]">
+    <section ref={sectionRef} id="products" className="relative py-16 md:py-20 overflow-hidden bg-[radial-gradient(circle_at_10%_20%,rgba(16,185,129,0.12),transparent_38%),linear-gradient(180deg,#f8faf9_0%,#eef7f2_100%)]">
       <div className="absolute inset-0 grain opacity-20" />
       <div className="absolute left-6 top-8 md:left-14 md:top-12 rounded-2xl border border-emerald-900/10 bg-white/80 backdrop-blur px-3 py-2 shadow-sm">
         <p className="text-[10px] uppercase tracking-[0.24em] text-emerald-800 font-semibold">METHO Product Browser</p>
       </div>
       <div className="max-w-7xl mx-auto px-6 relative">
-        <div className="rounded-3xl border border-emerald-900/10 bg-white/72 p-4 md:p-5 shadow-sm">
+        <div className="rounded-3xl border border-emerald-900/10 bg-white/95 p-4 md:p-5 shadow-sm">
         <div className="flex flex-wrap items-end justify-between gap-4">
           <div>
             <p className="text-xs uppercase tracking-[0.25em] text-emerald-800 font-semibold">METHO Products</p>
@@ -1582,7 +1582,7 @@ const Products = () => {
                     <span className="font-display font-black text-base text-emerald-950">₹{getMethoPriceDetails(p).price.toLocaleString("en-IN")}</span>
                     {getMethoPriceDetails(p).hasDiscount ? (
                       <span className="mt-0.5 flex items-center gap-1.5">
-                        <span className="text-[10px] font-semibold text-slate-500">MRP <span className="line-through">₹{getMethoPriceDetails(p).mrp.toLocaleString("en-IN")}</span></span>
+                        <span className="text-[10px] font-semibold text-slate-600">MRP <span className="line-through">₹{getMethoPriceDetails(p).mrp.toLocaleString("en-IN")}</span></span>
                         <span className="rounded-full bg-amber-100 px-1.5 py-0.5 text-[9px] font-bold text-amber-900">{getMethoPriceDetails(p).percent}% OFF</span>
                       </span>
                     ) : null}
@@ -1653,7 +1653,7 @@ const TopLeaders = () => {
   ];
 
   return (
-    <section className="py-16 bg-gradient-to-b from-white to-amber-50/40" data-testid="top-leaders-section">
+    <section className="py-14 md:py-[4.5rem] bg-white" data-testid="top-leaders-section">
       <div className="max-w-7xl mx-auto px-6">
         <div className="max-w-3xl">
           <p className="text-xs uppercase tracking-[0.25em] text-emerald-800 font-semibold">Management Board</p>
@@ -1663,7 +1663,7 @@ const TopLeaders = () => {
         <div className="mt-8 grid grid-cols-2 gap-4 md:grid-cols-3 xl:grid-cols-6">
           {leaders.map((leader, i) => (
             <div key={i} className="mx-auto flex h-full w-full max-w-[210px] flex-col overflow-hidden rounded-2xl border border-emerald-900/10 bg-white shadow-sm transition-shadow hover:shadow-md" data-testid={`top-leader-card-${i + 1}`}>
-              <div className="aspect-[4/5] overflow-hidden bg-gradient-to-br from-slate-100 via-white to-amber-50/70">
+              <div className="aspect-[4/5] overflow-hidden bg-slate-50">
                 <img
                   src={leader.image || FALLBACK_LEADER_IMG}
                   alt={leader.name}
@@ -1697,9 +1697,9 @@ const TopLeaders = () => {
                   }}
                 />
               </div>
-              <div className="flex min-h-[76px] flex-col justify-center border-t border-emerald-100 bg-emerald-50/45 p-3.5">
+              <div className="flex min-h-[76px] flex-col justify-center border-t border-emerald-900/10 bg-emerald-50/45 p-3.5">
                 <p className="font-display font-bold text-sm text-emerald-950 truncate" title={leader.name}>{leader.name}</p>
-                <p className="mt-0.5 text-[11px] text-amber-700 font-semibold tracking-wide uppercase truncate" title={leader.title}>{leader.title}</p>
+                <p className="mt-0.5 text-[11px] text-emerald-700 font-semibold tracking-wide uppercase truncate" title={leader.title}>{leader.title}</p>
               </div>
             </div>
           ))}
@@ -1715,7 +1715,7 @@ const MissionVisionPolicy = () => {
   const vision = (settings?.vision_statement || "").trim() || DEFAULT_POLICY.vision_statement;
 
   return (
-    <section className="py-24 bg-secondary/30" data-testid="landing-policy-section">
+    <section className="py-16 md:py-20 bg-secondary/30" data-testid="landing-policy-section">
       <div className="max-w-6xl mx-auto px-6">
         <p className="text-xs uppercase tracking-[0.25em] text-emerald-800 font-semibold text-center">Business Direction</p>
         <h2 className="mt-3 font-display font-black text-4xl md:text-5xl tracking-tight text-emerald-950 text-center">
@@ -1723,11 +1723,11 @@ const MissionVisionPolicy = () => {
         </h2>
 
         <div className="mt-10 grid md:grid-cols-2 gap-4">
-          <div className="bg-white rounded-2xl border border-border p-6">
+          <div className="bg-white rounded-2xl border border-emerald-900/10 p-6">
             <p className="text-xs uppercase tracking-widest text-emerald-800 font-semibold">Mission</p>
             <p className="mt-2 text-sm text-slate-700 whitespace-pre-line font-body">{mission}</p>
           </div>
-          <div className="bg-white rounded-2xl border border-border p-6">
+          <div className="bg-white rounded-2xl border border-emerald-900/10 p-6">
             <p className="text-xs uppercase tracking-widest text-emerald-800 font-semibold">Vision</p>
             <p className="mt-2 text-sm text-slate-700 whitespace-pre-line font-body">{vision}</p>
           </div>
@@ -1747,9 +1747,9 @@ const ReturnPolicyBox = () => {
     .slice(0, 6);
 
   return (
-    <section id="return-policy" className="py-10 bg-white" data-testid="landing-return-policy-box">
+    <section id="return-policy" className="py-10 md:py-12 bg-white" data-testid="landing-return-policy-box">
       <div className="max-w-6xl mx-auto px-6">
-        <div className="rounded-2xl border border-emerald-900/10 bg-gradient-to-br from-white to-emerald-50/40 p-6 md:p-7 shadow-sm">
+        <div className="rounded-2xl border border-emerald-900/10 bg-white p-6 md:p-7 shadow-sm">
           <p className="text-xs uppercase tracking-[0.25em] text-emerald-800 font-semibold">Customer Protection</p>
           <div className="mt-2 flex flex-wrap items-end justify-between gap-3">
             <h3 className="font-display font-black text-2xl md:text-3xl tracking-tight text-emerald-950">Return Policy Snapshot</h3>
@@ -1760,7 +1760,7 @@ const ReturnPolicyBox = () => {
             </Link>
           </div>
           <div className="mt-4 grid md:grid-cols-3 gap-4">
-            <div className="md:col-span-2 rounded-xl border border-emerald-100 bg-white/90 p-4">
+            <div className="md:col-span-2 rounded-xl border border-emerald-900/10 bg-white p-4">
               <p className="text-[10px] uppercase tracking-widest text-emerald-800 font-semibold">Policy Highlights</p>
               <div className="mt-2 space-y-2">
                 {policyLines.map((line, idx) => (
@@ -1768,7 +1768,7 @@ const ReturnPolicyBox = () => {
                 ))}
               </div>
             </div>
-            <div className="rounded-xl border border-emerald-100 bg-emerald-50/70 p-4">
+            <div className="rounded-xl border border-emerald-900/10 bg-emerald-50/70 p-4">
               <p className="text-[10px] uppercase tracking-widest text-emerald-800 font-semibold">Need Assistance?</p>
               <p className="mt-2 text-sm text-slate-700 font-body leading-relaxed">Contact support with order details for faster review and resolution.</p>
               <div className="mt-4 grid gap-2">
@@ -1788,9 +1788,9 @@ const ReturnPolicyBox = () => {
 };
 
 const RegistrationAccessBox = () => (
-  <section className="py-10 bg-white" data-testid="landing-registration-access-box">
+  <section className="py-10 md:py-12 bg-white" data-testid="landing-registration-access-box">
     <div className="max-w-6xl mx-auto px-6">
-      <div className="rounded-2xl border border-emerald-900/20 bg-gradient-to-br from-emerald-100 via-emerald-50 to-amber-50/40 p-4 md:p-5 shadow-md">
+      <div className="rounded-2xl border border-emerald-900/10 bg-emerald-50/70 p-4 md:p-5 shadow-md">
         <p className="text-xs uppercase tracking-[0.25em] text-emerald-800 font-semibold px-2 pb-3">Registration & Access</p>
         <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
           {[
@@ -1831,7 +1831,7 @@ const RegistrationAccessBox = () => (
               testId: "landing-registration-row-partner-login",
             },
           ].map((item) => (
-            <Link key={item.key} to={item.to} className="rounded-xl border border-emerald-300 bg-emerald-950 p-4 hover:shadow-md transition-shadow" data-testid={item.testId}>
+            <Link key={item.key} to={item.to} className="rounded-xl border border-emerald-900/10 bg-emerald-950 p-4 hover:shadow-md transition-shadow" data-testid={item.testId}>
               <div className="w-10 h-10 rounded-xl bg-emerald-900 text-amber-300 flex items-center justify-center">
                 <item.icon className="w-5 h-5" />
               </div>
@@ -1856,13 +1856,13 @@ const FAQ = () => {
   ];
   const [open, setOpen] = React.useState(0);
   return (
-    <section id="faq" className="py-24 bg-white">
+    <section id="faq" className="py-16 md:py-20 bg-white">
       <div className="max-w-4xl mx-auto px-6">
         <p className="text-xs uppercase tracking-[0.25em] text-emerald-800 font-semibold text-center">FAQ</p>
         <h2 className="mt-3 font-display font-black text-4xl md:text-5xl tracking-tight text-emerald-950 text-center">
           Questions? Answered.
         </h2>
-        <div className="mt-12 divide-y divide-border border-y border-border">
+        <div className="mt-12 divide-y divide-emerald-900/10 border-y border-emerald-900/10">
           {faqs.map((f, i) => (
             <div key={i} data-testid={`faq-item-${i}`}>
               <button onClick={() => setOpen(open === i ? -1 : i)} className="w-full py-6 flex items-center justify-between text-left hover:text-emerald-800 transition-colors">
@@ -1884,7 +1884,7 @@ const Footer = () => {
   const companyFacebookUrl = normalizeFacebookUrl(settings?.company_facebook_url);
 
   return (
-  <footer className="bg-emerald-950 text-emerald-100/80 py-14">
+  <footer className="bg-emerald-950 text-emerald-100/80 py-10 md:py-12">
     <div className="max-w-7xl mx-auto px-6 grid md:grid-cols-4 gap-10">
       <div className="md:col-span-2">
         <Logo showTagline />
@@ -1912,7 +1912,7 @@ const Footer = () => {
               <Button
                 type="button"
                 variant="outline"
-                className="rounded-full border-sky-300 bg-sky-50 text-sky-900 hover:bg-sky-100"
+                className="rounded-full border-emerald-900/10 bg-white text-emerald-800 hover:bg-emerald-50"
                 onClick={() => window.open(companyFacebookUrl, "_blank", "noopener,noreferrer")}
                 data-testid="landing-footer-open-facebook"
               >
