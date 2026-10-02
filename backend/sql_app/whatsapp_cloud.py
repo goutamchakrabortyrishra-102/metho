@@ -1067,7 +1067,7 @@ def _localized_default_reply(db, language: str) -> str:
     return custom if custom and custom != DEFAULT_AUTO_REPLY else LOCALIZED_DEFAULT_REPLIES[language]
 
 
-def _send_auto_reply_if_configured(db, recipient: str, text: str) -> str:
+def _send_auto_reply_if_configured(db, recipient: str, text: str, lead_id: str = "") -> str:
     config = resolve_config(db)
     if not str(text or "").strip():
         return "skipped"
@@ -1076,8 +1076,10 @@ def _send_auto_reply_if_configured(db, recipient: str, text: str) -> str:
     try:
         send_whatsapp_message(db, recipient, text=text)
         return "sent"
-    except Exception:
+    except Exception as exc:
         logger.exception("WhatsApp auto-reply failed; inbound CRM message will still be stored")
+        if lead_id:
+            db.add(CRMLeadActivity(lead_id=lead_id, activity_type="whatsapp_reply_failed", message=f"WhatsApp auto-reply failed: {exc}"[:500]))
         return "failed"
 
 
@@ -2135,7 +2137,7 @@ def ingest_whatsapp_message(db, payload: dict, request=None) -> str:
         if auto_reply or reply_text:
             logger.info("WhatsApp final reply path: %s message_id=%s", "configured fallback" if is_ai_freeform_query and not role_hint else "static default", message_id)
         if allow_preset_dispatch and auto_reply and reply_mode == "text":
-            reply_status = _send_auto_reply_if_configured(db, normalized["phone"], text=auto_reply)
+            reply_status = _send_auto_reply_if_configured(db, normalized["phone"], text=auto_reply, lead_id=lead.id)
             if reply_status == "sent":
                 db.add(CRMLeadActivity(lead_id=lead.id, activity_type="whatsapp_message_sent", message=auto_reply))
                 db.add(CRMLeadActivity(lead_id=lead.id, activity_type="whatsapp_auto_reply_dispatched", message=f"{dispatch_marker}:text"))

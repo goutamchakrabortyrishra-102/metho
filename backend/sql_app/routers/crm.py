@@ -56,6 +56,7 @@ WHATSAPP_CONVERSATION_ACTIVITY_TYPES = [
     "whatsapp_message_received",
     "whatsapp_message_sent",
     "whatsapp_image_sent",
+    "whatsapp_reply_failed",
     "whatsapp_auto_reply_dispatched",
     "whatsapp_conversation_read",
     "ai_suggestion_rejected",
@@ -276,7 +277,18 @@ def _whatsapp_message_payload(activity: CRMLeadActivity) -> dict:
         "text": message,
         "created_at": _iso(activity.created_at),
         "actor_user_id": activity.actor_user_id,
+        "delivery_failed": activity.activity_type == "whatsapp_reply_failed",
     }
+
+
+def _latest_reply_failed(db: Session, lead_id: str) -> bool:
+    latest = (
+        db.query(CRMLeadActivity)
+        .filter(CRMLeadActivity.lead_id == lead_id, CRMLeadActivity.activity_type.in_(["whatsapp_message_sent", "whatsapp_image_sent", "whatsapp_reply_failed"]))
+        .order_by(CRMLeadActivity.created_at.desc())
+        .first()
+    )
+    return bool(latest and latest.activity_type == "whatsapp_reply_failed")
 
 
 @router.get("/admin/crm/whatsapp/conversations")
@@ -317,6 +329,7 @@ def list_whatsapp_conversations(search: str = "", db: Session = Depends(get_db),
             "converted_partner_id": lead.converted_partner_id,
             "latest_message": _whatsapp_message_payload(activity)["text"],
             "latest_message_at": _iso(activity.created_at),
+            "last_reply_failed": _latest_reply_failed(db, lead.id),
         })
     return {"items": conversations}
 
@@ -331,12 +344,12 @@ def get_whatsapp_conversation(lead_id: str, db: Session = Depends(get_db), curre
         db.query(CRMLeadActivity)
         .filter(
             CRMLeadActivity.lead_id == lead.id,
-            CRMLeadActivity.activity_type.in_(["whatsapp_message_received", "whatsapp_message_sent"]),
+            CRMLeadActivity.activity_type.in_(["whatsapp_message_received", "whatsapp_message_sent", "whatsapp_reply_failed"]),
         )
         .order_by(CRMLeadActivity.created_at.asc())
         .all()
     )
-    return {"conversation": {"lead_id": lead.id, "contact_person": lead.contact_person, "business_name": lead.business_name, "phone": lead.whatsapp_no or lead.phone, "source": lead.source, "status": lead.status, "priority_bucket": lead.priority_bucket, "next_follow_up_at": _iso(lead.next_follow_up_at), "follow_up_status": lead.follow_up_status, "member_user_id": lead.member_user_id, "partner_request_id": lead.partner_request_id, "converted_partner_id": lead.converted_partner_id}, "messages": [_whatsapp_message_payload(activity) for activity in activities]}
+    return {"conversation": {"lead_id": lead.id, "contact_person": lead.contact_person, "business_name": lead.business_name, "phone": lead.whatsapp_no or lead.phone, "source": lead.source, "status": lead.status, "priority_bucket": lead.priority_bucket, "next_follow_up_at": _iso(lead.next_follow_up_at), "follow_up_status": lead.follow_up_status, "member_user_id": lead.member_user_id, "partner_request_id": lead.partner_request_id, "converted_partner_id": lead.converted_partner_id, "last_reply_failed": _latest_reply_failed(db, lead.id)}, "messages": [_whatsapp_message_payload(activity) for activity in activities]}
 
 
 def _delete_whatsapp_activities(db: Session, lead_ids: list[str]) -> dict[str, int]:

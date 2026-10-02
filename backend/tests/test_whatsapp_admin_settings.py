@@ -525,6 +525,44 @@ def test_admin_whatsapp_inbox_reads_existing_messages_and_records_replies(monkey
         db.close()
 
 
+def test_failed_auto_reply_logs_reply_failed_activity_and_flags_inbox(monkeypatch):
+    db = make_session()
+    try:
+        monkeypatch.setattr("sql_app.whatsapp_cloud.send_whatsapp_message", lambda *_args, **_kwargs: (_ for _ in ()).throw(RuntimeError("Graph API 131047")))
+        update_whatsapp_settings({"phone_number_id": "123456", "access_token": "secret-token"}, db, admin())
+        assert ingest_whatsapp_message(db, message_payload("wamid.fail", "Hi"), None) == "created"
+        lead = db.query(CRMLead).one()
+
+        failed = db.query(CRMLeadActivity).filter(CRMLeadActivity.activity_type == "whatsapp_reply_failed").all()
+        assert len(failed) == 1
+        assert failed[0].lead_id == lead.id
+        assert "Graph API 131047" in failed[0].message
+        assert db.query(CRMLeadActivity).filter(CRMLeadActivity.activity_type == "whatsapp_message_sent").count() == 0
+
+        inbox = list_whatsapp_conversations("", db, admin())
+        assert inbox["items"][0]["last_reply_failed"] is True
+        conversation = get_whatsapp_conversation(lead.id, db, admin())
+        assert conversation["conversation"]["last_reply_failed"] is True
+        flagged = [m for m in conversation["messages"] if m["delivery_failed"]]
+        assert len(flagged) == 1 and flagged[0]["direction"] == "outgoing"
+        assert all(m["delivery_failed"] is False for m in conversation["messages"] if m["direction"] == "incoming")
+    finally:
+        db.close()
+
+
+def test_skipped_auto_reply_does_not_log_reply_failed_activity(monkeypatch):
+    db = make_session()
+    try:
+        monkeypatch.setattr("sql_app.whatsapp_cloud.send_whatsapp_message", lambda *_args, **_kwargs: pytest.fail("send should not be attempted"))
+        assert ingest_whatsapp_message(db, message_payload("wamid.skip", "Hi"), None) == "created"
+        lead = db.query(CRMLead).one()
+        assert db.query(CRMLeadActivity).filter(CRMLeadActivity.activity_type == "whatsapp_reply_failed").count() == 0
+        assert list_whatsapp_conversations("", db, admin())["items"][0]["last_reply_failed"] is False
+        assert get_whatsapp_conversation(lead.id, db, admin())["conversation"]["last_reply_failed"] is False
+    finally:
+        db.close()
+
+
 def test_outgoing_text_and_template_requests_use_cloud_api(monkeypatch):
     from unittest.mock import MagicMock
 
