@@ -871,7 +871,10 @@ def _send_direct_ai_reply(db, lead: CRMLead, recipient: str, incoming_text: str)
             reply = ""
     if not str(reply or "").strip():
         reply = _business_unknown_fallback(incoming_text)
-    return _send_member_registration_reply(db, recipient, reply)
+    if _send_auto_reply_if_configured(db, recipient, text=reply, lead_id=lead.id) != "sent":
+        return False
+    db.add(CRMLeadActivity(lead_id=lead.id, activity_type="whatsapp_message_sent", message=reply))
+    return True
 
 
 def _registration_status_context(db, lead: CRMLead, session: WhatsAppRegistrationSession, role: str) -> str:

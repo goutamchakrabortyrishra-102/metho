@@ -563,6 +563,48 @@ def test_skipped_auto_reply_does_not_log_reply_failed_activity(monkeypatch):
         db.close()
 
 
+def test_question_during_role_menu_reply_is_logged_in_crm(monkeypatch):
+    db = make_session()
+    try:
+        for key in ("GEMINI_API_KEY", "GOOGLE_API_KEY"):
+            monkeypatch.delenv(key, raising=False)
+        sent = []
+        monkeypatch.setattr("sql_app.whatsapp_cloud.send_whatsapp_message", lambda _db, recipient, text: sent.append(text) or {"messages": [{"id": "wamid.reply"}]})
+        update_whatsapp_settings({"phone_number_id": "123456", "access_token": "secret-token"}, db, admin())
+        assert ingest_whatsapp_message(db, message_payload("wamid.q1", "Hi"), None) == "created"
+        assert ingest_whatsapp_message(db, message_payload("wamid.q2", "What is work"), None) == "updated"
+        assert len(sent) == 2
+        assert sent[1] != sent[0]
+        logged = [a.message for a in db.query(CRMLeadActivity).filter(CRMLeadActivity.activity_type == "whatsapp_message_sent").all()]
+        assert sent[1] in logged
+        assert db.query(CRMLeadActivity).filter(CRMLeadActivity.activity_type == "whatsapp_reply_failed").count() == 0
+    finally:
+        db.close()
+
+
+def test_question_during_role_menu_logs_failure_when_send_fails(monkeypatch):
+    db = make_session()
+    try:
+        for key in ("GEMINI_API_KEY", "GOOGLE_API_KEY"):
+            monkeypatch.delenv(key, raising=False)
+        calls = {"n": 0}
+
+        def fake_send(_db, recipient, text):
+            calls["n"] += 1
+            if calls["n"] > 1:
+                raise RuntimeError("Graph API 131047")
+            return {"messages": [{"id": "wamid.reply"}]}
+
+        monkeypatch.setattr("sql_app.whatsapp_cloud.send_whatsapp_message", fake_send)
+        update_whatsapp_settings({"phone_number_id": "123456", "access_token": "secret-token"}, db, admin())
+        assert ingest_whatsapp_message(db, message_payload("wamid.f1", "Hi"), None) == "created"
+        ingest_whatsapp_message(db, message_payload("wamid.f2", "What is work"), None)
+        failed = db.query(CRMLeadActivity).filter(CRMLeadActivity.activity_type == "whatsapp_reply_failed").all()
+        assert failed and "Graph API 131047" in failed[0].message
+    finally:
+        db.close()
+
+
 def test_outgoing_text_and_template_requests_use_cloud_api(monkeypatch):
     from unittest.mock import MagicMock
 
