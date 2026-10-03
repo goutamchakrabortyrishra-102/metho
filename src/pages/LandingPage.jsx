@@ -32,7 +32,7 @@ function ReferralEntryStrip() {
   if (!ref) return null;
 
   return (
-    <section className="pt-24 pb-4 px-6" data-testid="landing-referral-entry-strip">
+    <section className="pt-24 pb-4 px-4 sm:px-6" data-testid="landing-referral-entry-strip">
       <div className="max-w-7xl mx-auto rounded-2xl border border-emerald-900/10 bg-white p-4 md:p-5 flex flex-wrap items-center justify-between gap-3">
         <div>
           <p className="text-[10px] uppercase tracking-widest text-emerald-800 font-bold">Referral Link Opened</p>
@@ -277,11 +277,11 @@ const Nav = () => (
         <div className="flex items-center gap-2 shrink-0">
           <a
             href="tel:+917003805387"
-            className="inline-flex items-center gap-1.5 rounded-full border border-emerald-200 bg-white/90 px-2 sm:px-3 py-2 text-xs font-semibold text-emerald-900 hover:bg-emerald-50"
+            className="inline-flex items-center gap-1.5 rounded-full border border-emerald-900/10 bg-white/90 px-2.5 sm:px-3 py-2 text-xs font-semibold text-emerald-900 hover:bg-emerald-50"
             aria-label="Call METHO at +91 7003805387"
             data-testid="nav-call-link"
           >
-            <Phone className="w-3.5 h-3.5" /> <span className="whitespace-nowrap">Call Us Anytime</span>
+            <Phone className="w-3.5 h-3.5" /> <span className="hidden whitespace-nowrap sm:inline">Call Us Anytime</span>
           </a>
           <Link to="/login" data-testid="nav-login-link"><Button variant="ghost" size="sm" className="px-3 md:px-4 hover:bg-emerald-50 hover:text-emerald-900">Login</Button></Link>
           <Link to="/register" data-testid="nav-register-link">
@@ -601,19 +601,19 @@ const Hero = () => {
     <div className="absolute top-0 inset-x-0 h-1 bg-gradient-to-r from-[#ff9933] via-white to-[#138808] opacity-80" />
     <div className="absolute -top-16 left-1/2 -translate-x-1/2 w-[28rem] h-[28rem] bg-emerald-300/10 rounded-full blur-3xl" />
     <div className="absolute right-0 top-24 w-72 h-72 bg-emerald-900/6 rounded-full blur-3xl" />
-    <div className="max-w-7xl mx-auto px-6 relative">
+    <div className="max-w-7xl mx-auto px-4 sm:px-6 relative">
       <div className="grid lg:grid-cols-12 gap-8 items-center">
         <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.6 }} className="lg:col-span-7">
           <div className="mt-6 flex items-start justify-between gap-5">
             <div className="min-w-0">
               {tagline ? (
-                <h1 className="font-display font-black text-4xl md:text-5xl lg:text-6xl tracking-tight leading-[0.97] text-emerald-950">
+                <h1 className="font-display font-black text-[2rem] sm:text-4xl md:text-5xl lg:text-6xl tracking-tight leading-[1.02] text-emerald-950 break-words">
                   {tagline}
                 </h1>
               ) : (
-                <h1 className="font-display font-black text-4xl md:text-5xl lg:text-6xl tracking-tight leading-[0.97] text-emerald-950">
+                <h1 className="font-display font-black text-[2rem] sm:text-4xl md:text-5xl lg:text-6xl tracking-tight leading-[1.02] text-emerald-950 break-words">
                   Real Business. Real Rewards. Real Growth.
-                  <span className="mt-4 block text-xl md:text-2xl lg:text-[2rem] font-bold text-amber-600 italic leading-tight">METHO AAY-UPAY — Smart Commerce for customer, Members &amp; Partners.</span>
+                  <span className="mt-3 sm:mt-4 block text-lg sm:text-xl md:text-2xl lg:text-[2rem] font-bold text-amber-600 italic leading-tight">METHO AAY-UPAY — Smart Commerce for customer, Members &amp; Partners.</span>
                 </h1>
               )}
             </div>
@@ -626,19 +626,19 @@ const Hero = () => {
             ) : null}
           </div>
           <div className="mt-5 flex flex-wrap items-center justify-between gap-4">
-            <p className="inline-flex items-center rounded-full border border-emerald-200 bg-white/95 px-4 py-2 text-sm font-semibold tracking-wide text-emerald-900 shadow-sm">
+            <p className="inline-flex items-center rounded-full border border-emerald-900/10 bg-white/95 px-3 py-1.5 text-xs font-semibold tracking-wide text-emerald-900 shadow-sm sm:px-4 sm:py-2 sm:text-sm">
               Powered By Metho Logistics Private Limited
             </p>
             {companyVideoUrl ? (
-              <a href={companyVideoUrl} target="_blank" rel="noreferrer" className="inline-flex lg:hidden" data-testid="landing-highlight-watch-video-mobile">
-                <Button size="lg" className="rounded-full bg-emerald-900 hover:bg-emerald-950 text-white font-bold px-7 h-14 text-base shadow-[0_16px_34px_rgba(6,78,59,0.18)]">
+              <a href={companyVideoUrl} target="_blank" rel="noreferrer" className="inline-flex w-full sm:w-auto lg:hidden" data-testid="landing-highlight-watch-video-mobile">
+                <Button size="lg" className="w-full sm:w-auto rounded-full bg-emerald-900 hover:bg-emerald-950 text-white font-bold px-7 h-12 sm:h-14 text-base shadow-[0_16px_34px_rgba(6,78,59,0.18)]">
                   <PlayCircle className="mr-2 h-5 w-5" /> Watch VDO
                 </Button>
               </a>
             ) : null}
           </div>
-          <div className="mt-8 rounded-[2rem] border border-emerald-900/10 bg-white/90 p-3 shadow-[0_18px_42px_rgba(15,23,42,0.08)] md:p-4" data-testid="hero-direct-access-card">
-            <div className="flex flex-wrap items-center gap-3 rounded-[1.5rem] border border-emerald-900/10 bg-emerald-50/50 p-2.5">
+          <div className="mt-8 rounded-3xl border border-emerald-900/10 bg-white/90 p-2.5 shadow-[0_18px_42px_rgba(15,23,42,0.08)] sm:rounded-[2rem] sm:p-3 md:p-4" data-testid="hero-direct-access-card">
+            <div className="flex flex-wrap items-center gap-3 rounded-2xl border border-emerald-900/10 bg-emerald-50/50 p-2 sm:rounded-[1.5rem] sm:p-2.5">
             <Link to="/shop" className="w-full sm:w-auto" data-testid="hero-cta-shop">
               <Button size="lg" variant="outline" className="rounded-full px-7 h-12 text-base border-emerald-900/20 bg-white/95 shadow-sm hover:bg-emerald-50 hover:text-emerald-900 w-full sm:w-auto">
                 Browse METHO Products <ChevronRight className="ml-1 w-4 h-4" />
@@ -666,8 +666,8 @@ const Hero = () => {
                 <Search className="w-4 h-4" />
               </Button>
             </div>
-            <div className="mt-4 overflow-hidden rounded-2xl border border-emerald-900/10 bg-white shadow-sm" data-testid="landing-public-booking-banner">
-              <div className="grid min-h-[96px] grid-cols-[112px_1fr] sm:grid-cols-[150px_1fr]">
+            <div className="mt-4 w-full overflow-hidden rounded-2xl border border-emerald-900/10 bg-white shadow-sm" data-testid="landing-public-booking-banner">
+              <div className="grid min-h-[96px] grid-cols-[88px_1fr] sm:grid-cols-[150px_1fr]">
                 <img src={settings?.landing_tourism_banner_image_url_full || resolveAssetUrl(settings?.landing_tourism_banner_image_url) || NETWORK_IMG} alt="METHO Tour & Travels" className="h-full min-h-[96px] w-full object-cover" loading="lazy" />
                 <div className="p-3 sm:p-4">
                   <p className="text-[10px] uppercase tracking-widest text-emerald-700 font-bold">METHO Public Booking</p>
@@ -695,16 +695,16 @@ const Hero = () => {
               </Link>
             </div>
             <div className="mt-5 rounded-2xl border border-emerald-900/10 bg-white/90 p-4 text-emerald-950 shadow-sm" data-testid="hero-sector-quick-access">
-              <div className="flex items-center justify-between gap-3 flex-wrap"><p className="text-[10px] uppercase tracking-[0.18em] text-emerald-800 font-semibold">Member / Customer Direct Sector Access</p><span className="text-[10px] text-slate-500">One tap to browse</span></div>
+              <div className="flex items-center justify-between gap-3 flex-wrap"><p className="text-[10px] uppercase tracking-[0.18em] text-emerald-800 font-semibold">Member / Customer Direct Sector Access</p><span className="text-[10px] text-slate-600">One tap to browse</span></div>
               <div className="mt-4 grid gap-4 lg:grid-cols-12">
                 <div className="grid grid-cols-2 gap-2.5 lg:col-span-7 lg:grid-cols-3">
-                  <Link to="/directory?quick=products" className="group" data-testid="hero-sector-products"><div className="rounded-xl border border-emerald-900/10 bg-emerald-50/60 text-emerald-950 px-3 py-3 hover:bg-emerald-50 transition-colors"><p className="text-[9px] uppercase tracking-wider text-emerald-700/70 font-medium">Sector</p><p className="text-sm font-bold mt-1">All Products</p></div></Link>
-                  <Link to="/directory?quick=transport" className="group" data-testid="hero-sector-transport"><div className="rounded-xl border border-emerald-900/10 bg-emerald-50/60 text-emerald-950 px-3 py-3 hover:bg-emerald-50 transition-colors"><p className="text-[9px] uppercase tracking-wider text-emerald-700/70 font-medium">Sector</p><p className="text-sm font-bold mt-1">Transport</p></div></Link>
-                  <Link to="/directory?quick=stay-dining" className="group" data-testid="hero-sector-stay-dining"><div className="rounded-xl border border-emerald-900/10 bg-emerald-50/60 text-emerald-950 px-3 py-3 hover:bg-emerald-50 transition-colors"><p className="text-[9px] uppercase tracking-wider text-emerald-700/70 font-medium">Sector</p><p className="text-sm font-bold mt-1">Stay &amp; Dining</p></div></Link>
-                  <Link to="/directory?quick=doorstep" className="group" data-testid="hero-sector-doorstep"><div className="rounded-xl border border-emerald-900/10 bg-emerald-50/60 text-emerald-950 px-3 py-3 hover:bg-emerald-50 transition-colors"><p className="text-[9px] uppercase tracking-wider text-emerald-700/70 font-medium">Sector</p><p className="text-sm font-bold mt-1">Doorstep</p></div></Link>
-                  <Link to="/directory?quick=other-services" className="group" data-testid="hero-sector-other-services"><div className="rounded-xl border border-emerald-900/10 bg-emerald-50/60 text-emerald-950 px-3 py-3 hover:bg-emerald-50 transition-colors"><p className="text-[9px] uppercase tracking-wider text-emerald-700/70 font-medium">Sector</p><p className="text-sm font-bold mt-1">Other Services</p></div></Link>
+                  <Link to="/directory?quick=products" className="group" data-testid="hero-sector-products"><div className="rounded-xl border border-emerald-900/10 bg-emerald-50/60 text-emerald-950 px-3 py-3 hover:bg-emerald-50 transition-colors"><p className="text-[10px] uppercase tracking-wider text-emerald-700 font-medium">Sector</p><p className="text-sm font-bold mt-1">All Products</p></div></Link>
+                  <Link to="/directory?quick=transport" className="group" data-testid="hero-sector-transport"><div className="rounded-xl border border-emerald-900/10 bg-emerald-50/60 text-emerald-950 px-3 py-3 hover:bg-emerald-50 transition-colors"><p className="text-[10px] uppercase tracking-wider text-emerald-700 font-medium">Sector</p><p className="text-sm font-bold mt-1">Transport</p></div></Link>
+                  <Link to="/directory?quick=stay-dining" className="group" data-testid="hero-sector-stay-dining"><div className="rounded-xl border border-emerald-900/10 bg-emerald-50/60 text-emerald-950 px-3 py-3 hover:bg-emerald-50 transition-colors"><p className="text-[10px] uppercase tracking-wider text-emerald-700 font-medium">Sector</p><p className="text-sm font-bold mt-1">Stay &amp; Dining</p></div></Link>
+                  <Link to="/directory?quick=doorstep" className="group" data-testid="hero-sector-doorstep"><div className="rounded-xl border border-emerald-900/10 bg-emerald-50/60 text-emerald-950 px-3 py-3 hover:bg-emerald-50 transition-colors"><p className="text-[10px] uppercase tracking-wider text-emerald-700 font-medium">Sector</p><p className="text-sm font-bold mt-1">Doorstep</p></div></Link>
+                  <Link to="/directory?quick=other-services" className="group" data-testid="hero-sector-other-services"><div className="rounded-xl border border-emerald-900/10 bg-emerald-50/60 text-emerald-950 px-3 py-3 hover:bg-emerald-50 transition-colors"><p className="text-[10px] uppercase tracking-wider text-emerald-700 font-medium">Sector</p><p className="text-sm font-bold mt-1">Other Services</p></div></Link>
                 </div>
-                <div className="lg:col-span-5 rounded-xl border border-emerald-900/10 bg-slate-50/80 text-emerald-950 px-3.5 py-3" data-testid="hero-product-subsectors"><div className="flex items-center justify-between gap-2"><p className="text-[10px] uppercase tracking-wider text-emerald-700 font-semibold">Product Sectors</p><span className="text-[10px] text-slate-500">4 parts</span></div><div className="mt-3 grid grid-cols-2 gap-2.5"><Link to="/partner-shop/MTH-PARTNER-004" className="rounded-lg border border-emerald-900/10 bg-white px-2.5 py-2.5 text-sm font-semibold hover:bg-emerald-50 transition-colors" data-testid="hero-product-vegetables">Vegetables</Link><Link to="/directory?quick=grocery" className="rounded-lg border border-emerald-900/10 bg-white px-2.5 py-2.5 text-sm font-semibold hover:bg-emerald-50 transition-colors" data-testid="hero-product-grocery">Grocery</Link><Link to="/directory?quick=cosmetics-beauty" className="rounded-lg border border-emerald-900/10 bg-white px-2.5 py-2.5 text-sm font-semibold hover:bg-emerald-50 transition-colors" data-testid="hero-product-cosmetics-beauty">Cosmetics &amp; Beauty</Link><Link to="/directory?quick=others" className="rounded-lg border border-emerald-900/10 bg-white px-2.5 py-2.5 text-sm font-semibold hover:bg-emerald-50 transition-colors" data-testid="hero-product-others">Others</Link></div></div>
+                <div className="lg:col-span-5 rounded-xl border border-emerald-900/10 bg-slate-50/80 text-emerald-950 px-3.5 py-3" data-testid="hero-product-subsectors"><div className="flex items-center justify-between gap-2"><p className="text-[10px] uppercase tracking-wider text-emerald-700 font-semibold">Product Sectors</p><span className="text-[10px] text-slate-600">4 parts</span></div><div className="mt-3 grid grid-cols-2 gap-2.5"><Link to="/partner-shop/MTH-PARTNER-004" className="rounded-lg border border-emerald-900/10 bg-white px-2.5 py-2.5 text-sm font-semibold hover:bg-emerald-50 transition-colors" data-testid="hero-product-vegetables">Vegetables</Link><Link to="/directory?quick=grocery" className="rounded-lg border border-emerald-900/10 bg-white px-2.5 py-2.5 text-sm font-semibold hover:bg-emerald-50 transition-colors" data-testid="hero-product-grocery">Grocery</Link><Link to="/directory?quick=cosmetics-beauty" className="rounded-lg border border-emerald-900/10 bg-white px-2.5 py-2.5 text-sm font-semibold hover:bg-emerald-50 transition-colors" data-testid="hero-product-cosmetics-beauty">Cosmetics &amp; Beauty</Link><Link to="/directory?quick=others" className="rounded-lg border border-emerald-900/10 bg-white px-2.5 py-2.5 text-sm font-semibold hover:bg-emerald-50 transition-colors" data-testid="hero-product-others">Others</Link></div></div>
               </div>
             </div>
           </div>
@@ -722,7 +722,6 @@ const Hero = () => {
           <div className="relative">
             <div className="absolute -top-4 -left-4 w-28 h-28 bg-emerald-300/15 rounded-full blur-3xl" />
             <div className="absolute -bottom-4 -right-4 w-40 h-40 bg-emerald-500/15 rounded-full blur-3xl" />
-            <div className="absolute -left-3 top-10 bottom-10 w-1.5 rounded-full bg-gradient-to-b from-[#ff9933] via-white to-[#138808]" />
             <div className="relative rounded-[28px] overflow-hidden shadow-xl border border-emerald-900/10 bg-white p-2.5">
               <div className="relative rounded-[22px] overflow-hidden bg-emerald-950">
                 <img
@@ -735,9 +734,9 @@ const Hero = () => {
                 />
                 <div className="absolute inset-0 bg-emerald-950/85" />
 
-                <div className="relative z-10 p-4 md:p-5 flex flex-col">
+                <div className="relative z-10 p-3 sm:p-4 md:p-5 flex flex-col">
                   <div className="flex items-start justify-between gap-3">
-                    <div className="max-w-[78%]">
+                    <div className="min-w-0 max-w-[78%]">
                       <p className="text-[9px] uppercase tracking-[0.3em] text-emerald-200 font-bold">Quick Access</p>
                       <p className="mt-1 font-display text-xl font-black text-white">METHO direct access</p>
                     </div>
@@ -746,7 +745,7 @@ const Hero = () => {
                     </div>
                   </div>
 
-                  <div className="mt-4 grid grid-cols-1 sm:grid-cols-2 gap-2">
+                  <div className="mt-4 grid grid-cols-2 gap-2">
                     {[
                       {
                         title: "Member Registration",
@@ -794,12 +793,12 @@ const Hero = () => {
                       },
                     ].map((item) => (
                       item.external ? (
-                        <a key={item.title} href={item.href} target="_blank" rel="noreferrer" className="group rounded-xl bg-white/95 border border-emerald-900/10 px-3.5 py-2.5 text-emerald-950 shadow-sm hover:bg-emerald-50 hover:border-emerald-900/10 transition-colors" data-testid={item.testId}>
-                          <div className="flex items-center justify-between gap-3"><p className="font-display font-bold text-sm leading-tight tracking-tight">{item.title}</p><div className="w-8 h-8 rounded-xl bg-emerald-50 border border-emerald-200 flex items-center justify-center text-emerald-900 group-hover:bg-emerald-100 transition-colors shrink-0"><item.icon className="w-4 h-4" /></div></div>
+                        <a key={item.title} href={item.href} target="_blank" rel="noreferrer" className="group rounded-xl bg-white/95 border border-emerald-900/10 px-3 py-2.5 sm:px-3.5 text-emerald-950 shadow-sm hover:bg-emerald-50 transition-colors" data-testid={item.testId}>
+                          <div className="flex items-center justify-between gap-2 sm:gap-3"><p className="min-w-0 break-words font-display font-bold text-[13px] sm:text-sm leading-tight tracking-tight">{item.title}</p><div className="w-7 h-7 sm:w-8 sm:h-8 rounded-xl bg-emerald-50 border border-emerald-900/10 flex items-center justify-center text-emerald-900 group-hover:bg-emerald-100 transition-colors shrink-0"><item.icon className="w-4 h-4" /></div></div>
                         </a>
                       ) : (
-                        <Link key={item.title} to={item.href} className="group rounded-xl bg-white/95 border border-emerald-900/10 px-3.5 py-2.5 text-emerald-950 shadow-sm hover:bg-emerald-50 hover:border-emerald-900/10 transition-colors" data-testid={item.testId}>
-                          <div className="flex items-center justify-between gap-3"><p className="font-display font-bold text-sm leading-tight tracking-tight">{item.title}</p><div className="w-8 h-8 rounded-xl bg-emerald-50 border border-emerald-200 flex items-center justify-center text-emerald-900 group-hover:bg-emerald-100 transition-colors shrink-0"><item.icon className="w-4 h-4" /></div></div>
+                        <Link key={item.title} to={item.href} className="group rounded-xl bg-white/95 border border-emerald-900/10 px-3 py-2.5 sm:px-3.5 text-emerald-950 shadow-sm hover:bg-emerald-50 transition-colors" data-testid={item.testId}>
+                          <div className="flex items-center justify-between gap-2 sm:gap-3"><p className="min-w-0 break-words font-display font-bold text-[13px] sm:text-sm leading-tight tracking-tight">{item.title}</p><div className="w-7 h-7 sm:w-8 sm:h-8 rounded-xl bg-emerald-50 border border-emerald-900/10 flex items-center justify-center text-emerald-900 group-hover:bg-emerald-100 transition-colors shrink-0"><item.icon className="w-4 h-4" /></div></div>
                         </Link>
                       )
                     ))}
@@ -809,7 +808,7 @@ const Hero = () => {
                         href={companyVideoUrl}
                         target="_blank"
                         rel="noreferrer"
-                        className="group rounded-xl bg-white/95 border border-emerald-900/10 px-3.5 py-2.5 text-emerald-950 shadow-sm hover:bg-emerald-50 hover:border-emerald-900/10 transition-colors sm:col-span-2"
+                        className="group rounded-xl bg-white/95 border border-emerald-900/10 px-3.5 py-2.5 text-emerald-950 shadow-sm hover:bg-emerald-50 transition-colors col-span-2"
                         data-testid="landing-quick-watch-video"
                       >
                         <div className="flex items-center justify-between gap-3">
@@ -822,7 +821,7 @@ const Hero = () => {
                     ) : (
                       <Link
                         to="/shop"
-                        className="group rounded-xl bg-white/95 border border-emerald-900/10 px-3.5 py-2.5 text-emerald-950 shadow-sm hover:bg-emerald-50 hover:border-emerald-900/10 transition-colors sm:col-span-2"
+                        className="group rounded-xl bg-white/95 border border-emerald-900/10 px-3.5 py-2.5 text-emerald-950 shadow-sm hover:bg-emerald-50 transition-colors col-span-2"
                         data-testid="landing-quick-watch-video"
                       >
                         <div className="flex items-center justify-between gap-3">
@@ -857,11 +856,11 @@ const Hero = () => {
         </div>
       ) : null}
 
-      <div id="products" className="mt-12 rounded-[2rem] border border-emerald-900/10 bg-white/95 backdrop-blur p-4 md:p-6 shadow-[0_20px_44px_rgba(15,23,42,0.1)]" data-testid="hero-products-grid">
+      <div id="products" className="mt-12 rounded-3xl border border-emerald-900/10 bg-white/95 backdrop-blur p-3 sm:p-4 md:p-6 shadow-[0_20px_44px_rgba(15,23,42,0.1)] sm:rounded-[2rem]" data-testid="hero-products-grid">
         <div className="flex items-center justify-between gap-3 mb-4">
           <div>
             <p className="text-[10px] uppercase tracking-[0.24em] text-emerald-800 font-semibold">METHO Products</p>
-            <h3 className="font-display font-black text-xl md:text-2xl text-emerald-950">{hasBestProducts ? "All METHO products by category" : bestProductsLoading ? "Loading METHO products" : "No live METHO products found"}</h3>
+            <h3 className="font-display font-black text-lg sm:text-xl md:text-2xl text-emerald-950">{hasBestProducts ? "All METHO products by category" : bestProductsLoading ? "Loading METHO products" : "No live METHO products found"}</h3>
           </div>
           <Link to="/shop" data-testid="hero-best-products-view-all" className="hidden md:inline-flex">
             <Button variant="outline" className="rounded-full border-emerald-900/20 hover:bg-emerald-50 hover:text-emerald-900">
@@ -905,14 +904,14 @@ const Hero = () => {
                       className="flex h-full w-[214px] shrink-0 snap-start flex-col overflow-hidden rounded-2xl border border-emerald-900/10 bg-white shadow-sm transition-all hover:-translate-y-0.5 hover:shadow-lg sm:w-[232px]"
                       data-testid={`hero-best-product-${i + 1}`}
                     >
-                      <div className="aspect-square overflow-hidden bg-gradient-to-br from-slate-100 via-white to-emerald-50/70 relative">
+                      <div className="aspect-square overflow-hidden bg-slate-50 relative">
                         <img
                           src={pickProductImageSrc(p) || FALLBACK_PRODUCT_IMG}
                           alt={p?.name || "METHO Product"}
                           className="w-full h-full object-cover"
                           loading="lazy"
                           onError={(e) => { applyLandingImageFallback(e, [pickProductImageSrc(p)]); }}
-                        />}
+                        />
                         <span className="absolute top-2 left-2 pointer-events-none text-[9px] font-bold uppercase tracking-widest px-2 py-1 rounded-full bg-amber-500 text-emerald-950">
                           {String(p?.product_type || "metho").toLowerCase() === "metho_vegetable" ? "METHO VEGETABLE" : "METHO"}
                         </span>
@@ -932,7 +931,7 @@ const Hero = () => {
                                   </span>
                                 ) : null}
                               </div>
-                              {Number(p?.gst_percent || 0) > 0 ? <span className="text-[10px] text-amber-700 font-semibold">GST {Number(p.gst_percent)}% Included</span> : null}
+                              {Number(p?.gst_percent || 0) > 0 ? <span className="text-[10px] text-slate-600 font-semibold">GST {Number(p.gst_percent)}% Included</span> : null}
                             </>
                           ) : <span />}
                           <span className="text-[10px] px-2 py-0.5 rounded-full font-semibold bg-amber-100 text-amber-900">{String(p?.product_type || "metho").toLowerCase() === "metho_vegetable" ? "VEGETABLE" : "METHO"}</span>
@@ -1123,12 +1122,12 @@ const Features = () => {
 
   return (
     <section ref={sectionRef} id="features" className="py-16 md:py-20 bg-[linear-gradient(180deg,#ffffff_0%,#f4faf7_100%)]">
-      <div className="max-w-7xl mx-auto px-6">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6">
         <div className="max-w-3xl">
           <p className="text-xs uppercase tracking-[0.25em] text-emerald-800 font-semibold">METHO Store &amp; Travel</p>
-          <h2 className="mt-3 font-display font-black text-4xl md:text-5xl tracking-tight text-emerald-950">
+          <h2 className="mt-3 font-display font-black text-3xl sm:text-4xl md:text-5xl tracking-tight text-emerald-950">
             Shop locally. Plan your next trip.
-            <span className="text-amber-500 italic"> Live listings, one destination.</span>
+            <span className="text-amber-600 italic"> Live listings, one destination.</span>
           </h2>
           <p className="mt-4 text-slate-600 font-body">Store listings and travel services are managed separately by admin and appear here automatically when available.</p>
         </div>
@@ -1221,10 +1220,10 @@ const BusinessPlan = () => {
   return (
     <section id="plan" className="py-16 md:py-20 bg-gradient-to-b from-emerald-950 to-emerald-900 text-white relative overflow-hidden">
       <div className="absolute inset-0 grain opacity-30" />
-      <div className="max-w-7xl mx-auto px-6 relative">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 relative">
         <div className="max-w-3xl mx-auto text-center">
           <p className="text-xs uppercase tracking-[0.25em] text-emerald-200 font-semibold">Corporate Foundation</p>
-          <h2 className="mt-3 font-display font-black text-4xl md:text-5xl tracking-tight">
+          <h2 className="mt-3 font-display font-black text-3xl sm:text-4xl md:text-5xl tracking-tight">
             Mission, Vision & Management
             <br />
             <span className="text-amber-400">direction for METHO growth.</span>
@@ -1372,7 +1371,7 @@ const AssociatePartnerFinder = () => {
 
   return (
     <section ref={sectionRef} id="partner-finder" className="py-16 md:py-20 bg-[linear-gradient(180deg,#ffffff_0%,#f2f8f5_100%)]" data-testid="landing-associate-partner-finder">
-      <div className="max-w-7xl mx-auto px-6">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6">
         <div className="relative rounded-3xl overflow-hidden">
           {directoryHero ? (
             <div
@@ -1530,18 +1529,18 @@ const Products = () => {
   return (
     <section ref={sectionRef} id="products" className="relative py-16 md:py-20 overflow-hidden bg-[radial-gradient(circle_at_10%_20%,rgba(16,185,129,0.12),transparent_38%),linear-gradient(180deg,#f8faf9_0%,#eef7f2_100%)]">
       <div className="absolute inset-0 grain opacity-20" />
-      <div className="absolute left-6 top-8 md:left-14 md:top-12 rounded-2xl border border-emerald-900/10 bg-white/80 backdrop-blur px-3 py-2 shadow-sm">
+      <div className="absolute left-4 top-4 sm:left-6 sm:top-8 md:left-14 md:top-12 rounded-2xl border border-emerald-900/10 bg-white/80 backdrop-blur px-3 py-2 shadow-sm">
         <p className="text-[10px] uppercase tracking-[0.24em] text-emerald-800 font-semibold">METHO Product Browser</p>
       </div>
-      <div className="max-w-7xl mx-auto px-6 relative">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 relative">
         <div className="rounded-3xl border border-emerald-900/10 bg-white/95 p-4 md:p-5 shadow-sm">
         <div className="flex flex-wrap items-end justify-between gap-4">
           <div>
             <p className="text-xs uppercase tracking-[0.25em] text-emerald-800 font-semibold">METHO Products</p>
-            <h2 className="mt-2 font-display font-black text-3xl md:text-4xl tracking-tight text-emerald-950">
+            <h2 className="mt-2 font-display font-black text-2xl sm:text-3xl md:text-4xl tracking-tight text-emerald-950">
               Products that move daily.
               <br />
-              <span className="text-amber-500 italic">Clean catalog. Fast partner sales.</span>
+              <span className="text-amber-600 italic">Clean catalog. Fast partner sales.</span>
             </h2>
             <p className="mt-3 text-slate-600 max-w-2xl">From essentials to high-demand picks, every item is designed for repeat purchase behavior and reliable business volume.</p>
           </div>
@@ -1564,7 +1563,7 @@ const Products = () => {
               className="group flex h-full flex-col overflow-hidden rounded-2xl border border-emerald-900/10 bg-white/95 shadow-sm backdrop-blur transition-all hover:-translate-y-0.5 hover:shadow-lg hover:shadow-emerald-900/10"
               data-testid={`product-card-${i}`}
             >
-              <div className="aspect-square overflow-hidden bg-gradient-to-br from-slate-100 via-white to-emerald-50/70">
+              <div className="aspect-square overflow-hidden bg-slate-50">
                 <img
                   src={pickProductImageSrc(p) || placeholder}
                   alt={p.name}
@@ -1654,13 +1653,13 @@ const TopLeaders = () => {
 
   return (
     <section className="py-14 md:py-[4.5rem] bg-white" data-testid="top-leaders-section">
-      <div className="max-w-7xl mx-auto px-6">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6">
         <div className="max-w-3xl">
           <p className="text-xs uppercase tracking-[0.25em] text-emerald-800 font-semibold">Management Board</p>
           <h2 className="mt-2 font-display font-black text-3xl md:text-4xl tracking-tight text-emerald-950">Top Leaders of METHO</h2>
           <p className="mt-3 text-sm text-slate-600 max-w-2xl">Leadership profiles are managed from admin settings and presented here for corporate trust visibility.</p>
         </div>
-        <div className="mt-8 grid grid-cols-2 gap-4 md:grid-cols-3 xl:grid-cols-6">
+        <div className="mt-8 grid grid-cols-2 gap-3 sm:gap-4 md:grid-cols-3 xl:grid-cols-6">
           {leaders.map((leader, i) => (
             <div key={i} className="mx-auto flex h-full w-full max-w-[210px] flex-col overflow-hidden rounded-2xl border border-emerald-900/10 bg-white shadow-sm transition-shadow hover:shadow-md" data-testid={`top-leader-card-${i + 1}`}>
               <div className="aspect-[4/5] overflow-hidden bg-slate-50">
@@ -1669,7 +1668,7 @@ const TopLeaders = () => {
                   alt={leader.name}
                   data-original-src={leader.image || ""}
                   data-has-custom={leader.image ? "1" : "0"}
-                  className="w-full h-full object-cover"
+                  className="w-full h-full object-cover object-[50%_20%]"
                   loading="lazy"
                   decoding="async"
                   onError={(e) => {
@@ -1748,8 +1747,8 @@ const ReturnPolicyBox = () => {
 
   return (
     <section id="return-policy" className="py-10 md:py-12 bg-white" data-testid="landing-return-policy-box">
-      <div className="max-w-6xl mx-auto px-6">
-        <div className="rounded-2xl border border-emerald-900/10 bg-white p-6 md:p-7 shadow-sm">
+      <div className="max-w-6xl mx-auto px-4 sm:px-6">
+        <div className="rounded-2xl border border-emerald-900/10 bg-white p-4 sm:p-6 md:p-7 shadow-sm">
           <p className="text-xs uppercase tracking-[0.25em] text-emerald-800 font-semibold">Customer Protection</p>
           <div className="mt-2 flex flex-wrap items-end justify-between gap-3">
             <h3 className="font-display font-black text-2xl md:text-3xl tracking-tight text-emerald-950">Return Policy Snapshot</h3>
@@ -1789,7 +1788,7 @@ const ReturnPolicyBox = () => {
 
 const RegistrationAccessBox = () => (
   <section className="py-10 md:py-12 bg-white" data-testid="landing-registration-access-box">
-    <div className="max-w-6xl mx-auto px-6">
+    <div className="max-w-6xl mx-auto px-4 sm:px-6">
       <div className="rounded-2xl border border-emerald-900/10 bg-emerald-50/70 p-4 md:p-5 shadow-md">
         <p className="text-xs uppercase tracking-[0.25em] text-emerald-800 font-semibold px-2 pb-3">Registration & Access</p>
         <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
@@ -1857,16 +1856,16 @@ const FAQ = () => {
   const [open, setOpen] = React.useState(0);
   return (
     <section id="faq" className="py-16 md:py-20 bg-white">
-      <div className="max-w-4xl mx-auto px-6">
+      <div className="max-w-4xl mx-auto px-4 sm:px-6">
         <p className="text-xs uppercase tracking-[0.25em] text-emerald-800 font-semibold text-center">FAQ</p>
-        <h2 className="mt-3 font-display font-black text-4xl md:text-5xl tracking-tight text-emerald-950 text-center">
+        <h2 className="mt-3 font-display font-black text-3xl sm:text-4xl md:text-5xl tracking-tight text-emerald-950 text-center">
           Questions? Answered.
         </h2>
         <div className="mt-12 divide-y divide-emerald-900/10 border-y border-emerald-900/10">
           {faqs.map((f, i) => (
             <div key={i} data-testid={`faq-item-${i}`}>
               <button onClick={() => setOpen(open === i ? -1 : i)} className="w-full py-6 flex items-center justify-between text-left hover:text-emerald-800 transition-colors">
-                <span className="font-display font-semibold text-lg text-emerald-950">{f.q}</span>
+                <span className="font-display font-semibold text-base sm:text-lg text-emerald-950">{f.q}</span>
                 <ChevronRight className={`w-5 h-5 transition-transform ${open === i ? "rotate-90" : ""}`} />
               </button>
               {open === i && <p className="pb-6 text-slate-600 font-body">{f.a}</p>}
@@ -1885,8 +1884,8 @@ const Footer = () => {
 
   return (
   <footer className="bg-emerald-950 text-emerald-100/80 py-10 md:py-12">
-    <div className="max-w-7xl mx-auto px-6 grid md:grid-cols-4 gap-10">
-      <div className="md:col-span-2">
+    <div className="max-w-7xl mx-auto px-4 sm:px-6 grid grid-cols-2 md:grid-cols-4 gap-8 md:gap-10">
+      <div className="col-span-2">
         <Logo showTagline />
         <p className="mt-4 max-w-sm text-sm font-body">India's most powerful business platform. Built by Metho Logistics Private Limited for the growing Partner community.</p>
         <div className="mt-4 flex items-center gap-3 text-xs">
@@ -1941,7 +1940,7 @@ const Footer = () => {
         </ul>
       </div>
     </div>
-    <div className="mt-12 max-w-7xl mx-auto px-6 border-t border-emerald-800 pt-6 flex flex-wrap items-center justify-between gap-4 text-xs">
+    <div className="mt-12 max-w-7xl mx-auto px-4 sm:px-6 border-t border-emerald-800 pt-6 flex flex-wrap items-center justify-between gap-4 text-xs">
       <p>© 2026 Metho Logistics Private Limited. All rights reserved.</p>
       <div className="flex flex-wrap items-center gap-4">
         <Link to="/privacy-policy" className="hover:text-amber-400">Privacy Policy</Link>
