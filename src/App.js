@@ -26,6 +26,7 @@ const loadProfilePage = () => import("@/pages/dashboard/ProfilePage");
 const loadSettingsPage = () => import("@/pages/dashboard/SettingsPage");
 const loadSmartCyclePage = () => import("@/pages/dashboard/SmartCyclePage");
 const loadPendingPaymentsPage = () => import("@/pages/dashboard/PendingPaymentsPage");
+const loadOfflineSalePage = () => import("@/pages/dashboard/OfflineSalePage");
 const loadMonthlySettlementPage = () => import("@/pages/dashboard/MonthlySettlementPage");
 const loadAccountsPage = () => import("@/pages/dashboard/AccountsPage");
 const loadMPSClaimsPage = () => import("@/pages/dashboard/MPSClaimsPage");
@@ -107,6 +108,7 @@ const ProfilePage = lazy(loadProfilePage);
 const SettingsPage = lazy(loadSettingsPage);
 const SmartCyclePage = lazy(loadSmartCyclePage);
 const PendingPaymentsPage = lazy(loadPendingPaymentsPage);
+const OfflineSalePage = lazy(loadOfflineSalePage);
 const MonthlySettlementPage = lazy(loadMonthlySettlementPage);
 const AccountsPage = lazy(loadAccountsPage);
 const MPSClaimsPage = lazy(loadMPSClaimsPage);
@@ -409,6 +411,7 @@ function App() {
                 <Route path="crm/whatsapp" element={<AdminRoute><WhatsAppInboxPage /></AdminRoute>} />
                 <Route path="crm/whatsapp-ai" element={<AdminRoute><WhatsAppAISettingsPage /></AdminRoute>} />
                 <Route path="pending-payments" element={<AdminRoute><PendingPaymentsPage /></AdminRoute>} />
+                <Route path="offline-sale" element={<AdminRoute><OfflineSalePage /></AdminRoute>} />
                 <Route path="accounts" element={<AdminRoute><AccountsPage /></AdminRoute>} />
                 <Route path="withdrawals" element={<AdminRoute><WithdrawalsPage /></AdminRoute>} />
                 <Route path="settlement" element={<AdminRoute><MonthlySettlementPage /></AdminRoute>} />

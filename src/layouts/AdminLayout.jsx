@@ -23,6 +23,7 @@ const links = [
   { to: "/admin/metho-vegetable-inventory", icon: Package, label: "METHO Vegetable Inventory", testId: "admin-nav-metho-vegetable-inventory" },
   { to: "/admin/product-approvals", icon: Package, label: "Product Approvals", testId: "admin-nav-product-approvals" },
   { to: "/admin/orders", icon: ShoppingCart, label: "Orders", testId: "admin-nav-orders" },
+  { to: "/admin/offline-sale", icon: BadgeIndianRupee, label: "Offline Sale", testId: "admin-nav-offline-sale" },
   { to: "/admin/crm/leads", icon: Users, label: "CRM Auto Leads", testId: "admin-nav-crm-leads", section: "CRM & Communication" },
   { to: "/admin/crm/active-members", icon: Network, label: "Active Members CRM", testId: "admin-nav-crm-active-members" },
   { to: "/admin/crm/pipeline", icon: ClipboardList, label: "CRM Pipeline", testId: "admin-nav-crm-pipeline" },

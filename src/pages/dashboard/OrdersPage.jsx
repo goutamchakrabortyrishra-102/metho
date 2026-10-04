@@ -18,6 +18,7 @@ const STATUS = {
   pending: { c: "bg-amber-100 text-amber-800", t: "Pending" },
   delivered: { c: "bg-emerald-100 text-emerald-800", t: "Delivered" },
   cancelled: { c: "bg-red-100 text-red-800", t: "Cancelled" },
+  refunded: { c: "bg-slate-200 text-slate-800", t: "Cancelled & Refunded" },
 };
 const liveLocationUrl = (location) => {
   const latitude = Number(location?.latitude);
@@ -58,6 +59,18 @@ export default function OrdersPage() {
   const vegetableScope = searchParams.get("scope") === "vegetable";
   const isVegetableOrder = (order) => Array.isArray(order?.items)
     && order.items.some((item) => String(item?.product_type || "").trim().toLowerCase() === "metho_vegetable");
+
+  const cancelRefund = async (order) => {
+    const reason = window.prompt(`Cancel & refund ${order.order_no}? Enter reason (stock and commission will be reversed):`);
+    if (!reason || !reason.trim()) return;
+    try {
+      const { data } = await api.post(`/admin/orders/${order.id}/cancel-refund`, { reason: reason.trim() });
+      toast.success(`Refunded ₹${Number(data.refund_amount || 0).toLocaleString("en-IN")}. ${(data.manual_review || []).join(" ")}`);
+      load();
+    } catch (err) {
+      toast.error(err?.response?.data?.detail || "Cancel/refund failed");
+    }
+  };
 
   const load = () => api.get("/orders").then(r => setOrders(r.data));
   useEffect(() => { load(); }, []);
@@ -301,6 +314,11 @@ export default function OrdersPage() {
                       <FileText className="w-4 h-4 mr-1" /> View Invoice
                     </Button>
                   </Link>
+                  {isAdmin && o.status === "paid" && ["cash", "cod"].includes(String(o.payment_method || "").toLowerCase()) ? (
+                    <Button size="sm" variant="outline" onClick={() => cancelRefund(o)} className="ml-2 rounded-full border-red-300 text-red-700 hover:bg-red-50" data-testid={`cancel-refund-${i}`}>
+                      Cancel &amp; Refund
+                    </Button>
+                  ) : null}
                 </div>
               )}
 

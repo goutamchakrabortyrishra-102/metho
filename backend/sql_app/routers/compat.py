@@ -5772,6 +5772,201 @@ def admin_reject_order(order_id: str, payload: dict | None = None, db: Session =
     return {"ok": True, "order_id": order_id, "status": "rejected", "reason": (payload or {}).get("reason", "")}
 
 
+def _find_member_for_offline_sale(db: Session, ref: str) -> User | None:
+    ref = str(ref or "").strip()
+    if not ref:
+        return None
+    user = _order_member(db, SimpleNamespace(customer_user_id="", member_ref=ref)) or db.query(User).filter(User.id == ref).first()
+    if not user:
+        digits = "".join(ch for ch in ref if ch.isdigit())
+        if len(digits) >= 10:
+            for candidate in db.query(User).filter(User.role == "member").all():
+                if "".join(ch for ch in str(candidate.phone or "") if ch.isdigit())[-10:] == digits[-10:]:
+                    user = candidate
+                    break
+    return user if user and str(user.role or "").lower() == "member" else None
+
+
+@router.get("/admin/offline-sales/member")
+def offline_sale_member_lookup(ref: str = Query(...), db: Session = Depends(get_db), current_user=Depends(get_current_user)):
+    _require_admin_user(current_user)
+    user = _find_member_for_offline_sale(db, ref)
+    if not user:
+        raise HTTPException(status_code=404, detail="Member not found")
+    return {
+        "id": user.id,
+        "member_code": member_code_for_user(user.id),
+        "name": user.name,
+        "phone": user.phone,
+        "email": user.email,
+        "is_active": bool(user.is_active),
+    }
+
+
+@router.post("/admin/orders/offline")
+def create_offline_sale(payload: dict, db: Session = Depends(get_db), current_user=Depends(get_current_user)):
+    """Counter/cash sale that reuses the online order + approval pipeline so stock, commission, ledger and invoice stay identical."""
+    _require_admin_user(current_user)
+    from .checkout import create_public_order
+
+    payload = payload or {}
+    client_ref = str(payload.get("client_ref") or "").strip()[:80]
+    if client_ref:
+        previous = _load_json_setting(db, f"offline_sale_ref:{client_ref}", {})
+        previous_order = db.query(PublicOrder).filter(PublicOrder.id == str(previous.get("order_id") or "")).first() if previous else None
+        if previous_order:
+            return {"ok": True, "duplicate": True, "order_id": previous_order.id, "order_no": f"ORD-{previous_order.id[:8].upper()}", "status": previous_order.status, "total_amount": previous_order.total_amount}
+
+    member_ref = str(payload.get("member_code") or payload.get("member_id") or "").strip()
+    member = None
+    if member_ref:
+        member = _find_member_for_offline_sale(db, member_ref)
+        if not member:
+            raise HTTPException(status_code=404, detail="Member not found")
+    payer_name = str(member.name if member else payload.get("payer_name") or "").strip() or "Walk-in Customer"
+    phone = str(member.phone if member else payload.get("customer_phone") or "").strip()
+
+    created = create_public_order(
+        {
+            "items": payload.get("items") or [],
+            "payment_method": "cash",
+            "payer_name": payer_name,
+            "customer_phone": phone,
+            "customer_email": str(member.email if member else payload.get("customer_email") or "").strip(),
+            "shipping_address": "Offline counter sale",
+            "member_code": member_code_for_user(member.id) if member else "",
+        },
+        db,
+        None,
+    )
+    order_id = created["id"]
+    row = db.query(PublicOrder).filter(PublicOrder.id == order_id).first()
+    if member:
+        row.customer_user_id = member.id
+    row.txn_id = f"CASH-{order_id[:8].upper()}"
+    db.commit()
+
+    try:
+        admin_approve_order(order_id=order_id, payload={"note": "Offline cash sale"}, db=db, current_user=current_user)
+    except HTTPException:
+        row.status = "cancelled"
+        db.commit()
+        raise
+
+    _save_json_setting(db, f"order_source:{order_id}", {"channel": "offline", "created_by": str(getattr(current_user, "id", "") or ""), "created_at": now_iso()})
+    if client_ref:
+        _save_json_setting(db, f"offline_sale_ref:{client_ref}", {"order_id": order_id})
+    invoice = _invoice_payload(db, order_id, current_user)
+    return {"ok": True, "duplicate": False, "order_id": order_id, "order_no": invoice["order_no"], "invoice_no": invoice["invoice_no"], "status": "paid", "total_amount": row.total_amount}
+
+
+def _reverse_order_accounting(db: Session, order_id: str) -> dict:
+    """Reverse commission reserve and pool postings using the original ledger rows; safe to re-run."""
+    entries = db.query(FinancialLedgerEntry).filter(FinancialLedgerEntry.order_id == order_id).all()
+    reversed_reserve = 0.0
+    for entry in entries:
+        if entry.transaction_type != "COMMISSION_RESERVE_DEBIT" or not entry.partner_id:
+            continue
+        reference_id = f"refund:{entry.reference_id}"
+        if db.query(FinancialLedgerEntry).filter(FinancialLedgerEntry.reference_id == reference_id).first():
+            continue
+        amount = round(float(entry.debit or 0), 2)
+        wallet = _load_partner_wallet(db, entry.partner_id)
+        wallet["balance"] = round(float(wallet.get("balance") or 0) + amount, 2)
+        wallet["total_debit"] = round(max(0.0, float(wallet.get("total_debit") or 0) - amount), 2)
+        _save_partner_wallet(db, entry.partner_id, wallet)
+        _append_partner_wallet_tx(
+            db,
+            entry.partner_id,
+            {
+                "id": str(uuid.uuid4()),
+                "type": "commission_reserve_reversal",
+                "transaction_type": "COMMISSION_RESERVE_REVERSAL",
+                "reference_id": reference_id,
+                "amount": amount,
+                "credit": amount,
+                "debit": 0.0,
+                "description": f"Commission reserve returned for refunded order {order_id}",
+                "ref_order_id": order_id,
+                "created_at": now_iso(),
+            },
+        )
+        _append_financial_ledger(db, reference_id=reference_id, transaction_type="COMMISSION_RESERVE_REVERSAL", credit=amount, balance=wallet["balance"], partner_id=entry.partner_id, order_id=order_id)
+        reversed_reserve = round(reversed_reserve + amount, 2)
+
+    pool_ref = f"reward:commission-pool:{order_id}"
+    pool_entry = next((e for e in entries if e.reference_id == pool_ref), None)
+    reversed_pool = 0.0
+    refund_pool_ref = f"refund:{pool_ref}"
+    if pool_entry and not db.query(FinancialLedgerEntry).filter(FinancialLedgerEntry.reference_id == refund_pool_ref).first():
+        pool = round(float(pool_entry.debit or 0), 2)
+        if pool > 0:
+            company_wallet = _load_company_commission_wallet(db)
+            company_wallet["balance"] = round(float(company_wallet.get("balance") or 0) - pool, 2)
+            company_wallet["total_credit"] = round(float(company_wallet.get("total_credit") or 0) - pool, 2)
+            _save_company_commission_wallet(db, company_wallet)
+        _append_financial_ledger(db, reference_id=refund_pool_ref, transaction_type="REWARD_REVERSAL", credit=pool, order_id=order_id)
+        reward = db.query(RewardRecord).filter(RewardRecord.reference_id == pool_ref).first()
+        if reward:
+            reward.status = "reversed"
+            db.commit()
+        reversed_pool = pool
+    return {"commission_reserve_returned": reversed_reserve, "commission_pool_reversed": reversed_pool}
+
+
+@router.post("/admin/orders/{order_id}/cancel-refund")
+def admin_cancel_refund_order(order_id: str, payload: dict | None = None, db: Session = Depends(get_db), current_user=Depends(get_current_user)):
+    """Cancel a paid cash/COD order: restore stock, reverse commission postings, mark refunded."""
+    _require_admin_user(current_user)
+    row = db.query(PublicOrder).filter(PublicOrder.id == order_id).first()
+    if not row:
+        raise HTTPException(status_code=404, detail="Order not found")
+    reason = str((payload or {}).get("reason") or "").strip()
+    if row.status == "refunded":
+        return {"ok": True, "order_id": order_id, "status": "refunded", "already_refunded": True, **_reverse_order_accounting(db, order_id)}
+    if row.status != "paid":
+        raise HTTPException(status_code=400, detail=f"Only paid orders can be cancelled/refunded (current: {row.status})")
+    if str(row.payment_method or "").strip().lower() not in {"cash", "cod"}:
+        raise HTTPException(status_code=400, detail="Gateway/UPI payments must be refunded from the payment provider; only cash/COD orders can be refunded here")
+    if not reason:
+        raise HTTPException(status_code=400, detail="Refund reason is required")
+    try:
+        items = json.loads(row.items_json or "[]")
+    except Exception:
+        items = []
+
+    partner_unit_map = _load_partner_product_units(db)
+    for item in items:
+        try:
+            qty_value = float(item.get("quantity") or 1)
+        except Exception:
+            qty_value = 1.0
+        pid = str(item.get("product_id") or "")
+        if not pid:
+            continue
+        product = db.query(Product).filter(Product.id == pid).first()
+        if product:
+            product.stock = int(product.stock or 0) + max(1, int(round(qty_value or 1)))
+            continue
+        partner_product = db.query(PartnerProduct).filter(PartnerProduct.id == pid).first()
+        if partner_product and not _is_service_order_item(item):
+            unit_info = _partner_unit_info(partner_unit_map, partner_product.id)
+            qty = max(1, int(round(qty_value or 1))) if unit_info["unit_type"] == "piece" else _round_quantity_to_step(qty_value or unit_info["quantity_step"], unit_info["quantity_step"])
+            partner_product.stock = float(partner_product.stock or 0) + float(qty)
+
+    member = _order_member(db, row)
+    activation = _load_json_setting(db, _member_purchase_activation_key(member.id), {}) if member else {}
+    manual_review = ["Smart Cycle / leader payouts already settled from this order are not auto-reversed"]
+    if member and str(activation.get("activation_order_id") or "") == order_id:
+        manual_review.append("Member was activated by this order; review activation status")
+
+    row.status = "refunded"
+    db.commit()
+    reversal = _reverse_order_accounting(db, order_id)
+    _save_json_setting(db, f"order_refund:{order_id}", {"reason": reason, "refunded_by": str(getattr(current_user, "id", "") or ""), "refunded_at": now_iso(), "amount": float(row.total_amount or 0), **reversal, "manual_review": manual_review})
+    return {"ok": True, "order_id": order_id, "status": "refunded", "refund_amount": float(row.total_amount or 0), **reversal, "manual_review": manual_review}
+
+
 @router.post("/admin/orders/{order_id}/einvoice/submit")
 def admin_submit_einvoice(order_id: str, current_user=Depends(get_current_user)):
     return {"ok": True, "order_id": order_id, "irn": "DEMO-IRN-001"}
