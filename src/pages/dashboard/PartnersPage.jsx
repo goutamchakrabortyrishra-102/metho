@@ -13,6 +13,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import OfflineBillingPanel from "@/components/OfflineBillingPanel";
 import { resolveAssetUrl, openWhatsAppShare } from "@/lib/utils";
 import { INDIAN_STATES, isCompletePincode, normalizePincode } from "@/lib/indiaLocation";
+import { loadIndiaLocationMetaForState } from "@/lib/indiaLocationMeta";
 
 const inr = (v) => `₹${(Number(v) || 0).toLocaleString("en-IN", { maximumFractionDigits: 2 })}`;
 const mapsUrl = (p) => {
@@ -1176,43 +1177,11 @@ export default function PartnersPage() {
 
     const loadLocationMeta = () => {
       setLocationMetaBusy(true);
-      import("indian-pincodes")
-        .then((mod) => {
+      loadIndiaLocationMetaForState(cityAdminState)
+        .then((meta) => {
           if (cancelled) return;
-          const pkg = mod?.default || mod;
-          const allRows = typeof pkg?.getAllPincodes === "function" ? pkg.getAllPincodes() : [];
-          const rows = Array.isArray(allRows) ? allRows : [];
-          const statesSet = new Set();
-          const districtsMap = {};
-          const citiesMap = {};
-
-          rows.forEach((row) => {
-            const state = String(row?.state || "").trim();
-            const district = String(row?.district || "").trim();
-            const city = String(row?.name || "").trim();
-            if (!state || !district) return;
-            statesSet.add(state);
-            if (!districtsMap[state]) districtsMap[state] = new Set();
-            districtsMap[state].add(district);
-            if (city) {
-              const key = `${state.toLowerCase()}||${district.toLowerCase()}`;
-              if (!citiesMap[key]) citiesMap[key] = new Set();
-              citiesMap[key].add(city);
-            }
-          });
-
-          const states = Array.from(statesSet).sort((a, b) => a.localeCompare(b));
-          const districtsByState = Object.fromEntries(
-            Object.entries(districtsMap).map(([state, districts]) => [state, Array.from(districts).sort((a, b) => a.localeCompare(b))])
-          );
-          const citiesByStateDistrict = Object.fromEntries(
-            Object.entries(citiesMap).map(([key, citySet]) => [key, Array.from(citySet).sort((a, b) => a.localeCompare(b))])
-          );
-
-          setIndiaLocationMeta({ states, districtsByState, citiesByStateDistrict });
-          if (states.length) {
-            setCityAdminState((prev) => prev || states[0]);
-          }
+          setIndiaLocationMeta(meta);
+          if (!cityAdminState && meta.states.length) setCityAdminState((prev) => prev || meta.states[0]);
         })
         .catch(() => {
           if (!cancelled) {
@@ -1237,7 +1206,7 @@ export default function PartnersPage() {
       }
       if (timerId !== null) window.clearTimeout(timerId);
     };
-  }, [isAdmin]);
+  }, [cityAdminState, isAdmin]);
 
   useEffect(() => {
     if (!cityAdminState) {

@@ -66,7 +66,9 @@
     "zod": "3.24.4"
   },
   "scripts": {
+    "prestart": "node scripts/generate-india-location-meta.js",
     "start": "craco start",
+    "prebuild": "node scripts/generate-india-location-meta.js",
     "build": "node -e \"const c=require('child_process'); const cmd=(process.platform==='win32'?'npx.cmd':'npx')+' craco build'; c.execSync(cmd,{stdio:'inherit',env:{...process.env,CI:'false'}});\"",
     "test": "craco test"
   },

@@ -9,6 +9,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Logo } from "@/components/Logo";
 import { INDIAN_STATES, isCompletePincode, normalizePincode } from "@/lib/indiaLocation";
+import { loadIndiaLocationMetaForState } from "@/lib/indiaLocationMeta";
 
 const BUSINESS_TYPES = ["Shop", "Service"];
 const LOCAL_CITIES_KEY = "metho_admin_cities_v1";
@@ -417,40 +418,10 @@ export default function PartnerRegisterPage() {
     setLocationMetaBusy(true);
 
     const loadLocationMeta = () => {
-      import("indian-pincodes")
-        .then((mod) => {
+      loadIndiaLocationMetaForState(form.state)
+        .then((meta) => {
           if (cancelled) return;
-          const pkg = mod?.default || mod;
-          const allRows = typeof pkg?.getAllPincodes === "function" ? pkg.getAllPincodes() : [];
-          const rows = Array.isArray(allRows) ? allRows : [];
-          const statesSet = new Set();
-          const districtsMap = {};
-          const citiesMap = {};
-
-          rows.forEach((row) => {
-            const state = String(row?.state || "").trim();
-            const district = String(row?.district || "").trim();
-            const city = String(row?.name || "").trim();
-            if (!state || !district) return;
-            statesSet.add(state);
-            if (!districtsMap[state]) districtsMap[state] = new Set();
-            districtsMap[state].add(district);
-            if (city) {
-              const key = `${state.toLowerCase()}||${district.toLowerCase()}`;
-              if (!citiesMap[key]) citiesMap[key] = new Set();
-              citiesMap[key].add(city);
-            }
-          });
-
-          const states = Array.from(statesSet).sort((a, b) => a.localeCompare(b));
-          const districtsByState = Object.fromEntries(
-            Object.entries(districtsMap).map(([state, districts]) => [state, Array.from(districts).sort((a, b) => a.localeCompare(b))])
-          );
-          const citiesByStateDistrict = Object.fromEntries(
-            Object.entries(citiesMap).map(([key, citySet]) => [key, Array.from(citySet).sort((a, b) => a.localeCompare(b))])
-          );
-
-          setIndiaLocationMeta({ states, districtsByState, citiesByStateDistrict });
+          setIndiaLocationMeta(meta.states.length ? meta : { ...meta, states: [...INDIAN_STATES] });
         })
         .catch(() => {
           if (!cancelled) {
@@ -474,7 +445,7 @@ export default function PartnerRegisterPage() {
       if (idleId !== null && typeof window !== "undefined" && typeof window.cancelIdleCallback === "function") window.cancelIdleCallback(idleId);
       if (timerId !== null) window.clearTimeout(timerId);
     };
-  }, []);
+  }, [form.state]);
 
   useEffect(() => {
     const pin = normalizePincode(form.pincode);
