@@ -927,7 +927,7 @@ def _send_status_aware_ai_reply(db, lead: CRMLead, recipient: str, incoming_text
 
     if _is_executive_enquiry(incoming_text):
         reply = _configured_executive_fallback(db, _detect_language(incoming_text)) or _business_unknown_fallback(incoming_text)
-        return _send_member_registration_reply(db, recipient, reply)
+        return _send_and_log_ai_reply(db, lead, recipient, reply)
 
     try:
         context = f"{status_context}\n\n{_crm_context(db, lead)}\nPrevious WhatsApp conversation:\n{_conversation_context(db, lead)}\nVerified current system data:\n{_system_business_context(db)}\nAvailable METHO catalog:\n{_catalog_context(db)}"
@@ -941,7 +941,14 @@ def _send_status_aware_ai_reply(db, lead: CRMLead, recipient: str, incoming_text
         reply = ""
     if not str(reply or "").strip():
         reply = _business_unknown_fallback(incoming_text)
-    return _send_member_registration_reply(db, recipient, reply)
+    return _send_and_log_ai_reply(db, lead, recipient, reply)
+
+
+def _send_and_log_ai_reply(db, lead: CRMLead, recipient: str, reply: str) -> bool:
+    result = _send_auto_reply_if_configured(db, recipient, text=reply, lead_id=lead.id)
+    if result == "sent":
+        db.add(CRMLeadActivity(lead_id=lead.id, activity_type="whatsapp_message_sent", message=reply))
+    return result == "sent"
 
 
 def _is_repeated_welcome_reply(reply: str) -> bool:
@@ -1445,7 +1452,6 @@ def _route_registered_member(db, session: WhatsAppRegistrationSession, lead: CRM
             status_context = _registration_status_context(db, lead, session, "member")
             if not _send_status_aware_ai_reply(db, lead, recipient, incoming_text, status_context):
                 return False
-            db.add(CRMLeadActivity(lead_id=lead.id, activity_type="whatsapp_message_sent", message="AI status-aware reply dispatched (member onboarding)"))
         else:
             if not _send_member_registration_reply(db, recipient, reply):
                 return False
@@ -1457,7 +1463,6 @@ def _route_registered_member(db, session: WhatsAppRegistrationSession, lead: CRM
             status_context = _registration_status_context(db, lead, session, "member")
             if not _send_status_aware_ai_reply(db, lead, recipient, incoming_text, status_context):
                 return False
-            db.add(CRMLeadActivity(lead_id=lead.id, activity_type="whatsapp_message_sent", message="AI status-aware reply dispatched (member activation pending)"))
             return True
         reply = get_whatsapp_preset_message(db, "preset_member_activation_pending", WHATSAPP_PRESET_MESSAGE_DEFAULTS["preset_member_activation_pending"], member_code=data.get("member_code") or user.id, activation_url=DEFAULT_MEMBER_ACTIVATION_URL)
         db.add(CRMLeadActivity(lead_id=lead.id, activity_type="whatsapp_message_sent", message=reply))

@@ -605,6 +605,53 @@ def test_question_during_role_menu_logs_failure_when_send_fails(monkeypatch):
         db.close()
 
 
+def _status_aware_setup(monkeypatch, send):
+    from sql_app import whatsapp_ai
+
+    monkeypatch.setattr("sql_app.whatsapp_cloud.send_whatsapp_message", send)
+    monkeypatch.setattr(whatsapp_ai, "_generate_reply", lambda *_a, **_k: ("Your account is active.", "test", "test"))
+    db = make_session()
+    update_whatsapp_settings({"phone_number_id": "123456", "access_token": "secret-token"}, db, admin())
+    lead = CRMLead(business_name="Ayesha", contact_person="Ayesha", phone="919999999999")
+    db.add(lead)
+    db.commit()
+    return db, lead
+
+
+def test_status_aware_reply_logs_real_ai_text_not_placeholder(monkeypatch):
+    from sql_app.whatsapp_cloud import _send_status_aware_ai_reply
+
+    db, lead = _status_aware_setup(monkeypatch, lambda *_a, **_k: {"messages": [{"id": "wamid.ok"}]})
+    try:
+        assert _send_status_aware_ai_reply(db, lead, "919999999999", "Is my account active?", "ctx") is True
+        db.commit()
+        logged = [a.message for a in db.query(CRMLeadActivity).filter(CRMLeadActivity.activity_type == "whatsapp_message_sent").all()]
+        assert logged == ["Your account is active."]
+        inbox = list_whatsapp_conversations("", db, admin())
+        assert "status-aware reply dispatched" not in json.dumps(inbox).lower()
+        messages = get_whatsapp_conversation(lead.id, db, admin())["messages"]
+        assert [m["text"] for m in messages if m["direction"] == "outgoing"] == ["Your account is active."]
+    finally:
+        db.close()
+
+
+def test_status_aware_reply_failure_logs_reply_failed_with_lead_id(monkeypatch):
+    from sql_app.whatsapp_cloud import _send_status_aware_ai_reply
+
+    def boom(*_a, **_k):
+        raise RuntimeError("Graph API 131047")
+
+    db, lead = _status_aware_setup(monkeypatch, boom)
+    try:
+        assert _send_status_aware_ai_reply(db, lead, "919999999999", "Is my account active?", "ctx") is False
+        db.commit()
+        failed = db.query(CRMLeadActivity).filter(CRMLeadActivity.activity_type == "whatsapp_reply_failed").all()
+        assert len(failed) == 1 and failed[0].lead_id == lead.id
+        assert db.query(CRMLeadActivity).filter(CRMLeadActivity.activity_type == "whatsapp_message_sent").count() == 0
+    finally:
+        db.close()
+
+
 def test_outgoing_text_and_template_requests_use_cloud_api(monkeypatch):
     from unittest.mock import MagicMock
 
