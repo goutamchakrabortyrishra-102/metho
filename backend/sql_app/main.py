@@ -14,7 +14,7 @@ import time
 from .database import Base, SessionLocal, engine
 from .models import AssociatePartner, PartnerProduct, User
 from .followup_scheduler import send_due_lifecycle_followups
-from .routers import auth, checkout, commerce, compat, company_inventory, crm, directory, direct_booking, health, lifecycle_followups, meta_ads, partner_public, rider, settings, voice_caller, whatsapp, whatsapp_ai
+from .routers import auth, checkout, commerce, compat, company_inventory, crm, directory, direct_booking, health, lifecycle_followups, meta_ads, partner_delivery, partner_public, rider, settings, voice_caller, whatsapp, whatsapp_ai
 from .security import hash_password
 
 logger = logging.getLogger(__name__)
@@ -480,6 +480,7 @@ app.include_router(settings.router)
 app.include_router(directory.router)
 app.include_router(partner_public.router)
 app.include_router(rider.router)
+app.include_router(partner_delivery.router)
 app.include_router(direct_booking.router)
 app.include_router(checkout.router)
 app.include_router(crm.router)

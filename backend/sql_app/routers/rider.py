@@ -308,6 +308,7 @@ def update_rider_availability(payload: dict, current_user: User = Depends(get_cu
             raise HTTPException(status_code=400, detail="Valid latitude and longitude are required")
         profile["latitude"] = latitude
         profile["longitude"] = longitude
+        profile["location_updated_at"] = datetime.now(timezone.utc).isoformat()
     _save_profile(db, rider.id, profile)
     db.commit()
     return {"availability": availability}

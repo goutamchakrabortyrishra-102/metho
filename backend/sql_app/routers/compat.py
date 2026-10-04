@@ -9070,12 +9070,18 @@ def settings_update(payload: dict, db: Session = Depends(get_db), current_user=D
             "metho_delivery_smart_cycle_percent",
             "metho_delivery_reward_pool_percent",
             "metho_rider_share_percent",
+            "partner_delivery_min_charge",
+            "partner_delivery_per_km_charge",
+            "partner_delivery_max_charge",
         ]
-        for key in split_keys + ["smart_cycle_bonus_percent", "metho_commission_percent", "leader_match_percent", "first_partner_order_cashback_percent", "metho_delivery_smart_cycle_percent", "metho_delivery_reward_pool_percent", "metho_rider_share_percent"]:
+        for key in split_keys + ["smart_cycle_bonus_percent", "metho_commission_percent", "leader_match_percent", "first_partner_order_cashback_percent", "metho_delivery_smart_cycle_percent", "metho_delivery_reward_pool_percent", "metho_rider_share_percent", "partner_delivery_rider_share_percent"]:
             if payload.get(key) is not None:
                 value = float(payload.get(key) or 0)
                 if value < 0 or value > 100:
                     raise HTTPException(status_code=400, detail=f"{key} must be between 0 and 100")
+        for key in ("partner_delivery_min_charge", "partner_delivery_per_km_charge", "partner_delivery_max_charge"):
+            if payload.get(key) is not None and float(payload.get(key) or 0) > 10000:
+                raise HTTPException(status_code=400, detail=f"{key} must not exceed 10000")
         for key in non_negative_keys:
             if payload.get(key) is not None and float(payload.get(key) or 0) < 0:
                 raise HTTPException(status_code=400, detail=f"{key} must be non-negative")
@@ -9090,6 +9096,8 @@ def settings_update(payload: dict, db: Session = Depends(get_db), current_user=D
             raise HTTPException(status_code=400, detail="smart_cycle_days must be >= 1")
         current = load_settings(db)
         merged = {**current, **payload}
+        if float(merged.get("partner_delivery_min_charge") or 0) > float(merged.get("partner_delivery_max_charge") or 0):
+            raise HTTPException(status_code=400, detail="Partner delivery minimum charge must not exceed maximum charge")
         total_split = sum(float(merged.get(key) or 0) for key in split_keys)
         if abs(total_split - 100.0) > 0.01:
             raise HTTPException(status_code=400, detail=f"Commission split must sum to 100 (got {total_split})")

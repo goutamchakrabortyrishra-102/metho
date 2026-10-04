@@ -346,7 +346,7 @@ def _save_order_contact_details(db: Session, order_id: str, phone: str, details:
     payload = payload if isinstance(payload, dict) else {}
     if digits:
         payload["customer_phone"] = digits
-    for key in ("shipping_city", "shipping_state", "shipping_pincode", "customer_email"):
+    for key in ("shipping_city", "shipping_state", "shipping_pincode", "customer_email", "delivery_latitude", "delivery_longitude"):
         value = str((details or {}).get(key) or "").strip()
         if value:
             payload[key] = value
@@ -1388,6 +1388,8 @@ def create_public_order(payload: dict, db: Session = Depends(get_db), authorizat
             "shipping_state": shipping_state,
             "shipping_pincode": shipping_pincode,
             "customer_email": customer_email,
+            "delivery_latitude": payload.get("delivery_latitude"),
+            "delivery_longitude": payload.get("delivery_longitude"),
         },
     )
     if has_tourism_item:

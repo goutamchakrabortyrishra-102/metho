@@ -327,6 +327,10 @@ export default function PartnerDashboardPage() {
   const [products, setProducts] = useState([]);
   const [ledger, setLedger] = useState([]);
   const [orders, setOrders] = useState([]);
+  const [productDeliveries, setProductDeliveries] = useState([]);
+  const [deliveryOptionsByOrder, setDeliveryOptionsByOrder] = useState({});
+  const [deliveryBusyOrder, setDeliveryBusyOrder] = useState("");
+  const [partnerPickupLocation, setPartnerPickupLocation] = useState(null);
   const [tab, setTab] = useState("overview");
   const [settings, setSettings] = useState(null);
   const [paymentProfile, setPaymentProfile] = useState(null);
@@ -465,6 +469,56 @@ export default function PartnerDashboardPage() {
   const approvedTransportDrivers = driverRegistry.filter((driver) => driver.approval_status === "approved" && driver.active && driver.service_sector === "transport");
   const approvedDeliveryDrivers = driverRegistry.filter((driver) => driver.approval_status === "approved" && driver.active && driver.service_sector === "delivery");
 
+  const setShopPickupLocation = () => {
+    if (!navigator.geolocation) return toast.error("Location sharing is not supported by this browser");
+    navigator.geolocation.getCurrentPosition(async ({ coords }) => {
+      try {
+        const { data } = await api.put("/partner/delivery-location", { latitude: coords.latitude, longitude: coords.longitude });
+        setPartnerPickupLocation(data);
+        toast.success("Shop pickup location saved");
+      } catch (error) {
+        toast.error(error?.response?.data?.detail || "Could not save shop location");
+      }
+    }, () => toast.error("Could not get shop location"), { enableHighAccuracy: true, timeout: 12000, maximumAge: 30000 });
+  };
+
+  const findDeliveryRiders = async (orderId) => {
+    setDeliveryBusyOrder(orderId);
+    try {
+      const { data } = await api.get(`/partner/orders/${orderId}/delivery-options`);
+      setDeliveryOptionsByOrder((current) => ({ ...current, [orderId]: data }));
+      if (!data.riders?.length) toast.error("No available nearby rider found");
+    } catch (error) {
+      toast.error(error?.response?.data?.detail || "Could not find nearby riders");
+    } finally {
+      setDeliveryBusyOrder("");
+    }
+  };
+
+  const assignDeliveryRider = async (orderId, riderId) => {
+    setDeliveryBusyOrder(orderId);
+    try {
+      await api.post(`/partner/orders/${orderId}/delivery`, { rider_id: riderId });
+      toast.success("Rider assigned; delivery fee is due after delivery");
+      setDeliveryOptionsByOrder((current) => ({ ...current, [orderId]: null }));
+      loadAll();
+    } catch (error) {
+      toast.error(error?.response?.data?.detail || "Could not assign rider");
+    } finally {
+      setDeliveryBusyOrder("");
+    }
+  };
+
+  const confirmRiderCashPaid = async (delivery) => {
+    try {
+      await api.post(`/partner/deliveries/${delivery.id}/payment`);
+      toast.success("Payment confirmation sent to rider");
+      loadAll();
+    } catch (error) {
+      toast.error(error?.response?.data?.detail || "Could not confirm rider payment");
+    }
+  };
+
   const loadAll = () => {
     api.get("/partner/summary").then((r) => {
       const next = r?.data;
@@ -482,6 +536,8 @@ export default function PartnerDashboardPage() {
       const next = r?.data;
       setOrders(Array.isArray(next) ? next : (Array.isArray(next?.items) ? next.items : []));
     }).catch(() => setOrders([]));
+    api.get("/partner/deliveries").then((r) => setProductDeliveries(Array.isArray(r.data?.items) ? r.data.items : [])).catch(() => setProductDeliveries([]));
+    api.get("/partner/delivery-location").then((r) => setPartnerPickupLocation(r.data?.latitude != null ? r.data : null)).catch(() => setPartnerPickupLocation(null));
     api.get("/settings").then(r => setSettings(r.data)).catch(() => setSettings(null));
     api.get("/partner/payment-profile").then(r => setPaymentProfile(r.data)).catch(() => {});
     api.get("/partner/banner").then(r => setShopBannerUrl(resolveAssetUrl(r.data?.banner_url || ""))).catch(() => setShopBannerUrl(""));
@@ -2865,9 +2921,14 @@ export default function PartnerDashboardPage() {
           <div className="bg-white rounded-xl border border-border p-6">
             <div className="flex items-center justify-between gap-2 mb-4 flex-wrap">
               <h3 className="font-display font-bold text-emerald-950 text-lg">Orders including your products</h3>
-              <Button type="button" onClick={saveOrdersShortcut} variant="outline" className="rounded-full border-emerald-300 text-emerald-900 hover:bg-emerald-50" data-testid="save-orders-shortcut">
-                Save New Orders Shortcut
-              </Button>
+              <div className="flex flex-wrap gap-2">
+                <Button type="button" onClick={setShopPickupLocation} variant="outline" className="rounded-full border-sky-300 text-sky-900 hover:bg-sky-50" data-testid="partner-save-pickup-location">
+                  {partnerPickupLocation ? "Update shop pickup location" : "Set shop pickup location"}
+                </Button>
+                <Button type="button" onClick={saveOrdersShortcut} variant="outline" className="rounded-full border-emerald-300 text-emerald-900 hover:bg-emerald-50" data-testid="save-orders-shortcut">
+                  Save New Orders Shortcut
+                </Button>
+              </div>
             </div>
             {normalizedOrders.length === 0 ? (
               <p className="text-sm text-muted-foreground">No orders yet.</p>
@@ -2879,6 +2940,9 @@ export default function PartnerDashboardPage() {
                   const invoiceReady = statusReady || walletReadyForPartnerApproval;
                   const customerWhatsAppAvailable = Boolean(String(o?.delivery_phone || "").replace(/\D/g, "") || String(o?.customer_whatsapp_invoice_url || "").trim());
                   const walletRechargeRequired = String(o?.status || "").trim().toLowerCase() === "pending_approval" && o?.blocked_by_wallet_reserve && o?.can_partner_auto_approve;
+                  const delivery = productDeliveries.find((item) => item.order_id === o.id);
+                  const deliveryOptions = deliveryOptionsByOrder[o.id];
+                  const physicalPartnerItems = Array.isArray(o.my_items) && o.my_items.some((item) => !item.is_service);
                   return <div key={o.id} className="border border-border rounded-lg p-4 flex flex-wrap justify-between gap-3" data-testid={`partner-order-${o.id}`}>
                     <div>
                       <p className="font-mono text-xs text-emerald-800">{o.order_no}</p>
@@ -2899,6 +2963,25 @@ export default function PartnerDashboardPage() {
                       ) : null}
                     </div>
                     <div className="text-right">
+                      {delivery ? (
+                        <div className="mt-2 rounded-md border border-sky-200 bg-sky-50 p-2 text-left text-[11px]" data-testid={`partner-order-delivery-${o.id}`}>
+                          <p className="font-semibold text-sky-900">Rider: {delivery.rider_name} · {delivery.status.replaceAll("_", " ")}</p>
+                          <p>{delivery.distance_km} km · Partner charge ₹{Number(delivery.partner_charge).toFixed(2)} · Fee {delivery.partner_payment_status.replaceAll("_", " ")}</p>
+                          {delivery.status === "delivered" && delivery.partner_payment_status === "due" ? <Button type="button" size="sm" className="mt-2" onClick={() => confirmRiderCashPaid(delivery)}>Confirm cash paid to rider</Button> : null}
+                          {delivery.partner_payment_status === "partner_confirmed" ? <p className="mt-1 text-amber-700">Waiting for rider payment confirmation</p> : null}
+                        </div>
+                      ) : statusReady && physicalPartnerItems ? (
+                        <div className="mt-2 text-left">
+                          <Button type="button" size="sm" variant="outline" disabled={deliveryBusyOrder === o.id} onClick={() => findDeliveryRiders(o.id)} data-testid={`find-rider-${o.id}`}>
+                            {deliveryBusyOrder === o.id ? "Finding..." : "Find nearby rider"}
+                          </Button>
+                          {deliveryOptions ? <div className="mt-2 rounded-md border border-slate-200 bg-slate-50 p-2 text-[11px]" data-testid={`delivery-options-${o.id}`}>
+                            <p>Distance {deliveryOptions.distance_km} km · Partner pays ₹{Number(deliveryOptions.partner_charge).toFixed(2)} · Cash to rider</p>
+                            {deliveryOptions.riders.map((rider) => <div key={rider.id} className="mt-1 flex items-center justify-between gap-2"><span>{rider.name} · {rider.distance_to_partner_km} km away</span><Button type="button" size="sm" disabled={deliveryBusyOrder === o.id} onClick={() => assignDeliveryRider(o.id, rider.id)}>Assign</Button></div>)}
+                            {!deliveryOptions.riders.length ? <p className="mt-1 text-amber-700">No approved online rider with GPS is available.</p> : null}
+                          </div> : null}
+                        </div>
+                      ) : null}
                       {invoiceReady && customerWhatsAppAvailable ? (
                         <button
                           type="button"

@@ -40,6 +40,7 @@ const links = [
   { to: "/admin/property-buy-sell", icon: Building2, label: "Property Buy & Sell", testId: "admin-nav-property-buy-sell" },
   { to: "/admin/service-sectors", icon: BriefcaseBusiness, label: "Service Sectors", testId: "admin-nav-service-sectors" },
   { to: "/admin/metho-delivery", icon: Truck, label: "METHO Delivery", testId: "admin-nav-metho-delivery" },
+  { to: "/admin/partner-deliveries", icon: Truck, label: "Partner Deliveries", testId: "admin-nav-partner-deliveries" },
   { to: "/admin/shipments", icon: Boxes, label: "Shipments", testId: "admin-nav-shipments" },
   { to: "/admin/creative-media", icon: Camera, label: "Creative & Media", testId: "admin-nav-creative-media" },
   { to: "/admin/driver-registry", icon: CarTaxiFront, label: "Driver & Vehicle Registry", testId: "admin-nav-driver-registry" },

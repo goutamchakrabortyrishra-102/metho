@@ -14,7 +14,7 @@ const RATE_CATEGORIES = [
 ];
 
 export default function MethoDeliveryAdminPage() {
-  const [settings, setSettings] = useState({ metho_delivery_smart_cycle_percent: 0, metho_delivery_reward_pool_percent: 0, metho_rider_share_percent: 70, metho_transport_rates: { bike: 12, e_rickshaw: 16, auto_rickshaw: 20, four_wheeler: 24, bolero_maxx: 28, vehicle_207: 30, vehicle_407: 36, dumper: 45, delivery: 14 } });
+  const [settings, setSettings] = useState({ metho_delivery_smart_cycle_percent: 0, metho_delivery_reward_pool_percent: 0, metho_rider_share_percent: 70, partner_delivery_min_charge: 20, partner_delivery_per_km_charge: 8, partner_delivery_max_charge: 200, partner_delivery_rider_share_percent: 70, metho_transport_rates: { bike: 12, e_rickshaw: 16, auto_rickshaw: 20, four_wheeler: 24, bolero_maxx: 28, vehicle_207: 30, vehicle_407: 36, dumper: 45, delivery: 14 } });
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [bookings, setBookings] = useState([]);
@@ -31,6 +31,10 @@ export default function MethoDeliveryAdminPage() {
         metho_delivery_smart_cycle_percent: Number(data?.metho_delivery_smart_cycle_percent || 0),
         metho_delivery_reward_pool_percent: Number(data?.metho_delivery_reward_pool_percent || 0),
         metho_rider_share_percent: Number(data?.metho_rider_share_percent ?? current.metho_rider_share_percent),
+        partner_delivery_min_charge: Number(data?.partner_delivery_min_charge ?? current.partner_delivery_min_charge),
+        partner_delivery_per_km_charge: Number(data?.partner_delivery_per_km_charge ?? current.partner_delivery_per_km_charge),
+        partner_delivery_max_charge: Number(data?.partner_delivery_max_charge ?? current.partner_delivery_max_charge),
+        partner_delivery_rider_share_percent: Number(data?.partner_delivery_rider_share_percent ?? current.partner_delivery_rider_share_percent),
         metho_transport_rates: { ...current.metho_transport_rates, ...(data?.metho_transport_rates || {}) },
       })); })
       .catch((error) => toast.error(error?.response?.data?.detail || "Delivery settings could not be loaded"))
@@ -42,14 +46,18 @@ export default function MethoDeliveryAdminPage() {
     const smartCycle = Number(settings.metho_delivery_smart_cycle_percent);
     const rewardPool = Number(settings.metho_delivery_reward_pool_percent);
     const riderShare = Number(settings.metho_rider_share_percent);
+    const deliveryMin = Number(settings.partner_delivery_min_charge);
+    const deliveryPerKm = Number(settings.partner_delivery_per_km_charge);
+    const deliveryMax = Number(settings.partner_delivery_max_charge);
+    const partnerRiderShare = Number(settings.partner_delivery_rider_share_percent);
     const rates = settings.metho_transport_rates || {};
-    if (![smartCycle, rewardPool, riderShare, ...RATE_CATEGORIES.map(([key]) => rates[key])].every((value) => Number.isFinite(Number(value)) && Number(value) >= 0 && Number(value) <= 10000) || riderShare > 100) {
-      toast.error("Both percentages must be between 0 and 100");
+    if (![smartCycle, rewardPool, riderShare, deliveryMin, deliveryPerKm, deliveryMax, partnerRiderShare, ...RATE_CATEGORIES.map(([key]) => rates[key])].every((value) => Number.isFinite(Number(value)) && Number(value) >= 0 && Number(value) <= 10000) || riderShare > 100 || partnerRiderShare > 100 || deliveryMin > deliveryMax) {
+      toast.error("Check percentage and partner delivery charge values; minimum must not exceed maximum");
       return;
     }
     setSaving(true);
     try {
-      await api.put("/settings", { metho_delivery_smart_cycle_percent: smartCycle, metho_delivery_reward_pool_percent: rewardPool, metho_rider_share_percent: riderShare, metho_transport_rates: Object.fromEntries(RATE_CATEGORIES.map(([key]) => [key, Number(rates[key])])) });
+      await api.put("/settings", { metho_delivery_smart_cycle_percent: smartCycle, metho_delivery_reward_pool_percent: rewardPool, metho_rider_share_percent: riderShare, partner_delivery_min_charge: deliveryMin, partner_delivery_per_km_charge: deliveryPerKm, partner_delivery_max_charge: deliveryMax, partner_delivery_rider_share_percent: partnerRiderShare, metho_transport_rates: Object.fromEntries(RATE_CATEGORIES.map(([key]) => [key, Number(rates[key])])) });
       toast.success("METHO Delivery reward settings saved");
     } catch (error) {
       toast.error(error?.response?.data?.detail || "Delivery settings could not be saved");
@@ -102,6 +110,11 @@ export default function MethoDeliveryAdminPage() {
         <label className="text-sm font-semibold text-emerald-950">Smart Cycle %<Input type="number" min="0" max="100" step="0.01" value={settings.metho_delivery_smart_cycle_percent} onChange={(event) => setSettings((current) => ({ ...current, metho_delivery_smart_cycle_percent: event.target.value }))} className="mt-1 bg-white" disabled={loading || saving} /></label>
         <label className="text-sm font-semibold text-emerald-950">Reward Pool %<Input type="number" min="0" max="100" step="0.01" value={settings.metho_delivery_reward_pool_percent} onChange={(event) => setSettings((current) => ({ ...current, metho_delivery_reward_pool_percent: event.target.value }))} className="mt-1 bg-white" disabled={loading || saving} /></label>
         <label className="text-sm font-semibold text-emerald-950">Rider share %<Input type="number" min="0" max="100" step="0.01" value={settings.metho_rider_share_percent} onChange={(event) => setSettings((current) => ({ ...current, metho_rider_share_percent: event.target.value }))} className="mt-1 bg-white" disabled={loading || saving} /></label>
+        <label className="text-sm font-semibold text-emerald-950">Partner delivery minimum (₹)<Input type="number" min="0" max="10000" step="1" value={settings.partner_delivery_min_charge} onChange={(event) => setSettings((current) => ({ ...current, partner_delivery_min_charge: event.target.value }))} className="mt-1 bg-white" disabled={loading || saving} /></label>
+        <label className="text-sm font-semibold text-emerald-950">Partner delivery rate (₹/km)<Input type="number" min="0" max="10000" step="0.5" value={settings.partner_delivery_per_km_charge} onChange={(event) => setSettings((current) => ({ ...current, partner_delivery_per_km_charge: event.target.value }))} className="mt-1 bg-white" disabled={loading || saving} /></label>
+        <label className="text-sm font-semibold text-emerald-950">Partner delivery maximum (₹)<Input type="number" min="0" max="10000" step="1" value={settings.partner_delivery_max_charge} onChange={(event) => setSettings((current) => ({ ...current, partner_delivery_max_charge: event.target.value }))} className="mt-1 bg-white" disabled={loading || saving} /></label>
+        <label className="text-sm font-semibold text-emerald-950">Partner delivery rider share (%)<Input type="number" min="0" max="100" step="1" value={settings.partner_delivery_rider_share_percent} onChange={(event) => setSettings((current) => ({ ...current, partner_delivery_rider_share_percent: event.target.value }))} className="mt-1 bg-white" disabled={loading || saving} /></label>
+        <p className="text-xs text-slate-600 md:col-span-3">Partner fee = straight-line distance × rate, bounded by the minimum and maximum. Applies only to new partner delivery jobs.</p>
         {RATE_CATEGORIES.map(([key, label]) => <label key={key} className="text-sm font-semibold text-emerald-950">{label} ₹/km<Input type="number" min="0" max="10000" step="0.01" value={settings.metho_transport_rates[key] ?? ""} onChange={(event) => setSettings((current) => ({ ...current, metho_transport_rates: { ...current.metho_transport_rates, [key]: event.target.value } }))} className="mt-1 bg-white" disabled={loading || saving} /></label>)}
         <Button type="submit" className="rounded-full bg-emerald-900 hover:bg-emerald-950" disabled={loading || saving}><Save className="w-4 h-4 mr-2" /> {saving ? "Saving..." : "Save delivery settings"}</Button>
       </form>

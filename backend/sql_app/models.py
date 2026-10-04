@@ -156,6 +156,29 @@ class PublicOrder(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now_utc)
 
 
+class PartnerOrderDelivery(Base):
+    __tablename__ = "partner_order_deliveries"
+    __table_args__ = (UniqueConstraint("order_id", "partner_id", name="uq_partner_order_delivery"),)
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
+    order_id: Mapped[str] = mapped_column(String(36), ForeignKey("public_orders.id"), nullable=False, index=True)
+    partner_id: Mapped[str] = mapped_column(String(36), ForeignKey("associate_partners.id"), nullable=False, index=True)
+    rider_user_id: Mapped[str] = mapped_column(String(36), ForeignKey("users.id"), nullable=False, index=True)
+    status: Mapped[str] = mapped_column(String(30), nullable=False, default="assigned", index=True)
+    pickup_latitude: Mapped[float] = mapped_column(Float, nullable=False)
+    pickup_longitude: Mapped[float] = mapped_column(Float, nullable=False)
+    drop_latitude: Mapped[float] = mapped_column(Float, nullable=False)
+    drop_longitude: Mapped[float] = mapped_column(Float, nullable=False)
+    distance_km: Mapped[float] = mapped_column(Float, nullable=False, default=0)
+    partner_charge: Mapped[float] = mapped_column(Float, nullable=False, default=0)
+    rider_earning: Mapped[float] = mapped_column(Float, nullable=False, default=0)
+    partner_payment_status: Mapped[str] = mapped_column(String(20), nullable=False, default="due")
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now_utc, index=True)
+    accepted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    picked_up_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    delivered_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+
 class PaymentRecord(Base):
     __tablename__ = "payment_records"
 

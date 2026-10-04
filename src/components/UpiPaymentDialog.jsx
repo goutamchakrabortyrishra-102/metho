@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import { toast } from "sonner";
-import { Upload, Loader2, QrCode, Copy, CheckCircle2, ShoppingCart } from "lucide-react";
+import { Upload, Loader2, QrCode, Copy, CheckCircle2, ShoppingCart, MapPin } from "lucide-react";
 import api from "@/services/api";
 import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
@@ -142,6 +142,7 @@ export default function UpiPaymentDialog({
   const [shippingCity, setShippingCity] = useState("");
   const [shippingState, setShippingState] = useState("West Bengal");
   const [shippingPincode, setShippingPincode] = useState("");
+  const [deliveryCoordinates, setDeliveryCoordinates] = useState(null);
   const [customerEmail, setCustomerEmail] = useState("");
   const [txnId, setTxnId] = useState("");
   const [payerName, setPayerName] = useState("");
@@ -263,6 +264,9 @@ export default function UpiPaymentDialog({
     if (!String(shippingPincode || "").trim() && String(saved.shipping_pincode || "").trim()) {
       setShippingPincode(String(saved.shipping_pincode).replace(/\D/g, "").slice(-6));
     }
+    if (Number.isFinite(Number(saved.delivery_latitude)) && Number.isFinite(Number(saved.delivery_longitude))) {
+      setDeliveryCoordinates({ latitude: Number(saved.delivery_latitude), longitude: Number(saved.delivery_longitude) });
+    }
     if (!String(customerEmail || "").trim() && String(saved.customer_email || "").trim()) {
       setCustomerEmail(String(saved.customer_email).trim());
     }
@@ -359,6 +363,21 @@ export default function UpiPaymentDialog({
     return true;
   };
 
+  const captureDeliveryLocation = () => {
+    if (!navigator.geolocation) {
+      toast.error("This browser does not support location sharing");
+      return;
+    }
+    navigator.geolocation.getCurrentPosition(
+      ({ coords }) => {
+        setDeliveryCoordinates({ latitude: coords.latitude, longitude: coords.longitude });
+        toast.success("Delivery location saved for rider matching");
+      },
+      () => toast.error("Could not get delivery location; you can continue without it"),
+      { enableHighAccuracy: true, timeout: 12000, maximumAge: 30000 },
+    );
+  };
+
   const handleFile = async (e) => {
     const f = e.target.files?.[0];
     if (!f) return;
@@ -415,6 +434,8 @@ export default function UpiPaymentDialog({
         shipping_city: requiresShippingAddress ? resolvedShippingCity : "",
         shipping_state: requiresShippingAddress ? resolvedShippingState : "",
         shipping_pincode: requiresShippingAddress ? resolvedShippingPincode : "",
+        delivery_latitude: deliveryCoordinates?.latitude,
+        delivery_longitude: deliveryCoordinates?.longitude,
         customer_email: resolvedCustomerEmail || undefined,
         payment_method: paymentMode === "cod" ? "cod" : "upi",
         txn_id: paymentMode === "cod" ? "COD" : txnId.trim(),
@@ -459,12 +480,14 @@ export default function UpiPaymentDialog({
           shipping_city: String(shippingCity || "").trim(),
           shipping_state: String(shippingState || "").trim(),
           shipping_pincode: String(shippingPincode || "").replace(/\D/g, "").slice(-6),
+          delivery_latitude: deliveryCoordinates?.latitude,
+          delivery_longitude: deliveryCoordinates?.longitude,
           customer_email: String(customerEmail || "").trim(),
         });
       }
       // Reset
       setTxnId(""); setPayerName(""); setPayerPhone(""); setScreenshot(null); setAddress("");
-      setShippingCity(""); setShippingState("West Bengal"); setShippingPincode(""); setCustomerEmail("");
+      setShippingCity(""); setShippingState("West Bengal"); setShippingPincode(""); setCustomerEmail(""); setDeliveryCoordinates(null);
       setSlotDateTime(""); setSlotGuestCount("1");
       setPaymentMode("upi");
     } catch (err) {
@@ -522,6 +545,8 @@ export default function UpiPaymentDialog({
         shipping_city: requiresShippingAddress ? resolvedShippingCity : "",
         shipping_state: requiresShippingAddress ? resolvedShippingState : "",
         shipping_pincode: requiresShippingAddress ? resolvedShippingPincode : "",
+        delivery_latitude: deliveryCoordinates?.latitude,
+        delivery_longitude: deliveryCoordinates?.longitude,
         customer_email: resolvedCustomerEmail || undefined,
         payment_method: "razorpay",
         payer_name: resolvedPayerName || undefined,
@@ -912,6 +937,7 @@ export default function UpiPaymentDialog({
                   data-testid="upi-shipping-input"
                   className="mt-1.5 min-h-[70px]"
                 />
+                {requiresShippingAddress ? <div className="mt-2 flex flex-wrap items-center gap-2"><Button type="button" size="sm" variant="outline" onClick={captureDeliveryLocation}><MapPin className="mr-1.5 h-4 w-4" />Use current location as delivery pin</Button>{deliveryCoordinates ? <span className="text-xs text-emerald-700">Location attached</span> : <span className="text-xs text-slate-500">Use only when device is at the delivery address.</span>}</div> : null}
                 {deliveryAreaMismatch ? (
                   <p className="text-[11px] text-red-700 mt-1">
                     Delivery is currently limited to {[paymentConfig?.delivery_city, paymentConfig?.delivery_pincode].filter(Boolean).join(", ")}.
@@ -1095,6 +1121,7 @@ export default function UpiPaymentDialog({
                     data-testid="razorpay-shipping-input"
                     className="mt-1.5 min-h-[70px]"
                   />
+                  {requiresShippingAddress ? <div className="mt-2 flex flex-wrap items-center gap-2"><Button type="button" size="sm" variant="outline" onClick={captureDeliveryLocation}><MapPin className="mr-1.5 h-4 w-4" />Use current location as delivery pin</Button>{deliveryCoordinates ? <span className="text-xs text-emerald-700">Location attached</span> : <span className="text-xs text-slate-500">Use only when device is at the delivery address.</span>}</div> : null}
                   <p className="text-[11px] text-muted-foreground mt-1">
                     Shipping address is required before opening Razorpay checkout.
                   </p>
