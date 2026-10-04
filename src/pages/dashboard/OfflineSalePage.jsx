@@ -39,7 +39,7 @@ export default function OfflineSalePage() {
 
   const visible = useMemo(() => {
     const term = search.trim().toLowerCase();
-    return products.filter((p) => Number(p.stock) > 0 && (!term || `${p.name} ${p.product_code}`.toLowerCase().includes(term)));
+    return products.filter((p) => !term || `${p.name} ${p.product_code} ${p.category}`.toLowerCase().includes(term));
   }, [products, search]);
 
   const lines = useMemo(() => products.filter((p) => cart[p.id] > 0).map((p) => ({ product: p, quantity: cart[p.id] })), [products, cart]);
@@ -121,18 +121,22 @@ export default function OfflineSalePage() {
       </div>
 
       <div className="rounded-xl border border-border bg-white p-4 space-y-3">
-        <Input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search product" />
-        <div className="max-h-80 divide-y divide-border overflow-y-auto">
+        <Input value={search} onChange={(e) => setSearch(e.target.value)} placeholder={`Search product (${products.length} total)`} />
+        <div className="max-h-[28rem] divide-y divide-border overflow-y-auto">
           {visible.map((p) => (
             <div key={p.id} className="flex items-center justify-between gap-3 py-2 text-sm">
               <div className="min-w-0">
                 <p className="truncate font-medium text-slate-900">{p.name}</p>
-                <p className="text-xs text-slate-500">{money(p.price)} · stock {p.stock}</p>
+                <p className="text-xs text-slate-500">{money(p.price)} · {Number(p.stock) > 0 ? `stock ${p.stock}` : <span className="font-semibold text-red-600">Out of stock</span>}</p>
               </div>
-              <Input type="number" min={0} max={p.stock} value={cart[p.id] || ""} onChange={(e) => setQty(p, e.target.value)} className="w-20" aria-label={`Quantity ${p.name}`} />
+              <div className={`flex shrink-0 items-center gap-1 ${Number(p.stock) > 0 ? "" : "pointer-events-none opacity-40"}`}>
+                <Button type="button" size="sm" variant="outline" onClick={() => setQty(p, (cart[p.id] || 0) - 1)} aria-label={`Decrease ${p.name}`}>−</Button>
+                <Input type="number" min={0} max={p.stock} value={cart[p.id] || ""} placeholder="Qty" onChange={(e) => setQty(p, e.target.value)} className="w-20 text-center" aria-label={`Quantity ${p.name}`} />
+                <Button type="button" size="sm" variant="outline" onClick={() => setQty(p, (cart[p.id] || 0) + 1)} aria-label={`Increase ${p.name}`}>+</Button>
+              </div>
             </div>
           ))}
-          {!visible.length ? <p className="py-3 text-sm text-slate-500">No in-stock products found.</p> : null}
+          {!visible.length ? <p className="py-3 text-sm text-slate-500">No products found.</p> : null}
         </div>
       </div>
 
