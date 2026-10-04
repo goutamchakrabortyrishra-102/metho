@@ -14,6 +14,7 @@ from sql_app.models import FinancialLedgerEntry, Product, PublicOrder, User
 from sql_app.routers.compat import (
     _load_company_commission_wallet,
     admin_cancel_refund_order,
+    admin_reject_order,
     create_offline_sale,
     offline_sale_member_lookup,
 )
@@ -122,5 +123,28 @@ def test_cancel_refund_blocks_gateway_and_unpaid_orders(monkeypatch):
             assert exc.value.status_code == 400
         with pytest.raises(HTTPException):
             admin_cancel_refund_order(pending.id, {"reason": "x"}, db, SimpleNamespace(role="member", id="X"))
+    finally:
+        db.close()
+
+
+def test_reject_requires_admin_and_only_pending_orders(monkeypatch):
+    db, _member, product = _setup(monkeypatch)
+    try:
+        pending = PublicOrder(payment_method="upi", items_json="[]", total_amount=100, status="pending_approval")
+        db.add(pending)
+        db.commit()
+        with pytest.raises(HTTPException) as exc:
+            admin_reject_order(pending.id, {"reason": "x"}, db, SimpleNamespace(role="member", id="X"))
+        assert exc.value.status_code in {401, 403}
+        assert db.query(PublicOrder).filter(PublicOrder.id == pending.id).one().status == "pending_approval"
+
+        assert admin_reject_order(pending.id, {"reason": "bad proof"}, db, ADMIN)["status"] == "rejected"
+        assert admin_reject_order(pending.id, {}, db, ADMIN)["status"] == "rejected"
+
+        sale = create_offline_sale({"items": [{"product_id": product.id, "quantity": 1}]}, db, ADMIN)
+        with pytest.raises(HTTPException) as exc:
+            admin_reject_order(sale["order_id"], {}, db, ADMIN)
+        assert exc.value.status_code == 400
+        assert db.query(PublicOrder).filter(PublicOrder.id == sale["order_id"]).one().status == "paid"
     finally:
         db.close()

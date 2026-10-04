@@ -5764,9 +5764,12 @@ def admin_approve_order(order_id: str, payload: dict | None = None, db: Session 
 
 @router.post("/admin/orders/{order_id}/reject")
 def admin_reject_order(order_id: str, payload: dict | None = None, db: Session = Depends(get_db), current_user=Depends(get_current_user)):
+    _require_admin_user(current_user)
     row = db.query(PublicOrder).filter(PublicOrder.id == order_id).first()
     if not row:
         raise HTTPException(status_code=404, detail="Order not found")
+    if row.status not in {"pending_approval", "pending_payment", "rejected"}:
+        raise HTTPException(status_code=400, detail=f"Only pending orders can be rejected (current: {row.status}); use cancel/refund for paid cash orders")
     row.status = "rejected"
     db.commit()
     return {"ok": True, "order_id": order_id, "status": "rejected", "reason": (payload or {}).get("reason", "")}
