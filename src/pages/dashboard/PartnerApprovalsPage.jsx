@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 import { Navigate } from "react-router-dom";
 import { Store, CheckCircle2, XCircle, Filter, Phone, MapPin, Mail, Copy, Loader2, Download, ClipboardCheck } from "lucide-react";
@@ -82,8 +82,8 @@ export default function PartnerApprovalsPage() {
   const [busy, setBusy] = useState(false);
   const [resultCreds, setResultCreds] = useState(null);
 
-  const load = () => api.get(`/admin/partner-requests${filter ? `?status_filter=${filter}` : ""}`).then(r => setItems(r.data)).catch(() => {});
-  useEffect(() => { if (isAdmin) load(); /* eslint-disable-next-line */ }, [isAdmin, filter]);
+  const load = useCallback(() => api.get(`/admin/partner-requests${filter ? `?status_filter=${filter}` : ""}`).then(r => setItems(r.data)).catch(() => {}), [filter]);
+  useEffect(() => { if (isAdmin) load(); }, [isAdmin, load]);
 
   const doApprove = async () => {
     setBusy(true);

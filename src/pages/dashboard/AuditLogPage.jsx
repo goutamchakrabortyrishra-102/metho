@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useCallback, useEffect, useState } from "react";
 import { Navigate } from "react-router-dom";
 import { toast } from "sonner";
 import { ClipboardList, Filter, ShieldCheck } from "lucide-react";
@@ -16,7 +16,7 @@ export default function AuditLogPage() {
   const [moduleFilter, setModuleFilter] = useState("");
   const [actionFilter, setActionFilter] = useState("");
 
-  const loadLogs = async () => {
+  const loadLogs = useCallback(async () => {
     setLoading(true);
     try {
       const params = {};
@@ -30,11 +30,11 @@ export default function AuditLogPage() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [actionFilter, moduleFilter]);
 
   useEffect(() => {
     if (isAdmin) loadLogs();
-  }, [isAdmin]);
+  }, [isAdmin, loadLogs]);
 
   if (!isAdmin) return <Navigate to="/app" replace />;
 

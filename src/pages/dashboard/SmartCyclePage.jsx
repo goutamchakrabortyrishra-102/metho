@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useCallback, useEffect, useState } from "react";
 import { toast } from "sonner";
 import { Sparkles, TrendingUp, Users, Award, Clock } from "lucide-react";
 import api from "@/services/api";
@@ -15,7 +15,7 @@ export default function SmartCyclePage() {
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState("");
 
-  const load = () => {
+  const load = useCallback(() => {
     setLoading(true);
     setLoadError("");
     const requests = [api.get("/smart-cycle/me")];
@@ -32,9 +32,9 @@ export default function SmartCyclePage() {
         setLoadError(err?.response?.data?.detail || "Smart Cycle data load failed");
       })
       .finally(() => setLoading(false));
-  };
+  }, [isAdmin]);
 
-  useEffect(() => { load(); }, [isAdmin]);
+  useEffect(() => { load(); }, [load]);
 
   if (loading) return <div className="text-muted-foreground">Loading Smart Cycle...</div>;
 

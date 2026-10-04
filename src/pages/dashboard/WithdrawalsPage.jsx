@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useCallback, useEffect, useState } from "react";
 import { toast } from "sonner";
 import { Navigate } from "react-router-dom";
 import { BadgeIndianRupee, CheckCircle2, XCircle, Filter, Copy, Wallet } from "lucide-react";
@@ -29,13 +29,13 @@ export default function WithdrawalsPage() {
   const [busy, setBusy] = useState(false);
   const [deductionRates, setDeductionRates] = useState(resolveWithdrawalDeductionRates());
 
-  const load = () => {
+  const load = useCallback(() => {
     api.get(`/admin/withdrawals${statusFilter ? `?status_filter=${statusFilter}` : ""}`).then(r => setItems(r.data)).catch(() => {});
     api.get("/settings")
       .then((r) => setDeductionRates(resolveWithdrawalDeductionRates(r.data || {})))
       .catch(() => setDeductionRates(resolveWithdrawalDeductionRates()));
-  };
-  useEffect(() => { if (isAdmin) load(); /* eslint-disable-next-line */ }, [isAdmin, statusFilter]);
+  }, [statusFilter]);
+  useEffect(() => { if (isAdmin) load(); }, [isAdmin, load]);
   if (!isAdmin) return <Navigate to="/app" replace />;
 
   const doApprove = async () => {

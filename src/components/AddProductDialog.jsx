@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect, useMemo } from "react";
+import React, { useState, useRef, useEffect, useMemo, useCallback } from "react";
 import { toast } from "sonner";
 import { Sparkles, Upload, Loader2, Image as ImageIcon, X, Plus, Store, Pencil, Trash2, ArrowUp, ArrowDown } from "lucide-react";
 import api from "@/services/api";
@@ -130,6 +130,11 @@ export default function AddProductDialog({
       .filter((value, index, arr) => arr.indexOf(value) === index);
   }, [settings?.product_categories, settings?.vegetable_categories, isVegetableDialog, product?.category]);
 
+  const resetForm = useCallback(() => setForm({
+    name: "", category: categories[0] || "Other Vegetables", price: "", purchase_cost: "", mrp: "", discount_percent: "", gst_percent: "", stock: "",
+    description: "", image_url: "", product_type: defaultProductType, pricing_tiers_input: "", youtube_url: "", commission_percent: "", service_booking_enabled: false, service_template_key: "", delivery_charge: "", free_delivery_threshold: "", booking_available_from: "", booking_available_until: "", unit_type: "piece",
+  }), [categories, defaultProductType]);
+
   useEffect(() => {
     if (open) api.get("/partners").then(r => setPartners(r.data)).catch(() => {});
   }, [open]);
@@ -172,7 +177,35 @@ export default function AddProductDialog({
       return;
     }
     resetForm();
-  }, [open, product?.id, categories, defaultProductType]);
+  }, [
+    open,
+    product?.id,
+    product?.name,
+    product?.category,
+    product?.price,
+    product?.purchase_cost,
+    product?.mrp,
+    product?.discount_percent,
+    product?.gst_percent,
+    product?.stock,
+    product?.description,
+    product?.image_url,
+    product?.product_type,
+    product?.partner_id,
+    product?.pricing_tiers,
+    product?.youtube_url,
+    product?.commission_percent,
+    product?.service_booking_enabled,
+    product?.service_template_key,
+    product?.delivery_charge,
+    product?.free_delivery_threshold,
+    product?.booking_available_from,
+    product?.booking_available_until,
+    product?.unit_type,
+    categories,
+    defaultProductType,
+    resetForm,
+  ]);
 
   useEffect(() => {
     const mrp = Number(form.mrp || 0);
@@ -184,11 +217,6 @@ export default function AddProductDialog({
   }, [form.mrp, form.discount_percent]);
 
   const setF = (k) => (e) => setForm({ ...form, [k]: e.target?.value ?? e });
-
-  const resetForm = () => setForm({
-    name: "", category: categories[0] || "Other Vegetables", price: "", purchase_cost: "", mrp: "", discount_percent: "", gst_percent: "", stock: "",
-    description: "", image_url: "", product_type: defaultProductType, pricing_tiers_input: "", youtube_url: "", commission_percent: "", service_booking_enabled: false, service_template_key: "", delivery_charge: "", free_delivery_threshold: "", booking_available_from: "", booking_available_until: "", unit_type: "piece",
-  });
 
   const parsePricingTiers = (raw) => {
     const text = String(raw || "").trim();

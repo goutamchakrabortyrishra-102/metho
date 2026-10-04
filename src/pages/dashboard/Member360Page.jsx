@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { Loader2, Pencil, Save, X } from "lucide-react";
 import api from "@/services/api";
@@ -20,7 +20,7 @@ export default function Member360Page() {
   const [saving, setSaving] = useState(false);
   const [form, setForm] = useState({});
 
-  const load = () => {
+  const load = useCallback(() => {
     if (!memberId) return;
     setLoading(true);
     api.get(`/admin/members/${memberId}/360`)
@@ -33,9 +33,9 @@ export default function Member360Page() {
         setData(null);
       })
       .finally(() => setLoading(false));
-  };
+  }, [memberId]);
 
-  useEffect(() => { load(); }, [memberId]);
+  useEffect(() => { load(); }, [load]);
 
   const editMode = () => {
     if (!data?.profile) return;

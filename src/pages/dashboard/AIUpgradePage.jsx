@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useCallback, useEffect, useState } from "react";
 import { Navigate } from "react-router-dom";
 import { toast } from "sonner";
 import { Bot, ShieldAlert, Sparkles, Wrench, FileCode2, CheckCircle2, Clock3, XCircle, Eye } from "lucide-react";
@@ -280,24 +280,22 @@ export default function AIUpgradePage() {
     toast.success("Ready prompt inserted");
   };
 
-  const loadHistory = async () => {
+  const loadHistory = useCallback(async () => {
     try {
       const { data } = await api.get("/admin/ai-upgrade/requests");
       setHistory(data || []);
-      if (!plan && data?.length) {
-        setPlan(data[0]);
-        setReviewNote(data[0].admin_note || "");
-      }
+      if (data?.length) setPlan((current) => current || data[0]);
+      if (data?.length) setReviewNote((current) => current || data[0].admin_note || "");
     } catch {
       toast.error("AI request history load failed");
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
 
   useEffect(() => {
     if (isAdmin) loadHistory();
-  }, [isAdmin]);
+  }, [isAdmin, loadHistory]);
 
   if (!isAdmin) return <Navigate to="/app" replace />;
 

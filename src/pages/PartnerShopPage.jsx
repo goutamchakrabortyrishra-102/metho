@@ -567,7 +567,7 @@ export default function PartnerShopPage() {
       label: "Estimated fare will appear after pickup and destination",
       detail: "Final fare will be confirmed by partner after request.",
     };
-  }, [selectedTransportPreset, transportFareEstimate, transportFareEstimateLoading]);
+  }, [transportFareEstimate, transportFareEstimateLoading]);
   const products = useMemo(() => data?.products || [], [data?.products]);
   const productListings = useMemo(() => products.filter((item) => !isServiceListing(item)), [products]);
   const serviceListings = useMemo(() => products.filter((item) => isServiceListing(item)), [products]);

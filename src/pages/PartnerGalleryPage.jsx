@@ -884,9 +884,11 @@ export default function PartnerGalleryPage() {
         if (!product) return;
         next[id] = resolveMeasureUnit(product, unit);
       });
-      return next;
+      const unchanged = Object.keys(prev).length === Object.keys(next).length
+        && Object.entries(next).every(([id, unit]) => prev[id] === unit);
+      return unchanged ? prev : next;
     });
-  }, [products]);
+  }, [cartUnits, products]);
 
   const items = useMemo(() =>
     Object.entries(cart).filter(([, q]) => q > 0).map(([id, q]) => {

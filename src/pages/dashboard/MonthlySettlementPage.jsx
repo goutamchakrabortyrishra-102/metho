@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useCallback, useEffect, useState } from "react";
 import { toast } from "sonner";
 import { Calculator, Play, CheckCircle2, Lock, TrendingUp, Users, Award, Shield, RefreshCw, History, FileSpreadsheet } from "lucide-react";
 import { Navigate } from "react-router-dom";
@@ -136,7 +136,7 @@ export default function MonthlySettlementPage() {
     toast.success(`Exported: ${filename}`);
   };
 
-  const loadAll = async () => {
+  const loadAll = useCallback(async () => {
     if (!isAdmin) return;
     setLoading(true);
     try {
@@ -153,9 +153,9 @@ export default function MonthlySettlementPage() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [isAdmin, month, year]);
 
-  useEffect(() => { loadAll(); /* eslint-disable-next-line */ }, [year, month]);
+  useEffect(() => { loadAll(); }, [loadAll]);
 
   if (!isAdmin) return <Navigate to="/app" replace />;
 

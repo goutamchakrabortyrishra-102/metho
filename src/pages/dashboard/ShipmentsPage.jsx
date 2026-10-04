@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useCallback, useEffect, useState } from "react";
 import { PackageCheck, RefreshCw, Save, Truck } from "lucide-react";
 import { toast } from "sonner";
 import api from "@/services/api";
@@ -14,7 +14,7 @@ export default function ShipmentsPage() {
   const [editing, setEditing] = useState(null);
   const [busy, setBusy] = useState(false);
 
-  const load = async () => {
+  const load = useCallback(async () => {
     setBusy(true);
     try {
       const { data } = await api.get("/admin/shipments", { params: { status: status || undefined } });
@@ -23,9 +23,9 @@ export default function ShipmentsPage() {
     } catch (error) {
       toast.error(error?.response?.data?.detail || "Shipments could not be loaded");
     } finally { setBusy(false); }
-  };
+  }, [status]);
 
-  useEffect(() => { load(); }, [status]);
+  useEffect(() => { load(); }, [load]);
 
   const save = async () => {
     if (!editing) return;

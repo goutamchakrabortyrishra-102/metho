@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { Users, Search, Loader2, PowerOff, Power, Pencil, ChevronDown, Eye, Network, MessageSquareText, Check } from "lucide-react";
 import { toast } from "sonner";
 import api from "@/services/api";
@@ -130,7 +130,7 @@ export default function MembersPage() {
     }
   }, [location.search]);
 
-  const load = () => {
+  const load = useCallback(() => {
     if (isAdmin) {
       const params = { role: "member" };
       return api.get("/admin/users", { params }).then((r) => {
@@ -138,8 +138,8 @@ export default function MembersPage() {
       });
     }
     return api.get("/members").then((r) => setMembers(r.data || []));
-  };
-  useEffect(() => { load(); }, [isAdmin, scope]);
+  }, [isAdmin]);
+  useEffect(() => { load(); }, [load]);
 
   const scopedMembers = useMemo(() => {
     if (scope === "active") {
