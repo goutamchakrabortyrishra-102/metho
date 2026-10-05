@@ -24,7 +24,7 @@ export default function CRMPipelinePage() {
               <p className="text-xs uppercase text-slate-500">{stage}</p>
               <p className="text-3xl font-bold text-slate-900 mt-2">{item.count}</p>
               <p className="mt-2 text-xs text-emerald-700">WhatsApp leads: {item.whatsapp_count || 0}</p>
-              <Link className="mt-3 inline-block text-xs font-semibold text-slate-700 underline" to={`/app/crm/leads?status=${stage}`}>View {stage} leads</Link>
+              <Link className="mt-3 inline-block text-xs font-semibold text-slate-700 underline" to={`/admin/crm/leads?status=${stage}`}>View {stage} leads</Link>
             </div>
           );
         })}
