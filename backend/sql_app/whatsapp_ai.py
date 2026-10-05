@@ -5,6 +5,7 @@ import re
 from datetime import datetime, timedelta, timezone
 
 import requests
+from sqlalchemy import and_, or_
 from sqlalchemy.exc import IntegrityError
 
 from .database import SessionLocal
@@ -291,27 +292,65 @@ def process_message_outbox(limit: int = 20) -> int:
     try:
         now = datetime.now(timezone.utc)
         rows = db.query(WhatsAppMessageOutbox).filter(
-            WhatsAppMessageOutbox.status.in_(["pending", "retry"]),
-            WhatsAppMessageOutbox.next_attempt_at <= now,
+            or_(
+                and_(WhatsAppMessageOutbox.status.in_(["pending", "retry"]), WhatsAppMessageOutbox.next_attempt_at <= now),
+                and_(WhatsAppMessageOutbox.status == "processing", WhatsAppMessageOutbox.next_attempt_at <= now),
+            )
         ).order_by(WhatsAppMessageOutbox.created_at.asc()).limit(max(1, min(100, int(limit)))).all()
         for row in rows:
-            row.status = "processing"
-            row.attempts += 1
+            previous_status = row.status
+            claimed = db.query(WhatsAppMessageOutbox).filter(
+                WhatsAppMessageOutbox.id == row.id,
+                WhatsAppMessageOutbox.status == previous_status,
+                WhatsAppMessageOutbox.next_attempt_at <= now,
+            ).update({
+                WhatsAppMessageOutbox.status: "processing",
+                WhatsAppMessageOutbox.attempts: WhatsAppMessageOutbox.attempts + 1,
+                WhatsAppMessageOutbox.next_attempt_at: now + timedelta(minutes=10),
+            }, synchronize_session=False)
             db.commit()
+            if not claimed:
+                continue
+            db.refresh(row)
+            activity_message = row.message
             try:
-                from .whatsapp_cloud import send_whatsapp_message
-                send_whatsapp_message(db, row.recipient, text=row.message)
+                from .whatsapp_cloud import send_whatsapp_image, send_whatsapp_message
+                if row.activity_type == "whatsapp_image_sent":
+                    image_payload = json.loads(row.message or "{}")
+                    image_url = str(image_payload.get("image_url") or "").strip()
+                    caption = str(image_payload.get("caption") or "").strip()
+                    send_whatsapp_image(db, row.recipient, image_url, caption=caption)
+                    activity_message = f"{image_url} | caption: {caption}"
+                else:
+                    send_whatsapp_message(db, row.recipient, text=row.message)
                 row.status = "sent"
                 row.sent_at = datetime.now(timezone.utc)
                 row.last_error = ""
                 if row.lead_id:
-                    db.add(CRMLeadActivity(lead_id=row.lead_id, activity_type=row.activity_type, message=row.message))
+                    existing_activity = db.query(CRMLeadActivity).filter(
+                        CRMLeadActivity.lead_id == row.lead_id,
+                        CRMLeadActivity.activity_type == row.activity_type,
+                        CRMLeadActivity.message == activity_message,
+                    ).first()
+                    if not existing_activity:
+                        db.add(CRMLeadActivity(lead_id=row.lead_id, activity_type=row.activity_type, message=activity_message))
                 db.commit()
                 sent_count += 1
             except Exception as exc:
                 row.last_error = str(exc)[:1000]
                 row.status = "failed" if row.attempts >= 5 else "retry"
                 row.next_attempt_at = datetime.now(timezone.utc) + timedelta(minutes=min(60, 2 ** row.attempts))
+                if row.status == "failed" and row.lead_id:
+                    existing_activity = db.query(CRMLeadActivity).filter(
+                        CRMLeadActivity.lead_id == row.lead_id,
+                        CRMLeadActivity.activity_type == row.activity_type,
+                        CRMLeadActivity.message == activity_message,
+                    ).first()
+                    if existing_activity:
+                        existing_activity.activity_type = "whatsapp_reply_failed"
+                        existing_activity.message = f"WhatsApp auto-reply failed: {row.last_error}"[:500]
+                    else:
+                        db.add(CRMLeadActivity(lead_id=row.lead_id, activity_type="whatsapp_reply_failed", message=f"WhatsApp auto-reply failed: {row.last_error}"[:500]))
                 db.commit()
                 logger.exception("WhatsApp outbox delivery failed: outbox_id=%s", row.id)
         return sent_count

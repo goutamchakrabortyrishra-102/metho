@@ -12,9 +12,10 @@ from sqlalchemy.orm import sessionmaker
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from sql_app.database import Base
-from sql_app.models import AppSetting, CRMLead, CRMLeadActivity, User, WhatsAppRegistrationSession
+from sql_app.models import AppSetting, CRMLead, CRMLeadActivity, User, WebhookIdempotencyKey, WhatsAppMessageOutbox, WhatsAppRegistrationSession
 from sql_app.routers.crm import get_whatsapp_conversation, list_whatsapp_conversations, send_whatsapp_conversation_message
 from sql_app.routers.whatsapp import get_whatsapp_settings, receive_whatsapp_webhook, run_whatsapp_settings_test, update_whatsapp_settings
+from sql_app.whatsapp_ai import process_message_outbox
 from sql_app.whatsapp_cloud import WHATSAPP_PRESET_MESSAGE_DEFAULTS, _is_informational_question, _is_probably_gibberish, _registration_role_for_text, get_whatsapp_preset_message, ingest_whatsapp_message, normalize_whatsapp_message, resolve_config, send_whatsapp_message
 from fastapi import BackgroundTasks, HTTPException
 
@@ -203,6 +204,99 @@ def test_whatsapp_webhook_normalizes_incoming_message_to_crm_lead(monkeypatch):
         assert "2. Partner" in sent[0][1]
         assert db.query(CRMLead).count() == 1
         assert db.query(CRMLeadActivity).filter(CRMLeadActivity.activity_type == "whatsapp_message_received").count() == 1
+    finally:
+        db.close()
+
+
+def test_webhook_queues_reply_transactionally_and_dedupes_same_message_id(monkeypatch):
+    db = make_session()
+    try:
+        monkeypatch.setattr("sql_app.whatsapp_cloud.urlopen", lambda *_args, **_kwargs: pytest.fail("webhook reply must be queued, not sent inline"))
+        update_whatsapp_settings({"phone_number_id": "123456", "access_token": "secret-token"}, db, admin())
+        payload = message_payload("wamid.outbox", "Hi")
+        request = RequestStub(json.dumps(payload).encode())
+
+        first = asyncio.run(receive_whatsapp_webhook(request, BackgroundTasks(), db))
+        outbox = db.query(WhatsAppMessageOutbox).one()
+        assert first["status"] == "created"
+        assert outbox.dedupe_key == "whatsapp-inbound:wamid.outbox"
+        assert outbox.status == "pending"
+        assert db.query(CRMLeadActivity).filter(CRMLeadActivity.activity_type == "whatsapp_message_received").count() == 1
+        assert db.query(CRMLeadActivity).filter(CRMLeadActivity.activity_type == "whatsapp_message_sent").count() == 1
+
+        sent = []
+        monkeypatch.setattr("sql_app.whatsapp_ai.SessionLocal", sessionmaker(bind=db.get_bind()))
+        monkeypatch.setattr("sql_app.whatsapp_cloud.send_whatsapp_message", lambda _db, recipient, text: sent.append((recipient, text)) or {"messages": [{"id": "wamid.sent"}]})
+        assert process_message_outbox() == 1
+        db.refresh(outbox)
+        assert outbox.status == "sent"
+        assert sent == [("8801712345678", outbox.message)]
+        assert db.query(CRMLeadActivity).filter(CRMLeadActivity.activity_type == "whatsapp_message_sent").count() == 1
+
+        second = asyncio.run(receive_whatsapp_webhook(RequestStub(json.dumps(payload).encode()), BackgroundTasks(), db))
+        assert second["status"] == "duplicate"
+        assert db.query(WhatsAppMessageOutbox).count() == 1
+    finally:
+        db.close()
+
+
+def test_inbound_image_reply_uses_existing_outbox_worker(monkeypatch):
+    from sql_app.whatsapp_cloud import INBOUND_WHATSAPP_OUTBOX_CONTEXT, send_whatsapp_image
+
+    db = make_session()
+    try:
+        update_whatsapp_settings({"phone_number_id": "123456", "access_token": "secret-token"}, db, admin())
+        lead = CRMLead(business_name="Ayesha", contact_person="Ayesha", phone="8801712345678")
+        db.add(lead)
+        db.commit()
+        db.info[INBOUND_WHATSAPP_OUTBOX_CONTEXT] = {"message_id": "wamid.image-outbox", "lead_id": lead.id}
+        queued = send_whatsapp_image(db, "8801712345678", "https://example.com/image.png", caption="Hello")
+        assert queued["queued"] is True
+        db.add(CRMLeadActivity(lead_id=lead.id, activity_type="whatsapp_image_sent", message="https://example.com/image.png | caption: Hello"))
+        db.commit()
+
+        sent = []
+        monkeypatch.setattr("sql_app.whatsapp_ai.SessionLocal", sessionmaker(bind=db.get_bind()))
+        monkeypatch.setattr("sql_app.whatsapp_cloud.send_whatsapp_image", lambda _db, recipient, image_url, caption="": sent.append((recipient, image_url, caption)) or {"messages": [{"id": "wamid.image-sent"}]})
+        assert process_message_outbox() == 1
+        outbox = db.query(WhatsAppMessageOutbox).one()
+        assert outbox.status == "sent"
+        assert sent == [("8801712345678", "https://example.com/image.png", "Hello")]
+        assert db.query(CRMLeadActivity).filter(CRMLeadActivity.activity_type == "whatsapp_image_sent").count() == 1
+    finally:
+        db.close()
+
+
+def test_webhook_commit_failure_rolls_back_reply_and_queues_one_fallback(monkeypatch):
+    db = make_session()
+    try:
+        monkeypatch.setattr("sql_app.whatsapp_cloud.urlopen", lambda *_args, **_kwargs: pytest.fail("webhook failure handling must not send inline"))
+        update_whatsapp_settings({"phone_number_id": "123456", "access_token": "secret-token"}, db, admin())
+        original_commit = db.commit
+        failed_once = {"value": False}
+
+        def fail_commit_after_reply_staged():
+            staged = db.query(WhatsAppMessageOutbox).filter_by(dedupe_key="whatsapp-inbound:wamid.commit-failure").first()
+            if staged and not failed_once["value"]:
+                failed_once["value"] = True
+                raise RuntimeError("simulated commit failure after reply staging")
+            return original_commit()
+
+        monkeypatch.setattr(db, "commit", fail_commit_after_reply_staged)
+        payload = message_payload("wamid.commit-failure", "Hi")
+        with pytest.raises(HTTPException) as error:
+            asyncio.run(receive_whatsapp_webhook(RequestStub(json.dumps(payload).encode()), BackgroundTasks(), db))
+        assert error.value.status_code == 503
+        assert failed_once["value"] is True
+        queued = db.query(WhatsAppMessageOutbox).all()
+        assert len(queued) == 1
+        assert queued[0].dedupe_key == "whatsapp-webhook-failure:wamid.commit-failure"
+        assert db.query(WhatsAppMessageOutbox).filter_by(dedupe_key="whatsapp-inbound:wamid.commit-failure").count() == 0
+        event = db.query(WebhookIdempotencyKey).filter_by(event_key="wamid.commit-failure").one()
+        assert event.status == "processed"
+        retry = asyncio.run(receive_whatsapp_webhook(RequestStub(json.dumps(payload).encode()), BackgroundTasks(), db))
+        assert retry["status"] == "duplicate"
+        assert db.query(WhatsAppMessageOutbox).count() == 1
     finally:
         db.close()
 

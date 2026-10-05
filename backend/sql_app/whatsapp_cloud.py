@@ -11,6 +11,7 @@ from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
 from urllib.request import Request, urlopen
 
 from cryptography.fernet import Fernet, InvalidToken
+from sqlalchemy.exc import IntegrityError
 
 from .crm_identity import enrich_lead_from_contact, ensure_pending_followup, find_lead_by_phone
 from .crm_automation import record_lifecycle_event
@@ -18,6 +19,7 @@ from .models import AppSetting, CRMFollowUp, CRMLead, CRMLeadActivity, CRMTask, 
 from .schemas import RegisterRequest, RiderRegisterRequest
 
 logger = logging.getLogger(__name__)
+INBOUND_WHATSAPP_OUTBOX_CONTEXT = "inbound_whatsapp_outbox_context"
 
 WHATSAPP_GRAPH_API_VERSION = os.getenv("WHATSAPP_GRAPH_API_VERSION", "v20.0").strip() or "v20.0"
 DEFAULT_FALLBACK_ENCRYPTION_KEY = "default-fallback-32-char-key-here"
@@ -585,6 +587,38 @@ def test_whatsapp_config(db=None) -> dict:
     }
 
 
+def _queue_inbound_whatsapp_message(db, recipient: str, message: str, activity_type: str, image_url: str = "", caption: str = "") -> dict | None:
+    context = db.info.get(INBOUND_WHATSAPP_OUTBOX_CONTEXT)
+    message_id = str((context or {}).get("message_id") or "").strip()
+    lead_id = str((context or {}).get("lead_id") or "").strip()
+    if not message_id or not lead_id:
+        return None
+    dedupe_key = f"whatsapp-inbound:{message_id}"
+    existing = db.query(WhatsAppMessageOutbox).filter(WhatsAppMessageOutbox.dedupe_key == dedupe_key).first()
+    if existing:
+        return {"messages": [{"id": f"outbox:{existing.id}"}], "queued": True}
+    content = json.dumps({"image_url": image_url, "caption": caption}, ensure_ascii=False) if activity_type == "whatsapp_image_sent" else str(message or "").strip()
+    if not content:
+        return None
+    row = WhatsAppMessageOutbox(
+        dedupe_key=dedupe_key,
+        recipient=str(recipient or "").strip(),
+        message=content,
+        lead_id=lead_id,
+        activity_type=activity_type,
+    )
+    try:
+        with db.begin_nested():
+            db.add(row)
+            db.flush()
+    except IntegrityError:
+        existing = db.query(WhatsAppMessageOutbox).filter(WhatsAppMessageOutbox.dedupe_key == dedupe_key).first()
+        if not existing:
+            raise
+        row = existing
+    return {"messages": [{"id": f"outbox:{row.id}"}], "queued": True}
+
+
 def send_whatsapp_message(
     db,
     recipient: str,
@@ -626,6 +660,11 @@ def send_whatsapp_message(
             "template": {"name": str(template_name).strip(), "language": {"code": language_code}, **({"components": components} if components else {})},
         }
 
+    if has_text:
+        queued = _queue_inbound_whatsapp_message(db, to, str(text).strip(), "whatsapp_message_sent")
+        if queued:
+            return queued
+
     endpoint = f"https://graph.facebook.com/{config['graph_api_version']}/{phone_number_id}/messages"
     request = Request(
         endpoint,
@@ -666,6 +705,9 @@ def send_whatsapp_image(db, recipient: str, image_url: str, caption: str = "") -
     image = {"link": link}
     if str(caption or "").strip():
         image["caption"] = str(caption).strip()
+    queued = _queue_inbound_whatsapp_message(db, to, "", "whatsapp_image_sent", link, str(caption or "").strip())
+    if queued:
+        return queued
     message = {"messaging_product": "whatsapp", "to": to, "type": "image", "image": image}
     endpoint = f"https://graph.facebook.com/{config['graph_api_version']}/{phone_number_id}/messages"
     request = Request(endpoint, data=json.dumps(message).encode("utf-8"), headers={"Accept": "application/json", "Content-Type": "application/json", "Authorization": f"Bearer {token}", "User-Agent": "metho-crm-whatsapp-image/1.0"}, method="POST")
@@ -2009,10 +2051,29 @@ def _continue_member_registration_flow(db, session: WhatsAppRegistrationSession,
     return True
 
 
-def ingest_whatsapp_message(db, payload: dict, request=None) -> str:
+def ingest_whatsapp_message(db, payload: dict, request=None, *, defer_outbound: bool = False) -> str:
+    if not defer_outbound:
+        return _ingest_whatsapp_message_impl(db, payload, request)
+    context = {"message_id": "", "lead_id": ""}
+    previous = db.info.get(INBOUND_WHATSAPP_OUTBOX_CONTEXT)
+    db.info[INBOUND_WHATSAPP_OUTBOX_CONTEXT] = context
+    try:
+        return _ingest_whatsapp_message_impl(db, payload, request)
+    finally:
+        if previous is None:
+            db.info.pop(INBOUND_WHATSAPP_OUTBOX_CONTEXT, None)
+        else:
+            db.info[INBOUND_WHATSAPP_OUTBOX_CONTEXT] = previous
+
+
+def _ingest_whatsapp_message_impl(db, payload: dict, request=None) -> str:
     statuses = []
     for normalized in _normalized_whatsapp_messages(payload):
         message_id = normalized["external_lead_id"]
+        outbox_context = db.info.get(INBOUND_WHATSAPP_OUTBOX_CONTEXT)
+        if outbox_context is not None:
+            outbox_context["message_id"] = message_id
+            outbox_context["lead_id"] = ""
         activity_prefix = f"WhatsApp message received [{message_id}]"
         if db.query(CRMLeadActivity).filter(CRMLeadActivity.activity_type == "whatsapp_message_received", CRMLeadActivity.message.like(f"{activity_prefix}:%")).first():
             statuses.append("duplicate")
@@ -2100,6 +2161,9 @@ def ingest_whatsapp_message(db, payload: dict, request=None) -> str:
             status = "created"
         else:
             status = "updated"
+
+        if outbox_context is not None:
+            outbox_context["lead_id"] = lead.id
 
         body = normalized["metadata"].get("raw_body") or ""
         dispatch_marker = f"auto-reply-for:{message_id}"
