@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import api from "@/services/api";
-import { displayWhatsAppMessage } from "@/lib/whatsappDisplay";
+import { displayWhatsAppMessage, displayWhatsAppText } from "@/lib/whatsappDisplay";
 
 const formatTime = (value) => value ? new Date(value).toLocaleString() : "";
 

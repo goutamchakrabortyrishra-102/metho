@@ -10,6 +10,17 @@ describe("displayWhatsAppText", () => {
     expect(displayWhatsAppText("Your account is active.")).toBe("Your account is active.");
     expect(displayWhatsAppText("")).toBe("");
   });
+
+  it.each([
+    ["[voice message]", "🎤 Voice message"],
+    ["[image]", "🖼 Image"],
+    ["[location shared]", "📍 Location shared"],
+    ["[sticker]", "🏷 Sticker"],
+    ["[document: form.pdf]", "📄 Document: form.pdf"],
+    ["[interactive flow reply received]", "↪️ Interactive flow reply"],
+  ])("renders the bubble placeholder %s as %s", (text, expected) => {
+    expect(displayWhatsAppText(text)).toBe(expected);
+  });
 });
 
 describe("displayWhatsAppMessage", () => {
