@@ -271,10 +271,24 @@ def _whatsapp_message_payload(activity: CRMLeadActivity) -> dict:
     received_prefix = "WhatsApp message received ["
     if activity.activity_type == "whatsapp_message_received" and "]: " in message and message.startswith(received_prefix):
         message = message.split("]: ", 1)[1]
+    message_type = "text"
+    message_subtype = ""
+    type_prefix = "[message_type="
+    if activity.activity_type == "whatsapp_message_received" and message.startswith(type_prefix) and "] " in message:
+        type_header, message = message[1:].split("] ", 1)
+        type_fields = type_header[len("message_type="):].split("; ")
+        message_type = str(type_fields[0] or "unknown").strip().lower()
+        for field in type_fields[1:]:
+            key, separator, value = field.partition("=")
+            if separator and key == "message_subtype":
+                message_subtype = value.strip().lower()
     return {
         "id": activity.id,
         "direction": "incoming" if activity.activity_type == "whatsapp_message_received" else "outgoing",
         "text": message,
+        "message_type": message_type,
+        "message_subtype": message_subtype,
+        "is_non_text": activity.activity_type == "whatsapp_message_received" and message_type != "text",
         "created_at": _iso(activity.created_at),
         "actor_user_id": activity.actor_user_id,
         "delivery_failed": activity.activity_type == "whatsapp_reply_failed",
@@ -314,6 +328,7 @@ def list_whatsapp_conversations(search: str = "", db: Session = Depends(get_db),
         if term and term not in searchable:
             continue
         seen_lead_ids.add(lead.id)
+        latest_message = _whatsapp_message_payload(activity)
         conversations.append({
             "lead_id": lead.id,
             "contact_person": lead.contact_person,
@@ -327,7 +342,10 @@ def list_whatsapp_conversations(search: str = "", db: Session = Depends(get_db),
             "member_user_id": lead.member_user_id,
             "partner_request_id": lead.partner_request_id,
             "converted_partner_id": lead.converted_partner_id,
-            "latest_message": _whatsapp_message_payload(activity)["text"],
+            "latest_message": latest_message["text"],
+            "latest_message_type": latest_message["message_type"],
+            "latest_message_subtype": latest_message["message_subtype"],
+            "latest_message_is_non_text": latest_message["is_non_text"],
             "latest_message_at": _iso(activity.created_at),
             "last_reply_failed": _latest_reply_failed(db, lead.id),
         })

@@ -1,4 +1,4 @@
-import { displayWhatsAppText } from "./whatsappDisplay";
+import { displayWhatsAppMessage, displayWhatsAppText } from "./whatsappDisplay";
 
 describe("displayWhatsAppText", () => {
   it("replaces legacy placeholder text with a neutral label", () => {
@@ -9,5 +9,22 @@ describe("displayWhatsAppText", () => {
   it("keeps real messages unchanged", () => {
     expect(displayWhatsAppText("Your account is active.")).toBe("Your account is active.");
     expect(displayWhatsAppText("")).toBe("");
+  });
+});
+
+describe("displayWhatsAppMessage", () => {
+  it.each([
+    [{ is_non_text: true, message_type: "audio", message_subtype: "voice" }, "🎤 Voice message"],
+    [{ is_non_text: true, message_type: "image", text: "[image]" }, "🖼 Image"],
+    [{ is_non_text: true, message_type: "location", text: "[location shared]" }, "📍 Location shared"],
+    [{ is_non_text: true, message_type: "sticker", text: "[sticker]" }, "🏷 Sticker"],
+    [{ is_non_text: true, message_type: "document", text: "[document: form.pdf]" }, "📄 Document: form.pdf"],
+    [{ is_non_text: true, message_type: "interactive", message_subtype: "nfm_reply" }, "↪️ Interactive flow reply"],
+  ])("labels non-text messages without an empty bubble", (message, expected) => {
+    expect(displayWhatsAppMessage(message)).toBe(expected);
+  });
+
+  it("preserves text captions", () => {
+    expect(displayWhatsAppMessage({ is_non_text: false, message_type: "image", text: "Please check this" })).toBe("Please check this");
   });
 });

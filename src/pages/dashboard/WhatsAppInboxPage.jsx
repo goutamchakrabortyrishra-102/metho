@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import api from "@/services/api";
-import { displayWhatsAppText } from "@/lib/whatsappDisplay";
+import { displayWhatsAppMessage } from "@/lib/whatsappDisplay";
 
 const formatTime = (value) => value ? new Date(value).toLocaleString() : "";
 
@@ -324,7 +324,7 @@ export default function WhatsAppInboxPage() {
                     <span className="shrink-0 text-[11px] text-slate-500">{formatTime(conversation.latest_message_at)}</span>
                   </div>
                   <p className="mt-0.5 text-xs text-slate-500">{conversation.phone}</p>
-                  <p className="mt-1 truncate text-sm text-slate-600">{displayWhatsAppText(conversation.latest_message)}</p>
+                  <p className="mt-1 truncate text-sm text-slate-600">{displayWhatsAppMessage({ text: conversation.latest_message, message_type: conversation.latest_message_type, message_subtype: conversation.latest_message_subtype, is_non_text: conversation.latest_message_is_non_text })}</p>
                 </button>
               </div>
             );

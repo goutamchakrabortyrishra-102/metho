@@ -292,7 +292,7 @@ def test_registration_start_command_resets_stale_native_session(monkeypatch, rol
         assert session.role == ""
         assert session.name == ""
         assert session.address == ""
-        assert session.data_json == "{}"
+        assert json.loads(session.data_json) == {"language": "en"}
         assert "1. Member" in sent[-1]
         assert "2. Partner" in sent[-1]
         assert "3. Rider" in sent[-1]
@@ -323,7 +323,7 @@ def test_new_greeting_resets_any_stale_native_session(monkeypatch, role, state, 
         assert session.role == ""
         assert session.name == ""
         assert session.address == ""
-        assert session.data_json == "{}"
+        assert json.loads(session.data_json) == {"language": "bn" if any("\u0980" <= char <= "\u09ff" for char in greeting) else "en"}
         assert "1. Member" in sent[-1]
         assert "PAN" not in sent[-1]
         assert db.query(CRMLeadActivity).filter_by(lead_id=lead.id, activity_type="whatsapp_introduction_started").count() == 1

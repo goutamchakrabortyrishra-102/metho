@@ -15,7 +15,7 @@ from sql_app.database import Base
 from sql_app.models import AppSetting, CRMLead, CRMLeadActivity, User, WhatsAppRegistrationSession
 from sql_app.routers.crm import get_whatsapp_conversation, list_whatsapp_conversations, send_whatsapp_conversation_message
 from sql_app.routers.whatsapp import get_whatsapp_settings, receive_whatsapp_webhook, run_whatsapp_settings_test, update_whatsapp_settings
-from sql_app.whatsapp_cloud import WHATSAPP_PRESET_MESSAGE_DEFAULTS, _is_informational_question, _registration_role_for_text, get_whatsapp_preset_message, ingest_whatsapp_message, normalize_whatsapp_message, resolve_config, send_whatsapp_message
+from sql_app.whatsapp_cloud import WHATSAPP_PRESET_MESSAGE_DEFAULTS, _is_informational_question, _is_probably_gibberish, _registration_role_for_text, get_whatsapp_preset_message, ingest_whatsapp_message, normalize_whatsapp_message, resolve_config, send_whatsapp_message
 from fastapi import BackgroundTasks, HTTPException
 
 
@@ -48,6 +48,15 @@ def message_payload(message_id="wamid.123", body="Need partner details", sender=
             "messages": [{"from": sender, "id": message_id, "timestamp": "1712345678", "type": "text", "text": {"body": body}}],
         }}]}],
     }
+
+
+def typed_message_payload(message_id, message_type, content, sender="8801712345678"):
+    payload = message_payload(message_id, "", sender)
+    message = payload["entry"][0]["changes"][0]["value"]["messages"][0]
+    message.pop("text", None)
+    message["type"] = message_type
+    message.update(content)
+    return payload
 
 
 def test_admin_can_save_whatsapp_secrets(monkeypatch):
@@ -497,6 +506,65 @@ def test_same_message_id_is_ignored_but_new_message_from_customer_is_recorded():
         activities = db.query(CRMLeadActivity).filter(CRMLeadActivity.activity_type == "whatsapp_message_received").all()
         assert len(activities) == 2
         assert any("Second" in activity.message for activity in activities)
+    finally:
+        db.close()
+
+
+@pytest.mark.parametrize(
+    ("message_type", "content", "expected_type", "expected_subtype", "expected_placeholder"),
+    [
+        ("audio", {"audio": {"id": "audio-1", "voice": True}}, "audio", "voice", "[voice message]"),
+        ("image", {"image": {"id": "image-1"}}, "image", "", "[image]"),
+        ("location", {"location": {"latitude": 22.9, "longitude": 88.4}}, "location", "", "[location shared]"),
+        ("sticker", {"sticker": {"id": "sticker-1"}}, "sticker", "", "[sticker]"),
+        ("document", {"document": {"id": "document-1", "filename": "form.pdf"}}, "document", "", "[document: form.pdf]"),
+        ("interactive", {"interactive": {"type": "nfm_reply", "nfm_reply": {"name": "test-flow", "response_json": "{}"}}}, "interactive", "nfm_reply", "[interactive flow reply received]"),
+    ],
+)
+@pytest.mark.parametrize("session_state", ["ROLE_SELECTION", "ROLE_REGISTRATION_PENDING"])
+def test_non_text_media_during_role_flow_gets_text_only_help_and_keeps_type(
+    monkeypatch, message_type, content, expected_type, expected_subtype, expected_placeholder, session_state,
+):
+    db = make_session()
+    try:
+        sent = []
+        sender = "8801712345678"
+        monkeypatch.setattr("sql_app.whatsapp_cloud.send_whatsapp_message", lambda _db, recipient, text: sent.append(text) or {"messages": [{"id": "wamid.reply"}]})
+        update_whatsapp_settings({"phone_number_id": "123456", "access_token": "secret-token"}, db, admin())
+
+        assert ingest_whatsapp_message(db, message_payload("wamid.role-intro", "Hi", sender), None) == "created"
+        session = db.query(WhatsAppRegistrationSession).one()
+        session.state = session_state
+        session.role = "member" if session_state == "ROLE_REGISTRATION_PENDING" else ""
+        session.data_json = json.dumps({"language": "en", "fallback_count": 0}, ensure_ascii=False)
+        db.commit()
+        sent_before = len(sent)
+
+        message_id = f"wamid.nontext-{message_type}-{session_state.lower()}"
+        assert ingest_whatsapp_message(db, typed_message_payload(message_id, message_type, content, sender), None) == "updated"
+
+        assert len(sent) == sent_before + 1
+        assert "I can only understand text messages" in sent[-1]
+        assert "Please type 1, 2, or 3" in sent[-1]
+        assert "couldn't identify your role" not in sent[-1].lower()
+        db.refresh(session)
+        assert session.state == session_state
+        assert json.loads(session.data_json)["fallback_count"] == 0
+
+        received = db.query(CRMLeadActivity).filter_by(activity_type="whatsapp_message_received").order_by(CRMLeadActivity.created_at.desc()).first()
+        assert received is not None
+        assert f"[message_type={expected_type}" in received.message
+        assert _is_probably_gibberish(expected_placeholder) is False
+        if expected_subtype:
+            assert f"message_subtype={expected_subtype}" in received.message
+        assert expected_placeholder in received.message
+
+        lead = db.query(CRMLead).one()
+        conversation = get_whatsapp_conversation(lead.id, db, admin())
+        incoming = next(message for message in reversed(conversation["messages"]) if message["direction"] == "incoming")
+        assert incoming["message_type"] == expected_type
+        assert incoming["message_subtype"] == expected_subtype
+        assert incoming["text"] == expected_placeholder
     finally:
         db.close()
 

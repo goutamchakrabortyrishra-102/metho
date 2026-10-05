@@ -719,15 +719,24 @@ def _normalized_whatsapp_messages(payload: dict) -> list[dict]:
             raise ValueError("WhatsApp message id is required")
         name = str(profile.get("name") or "WhatsApp Lead").strip() or "WhatsApp Lead"
         msg_type = str(message.get("type") or "text").strip() or "text"
+        message_subtype = ""
         body = ""
         if msg_type == "text":
             body = str((message.get("text") or {}).get("body") or "").strip()
         elif msg_type == "interactive":
-            body = str((message.get("interactive") or {}).get("button_reply", {}).get("title") or (message.get("interactive") or {}).get("list_reply", {}).get("title") or "").strip()
+            interactive = message.get("interactive") or {}
+            body = str((interactive.get("button_reply") or {}).get("title") or (interactive.get("list_reply") or {}).get("title") or "").strip()
+            if not body and interactive.get("type"):
+                message_subtype = str(interactive.get("type") or "").strip().lower()
         elif msg_type == "button":
             body = str((message.get("button") or {}).get("text") or "").strip()
         elif msg_type == "image":
             body = str((message.get("image") or {}).get("caption") or "").strip()
+        if msg_type == "audio" and bool((message.get("audio") or {}).get("voice")):
+            message_subtype = "voice"
+        is_non_text = msg_type != "text" and not body
+        if is_non_text:
+            body = _non_text_message_placeholder(msg_type, message, message_subtype)
         metadata = {
             "source": "whatsapp",
             "message_id": msg_id,
@@ -736,6 +745,8 @@ def _normalized_whatsapp_messages(payload: dict) -> list[dict]:
             "display_phone_number": str((value.get("metadata") or {}).get("display_phone_number") or "").strip(),
             "business_account_id": str(value.get("business_account_id") or "").strip(),
             "message_type": msg_type,
+            "message_subtype": message_subtype,
+            "is_non_text": is_non_text,
             "timestamp": str(message.get("timestamp") or "").strip(),
             "raw_body": body,
         }
@@ -762,6 +773,37 @@ def _normalized_whatsapp_messages(payload: dict) -> list[dict]:
 
 def normalize_whatsapp_message(payload: dict) -> dict:
     return _normalized_whatsapp_messages(payload)[0]
+
+
+def _non_text_message_placeholder(message_type: str, message: dict, message_subtype: str = "") -> str:
+    if message_type == "audio":
+        return "[voice message]" if bool((message.get("audio") or {}).get("voice")) else "[audio message]"
+    if message_type == "image":
+        return "[image]"
+    if message_type == "location":
+        return "[location shared]"
+    if message_type == "sticker":
+        return "[sticker]"
+    if message_type == "contacts":
+        return "[contact card received]"
+    if message_type == "document":
+        filename = str((message.get("document") or {}).get("filename") or "").strip()[:120]
+        return f"[document: {filename}]" if filename else "[document received]"
+    if message_type == "video":
+        return "[video message]"
+    if message_type == "interactive":
+        return "[interactive flow reply received]"
+    safe_type = re.sub(r"[^a-z0-9_-]+", "", str(message_subtype or message_type).lower())[:40] or "unknown"
+    return f"[{safe_type} message]"
+
+
+def _incoming_whatsapp_activity_message(activity_prefix: str, metadata: dict, body: str) -> str:
+    message_type = str(metadata.get("message_type") or "unknown").strip().lower()
+    message_subtype = str(metadata.get("message_subtype") or "").strip().lower()
+    type_label = f"[message_type={message_type}"
+    if message_subtype:
+        type_label += f"; message_subtype={message_subtype}"
+    return f"{activity_prefix}: {type_label}] {body}"
 
 
 def _registration_reply(db, reply_text: str, lead_id: str = "", phone: str = "") -> str:
@@ -1128,6 +1170,10 @@ def _is_probably_gibberish(text: str) -> bool:
     normalized = _whatsapp_command_text(text)
     if not normalized:
         return True
+    if normalized in {"[voice message]", "[audio message]", "[image]", "[location shared]", "[sticker]", "[contact card received]", "[document received]", "[video message]", "[interactive flow reply received]"}:
+        return False
+    if re.fullmatch(r"\[document: [^\]]+\]", normalized) or re.fullmatch(r"\[[a-z0-9_-]+ message\]", normalized):
+        return False
     if normalized in {"hi", "hello", "hey", "namaste", "namaskar", "assalamualaikum", "salam", "member", "partner", "rider", "1", "2", "3"}:
         return False
     if len(normalized.split()) > 1:
@@ -1300,12 +1346,25 @@ def _send_introduction(db, session: WhatsAppRegistrationSession, lead: CRMLead, 
     session.state = WHATSAPP_INTRODUCTION
     session.role = ""
     selected_language = language if language in {"bn", "hi", "en"} else "bn"
+    session_data = _session_data(session)
+    session_data["language"] = selected_language
+    _save_session_data(session, session_data)
     reply = _generate_welcome_message(db, lead, recipient, language=selected_language)
     if not _send_member_registration_reply(db, recipient, reply):
         return False
     db.add(CRMLeadActivity(lead_id=lead.id, activity_type="whatsapp_introduction_started", message="WhatsApp METHO introduction started"))
     db.add(CRMLeadActivity(lead_id=lead.id, activity_type="whatsapp_message_sent", message=reply))
     return True
+
+
+def _non_text_role_selection_reply(session: WhatsAppRegistrationSession) -> str:
+    language = str(_session_data(session).get("language") or "bn").strip().lower()
+    replies = {
+        "bn": "দুঃখিত, আমি শুধু টেক্সট মেসেজ বুঝতে পারি। দয়া করে 1, 2 বা 3 টাইপ করুন।",
+        "en": "Sorry, I can only understand text messages. Please type 1, 2, or 3.",
+        "hi": "माफ़ कीजिए, मैं केवल टेक्स्ट संदेश समझ सकता हूँ। कृपया 1, 2 या 3 टाइप करें।",
+    }
+    return replies.get(language, replies["bn"])
 
 
 PASTED_REGISTRATION_DETAIL_MARKERS = ("name-", "address-", "pin-", "father name")
@@ -2065,6 +2124,15 @@ def ingest_whatsapp_message(db, payload: dict, request=None) -> str:
             native_member_handled = _send_member_registration_reply(db, normalized["phone"], reply)
         elif _is_whatsapp_handoff_command(incoming_text):
             native_member_handled = _request_whatsapp_human_handoff(db, lead, registration_session, normalized["phone"])
+        elif (
+            normalized.get("metadata", {}).get("is_non_text")
+            and registration_session
+            and registration_session.state in {WHATSAPP_INTRODUCTION, WHATSAPP_ROLE_SELECTION, WHATSAPP_ROLE_REGISTRATION_PENDING}
+        ):
+            non_text_reply = _non_text_role_selection_reply(registration_session)
+            if _send_member_registration_reply(db, normalized["phone"], non_text_reply):
+                db.add(CRMLeadActivity(lead_id=lead.id, activity_type="whatsapp_message_sent", message=non_text_reply))
+            native_member_handled = True
         elif registration_session and registration_session.state == WHATSAPP_REGISTRATION_CONFIRMATION_PENDING:
             native_member_handled = _registration_confirmation_reply(db, registration_session, lead, incoming_text, normalized["phone"])
         elif registration_session and registration_session.state == WHATSAPP_ROLE_REGISTRATION_PENDING:
@@ -2104,7 +2172,7 @@ def ingest_whatsapp_message(db, payload: dict, request=None) -> str:
             native_member_handled = _continue_member_registration_flow(db, registration_session, lead, incoming_text, normalized["phone"])
         if native_member_handled:
             logger.info("WhatsApp final reply path: registration message_id=%s", message_id)
-            db.add(CRMLeadActivity(lead_id=lead.id, activity_type="whatsapp_message_received", message=f"{activity_prefix}: {body}"))
+            db.add(CRMLeadActivity(lead_id=lead.id, activity_type="whatsapp_message_received", message=_incoming_whatsapp_activity_message(activity_prefix, normalized.get("metadata") or {}, body)))
             db.add(CRMLeadActivity(lead_id=lead.id, activity_type="whatsapp_auto_reply_dispatched", message=f"{dispatch_marker}:member-registration"))
             statuses.append(status)
             continue
@@ -2131,7 +2199,7 @@ def ingest_whatsapp_message(db, payload: dict, request=None) -> str:
             message_id,
             False,
         )
-        db.add(CRMLeadActivity(lead_id=lead.id, activity_type="whatsapp_message_received", message=f"{activity_prefix}: {body}"))
+        db.add(CRMLeadActivity(lead_id=lead.id, activity_type="whatsapp_message_received", message=_incoming_whatsapp_activity_message(activity_prefix, normalized.get("metadata") or {}, body)))
         already_dispatched = db.query(CRMLeadActivity).filter(
             CRMLeadActivity.lead_id == lead.id,
             CRMLeadActivity.activity_type == "whatsapp_auto_reply_dispatched",
