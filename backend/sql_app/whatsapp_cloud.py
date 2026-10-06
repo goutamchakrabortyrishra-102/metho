@@ -15,7 +15,7 @@ from sqlalchemy.exc import IntegrityError
 
 from .crm_identity import enrich_lead_from_contact, ensure_pending_followup, find_lead_by_phone, phone_keys
 from .crm_automation import record_lifecycle_event
-from .models import AppSetting, CRMFollowUp, CRMLead, CRMLeadActivity, CRMTask, PartnerRequest, PublicOrder, User, WhatsAppMessageOutbox, WhatsAppRegistrationSession
+from .models import AppSetting, AssociatePartner, CRMFollowUp, CRMLead, CRMLeadActivity, CRMTask, PartnerRequest, PublicOrder, User, WhatsAppMessageOutbox, WhatsAppRegistrationSession
 from .schemas import RegisterRequest, RiderRegisterRequest
 
 logger = logging.getLogger(__name__)
@@ -157,6 +157,17 @@ WHATSAPP_RIDER_APPLICATION_PENDING = "RIDER_APPLICATION_PENDING"
 WHATSAPP_RIDER_APPROVED = "RIDER_APPROVED"
 WHATSAPP_RIDER_ONBOARDING = "RIDER_ONBOARDING"
 WHATSAPP_REGISTRATION_COMPLETED = "COMPLETED"
+# In-chat registration engine states; the current question is tracked in data_json, not in the state name.
+WHATSAPP_NATIVE_REG_CONSENT = "NATIVE_REG_CONSENT"
+WHATSAPP_NATIVE_REG_MEMBER = "NATIVE_REG_MEMBER"
+WHATSAPP_NATIVE_REG_PARTNER = "NATIVE_REG_PARTNER"
+WHATSAPP_NATIVE_REG_RIDER = "NATIVE_REG_RIDER"
+WHATSAPP_NATIVE_REG_CONFIRM = "NATIVE_REG_CONFIRM"
+WHATSAPP_NATIVE_REG_ROLE_STATES = {"member": WHATSAPP_NATIVE_REG_MEMBER, "partner": WHATSAPP_NATIVE_REG_PARTNER, "rider": WHATSAPP_NATIVE_REG_RIDER}
+WHATSAPP_NATIVE_REG_STATES = {WHATSAPP_NATIVE_REG_CONSENT, WHATSAPP_NATIVE_REG_CONFIRM, *WHATSAPP_NATIVE_REG_ROLE_STATES.values()}
+# Fallback sponsor when the customer skips the referral question; kept separate from the web-form DEFAULT_ADMIN_SPONSOR_ID.
+NATIVE_REG_DEFAULT_SPONSOR_CODE = (os.getenv("WHATSAPP_DEFAULT_SPONSOR_CODE") or "MTH-21E906").strip().upper()
+NATIVE_REG_MAX_RETRIES = 3
 WHATSAPP_MEMBER_ACTIVE_STATES = {WHATSAPP_MEMBER_NAME, WHATSAPP_MEMBER_ADDRESS, WHATSAPP_MEMBER_PAN, WHATSAPP_MEMBER_DOB, WHATSAPP_MEMBER_CONFIRMATION}
 WHATSAPP_LEGACY_NATIVE_REGISTRATION_STATES = {
     *WHATSAPP_MEMBER_ACTIVE_STATES,
@@ -198,7 +209,7 @@ WHATSAPP_PRESET_MESSAGE_DEFAULTS = {
     "preset_partner_role_explanation": "Partner হিসেবে Shop বা Service business application জমা দিতে পারবেন। রেজিস্ট্রেশন করতে চাইলে 1 লিখুন।",
     "preset_rider_role_explanation": "Rider হিসেবে delivery কাজের জন্য application জমা দিতে পারবেন। রেজিস্ট্রেশন করতে চাইলে 1 লিখুন।",
     "preset_role_selection_fallback": "🙂 METHO AAY-UPAY সম্পর্কে আরও জানতে পারেন। যুক্ত হওয়ার জন্য একটি option বেছে নিন:\n1. Member\n2. Partner\n3. Rider",
-    "preset_role_registration_reminder": "আপনি {role} হিসেবে যুক্ত হওয়ার পথে আছেন—মাত্র একটি ফর্ম বাকি! এখনই পূরণ করুন এবং আপনার সুবিধাগুলো (কমিশন, বোনাস, রিওয়ার্ড) পেতে শুরু করুন: {link}",
+    "preset_role_registration_reminder": "আপনি {role} হিসেবে যুক্ত হওয়ার পথে আছেন—মাত্র একটি ফর্ম বাকি! এখনই পূরণ করুন এবং আপনার সুবিধাগুলো (কমিশন, বোনাস, রিওয়ার্ড) পেতে শুরু করুন: {link}\n\nচ্যাটেই registration করতে CHAT লিখুন।",
     "preset_support_fallback": "আপনার প্রশ্নটি আমাদের support team দেখবে। METHO WhatsApp executive: {support_number}",
     "preset_business_enquiry_executive": "এই বিষয়ে বিস্তারিত জানতে আমাদের Executive-এর সাথে যোগাযোগ করুন: 9339566110",
     "preset_handoff_requested": "আপনার অনুরোধটি আমাদের support team-কে পাঠানো হয়েছে। একজন representative শীঘ্রই যোগাযোগ করবেন।",
@@ -224,7 +235,7 @@ WHATSAPP_PRESET_MESSAGE_DEFAULTS = {
     "preset_ai_local_fallback": "ধন্যবাদ আপনার বার্তার জন্য। মেঠো প্রতিনিধি শীঘ্রই আপনার সাথে যোগাযোগ করবেন।",
     "preset_member_active_reply": "আপনার METHO Member ID {member_code} Active ✅\nএখন প্রথম purchase করলেই আপনার Smart Cycle শুরু হয়ে যাবে এবং কমিশন/বোনাস জমা পড়া শুরু করবে। কোন প্রোডাক্ট দেখবেন বা wallet সম্পর্কে জানতে চাইলে এখানে জিজ্ঞাসা করুন।\n\n💰 বন্ধুদের METHO-তে যুক্ত করান, আপনার referral link শেয়ার করুন: {referral_link}",
     "preset_member_onboarding_started": "আপনার Member ID {member_code} এখন Active।\nMember onboarding শুরু হয়েছে। Products, wallet, rewards এবং support সম্পর্কে জানতে এখানে reply করুন।\n\n💰 বন্ধুদের METHO-তে যুক্ত করান, আপনার referral link শেয়ার করুন: {referral_link}",
-    "preset_member_activation_pending": "🌱 আপনার Member registration সম্পন্ন হয়েছে।\nMember ID: {member_code}\n\nআপনার ID এখনও Active হয়নি। Activation সম্পন্ন করার পর আপনার ID Active হবে।\nSecure action: {activation_url}\n\nশুধু payment সম্পন্ন করলেই Active ধরে নেওয়া হবে না; backend verification-এর পর status বদলাবে।",
+    "preset_member_activation_pending": "🌱 আপনার Member registration সম্পন্ন হয়েছে।\nMember ID: {member_code}\n\nআপনার ID এখনও Active হয়নি। Activation-এর জন্য যেকোনো একটি METHO product কিনতে হবে (Partner-এর product/service গণ্য হবে না)।\nTo activate your ID, buy any one METHO product.\nShop: {activation_url}\n\nOrder verify ও approve হওয়ার পর ID Active হবে; শুধু payment করলেই Active ধরা হবে না।",
     "preset_order_status_header": "আপনার সাম্প্রতিক order status:",
     "preset_no_orders_found": "আপনার Member account-এ কোনো order পাওয়া যায়নি।",
     "preset_partner_approved_reply": "আপনার Partner application approved হয়েছে। Repository-তে Partner profile, products/catalogue, inventory, orders, ledger এবং reports-এর APIs আছে; account action-এর জন্য secure Partner dashboard ব্যবহার করুন।",
@@ -249,7 +260,7 @@ WHATSAPP_PRESET_MESSAGE_DEFAULTS = {
     "preset_member_dob_prompt": "Member registration website form-এ আপনার তথ্য সম্পূর্ণ করুন।",
     "preset_member_dob_required": "Member registration website form-এ আপনার তথ্য সম্পূর্ণ করুন।",
     "preset_member_edit_restart": "Registration website form-এ তথ্য সম্পাদনা করুন।",
-    "preset_member_registration_success": "আপনার Member registration সফল হয়েছে।\nMember ID: {member_code}\n\nআপনার ID এখনও Active হয়নি। Activation সম্পন্ন করার পর আপনার ID Active হবে।\nSecure action: {activation_url}\n\nPayment বা purchase status backend verify না হওয়া পর্যন্ত Active ধরা হবে না।",
+    "preset_member_registration_success": "আপনার Member registration সফল হয়েছে।\nMember ID: {member_code}\n\nআপনার ID এখনও Active হয়নি। Activation-এর জন্য যেকোনো একটি METHO product কিনতে হবে (Partner-এর product/service গণ্য হবে না)।\nTo activate your ID, buy any one METHO product.\nShop: {activation_url}\n\nOrder verify ও approve হওয়ার পর ID Active হবে; শুধু payment করলেই Active ধরা হবে না।",
     "preset_member_registration_failed": "রেজিস্ট্রেশন সম্পন্ন করা যায়নি: {detail}\nদয়া করে support লিখুন।",
     "preset_partner_confirmation": "Partner registration website form-এ আপনার application সম্পূর্ণ করুন।",
     "preset_partner_business_type_invalid": "Partner registration website form-এ আপনার application সম্পূর্ণ করুন।",
@@ -977,7 +988,8 @@ def _registration_status_context(db, lead: CRMLead, session: WhatsAppRegistratio
             lines.append(f"Member ID: {data.get('member_code') or user.id}")
             lines.append(f"Member account active: {'yes' if active else 'no'}")
             if not active:
-                lines.append(f"Activation link: {DEFAULT_MEMBER_ACTIVATION_URL}")
+                lines.append("Activation requires buying any one METHO product (partner products/services do not count), with the order approved by backend verification.")
+                lines.append(f"Shop link: {DEFAULT_MEMBER_ACTIVATION_URL}")
             orders = db.query(PublicOrder).filter(PublicOrder.customer_user_id == user.id).order_by(PublicOrder.created_at.desc()).limit(5).all()
             lines.append("Recent orders: " + ("; ".join(f"{order.id}: {order.status}" for order in orders) if orders else "none found"))
         else:
@@ -1122,7 +1134,7 @@ def _localized_role_reply(db, role: str, language: str, lead_id: str = "", phone
     base = custom if custom and custom != default else LOCALIZED_ROLE_REPLIES[language][role]
     default_help = DEFAULT_WHATSAPP_REGISTRATION_HELP_PROMPT
     help_prompt = config["registration_help_prompt"] if config["registration_help_prompt"] != default_help else LOCALIZED_HELP_PROMPTS[language]
-    return "\n\n".join((base, f"{role.title()} registration: {_tracked_registration_url(_role_registration_url(config, role), role, lead_id, phone)}", help_prompt))
+    return "\n\n".join((base, f"{role.title()} registration: {_tracked_registration_url(_role_registration_url(config, role), role, lead_id, phone)}", "চ্যাটেই registration করতে CHAT লিখুন।", help_prompt))
 
 
 def _role_registration_url(config: dict, role: str) -> str:
@@ -1487,6 +1499,8 @@ def _continue_role_registration_pending(db, session: WhatsAppRegistrationSession
         return False
     text = str(incoming_text or "").strip()
     config = resolve_config(db)
+    if _whatsapp_command_text(text) in NATIVE_REG_START_COMMANDS:
+        return _start_native_registration(db, session, lead, recipient)
     selected_role = _explicit_role_switch_for_text(text)
     if selected_role in REGISTRATION_ROLE_SETTINGS and selected_role != role:
         session.role = selected_role
@@ -1942,7 +1956,7 @@ def _continue_role_registration_flow(db, session: WhatsAppRegistrationSession, l
     return True
 
 
-def _request_whatsapp_human_handoff(db, lead: CRMLead, session: WhatsAppRegistrationSession | None, recipient: str) -> bool:
+def _request_whatsapp_human_handoff(db, lead: CRMLead, session: WhatsAppRegistrationSession | None, recipient: str, extra_text: str = "") -> bool:
     if session:
         _clear_member_registration_session(session)
     _stop_abandoned_registration_reminders(db, lead, "Automatic registration reminders stopped after human support request")
@@ -1952,6 +1966,9 @@ def _request_whatsapp_human_handoff(db, lead: CRMLead, session: WhatsAppRegistra
         assignee_id = assignee_id.id if isinstance(assignee_id, User) else assignee_id
         db.add(CRMTask(title="WhatsApp human support requested", description="Customer asked to speak with a human from WhatsApp.", due_at=datetime.now(timezone.utc), status="Pending", priority="High", lead_id=lead.id, assigned_user_id=assignee_id, created_by_user_id=assignee_id))
     text = get_whatsapp_preset_message(db, "preset_handoff_requested", WHATSAPP_PRESET_MESSAGE_DEFAULTS["preset_handoff_requested"])
+    if extra_text:
+        # Only one outbound reply is delivered per inbound message, so extra content must share the handoff message.
+        text = f"{text}\n\n{extra_text}"
     if not _send_member_registration_reply(db, recipient, text):
         return False
     db.add(CRMLeadActivity(lead_id=lead.id, activity_type="whatsapp_human_handoff_requested", message="Customer requested human support from WhatsApp"))
@@ -2061,6 +2078,662 @@ def _continue_member_registration_flow(db, session: WhatsAppRegistrationSession,
     db.add(CRMLeadActivity(lead_id=lead.id, activity_type="whatsapp_message_sent", message=reply))
     db.add(CRMLeadActivity(lead_id=lead.id, activity_type="whatsapp_registration_state", message=session.state))
     return True
+
+
+NATIVE_REG_START_COMMANDS = {"chat", "চ্যাট", "শুরু"}
+NATIVE_REG_WEB_COMMANDS = {"web", "link", "ওয়েব", "লিংক"}
+NATIVE_REG_BACK_COMMANDS = {"back", "পিছনে"}
+NATIVE_REG_RESTART_COMMANDS = {"restart", "রিস্টার্ট"}
+NATIVE_REG_SKIP_COMMANDS = {"skip", "na", "n/a", "none", "-", "স্কিপ", "এড়িয়ে যান"}
+NATIVE_REG_YES = {"1", "yes", "y", "confirm", "ok", "okay", "হ্যাঁ", "হ্যা", "হাঁ"}
+NATIVE_REG_NO = {"2", "no", "n", "না"}
+NATIVE_REG_STATES_IN_INDIA = (
+    "Andhra Pradesh", "Arunachal Pradesh", "Assam", "Bihar", "Chhattisgarh", "Goa", "Gujarat", "Haryana", "Himachal Pradesh", "Jharkhand", "Karnataka", "Kerala",
+    "Madhya Pradesh", "Maharashtra", "Manipur", "Meghalaya", "Mizoram", "Nagaland", "Odisha", "Punjab", "Rajasthan", "Sikkim", "Tamil Nadu", "Telangana", "Tripura",
+    "Uttar Pradesh", "Uttarakhand", "West Bengal", "Andaman and Nicobar Islands", "Chandigarh", "Dadra and Nagar Haveli and Daman and Diu", "Delhi",
+    "Jammu and Kashmir", "Ladakh", "Lakshadweep", "Puducherry",
+)
+NATIVE_REG_SHOP_SECTORS = ("Vegetables", "Grocery", "Cosmetics & Beauty", "Others")
+NATIVE_REG_SERVICE_SECTORS = ("Transport", "Delivery Partner", "Stay & Dining", "Property Buy & Sell", "Doorstep", "Other Services", "Creative & Media")
+NATIVE_REG_VEHICLES = (("ebike", "E-bike"), ("e_rickshaw", "E-rickshaw"), ("auto_rickshaw", "Auto-rickshaw"), ("delivery", "METHO Delivery"))
+NATIVE_REG_TERMS_PATHS = {"member": "/member-terms", "partner": "/partner-terms", "rider": "/rider-terms"}
+NATIVE_REG_PAN_RE = re.compile(r"[A-Z]{5}[0-9]{4}[A-Z]")
+NATIVE_REG_COMMAND_HELP = "\n\n(BACK = আগের প্রশ্ন · RESTART = নতুন করে শুরু · WEB = website form · CANCEL = বাতিল)"
+
+
+class _NativeRegInvalid(Exception):
+    pass
+
+
+class _NativeRegDuplicate(Exception):
+    pass
+
+
+def _native_phone(raw: str) -> str:
+    digits = re.sub(r"\D", "", str(raw or ""))
+    return digits[-10:] if len(digits) == 12 and digits.startswith("91") else digits
+
+
+def _native_phone_exists(db, role: str, phone: str) -> bool:
+    if role == "member":
+        from .routers.auth import _member_phone_exists
+        return bool(_member_phone_exists(db, phone))
+    if role == "partner":
+        return bool(
+            db.query(PartnerRequest).filter(PartnerRequest.phone == phone, PartnerRequest.status.in_(["pending", "approved"])).first()
+            or db.query(AssociatePartner).filter(AssociatePartner.phone == phone).first()
+        )
+    return bool(db.query(User).filter(User.phone == phone, User.role == "rider").first())
+
+
+def _native_pan_exists(db, role: str, pan: str) -> bool:
+    if role == "member":
+        from .routers.auth import _member_pan_exists
+        return bool(_member_pan_exists(db, pan))
+    if role == "partner":
+        return bool(
+            db.query(PartnerRequest).filter(PartnerRequest.gst_no == pan, PartnerRequest.status.in_(["pending", "approved"])).first()
+            or db.query(AssociatePartner).filter(AssociatePartner.gst_no == pan).first()
+        )
+    from .routers.rider import _rider_pan_exists
+    return bool(_rider_pan_exists(db, pan))
+
+
+def _native_text_validator(label: str, min_len: int = 2, max_len: int = 120):
+    def validate(db, text, answers, ctx):
+        value = " ".join(str(text or "").split())
+        if len(value) < min_len:
+            raise _NativeRegInvalid(f"{label} অন্তত {min_len}টি অক্ষরের হতে হবে।")
+        return value[:max_len]
+    return validate
+
+
+def _native_dob_validator(db, text, answers, ctx):
+    raw = str(text or "").strip()
+    today = datetime.now(timezone.utc).date()
+    for fmt in ("%d-%m-%Y", "%d/%m/%Y", "%d.%m.%Y", "%Y-%m-%d"):
+        try:
+            parsed = datetime.strptime(raw, fmt).date()
+        except ValueError:
+            continue
+        if 1900 <= parsed.year and parsed <= today:
+            return parsed.isoformat()
+        break
+    raise _NativeRegInvalid("জন্ম তারিখ DD-MM-YYYY ফরম্যাটে লিখুন, যেমন 15-08-1990।")
+
+
+def _native_pan_validator(db, text, answers, ctx):
+    pan = re.sub(r"\s+", "", str(text or "")).upper()
+    if not NATIVE_REG_PAN_RE.fullmatch(pan):
+        raise _NativeRegInvalid("PAN ফরম্যাট ঠিক নয়। উদাহরণ: ABCDE1234F")
+    if _native_pan_exists(db, ctx["role"], pan):
+        raise _NativeRegDuplicate("PAN নম্বর")
+    return pan
+
+
+def _native_aadhaar_validator(db, text, answers, ctx):
+    digits = re.sub(r"\D", "", str(text or ""))
+    if len(digits) != 12:
+        raise _NativeRegInvalid("Aadhaar নম্বর ঠিক ১২ সংখ্যার হতে হবে।")
+    return digits
+
+
+def _native_pincode_validator(db, text, answers, ctx):
+    value = str(text or "").strip()
+    if not (value.isdigit() and len(value) == 6):
+        raise _NativeRegInvalid("Pincode ঠিক ৬ সংখ্যার হতে হবে।")
+    return value
+
+
+def _native_phone_field_validator(db, text, answers, ctx):
+    digits = re.sub(r"\D", "", str(text or ""))
+    if not 10 <= len(digits) <= 15:
+        raise _NativeRegInvalid("ফোন নম্বর ১০ থেকে ১৫ সংখ্যার হতে হবে।")
+    return digits
+
+
+def _native_state_validator(db, text, answers, ctx):
+    needle = " ".join(str(text or "").lower().split())
+    if needle:
+        for state in NATIVE_REG_STATES_IN_INDIA:
+            if state.lower() == needle:
+                return state
+        matches = [state for state in NATIVE_REG_STATES_IN_INDIA if state.lower().startswith(needle) or (len(needle) >= 4 and needle in state.lower())]
+        if len(matches) == 1:
+            return matches[0]
+    raise _NativeRegInvalid("রাজ্যের নাম চিনতে পারিনি। পুরো নাম লিখুন, যেমন West Bengal।")
+
+
+def _native_choice_validator(options_fn, label: str):
+    def validate(db, text, answers, ctx):
+        options = options_fn(db, answers)
+        value = str(text or "").strip().lower()
+        if value.isdigit() and 1 <= int(value) <= len(options):
+            return options[int(value) - 1][0]
+        for option_value, option_label in options:
+            if value in {option_value.lower(), option_label.lower()}:
+                return option_value
+        raise _NativeRegInvalid(f"{label}: তালিকা থেকে 1 থেকে {len(options)}-এর মধ্যে নম্বর লিখুন।")
+    return validate
+
+
+def _native_gate_validator(db, text, answers, ctx):
+    value = _whatsapp_command_text(text)
+    if value in NATIVE_REG_YES:
+        return True
+    if value in NATIVE_REG_NO:
+        return False
+    raise _NativeRegInvalid("YES অথবা SKIP লিখুন।")
+
+
+def _native_sponsor_validator(db, text, answers, ctx):
+    from .routers.auth import _resolve_user_by_identifier, member_code_for_user
+    code = re.sub(r"\s+", "", str(text or "")).upper()
+    user = _resolve_user_by_identifier(db, code) if code else None
+    if not user:
+        raise _NativeRegInvalid("এই Sponsor ID পাওয়া যায়নি। সঠিক ID লিখুন, অথবা SKIP লিখুন।")
+    answers["_sponsor_name"] = user.name or ""
+    return member_code_for_user(user.id)
+
+
+def _native_login_id_validator(db, text, answers, ctx):
+    value = str(text or "").strip()
+    if len(value) < 3 or len(value) > 255 or re.search(r"\s", value):
+        raise _NativeRegInvalid("Login ID কমপক্ষে ৩ অক্ষরের হতে হবে এবং ফাঁকা জায়গা থাকা চলবে না।")
+    if db.query(User).filter(User.email == value).first():
+        raise _NativeRegDuplicate("Login ID")
+    return value
+
+
+def _native_email_validator(db, text, answers, ctx):
+    value = str(text or "").strip().lower()
+    if not re.fullmatch(r"[^@\s]+@[^@\s]+\.[^@\s]+", value):
+        raise _NativeRegInvalid("Email ঠিক নয়। উদাহরণ: name@example.com, অথবা SKIP লিখুন।")
+    if db.query(User).filter(User.email == value).first():
+        raise _NativeRegDuplicate("Email")
+    return value
+
+
+def _native_commission_validator(db, text, answers, ctx):
+    try:
+        value = float(str(text or "").strip().rstrip("%"))
+    except ValueError:
+        value = 0.0
+    if not 1 <= value <= 50:
+        raise _NativeRegInvalid("Commission % ১ থেকে ৫০-এর মধ্যে হতে হবে।")
+    return value
+
+
+def _native_regex_validator(pattern: str, message: str, upper: bool = False):
+    compiled = re.compile(pattern)
+    def validate(db, text, answers, ctx):
+        value = re.sub(r"\s+", "", str(text or ""))
+        value = value.upper() if upper else value
+        if not compiled.fullmatch(value):
+            raise _NativeRegInvalid(message)
+        return value
+    return validate
+
+
+def _native_custom_sectors(db, kind: str) -> list[str]:
+    try:
+        row = db.query(AppSetting).filter(AppSetting.key == "global").first()
+        options = (json.loads(row.value_json or "{}") if row else {}).get("partner_registration_custom_options") or {}
+        return [str(value).strip() for value in (options.get(kind) or []) if str(value).strip()]
+    except Exception:
+        return []
+
+
+def _native_sector_options(db, answers: dict) -> list[tuple[str, str]]:
+    shop = answers.get("business_type") == "Shop"
+    base = NATIVE_REG_SHOP_SECTORS if shop else NATIVE_REG_SERVICE_SECTORS
+    merged = list(base)
+    for extra in _native_custom_sectors(db, "shop_sectors" if shop else "service_sectors"):
+        if extra.lower() not in {item.lower() for item in merged}:
+            merged.append(extra)
+    return [(item, item) for item in merged]
+
+
+def _native_option_lines(options) -> str:
+    return "\n".join(f"{index}. {label}" for index, (_, label) in enumerate(options, start=1))
+
+
+def _nf(key, label, prompt, validate, required=True, when=None, gate=False):
+    return {"key": key, "label": label, "prompt": prompt, "validate": validate, "required": required, "when": when, "gate": gate}
+
+
+def _native_fields(role: str) -> list[dict]:
+    is_shop = lambda a: a.get("business_type") == "Shop"
+    is_service = lambda a: a.get("business_type") == "Service"
+    business_types = lambda db, a: [("Shop", "Shop"), ("Service", "Service")]
+    vehicles = lambda db, a: list(NATIVE_REG_VEHICLES)
+    if role == "member":
+        return [
+            _nf("name", "নাম", "আপনার পূর্ণ নাম লিখুন।", _native_text_validator("নাম")),
+            _nf("dob", "জন্ম তারিখ", "আপনার জন্ম তারিখ লিখুন (DD-MM-YYYY), যেমন 15-08-1990।", _native_dob_validator),
+            _nf("pan_no", "PAN", "আপনার PAN নম্বর লিখুন (যেমন ABCDE1234F)।", _native_pan_validator),
+            _nf("address", "ঠিকানা", "আপনার ঠিকানা লিখুন (গ্রাম/শহর/রাজ্য)।", _native_text_validator("ঠিকানা", 3, 2000), required=False),
+            _nf("sponsor_code", "Sponsor ID", "যিনি আপনাকে রেফার করেছেন তাঁর Referral/Sponsor ID লিখুন।", _native_sponsor_validator, required=False),
+        ]
+    if role == "partner":
+        return [
+            _nf("business_type", "ধরন", lambda db, a: "আপনার ব্যবসা কোন ধরনের?\n" + _native_option_lines(business_types(db, a)), _native_choice_validator(business_types, "ধরন")),
+            _nf("shop_sector", "Shop Sector", lambda db, a: "Shop-এর Primary Sector বেছে নিন:\n" + _native_option_lines(_native_sector_options(db, a)), _native_choice_validator(_native_sector_options, "Sector"), when=is_shop),
+            _nf("service_sector", "Service Sector", lambda db, a: "Service-এর Primary Sector বেছে নিন:\n" + _native_option_lines(_native_sector_options(db, a)), _native_choice_validator(_native_sector_options, "Sector"), when=is_service),
+            _nf("shop_category", "Shop Category", "Shop-এর ক্যাটাগরি লিখুন, যেমন Kirana Essentials।", _native_text_validator("ক্যাটাগরি", 2, 120), required=False, when=is_shop),
+            _nf("service_category", "Service Category", "Service-এর ক্যাটাগরি লিখুন, যেমন Hotel।", _native_text_validator("ক্যাটাগরি", 2, 120), required=False, when=is_service),
+            _nf("business_name", "ব্যবসার নাম", "আপনার Shop/Service-এর নাম লিখুন।", _native_text_validator("ব্যবসার নাম", 2, 255)),
+            _nf("business_description", "বিবরণ", "ব্যবসার সংক্ষিপ্ত বিবরণ লিখুন।", _native_text_validator("বিবরণ", 3, 1000), required=False),
+            _nf("contact_person", "মালিক/ম্যানেজার", "মালিক বা ম্যানেজারের পূর্ণ নাম লিখুন।", _native_text_validator("নাম")),
+            _nf("pan_no", "PAN", "ব্যবসার PAN নম্বর লিখুন (যেমন ABCDE1234F)।", _native_pan_validator),
+            _nf("aadhaar_no", "Aadhaar", "আপনার ১২ সংখ্যার Aadhaar নম্বর লিখুন।", _native_aadhaar_validator),
+            _nf("email", "Login ID", "আপনার Partner Login ID (username) কী হবে? ফাঁকা জায়গা ছাড়া লিখুন।", _native_login_id_validator),
+            _nf("address", "ঠিকানা", "ব্যবসার ঠিকানা লিখুন (দোকান নং, রাস্তা, এলাকা)।", _native_text_validator("ঠিকানা", 3, 2000)),
+            _nf("state", "রাজ্য", "রাজ্যের নাম লিখুন, যেমন West Bengal।", _native_state_validator),
+            _nf("district", "জেলা", "জেলার নাম লিখুন।", _native_text_validator("জেলা"), required=False),
+            _nf("city", "শহর", "শহর/গ্রামের নাম লিখুন।", _native_text_validator("শহর")),
+            _nf("pincode", "Pincode", "Pincode লিখুন (৬ সংখ্যা)।", _native_pincode_validator, required=False),
+            _nf("upi_id", "UPI ID", "UPI ID লিখুন, যেমন business@paytm।", _native_regex_validator(r"[\w.\-]{2,}@[A-Za-z]{2,}", "UPI ID ঠিক নয়। উদাহরণ: business@paytm"), required=False),
+            _nf("commission_percent_ask", "Commission %", "আপনি কত % Commission চান? (১–৫০; চূড়ান্ত সিদ্ধান্ত Admin-এর)", _native_commission_validator, required=False),
+            _nf("sponsor_code", "Sponsor ID", "যিনি আপনাকে রেফার করেছেন তাঁর Referral/Sponsor ID লিখুন।", _native_sponsor_validator, required=False),
+        ]
+    wants_emergency = lambda a: bool(a.get("_want_emergency"))
+    wants_bank = lambda a: bool(a.get("_want_bank"))
+    return [
+        _nf("name", "নাম", "আপনার পূর্ণ নাম লিখুন।", _native_text_validator("নাম")),
+        _nf("vehicle_type", "যানবাহন", lambda db, a: "আপনার METHO service category বেছে নিন:\n" + _native_option_lines(vehicles(db, a)), _native_choice_validator(vehicles, "Category")),
+        _nf("vehicle_number", "গাড়ির নম্বর", "গাড়ির নম্বর লিখুন।", _native_text_validator("গাড়ির নম্বর", 3, 40), required=False),
+        _nf("email", "Email", "আপনার Email লিখুন।", _native_email_validator, required=False),
+        _nf("address", "ঠিকানা", "আপনার ঠিকানা লিখুন।", _native_text_validator("ঠিকানা", 3, 2000)),
+        _nf("state", "রাজ্য", "রাজ্যের নাম লিখুন, যেমন West Bengal।", _native_state_validator),
+        _nf("district", "জেলা", "জেলার নাম লিখুন।", _native_text_validator("জেলা"), required=False),
+        _nf("city", "শহর", "শহর/গ্রামের নাম লিখুন।", _native_text_validator("শহর")),
+        _nf("pincode", "Pincode", "Pincode লিখুন (৬ সংখ্যা)।", _native_pincode_validator),
+        _nf("pan_no", "PAN", "আপনার PAN নম্বর লিখুন (যেমন ABCDE1234F)।", _native_pan_validator),
+        _nf("aadhaar_no", "Aadhaar", "আপনার ১২ সংখ্যার Aadhaar নম্বর লিখুন।", _native_aadhaar_validator),
+        _nf("_want_emergency", "Emergency contact", "Emergency contact যোগ করবেন? YES লিখুন, না হলে SKIP।", _native_gate_validator, required=False, gate=True),
+        _nf("emergency_contact_name", "Emergency contact নাম", "Emergency contact-এর নাম লিখুন।", _native_text_validator("নাম"), when=wants_emergency),
+        _nf("emergency_contact_phone", "Emergency contact ফোন", "Emergency contact-এর ফোন নম্বর লিখুন।", _native_phone_field_validator, when=wants_emergency),
+        _nf("_want_bank", "Bank details", "Bank account details যোগ করবেন? YES লিখুন, না হলে SKIP।", _native_gate_validator, required=False, gate=True),
+        _nf("bank_account_holder", "Account holder", "Bank account holder-এর নাম লিখুন।", _native_text_validator("নাম"), when=wants_bank),
+        _nf("bank_name", "Bank", "Bank-এর নাম লিখুন।", _native_text_validator("Bank-এর নাম"), when=wants_bank),
+        _nf("bank_account_number", "Account number", "Bank account নম্বর লিখুন।", _native_regex_validator(r"\d{6,20}", "Account নম্বর ৬ থেকে ২০ সংখ্যার হতে হবে।"), when=wants_bank),
+        _nf("bank_ifsc", "IFSC", "IFSC code লিখুন (যেমন SBIN0001234)।", _native_regex_validator(r"[A-Z]{4}0[A-Z0-9]{6}", "IFSC ফরম্যাট ঠিক নয়। উদাহরণ: SBIN0001234", upper=True), when=wants_bank),
+        _nf("upi_id", "UPI ID", "UPI ID লিখুন, যেমন name@paytm।", _native_regex_validator(r"[\w.\-]{2,}@[A-Za-z]{2,}", "UPI ID ঠিক নয়। উদাহরণ: name@paytm"), required=False),
+        _nf("sponsor_code", "Sponsor ID", "যিনি আপনাকে রেফার করেছেন তাঁর Referral/Sponsor ID লিখুন।", _native_sponsor_validator, required=False),
+    ]
+
+
+def _native_load(session) -> tuple[dict, dict, dict]:
+    data = _session_data(session)
+    answers = dict(data.get("answers") or {})
+    for key in ("pan_no", "aadhaar_no"):
+        if data.get(key):
+            answers[key] = data[key]
+    meta = dict(data.get("nr") or {})
+    meta.setdefault("history", [])
+    meta.setdefault("retries", 0)
+    return data, answers, meta
+
+
+def _native_save(session, data: dict, answers: dict, meta: dict) -> None:
+    data["answers"] = {key: value for key, value in answers.items() if key not in {"pan_no", "aadhaar_no"}}
+    for key in ("pan_no", "aadhaar_no"):
+        if answers.get(key):
+            data[key] = answers[key]
+        else:
+            data.pop(key, None)
+    data["nr"] = meta
+    _save_session_data(session, data)
+
+
+def _native_next_field(role: str, answers: dict) -> dict | None:
+    for field in _native_fields(role):
+        if field["when"] and not field["when"](answers):
+            continue
+        if field["key"] not in answers:
+            return field
+    return None
+
+
+def _native_field_prompt(db, field: dict, answers: dict) -> str:
+    prompt = field["prompt"](db, answers) if callable(field["prompt"]) else field["prompt"]
+    if field["key"] == "sponsor_code":
+        prompt += f"\nনা থাকলে SKIP লিখুন (তখন {NATIVE_REG_DEFAULT_SPONSOR_CODE} ব্যবহৃত হবে)।"
+    elif not field["required"]:
+        prompt += "\n(ঐচ্ছিক — বাদ দিতে SKIP লিখুন)"
+    return prompt + NATIVE_REG_COMMAND_HELP
+
+
+def _native_review_text(role: str, answers: dict, phone: str) -> str:
+    lines = [f"📋 আপনার {NATIVE_REG_ROLE_LABELS_BN.get(role, role.title())} তথ্য:"]
+    for field in _native_fields(role):
+        if field["gate"] or field["key"] not in answers or answers[field["key"]] in ("", None):
+            continue
+        value = answers[field["key"]]
+        if field["key"] in {"pan_no", "aadhaar_no"}:
+            value = _masked(value)
+        if field["key"] == "sponsor_code" and answers.get("_sponsor_name"):
+            value = f"{value} ({answers['_sponsor_name']})"
+        lines.append(f"• {field['label']}: {value}")
+    lines.append(f"• ফোন: {phone}")
+    if not answers.get("sponsor_code"):
+        lines.append(f"• Sponsor ID: {NATIVE_REG_DEFAULT_SPONSOR_CODE} (default)")
+    lines.append("\nসব ঠিক থাকলে 1 বা YES লিখুন। বদলাতে BACK, নতুন করে শুরু করতে RESTART, বাতিল করতে CANCEL লিখুন।")
+    return "\n".join(lines)
+
+
+NATIVE_REG_ROLE_LABELS_BN = {"member": "Member", "partner": "Partner", "rider": "Rider"}
+
+
+def _native_terms_url(db, role: str) -> str:
+    parsed = urlsplit(_role_registration_url(resolve_config(db), role))
+    return urlunsplit((parsed.scheme, parsed.netloc, NATIVE_REG_TERMS_PATHS[role], "", ""))
+
+
+def _native_consent_text(db, role: str) -> str:
+    return (
+        f"✅ {role.title()} registration এখানেই এই চ্যাটে সম্পূর্ণ করা যাবে।\n\n"
+        f"শুরুর আগে Terms & Conditions পড়ুন: {_native_terms_url(db, role)}\n\n"
+        "আপনি Terms-এ সম্মত হলে YES লিখুন। সম্মত না হলে NO লিখুন।"
+        + NATIVE_REG_COMMAND_HELP
+    )
+
+
+def _native_web_link_reply(db, session, lead, recipient: str) -> str:
+    config = resolve_config(db)
+    role = session.role
+    link = _tracked_registration_url(_role_registration_url(config, role), role, lead.id, recipient)
+    return get_whatsapp_preset_message(db, "preset_role_registration_reminder", WHATSAPP_PRESET_MESSAGE_DEFAULTS["preset_role_registration_reminder"], role=role.title(), link=link)
+
+
+def _native_lead_sponsor_code(lead) -> str:
+    """Sponsor captured from a ?ref= link, stored on the lead as a `ref:<code>` / `sponsor:<code>` tag or a notes key."""
+    try:
+        tags = json.loads(lead.tags_json or "[]")
+    except (TypeError, ValueError):
+        tags = []
+    for tag in tags if isinstance(tags, list) else []:
+        text = str(tag or "").strip()
+        for prefix in ("ref:", "sponsor:"):
+            if text.lower().startswith(prefix) and text[len(prefix):].strip():
+                return text[len(prefix):].strip().upper()
+    try:
+        notes = json.loads(lead.notes or "{}")
+    except (TypeError, ValueError):
+        notes = {}
+    if isinstance(notes, dict):
+        return str(notes.get("sponsor_code") or notes.get("ref") or "").strip().upper()
+    return ""
+
+
+def _native_prefilled_answers(db, lead) -> tuple[dict, bool]:
+    code = _native_lead_sponsor_code(lead)
+    if not code:
+        return {}, False
+    from .routers.auth import _resolve_user_by_identifier, member_code_for_user
+    user = _resolve_user_by_identifier(db, code)
+    if not user:
+        return {}, False
+    return {"sponsor_code": member_code_for_user(user.id), "_sponsor_name": user.name or ""}, True
+
+
+def _native_sponsor_for_submit(db, answers: dict) -> str | None:
+    from .routers.auth import _resolve_user_by_identifier
+    code = str(answers.get("sponsor_code") or "").strip().upper() or NATIVE_REG_DEFAULT_SPONSOR_CODE
+    if _resolve_user_by_identifier(db, code):
+        return code
+    logger.warning("WhatsApp native registration sponsor %s did not resolve; using backend default sponsor", code)
+    return None
+
+
+def _native_send(db, lead, recipient: str, text: str, log_text: str | None = None) -> bool:
+    if not _send_member_registration_reply(db, recipient, text):
+        return False
+    db.add(CRMLeadActivity(lead_id=lead.id, activity_type="whatsapp_message_sent", message=log_text or text))
+    return True
+
+
+def _native_leave_to_web_pending(session, data: dict) -> None:
+    session.state = WHATSAPP_ROLE_REGISTRATION_PENDING
+    session.completed_at = None
+    _save_session_data(session, {"language": data.get("language", "bn"), "fallback_count": 0, "role_reply_sent": True})
+
+
+def _native_handoff(db, session, lead, recipient: str) -> bool:
+    db.add(CRMLeadActivity(lead_id=lead.id, activity_type="whatsapp_native_registration_handoff", message=f"In-chat {session.role} registration handed to a human after repeated problems"))
+    link = _tracked_registration_url(_role_registration_url(resolve_config(db), session.role), session.role, lead.id, recipient)
+    return _request_whatsapp_human_handoff(db, lead, session, recipient, extra_text=f"চাইলে নিজে website form-এও registration সম্পূর্ণ করতে পারেন: {link}")
+
+
+def _native_duplicate_reply(db, session, lead, data: dict, recipient: str, what: str) -> bool:
+    link = _tracked_registration_url(_role_registration_url(resolve_config(db), session.role), session.role, lead.id, recipient)
+    _native_leave_to_web_pending(session, data)
+    text = (
+        f"এই {what} দিয়ে আগেই registration করা আছে, তাই চ্যাটে আবার জমা নেওয়া যাচ্ছে না।\n"
+        f"আগের registration নিয়ে সাহায্যের জন্য \"Executive\" লিখুন, অথবা অন্য তথ্য দিয়ে website form-এ চেষ্টা করুন: {link}"
+    )
+    return _native_send(db, lead, recipient, text)
+
+
+def _start_native_registration(db, session, lead, recipient: str) -> bool:
+    data = _session_data(session)
+    prefilled, has_prefill = _native_prefilled_answers(db, lead)
+    session.state = WHATSAPP_NATIVE_REG_CONSENT
+    session.completed_at = None
+    meta = {"history": [], "retries": 0, "consented": False, "sponsor_prefilled": has_prefill}
+    _native_save(session, {"language": data.get("language", "bn")}, prefilled, meta)
+    lead.status = "APPLICATION" if lead.status == "NEW" else lead.status
+    db.add(CRMLeadActivity(lead_id=lead.id, activity_type="whatsapp_native_registration_started", message=f"In-chat {session.role} registration started"))
+    return _native_send(db, lead, recipient, _native_consent_text(db, session.role))
+
+
+def _native_current_prompt(db, session, role: str, answers: dict, meta: dict, phone: str) -> str:
+    if session.state == WHATSAPP_NATIVE_REG_CONSENT:
+        return _native_consent_text(db, role)
+    if session.state == WHATSAPP_NATIVE_REG_CONFIRM:
+        return _native_review_text(role, answers, phone)
+    field = _native_next_field(role, answers)
+    return _native_field_prompt(db, field, answers) if field else _native_review_text(role, answers, phone)
+
+
+def _native_ask_next(db, session, role: str, answers: dict, phone: str, prefix: str = "") -> str:
+    field = _native_next_field(role, answers)
+    if field is None:
+        session.state = WHATSAPP_NATIVE_REG_CONFIRM
+        return prefix + _native_review_text(role, answers, phone)
+    session.state = WHATSAPP_NATIVE_REG_ROLE_STATES[role]
+    return prefix + _native_field_prompt(db, field, answers)
+
+
+def _native_new_password() -> str:
+    return "".join(secrets.choice("0123456789") for _ in range(6))
+
+
+def _native_submit(db, session, lead, role: str, answers: dict, phone: str, recipient: str, data: dict, meta: dict) -> tuple[str, str | None]:
+    """Call the existing register handler; returns (reply, redacted_log_reply)."""
+    password = _native_new_password()
+    sponsor = _native_sponsor_for_submit(db, answers)
+    credentials = f"\n\n🔐 Your login password is: {password} — please save it.\n(আপনার login password: {password} — সংরক্ষণ করে রাখুন।)"
+    redacted = credentials.replace(password, "******")
+    if role == "member":
+        from .routers.auth import register
+        result = register(RegisterRequest(
+            name=answers.get("name", ""), email="", phone=phone, pan_no=answers.get("pan_no", ""), dob=answers.get("dob", ""),
+            address=answers.get("address", ""), password=password, sponsor_code=sponsor,
+        ), None, db)
+        user = result.get("user") or {}
+        member_code = user.get("member_code") or user.get("id") or ""
+        session.state = WHATSAPP_MEMBER_ACTIVATION_PENDING
+        session.completed_at = datetime.now(timezone.utc)
+        session.data_json = json.dumps({"member_user_id": user.get("id", ""), "member_code": user.get("member_code", ""), "name": answers.get("name", "")}, ensure_ascii=False)
+        lead.member_user_id = user.get("id") or lead.member_user_id
+        lead.contact_person = answers.get("name") or lead.contact_person
+        lead.address = answers.get("address") or lead.address
+        lead.status = "APPLICATION" if lead.status == "NEW" else lead.status
+        db.add(CRMLeadActivity(lead_id=lead.id, activity_type="registration_completed", message="WhatsApp Member registration completed; activation remains pending."))
+        db.add(CRMLeadActivity(lead_id=lead.id, activity_type="activation_pending", message="WhatsApp Member registration completed; payment activation is pending."))
+        _schedule_lifecycle_followup(db, lead, "Member activation follow-up", 2)
+        base = get_whatsapp_preset_message(db, "preset_member_registration_success", WHATSAPP_PRESET_MESSAGE_DEFAULTS["preset_member_registration_success"], member_code=member_code, activation_url=DEFAULT_MEMBER_ACTIVATION_URL)
+        login = f"\n\nLogin ID: {member_code}"
+        return base + login + credentials, base + login + redacted
+    if role == "partner":
+        from .routers.partner_public import partner_register
+        address = ", ".join(part for part in (answers.get("address", ""), answers.get("city", ""), answers.get("district", ""), answers.get("state", ""), answers.get("pincode", "")) if part)
+        payload = {
+            "login_id": answers.get("email", ""), "email": answers.get("email", ""), "password": password,
+            "business_name": answers.get("business_name", ""), "business_type": answers.get("business_type", "Shop"),
+            "shop_sector": answers.get("shop_sector", ""), "service_sector": answers.get("service_sector", ""),
+            "shop_category": answers.get("shop_category", ""), "service_category": answers.get("service_category", ""),
+            "business_description": answers.get("business_description", ""), "contact_person": answers.get("contact_person", ""),
+            "phone": phone, "whatsapp_no": phone, "address": address, "city": answers.get("city", ""), "district": answers.get("district", ""),
+            "state": answers.get("state", ""), "pincode": answers.get("pincode", ""), "pan_no": answers.get("pan_no", ""), "gst_no": answers.get("pan_no", ""),
+            "aadhaar_no": answers.get("aadhaar_no", ""), "upi_id": answers.get("upi_id", ""), "sponsor_code": sponsor or "",
+        }
+        if answers.get("commission_percent_ask"):
+            payload["commission_percent_ask"] = answers["commission_percent_ask"]
+        result = partner_register(payload, db)
+        request_id = result.get("request_id", "")
+        session.state = WHATSAPP_PARTNER_APPLICATION_PENDING
+        session.completed_at = datetime.now(timezone.utc)
+        session.data_json = json.dumps({"request_id": request_id, "business_name": answers.get("business_name", "")}, ensure_ascii=False)
+        lead.partner_request_id = request_id
+        record_lifecycle_event(db, lead, "partner_application_submitted", f"Partner application submitted: {request_id}.")
+        _schedule_lifecycle_followup(db, lead, "Partner approval follow-up", 2)
+        base = get_whatsapp_preset_message(db, "preset_partner_submitted", WHATSAPP_PRESET_MESSAGE_DEFAULTS["preset_partner_submitted"], request_id=request_id)
+        login = f"\n\nLogin ID: {answers.get('email', '')} (approval-এর পর ব্যবহার করুন)"
+        return base + login + credentials, base + login + redacted
+    from .routers.rider import rider_register
+    result = rider_register(RiderRegisterRequest(
+        name=answers.get("name", ""), phone=phone, password=password, vehicle_type=answers.get("vehicle_type", ""), vehicle_number=answers.get("vehicle_number", ""),
+        whatsapp=phone, email=answers.get("email", ""), address=answers.get("address", ""), city=answers.get("city", ""), district=answers.get("district", ""),
+        state=answers.get("state", ""), pincode=answers.get("pincode", ""), pan_no=answers.get("pan_no", ""), aadhaar_no=answers.get("aadhaar_no", ""),
+        emergency_contact_name=answers.get("emergency_contact_name", ""), emergency_contact_phone=answers.get("emergency_contact_phone", ""),
+        bank_account_holder=answers.get("bank_account_holder", ""), bank_name=answers.get("bank_name", ""), bank_account_number=answers.get("bank_account_number", ""),
+        bank_ifsc=answers.get("bank_ifsc", ""), upi_id=answers.get("upi_id", ""), sponsor_code=sponsor, agreed_to_terms=True,
+    ), db)
+    rider = result.get("rider") or {}
+    rider_id = rider.get("id", "")
+    session.state = WHATSAPP_RIDER_APPLICATION_PENDING
+    session.completed_at = datetime.now(timezone.utc)
+    session.data_json = json.dumps({"rider_user_id": rider_id, "name": answers.get("name", "")}, ensure_ascii=False)
+    lead.rider_user_id = rider_id or lead.rider_user_id
+    record_lifecycle_event(db, lead, "rider_application_submitted", f"Rider application submitted: {rider_id}.")
+    _schedule_lifecycle_followup(db, lead, "Rider approval follow-up", 2)
+    base = get_whatsapp_preset_message(db, "preset_rider_submitted", WHATSAPP_PRESET_MESSAGE_DEFAULTS["preset_rider_submitted"])
+    login = f"\n\nLogin ID: {answers.get('email') or f'rider.{phone}@metho.local'} (approval-এর পর ব্যবহার করুন)"
+    return base + login + credentials, base + login + redacted
+
+
+def _continue_native_registration(db, session: WhatsAppRegistrationSession, lead: CRMLead, incoming_text: str, recipient: str, is_non_text: bool = False) -> bool:
+    role = session.role if session.role in REGISTRATION_ROLE_SETTINGS else ""
+    if not role or session.state not in WHATSAPP_NATIVE_REG_STATES:
+        return False
+    text = str(incoming_text or "").strip()
+    cmd = _whatsapp_command_text(text)
+    data, answers, meta = _native_load(session)
+    phone = _native_phone(session.phone)
+    prefilled_keys = {"sponsor_code", "_sponsor_name"} if meta.get("sponsor_prefilled") else set()
+
+    if is_non_text:
+        reply = "দুঃখিত, এই ধাপে শুধু টেক্সট লিখে উত্তর দিন।\n\n" + _native_current_prompt(db, session, role, answers, meta, phone)
+    elif cmd in NATIVE_REG_WEB_COMMANDS:
+        _native_leave_to_web_pending(session, data)
+        db.add(CRMLeadActivity(lead_id=lead.id, activity_type="whatsapp_native_registration_web_optout", message=f"In-chat {role} registration switched to web form"))
+        return _native_send(db, lead, recipient, _native_web_link_reply(db, session, lead, recipient))
+    elif _is_whatsapp_reset_command(text):
+        _clear_member_registration_session(session)
+        reply = get_whatsapp_preset_message(db, "preset_registration_cancelled", WHATSAPP_PRESET_MESSAGE_DEFAULTS["preset_registration_cancelled"])
+        return _native_send(db, lead, recipient, reply)
+    elif cmd in NATIVE_REG_RESTART_COMMANDS:
+        answers = {key: value for key, value in answers.items() if key in prefilled_keys}
+        meta["history"], meta["retries"] = [], 0
+        if meta.get("consented"):
+            reply = _native_ask_next(db, session, role, answers, phone, "নতুন করে শুরু করছি।\n\n")
+        else:
+            session.state = WHATSAPP_NATIVE_REG_CONSENT
+            reply = _native_consent_text(db, role)
+    elif cmd in NATIVE_REG_BACK_COMMANDS:
+        if session.state == WHATSAPP_NATIVE_REG_CONSENT or not meta["history"]:
+            reply = "এটিই প্রথম ধাপ।\n\n" + _native_current_prompt(db, session, role, answers, meta, phone)
+        else:
+            key = meta["history"].pop()
+            answers.pop(key, None)
+            if key == "sponsor_code":
+                answers.pop("_sponsor_name", None)
+            meta["retries"] = 0
+            reply = _native_ask_next(db, session, role, answers, phone)
+    elif session.state == WHATSAPP_NATIVE_REG_CONSENT:
+        if cmd in NATIVE_REG_YES:
+            meta["consented"] = True
+            if _native_phone_exists(db, role, phone):
+                return _native_duplicate_reply(db, session, lead, data, recipient, "ফোন নম্বর")
+            db.add(CRMLeadActivity(lead_id=lead.id, activity_type="whatsapp_native_registration_terms_accepted", message=f"{role} terms accepted in chat"))
+            reply = _native_ask_next(db, session, role, answers, phone)
+        elif cmd in NATIVE_REG_NO:
+            _native_leave_to_web_pending(session, data)
+            return _native_send(db, lead, recipient, _native_web_link_reply(db, session, lead, recipient))
+        else:
+            meta["retries"] += 1
+            if meta["retries"] >= NATIVE_REG_MAX_RETRIES:
+                _native_save(session, data, answers, meta)
+                return _native_handoff(db, session, lead, recipient)
+            reply = "YES অথবা NO লিখুন।\n\n" + _native_consent_text(db, role)
+    elif session.state == WHATSAPP_NATIVE_REG_CONFIRM:
+        if cmd in NATIVE_REG_YES:
+            try:
+                reply, log_reply = _native_submit(db, session, lead, role, answers, phone, recipient, data, meta)
+            except Exception as exc:
+                status_code = int(getattr(exc, "status_code", 0) or 0)
+                detail = str(getattr(exc, "detail", "") or "")
+                if status_code in {400, 409} and "already" in detail.lower():
+                    return _native_duplicate_reply(db, session, lead, data, recipient, "তথ্য (ফোন/PAN/Login ID)")
+                logger.warning("WhatsApp native %s registration submit failed: status=%s detail=%s", role, status_code, detail or type(exc).__name__)
+                meta["retries"] += 1
+                if meta["retries"] >= NATIVE_REG_MAX_RETRIES:
+                    _native_save(session, data, answers, meta)
+                    return _native_handoff(db, session, lead, recipient)
+                _native_save(session, data, answers, meta)
+                shown = detail if status_code in {400, 409, 422} and detail else "সাময়িক সমস্যা হয়েছে"
+                return _native_send(db, lead, recipient, f"Registration জমা দেওয়া যায়নি: {shown}\n\nআবার চেষ্টা করতে 1 লিখুন, অথবা BACK / RESTART / WEB লিখুন।")
+            return _native_send(db, lead, recipient, reply, log_reply)
+        if cmd in NATIVE_REG_NO:
+            reply = "বদলাতে BACK (আগের প্রশ্ন) অথবা RESTART (শুরু থেকে) লিখুন।\n\n" + _native_review_text(role, answers, phone)
+        else:
+            reply = _native_review_text(role, answers, phone)
+    else:
+        field = _native_next_field(role, answers)
+        if field is None:
+            reply = _native_ask_next(db, session, role, answers, phone)
+        else:
+            error = ""
+            value = None
+            if cmd in NATIVE_REG_SKIP_COMMANDS:
+                if field["required"]:
+                    error = "এই তথ্যটি আবশ্যক, বাদ দেওয়া যাবে না।"
+                else:
+                    value = False if field["gate"] else ""
+            else:
+                try:
+                    value = field["validate"](db, text, answers, {"role": role, "phone": phone})
+                except _NativeRegInvalid as exc:
+                    error = str(exc)
+                except _NativeRegDuplicate as exc:
+                    return _native_duplicate_reply(db, session, lead, data, recipient, str(exc))
+            if error:
+                meta["retries"] += 1
+                if meta["retries"] >= NATIVE_REG_MAX_RETRIES:
+                    _native_save(session, data, answers, meta)
+                    return _native_handoff(db, session, lead, recipient)
+                reply = f"⚠️ {error} (চেষ্টা {meta['retries']}/{NATIVE_REG_MAX_RETRIES})\n\n" + _native_field_prompt(db, field, answers)
+            else:
+                answers[field["key"]] = value
+                meta["history"].append(field["key"])
+                meta["retries"] = 0
+                prefix = f"✅ Sponsor: {answers['_sponsor_name']}\n\n" if field["key"] == "sponsor_code" and value and answers.get("_sponsor_name") else ""
+                reply = _native_ask_next(db, session, role, answers, phone, prefix)
+    _native_save(session, data, answers, meta)
+    return _native_send(db, lead, recipient, reply)
 
 
 def ingest_whatsapp_message(db, payload: dict, request=None, *, defer_outbound: bool = False) -> str:
@@ -2200,6 +2873,8 @@ def _ingest_whatsapp_message_impl(db, payload: dict, request=None) -> str:
             native_member_handled = _send_member_registration_reply(db, normalized["phone"], reply)
         elif _is_whatsapp_handoff_command(incoming_text):
             native_member_handled = _request_whatsapp_human_handoff(db, lead, registration_session, normalized["phone"])
+        elif registration_session and registration_session.state in WHATSAPP_NATIVE_REG_STATES:
+            native_member_handled = _continue_native_registration(db, registration_session, lead, incoming_text, normalized["phone"], is_non_text=bool(normalized.get("metadata", {}).get("is_non_text")))
         elif (
             normalized.get("metadata", {}).get("is_non_text")
             and registration_session
