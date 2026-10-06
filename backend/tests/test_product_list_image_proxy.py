@@ -162,3 +162,24 @@ def test_public_products_pagination_excludes_hidden_products():
         assert [item["id"] for item in result["items"]] == ["public-product-0", "public-product-2"]
     finally:
         db.close()
+
+
+def test_deleted_product_with_order_history_stays_out_of_admin_and_public_lists():
+    from sql_app.models import Order, User
+    from sql_app.routers.commerce import delete_product
+
+    db = make_session()
+    try:
+        product = Product(id="deleted-with-orders", name="Gone", category="Nutrition", description="", price=100, stock=10)
+        user = User(id="buyer-1", name="Buyer", email="buyer@example.com", password="x", role="customer")
+        db.add_all([product, user])
+        db.flush()
+        db.add(Order(user_id=user.id, product_id=product.id, quantity=1, unit_price=100, total_amount=100))
+        db.commit()
+
+        result = delete_product(product.id, db=db, current_user=SimpleNamespace(role="admin", id="A"))
+        assert result["mode"] == "soft"
+        assert [p["id"] for p in list_products(authorization="Bearer test", db=db)] == []
+        assert [p["id"] for p in list_public_products(db=db)] == []
+    finally:
+        db.close()

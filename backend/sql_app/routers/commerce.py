@@ -243,6 +243,17 @@ def _set_product_hidden_flag(db: Session, product_id: str, hidden: bool) -> bool
     return bool(hidden_map.get(product_id, False))
 
 
+def _get_product_deleted_map(db: Session) -> dict:
+    deleted_map = load_settings(db).get("product_deleted_map")
+    return deleted_map if isinstance(deleted_map, dict) else {}
+
+
+def _mark_product_deleted(db: Session, product_id: str) -> None:
+    deleted_map = _get_product_deleted_map(db)
+    deleted_map[product_id] = True
+    save_settings(db, {"product_deleted_map": deleted_map})
+
+
 def _get_product_youtube_map(db: Session) -> dict:
     settings = load_settings(db)
     youtube_map = settings.get("product_youtube_map")
@@ -339,6 +350,7 @@ def list_products(limit: int | None = None, authorization: str | None = Header(d
     meta_map = {m.product_id: m for m in meta_rows}
     pricing_tier_map = _get_pricing_tier_map(db)
     hidden_map = _get_product_hidden_map(db)
+    deleted_map = _get_product_deleted_map(db)
     youtube_map = _get_product_youtube_map(db)
     is_authenticated = bool(str(authorization or "").strip())
 
@@ -349,6 +361,8 @@ def list_products(limit: int | None = None, authorization: str | None = Header(d
 
     out = []
     for p in products:
+        if deleted_map.get(p.id):
+            continue
         if bool(hidden_map.get(p.id, False)) and not is_authenticated:
             continue
         m = meta_map.get(p.id)
@@ -777,6 +791,7 @@ def delete_product(product_id: str, db: Session = Depends(get_db), current_user=
             if product:
                 product.stock = 0
                 _set_product_hidden_flag(db, product_id, True)
+                _mark_product_deleted(db, product_id)
                 db.commit()
             return {"ok": True, "id": product_id, "mode": "soft"}
 
