@@ -342,3 +342,67 @@ def test_member_onboarding_order_query_still_uses_deterministic_order_lookup(mon
         assert sent == [WHATSAPP_PRESET_MESSAGE_DEFAULTS["preset_no_orders_found"]]
     finally:
         db.close()
+
+
+@pytest.mark.parametrize("link_lead_to_rider", [True, False])
+def test_rider_application_pending_repeated_status_never_resends_welcome(monkeypatch, link_lead_to_rider):
+    db = make_session()
+    try:
+        sent = []
+        _capture_ai(monkeypatch, sent)
+        lead = _setup(db)
+        rider = User(id=str(uuid.uuid4()), name="Rahim Rider", email=f"{uuid.uuid4()}@example.com", password="x", role="rider", phone=lead.phone)
+        db.add(rider)
+        if link_lead_to_rider:
+            lead.rider_user_id = rider.id
+        db.add(AppSetting(key=f"rider_profile:{rider.id}", value_json=json.dumps({"approval_status": "pending"})))
+        session = WhatsAppRegistrationSession(phone=lead.phone, wa_id=lead.phone, lead_id=lead.id, role="rider", state="RIDER_APPLICATION_PENDING", data_json=json.dumps({"rider_user_id": rider.id}))
+        db.add(session)
+        db.commit()
+
+        expected = WHATSAPP_PRESET_MESSAGE_DEFAULTS["preset_rider_pending_status"].format(status="pending")
+        expected_alt = WHATSAPP_PRESET_MESSAGE_DEFAULTS["preset_rider_status_reply"].format(status="pending")
+        for idx in range(2):
+            ingest_whatsapp_message(db, message_payload(f"wamid.status-{idx}", "Status"), None)
+            db.commit()
+            assert len(sent) == idx + 1
+            assert sent[-1] in {expected, expected_alt}
+            assert "MLM" not in sent[-1]
+            db.refresh(session)
+            assert session.state == "RIDER_APPLICATION_PENDING"
+    finally:
+        db.close()
+
+
+def test_rider_pending_repeated_status_with_split_phone_formats_and_duplicate_leads(monkeypatch):
+    from sql_app.whatsapp_cloud import WHATSAPP_PRESET_MESSAGE_DEFAULTS as presets
+
+    db = make_session()
+    try:
+        sent = []
+        _capture_ai(monkeypatch, sent)
+        update_whatsapp_settings({"phone_number_id": "123456", "access_token": "secret-token"}, db, admin())
+        web = CRMLead(lead_id="WEB-1", phone="6294483655", whatsapp_no="6294483655", source="website")
+        wa = CRMLead(lead_id="WA-916294483655", phone="916294483655", whatsapp_no="916294483655", source="whatsapp")
+        db.add_all([web, wa])
+        db.flush()
+        rider = User(id=str(uuid.uuid4()), name="Rahim Rider", email=f"{uuid.uuid4()}@example.com", password="x", role="rider", phone="6294483655")
+        db.add(rider)
+        web.rider_user_id = rider.id
+        db.add(AppSetting(key=f"rider_profile:{rider.id}", value_json=json.dumps({"approval_status": "pending"})))
+        session = WhatsAppRegistrationSession(phone="6294483655", wa_id="6294483655", lead_id=web.id, role="rider", state="RIDER_APPLICATION_PENDING", data_json=json.dumps({"rider_user_id": rider.id}))
+        db.add(session)
+        db.commit()
+
+        expected = presets["preset_rider_pending_status"].format(status="pending")
+        for idx in range(2):
+            ingest_whatsapp_message(db, message_payload(f"wamid.split-{idx}", "Status", sender="916294483655"), None)
+            db.commit()
+            assert sent[-1] == expected
+            assert "MLM" not in sent[-1]
+        assert len(sent) == 2
+        assert db.query(WhatsAppRegistrationSession).count() == 1
+        db.refresh(session)
+        assert session.state == "RIDER_APPLICATION_PENDING"
+    finally:
+        db.close()

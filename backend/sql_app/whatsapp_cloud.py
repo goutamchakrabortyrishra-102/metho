@@ -13,7 +13,7 @@ from urllib.request import Request, urlopen
 from cryptography.fernet import Fernet, InvalidToken
 from sqlalchemy.exc import IntegrityError
 
-from .crm_identity import enrich_lead_from_contact, ensure_pending_followup, find_lead_by_phone
+from .crm_identity import enrich_lead_from_contact, ensure_pending_followup, find_lead_by_phone, phone_keys
 from .crm_automation import record_lifecycle_event
 from .models import AppSetting, CRMFollowUp, CRMLead, CRMLeadActivity, CRMTask, PartnerRequest, PublicOrder, User, WhatsAppMessageOutbox, WhatsAppRegistrationSession
 from .schemas import RegisterRequest, RiderRegisterRequest
@@ -1267,10 +1267,22 @@ def _registration_confirmation_reply(db, session: WhatsAppRegistrationSession, l
     return _send_member_registration_reply(db, recipient, reply)
 
 
-def _member_registration_session(db, phone: str, wa_id: str, lead: CRMLead) -> WhatsAppRegistrationSession:
+def _find_registration_session(db, phone: str, lead: CRMLead | None = None) -> WhatsAppRegistrationSession | None:
     session = db.query(WhatsAppRegistrationSession).filter(WhatsAppRegistrationSession.phone == phone).first()
-    if not session:
+    if not session and lead is not None:
         session = db.query(WhatsAppRegistrationSession).filter(WhatsAppRegistrationSession.lead_id == lead.id).first()
+    if not session:
+        # Same contact may be stored with/without country code.
+        keys = phone_keys(phone)
+        if keys:
+            for candidate in db.query(WhatsAppRegistrationSession).all():
+                if phone_keys(candidate.phone).intersection(keys) or phone_keys(candidate.wa_id).intersection(keys):
+                    return candidate
+    return session
+
+
+def _member_registration_session(db, phone: str, wa_id: str, lead: CRMLead) -> WhatsAppRegistrationSession:
+    session = _find_registration_session(db, phone, lead)
     if not session:
         session = WhatsAppRegistrationSession(phone=phone, wa_id=wa_id or phone, lead_id=lead.id, role="member", state=WHATSAPP_REGISTRATION_IDLE)
         db.add(session)
@@ -2167,7 +2179,7 @@ def _ingest_whatsapp_message_impl(db, payload: dict, request=None) -> str:
 
         body = normalized["metadata"].get("raw_body") or ""
         dispatch_marker = f"auto-reply-for:{message_id}"
-        registration_session = db.query(WhatsAppRegistrationSession).filter(WhatsAppRegistrationSession.phone == normalized["phone"]).first()
+        registration_session = _find_registration_session(db, normalized["phone"], lead)
         logger.info(
             "WhatsApp inbound routing: text=%r role_hint=%s is_ai_freeform_query=%s session_state=%s",
             incoming_text[:120],
