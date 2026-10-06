@@ -6,7 +6,7 @@ from sqlalchemy.exc import IntegrityError
 
 from .database import SessionLocal
 from .models import AppSetting, CRMFollowUp, CRMLead, CRMLeadActivity
-from .whatsapp_cloud import WHATSAPP_PRESET_MESSAGE_DEFAULTS, get_whatsapp_preset_message, send_whatsapp_message
+from .whatsapp_cloud import WHATSAPP_PRESET_MESSAGE_DEFAULTS, get_whatsapp_preset_message, is_scheduled_optout, send_whatsapp_message
 
 logger = logging.getLogger(__name__)
 
@@ -129,6 +129,11 @@ def send_due_lifecycle_followups() -> dict:
 
         for followup in due_followups:
             try:
+                if is_scheduled_optout(db, followup.lead_id):
+                    followup.status = "Cancelled"
+                    db.commit()
+                    summary["skipped"] += 1
+                    continue
                 if not _claim_marker(db, followup.id, now):
                     summary["skipped"] += 1
                     continue

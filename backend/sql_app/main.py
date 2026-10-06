@@ -504,6 +504,7 @@ def startup_db_init():
 
 
 def _whatsapp_followup_worker():
+    from .member_nurture import process_member_nurture
     from .whatsapp_ai import process_birthday_reminders, process_due_followups, process_message_outbox
 
     while True:
@@ -511,6 +512,7 @@ def _whatsapp_followup_worker():
             process_message_outbox()
             process_due_followups()
             process_birthday_reminders()
+            process_member_nurture(throttle=True)
         except Exception:
             logger.exception("WhatsApp follow-up worker failed")
         sleep(max(60, _int_env("WHATSAPP_FOLLOWUP_INTERVAL_SECONDS", 300)))

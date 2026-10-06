@@ -11,7 +11,7 @@ from sqlalchemy.exc import IntegrityError
 from .database import SessionLocal
 from .google_search import search_web_context
 from .models import AppSetting, CRMFollowUp, CRMLead, CRMLeadActivity, CRMTask, CRMWhatsAppAISuggestion, PartnerRequest, Product, PublicOrder, User, WhatsAppMessageOutbox, WhatsAppRegistrationSession
-from .whatsapp_cloud import WHATSAPP_PRESET_MESSAGE_DEFAULTS, _detect_language, get_whatsapp_preset_message, resolve_config as resolve_whatsapp_config
+from .whatsapp_cloud import WHATSAPP_PRESET_MESSAGE_DEFAULTS, _detect_language, get_whatsapp_preset_message, is_scheduled_optout, resolve_config as resolve_whatsapp_config
 
 logger = logging.getLogger(__name__)
 SETTING_KEY = "crm_whatsapp_ai"
@@ -672,6 +672,17 @@ def process_due_followups(limit: int = 20) -> int:
             if not lead or not recipient:
                 followup.status = "Skipped"
                 continue
+            if is_scheduled_optout(db, lead.id):
+                followup.status = "Cancelled"
+                db.commit()
+                continue
+            if lead.member_user_id and "next product purchase" in str(followup.notes or "").lower():
+                from .member_nurture import is_enabled as member_nurture_enabled
+                if member_nurture_enabled(db):
+                    # The monthly member nurture message replaces this repeating repurchase reminder.
+                    followup.status = "Cancelled"
+                    db.commit()
+                    continue
             lifecycle_state = _whatsapp_followup_state(db, lead, followup)
             if lifecycle_state == "completed":
                 followup.status = "Completed"
@@ -873,6 +884,8 @@ def process_birthday_reminders(limit: int = 50) -> int:
                 continue
             lead = db.query(CRMLead).filter((CRMLead.phone == user.phone) | (CRMLead.whatsapp_no == user.phone)).first()
             if not lead or lead.source not in {"whatsapp", "facebook"}:
+                continue
+            if is_scheduled_optout(db, lead.id):
                 continue
             marker = f"birthday_message_sent:{year}"
             if db.query(CRMLeadActivity).filter(CRMLeadActivity.lead_id == lead.id, CRMLeadActivity.activity_type == marker).first():

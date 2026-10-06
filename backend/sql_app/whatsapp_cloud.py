@@ -224,7 +224,7 @@ WHATSAPP_PRESET_MESSAGE_DEFAULTS = {
     "preset_abandoned_registration_reminder": "আপনার METHO registration এখনও সম্পূর্ণ হয়নি।\nYour METHO registration is still incomplete.\n\n👉 Registration complete করতে এখানে ক্লিক করুন:\n{registration_url}\n\n💬 কোনো সাহায্য লাগলে \"Executive\" লিখুন — আমাদের Executive-এর সাথে কথা বলতে পারবেন।",
     "preset_abandoned_registration_reminder_followup": "🌱 {role} হিসেবে METHO-র Smart Cycle commission, Matching Bonus, Reward Pool-এর সুযোগগুলো এখনও অপেক্ষা করছে। মাত্র একটি ফর্ম পূরণ করলেই শুরু করতে পারবেন: {registration_url}\n\n💬 কোনো সাহায্য লাগলে \"Executive\" লিখুন।",
     "preset_abandoned_registration_reminder_final": "🌱 এটি আপনার registration সম্পর্কে আমাদের শেষ reminder—এরপর আর আমরা পাঠাব না। ইচ্ছে হলে যেকোনো সময় registration সম্পন্ন করতে পারবেন: {registration_url}\n\n💬 প্রশ্ন থাকলে \"Executive\" লিখুন, আমরা এখনও সাহায্য করতে প্রস্তুত।",
-    "preset_registration_reminders_stopped": "ঠিক আছে। আমরা Registration reminder বন্ধ করে দিয়েছি।\nOkay. We have stopped the Registration reminders.\n\nপরে শুরু করতে চাইলে এই WhatsApp chat-এ reply করুন।",
+    "preset_registration_reminders_stopped": "অবশ্যই। আর কোনো scheduled reminder বা follow-up message পাঠাব না।\nOkay. We have stopped all scheduled reminders and follow-ups.\n\nপরে সাহায্য লাগলে এই WhatsApp chat-এ নিজে message করুন।",
     "preset_lifecycle_member_registration_completed": "🌱 আপনার Member registration সম্পন্ন হয়েছে। Account activation ও প্রথম purchase-এর পরবর্তী ধাপে সহায়তা লাগলে এখানে reply করুন।",
     "preset_lifecycle_member_activated": "🎉 আপনার Member account active হয়েছে। Smart Cycle, reward rules এবং product purchase নিয়ে সাহায্য লাগলে এখানে reply করুন।",
     "preset_lifecycle_partner_registration_submitted": "🙏 আপনার Partner registration জমা হয়েছে। KYC ও approval-এর পরবর্তী ধাপে সহায়তা লাগলে এখানে reply করুন।",
@@ -1251,6 +1251,21 @@ def _stop_abandoned_registration_reminders(db, lead: CRMLead, reason: str) -> No
     for task in db.query(CRMTask).filter(CRMTask.lead_id == lead.id, CRMTask.status.in_(["Pending", "In Progress"]), CRMTask.title == notes).all():
         task.status = "Completed"
     db.add(CRMLeadActivity(lead_id=lead.id, activity_type="registration_reminders_stopped", message=reason))
+
+
+SCHEDULED_OPTOUT_KEY_PREFIX = "whatsapp_scheduled_optout:"
+
+
+def is_scheduled_optout(db, lead_id: str) -> bool:
+    return bool(lead_id) and db.query(AppSetting).filter(AppSetting.key == f"{SCHEDULED_OPTOUT_KEY_PREFIX}{lead_id}").first() is not None
+
+
+def set_scheduled_optout(db, lead: CRMLead) -> None:
+    """Persistent STOP: no automated/scheduled WhatsApp messages for this lead; only replies to their own messages."""
+    key = f"{SCHEDULED_OPTOUT_KEY_PREFIX}{lead.id}"
+    if db.query(AppSetting).filter(AppSetting.key == key).first() is None:
+        now = datetime.now(timezone.utc)
+        db.add(AppSetting(key=key, value_json=json.dumps({"opted_out_at": now.isoformat()}), updated_at=now))
 
 
 def _registration_confirmation_reply(db, session: WhatsAppRegistrationSession, lead: CRMLead, text: str, recipient: str) -> bool:
@@ -2869,6 +2884,7 @@ def _ingest_whatsapp_message_impl(db, payload: dict, request=None) -> str:
             if registration_session:
                 _clear_member_registration_session(registration_session)
             _stop_abandoned_registration_reminders(db, lead, "Customer opted out of registration reminders")
+            set_scheduled_optout(db, lead)
             reply = get_whatsapp_preset_message(db, "preset_registration_reminders_stopped", WHATSAPP_PRESET_MESSAGE_DEFAULTS["preset_registration_reminders_stopped"])
             native_member_handled = _send_member_registration_reply(db, normalized["phone"], reply)
         elif _is_whatsapp_handoff_command(incoming_text):
