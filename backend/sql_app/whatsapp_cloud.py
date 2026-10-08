@@ -1477,14 +1477,18 @@ def _continue_introduction(db, session: WhatsAppRegistrationSession, lead: CRMLe
         return _request_whatsapp_human_handoff(db, lead, session, recipient)
     elif role_hint in REGISTRATION_ROLE_SETTINGS:
         session.role = role_hint
-        # Move past ROLE_SELECTION so a follow-up message is not re-parsed for a role hint and does
-        # not re-trigger this branch (which previously caused the role to be silently overwritten).
-        session.state = WHATSAPP_ROLE_REGISTRATION_PENDING
-        reply = _role_registration_reply(db, session.role, lead.id, recipient)
         data = _session_data(session)
         data["fallback_count"] = 0
+        _save_session_data(session, data)
+        db.add(CRMLeadActivity(lead_id=lead.id, activity_type="whatsapp_role_selected", message=session.role))
+        # Moves the session to NATIVE_REG_CONSENT, so a follow-up message is not re-parsed for a role hint.
+        if _start_native_registration(db, session, lead, recipient):
+            return True
+        # Consent could not be sent; the caller falls back to the pitch + website link, so keep the CHAT entry point valid.
+        session.state = WHATSAPP_ROLE_REGISTRATION_PENDING
         data["role_reply_sent"] = True
         _save_session_data(session, data)
+        return False
     else:
         session.state = WHATSAPP_ROLE_SELECTION
         data = _session_data(session)
@@ -2450,7 +2454,8 @@ def _native_consent_text(db, role: str) -> str:
     return (
         f"✅ {role.title()} registration এখানেই এই চ্যাটে সম্পূর্ণ করা যাবে।\n\n"
         f"শুরুর আগে Terms & Conditions পড়ুন: {_native_terms_url(db, role)}\n\n"
-        "আপনি Terms-এ সম্মত হলে YES লিখুন। সম্মত না হলে NO লিখুন।"
+        "আপনি Terms-এ সম্মত হলে YES লিখুন। সম্মত না হলে NO লিখুন।\n"
+        "Website form-এ registration করতে চাইলে WEB লিখুন।"
         + NATIVE_REG_COMMAND_HELP
     )
 

@@ -16,6 +16,7 @@ from sql_app.whatsapp_cloud import (
     WHATSAPP_INTRODUCTION,
     WHATSAPP_ROLE_REGISTRATION_PENDING,
     WHATSAPP_ROLE_SELECTION,
+    LOCALIZED_ROLE_REPLIES,
     _continue_introduction,
     _explicit_role_switch_for_text,
     _registration_role_for_text,
@@ -93,7 +94,7 @@ def test_role_selection_advances_past_role_selection_state(monkeypatch):
         assert _continue_introduction(db, session, lead, "2", lead.phone) is True
         assert session.role == "partner"
         # Must not remain stuck in ROLE_SELECTION (the bug that let subsequent text re-trigger role parsing).
-        assert session.state == WHATSAPP_ROLE_REGISTRATION_PENDING
+        assert session.state == "NATIVE_REG_CONSENT"
         assert session.state != WHATSAPP_ROLE_SELECTION
     finally:
         db.close()
@@ -111,8 +112,8 @@ def test_new_customer_digits_still_select_registration_role(monkeypatch):
             session.state = WHATSAPP_INTRODUCTION
             assert ingest_whatsapp_message(db, message_payload(f"wamid.new-role-{digit}", digit), None) == "updated"
             assert session.role == role
-            assert session.state == WHATSAPP_ROLE_REGISTRATION_PENDING
-            assert f"registration_role={role}" in sent[-1]
+            assert session.state == "NATIVE_REG_CONSENT"
+            assert f"/{role}-terms" in sent[-1]
     finally:
         db.close()
 
@@ -127,8 +128,10 @@ def test_ambiguous_followup_after_role_selected_sends_reminder_not_full_template
         assert ingest_whatsapp_message(db, message_payload("wamid.start", "আমি পার্টনার হতে চাই"), None) == "created"
         assert ingest_whatsapp_message(db, message_payload("wamid.choice", "2"), None) == "updated"
         session = db.query(WhatsAppRegistrationSession).one()
-        assert session.state == WHATSAPP_ROLE_REGISTRATION_PENDING
+        assert session.state == "NATIVE_REG_CONSENT"
         assert session.role == "partner"
+        assert ingest_whatsapp_message(db, message_payload("wamid.web", "WEB"), None) == "updated"
+        assert session.state == WHATSAPP_ROLE_REGISTRATION_PENDING
         first_reply = sent[-1][1]
         assert "registration_role=partner" in first_reply
 
@@ -139,8 +142,9 @@ def test_ambiguous_followup_after_role_selected_sends_reminder_not_full_template
         assert len(sent) == 1
         reminder_reply = sent[0][1]
         # The full role-registration template (long explanatory intro) must not be resent verbatim.
-        assert reminder_reply != first_reply
+        assert reminder_reply != ""
         assert "registration_role=partner" in reminder_reply
+        assert LOCALIZED_ROLE_REPLIES["bn"]["partner"] not in reminder_reply
         assert "Partner" in reminder_reply
     finally:
         db.close()
@@ -156,8 +160,10 @@ def test_explicit_digit_switches_pending_role_and_sends_new_registration_link(mo
         assert ingest_whatsapp_message(db, message_payload("wamid.start-rider", "Hi"), None) == "created"
         assert ingest_whatsapp_message(db, message_payload("wamid.pick-rider", "3"), None) == "updated"
         session = db.query(WhatsAppRegistrationSession).one()
-        assert session.state == WHATSAPP_ROLE_REGISTRATION_PENDING
+        assert session.state == "NATIVE_REG_CONSENT"
         assert session.role == "rider"
+        assert ingest_whatsapp_message(db, message_payload("wamid.web-rider", "WEB"), None) == "updated"
+        assert session.state == WHATSAPP_ROLE_REGISTRATION_PENDING
         assert "registration_role=rider" in sent[-1][1]
 
         sent.clear()
@@ -186,10 +192,10 @@ def test_existing_member_can_request_partner_registration_link(monkeypatch):
         db.commit()
 
         assert ingest_whatsapp_message(db, message_payload("wamid.member-to-partner", "2"), None) == "updated"
-        assert session.state == WHATSAPP_ROLE_REGISTRATION_PENDING
+        assert session.state == "NATIVE_REG_CONSENT"
         assert session.role == "partner"
         assert len(sent) == 1
-        assert "registration_role=partner" in sent[0][1]
+        assert "/partner-terms" in sent[0][1]
         assert lead.member_user_id == member.id
     finally:
         db.close()
@@ -226,7 +232,7 @@ def test_direct_digit_role_selection_unchanged(monkeypatch):
 
         assert ingest_whatsapp_message(db, message_payload("wamid.pick", "2"), None) == "updated"
         assert session.role == "partner"
-        assert "registration_role=partner" in sent[-1][1]
+        assert "/partner-terms" in sent[-1][1]
     finally:
         db.close()
 
@@ -240,6 +246,7 @@ def test_registration_link_stays_deterministic_across_followups(monkeypatch):
 
         assert ingest_whatsapp_message(db, message_payload("wamid.start", "আমি পার্টনার হতে চাই"), None) == "created"
         assert ingest_whatsapp_message(db, message_payload("wamid.choice", "2"), None) == "updated"
+        assert ingest_whatsapp_message(db, message_payload("wamid.web", "WEB"), None) == "updated"
         first_reply = sent[-1][1]
         assert "https://example.com/partner-join" in first_reply
         assert "registration_role=partner" in first_reply
@@ -264,6 +271,7 @@ def test_casual_vehicle_mention_does_not_switch_pending_role_to_rider(monkeypatc
 
         assert ingest_whatsapp_message(db, message_payload("wamid.start-member", "Hi"), None) == "created"
         assert ingest_whatsapp_message(db, message_payload("wamid.pick-member", "1"), None) == "updated"
+        assert ingest_whatsapp_message(db, message_payload("wamid.web-member", "WEB"), None) == "updated"
         session = db.query(WhatsAppRegistrationSession).one()
         assert session.role == "member"
 
@@ -288,6 +296,7 @@ def test_casual_business_mention_does_not_switch_pending_role_to_partner(monkeyp
 
         assert ingest_whatsapp_message(db, message_payload("wamid.start-member2", "Hi"), None) == "created"
         assert ingest_whatsapp_message(db, message_payload("wamid.pick-member2", "1"), None) == "updated"
+        assert ingest_whatsapp_message(db, message_payload("wamid.web-member2", "WEB"), None) == "updated"
         session = db.query(WhatsAppRegistrationSession).one()
         assert session.role == "member"
 
@@ -317,6 +326,7 @@ def test_business_question_with_business_keyword_gets_ai_reply_not_role_switch(m
 
         assert ingest_whatsapp_message(db, message_payload("wamid.start-member3", "Hi"), None) == "created"
         assert ingest_whatsapp_message(db, message_payload("wamid.pick-member3", "1"), None) == "updated"
+        assert ingest_whatsapp_message(db, message_payload("wamid.web-member3", "WEB"), None) == "updated"
         session = db.query(WhatsAppRegistrationSession).one()
         assert session.role == "member"
 
@@ -346,6 +356,7 @@ def test_english_product_query_after_role_selection_gets_ai_reply_not_reminder(m
 
         assert ingest_whatsapp_message(db, message_payload("wamid.start-product", "Hi"), None) == "created"
         assert ingest_whatsapp_message(db, message_payload("wamid.pick-product", "2"), None) == "updated"
+        assert ingest_whatsapp_message(db, message_payload("wamid.web-product", "WEB"), None) == "updated"
         session = db.query(WhatsAppRegistrationSession).one()
         assert session.role == "partner"
 

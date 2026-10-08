@@ -343,6 +343,8 @@ def test_whatsapp_registration_role_reply_uses_configured_role_url(monkeypatch):
         assert ingest_whatsapp_message(db, message_payload("wamid.partner", "আমি পার্টনার হতে চাই"), None) == "created"
         assert "METHO AAY-UPAY" in sent[0][1]
         assert ingest_whatsapp_message(db, message_payload("wamid.partner-choice", "2"), None) == "updated"
+        assert "/partner-terms" in sent[-1][1]
+        assert ingest_whatsapp_message(db, message_payload("wamid.partner-web", "WEB"), None) == "updated"
         assert "https://example.com/join-partner" in sent[-1][1]
         assert "registration_role=partner" in sent[-1][1]
         session = db.query(WhatsAppRegistrationSession).one()
@@ -504,7 +506,7 @@ def test_whatsapp_explicit_bengali_work_intent_still_triggers_preset(monkeypatch
         assert db.query(WhatsAppRegistrationSession).one().state == "INTRODUCTION"
         assert ingest_whatsapp_message(db, message_payload("wamid.rider-work-choice", "আমি কাজ করতে চাই"), None) == "updated"
         assert sent_images == []
-        assert db.query(WhatsAppRegistrationSession).one().state == "ROLE_REGISTRATION_PENDING"
+        assert db.query(WhatsAppRegistrationSession).one().state == "NATIVE_REG_CONSENT"
     finally:
         db.close()
 
@@ -534,6 +536,8 @@ def test_whatsapp_member_registration_sends_tracked_website_link_only(monkeypatc
         session = db.query(WhatsAppRegistrationSession).one()
         assert session.state == "INTRODUCTION"
         ingest_whatsapp_message(db, message_payload("wamid.member-choice", "1"), None)
+        assert session.state == "NATIVE_REG_CONSENT"
+        ingest_whatsapp_message(db, message_payload("wamid.member-web", "WEB"), None)
         assert session.state == "ROLE_REGISTRATION_PENDING"
         assert session.role == "member"
         assert "registration_role=member" in sent[-1][1]

@@ -223,7 +223,7 @@ def test_role_registration_urls_normalize_to_public_form_routes():
 
 
 @pytest.mark.parametrize(("choice", "role"), [("1", "member"), ("Member", "member"), ("2", "partner"), ("Partner", "partner"), ("3", "rider"), ("Rider", "rider")])
-def test_role_selection_sends_tracked_link_without_starting_native_registration(monkeypatch, choice, role):
+def test_role_selection_starts_native_registration_consent_with_web_option(monkeypatch, choice, role):
     db = make_session()
     try:
         lead = add_tracked_lead(db, role=role)
@@ -232,14 +232,37 @@ def test_role_selection_sends_tracked_link_without_starting_native_registration(
         sent = []
         monkeypatch.setattr("sql_app.whatsapp_cloud._send_member_registration_reply", lambda _db, recipient, text: sent.append(text) or True)
         assert _continue_introduction(db, session, lead, choice, lead.phone)
-        assert session.state == "ROLE_REGISTRATION_PENDING"
+        assert session.state == "NATIVE_REG_CONSENT"
         assert session.role == role
-        assert "crm_lead_id=" in sent[0]
-        assert "prefill_phone=" in sent[0]
-        assert f"registration_role={role}" in sent[0]
-        assert "আপনার নাম লিখুন" not in sent[0]
-        assert "business type" not in sent[0]
-        assert "পূর্ণ নাম লিখুন" not in sent[0]
+        assert len(sent) == 1
+        assert f"/{role}-terms" in sent[0]
+        assert "YES" in sent[0] and "NO" in sent[0]
+        assert "WEB" in sent[0].split("Terms-")[1]
+        assert "CHAT" not in sent[0]
+    finally:
+        db.close()
+
+
+@pytest.mark.parametrize(("choice", "role"), [("1", "member"), ("2", "partner"), ("3", "rider")])
+def test_web_optout_after_role_selection_falls_back_to_tracked_link_and_chat_resumes(monkeypatch, choice, role):
+    db = make_session()
+    try:
+        sent = []
+        monkeypatch.setattr("sql_app.whatsapp_cloud.send_whatsapp_message", lambda _db, recipient, text: sent.append(text) or {"messages": [{"id": "wamid.reply"}]})
+        from sql_app.routers.whatsapp import update_whatsapp_settings
+        update_whatsapp_settings({"phone_number_id": "123456", "access_token": "secret-token"}, db, SimpleNamespace(role="admin", id="ADMIN"))
+        assert ingest_whatsapp_message(db, message_payload(f"wamid.{role}.hi", "Hi"), None) == "created"
+        assert ingest_whatsapp_message(db, message_payload(f"wamid.{role}.pick", choice), None) == "updated"
+        session = db.query(WhatsAppRegistrationSession).one()
+        assert session.state == "NATIVE_REG_CONSENT" and session.role == role
+
+        assert ingest_whatsapp_message(db, message_payload(f"wamid.{role}.web", "WEB"), None) == "updated"
+        assert session.state == "ROLE_REGISTRATION_PENDING"
+        assert f"registration_role={role}" in sent[-1] and "crm_lead_id=" in sent[-1] and "prefill_phone=" in sent[-1]
+
+        assert ingest_whatsapp_message(db, message_payload(f"wamid.{role}.chat", "CHAT"), None) == "updated"
+        assert session.state == "NATIVE_REG_CONSENT"
+        assert f"/{role}-terms" in sent[-1]
     finally:
         db.close()
 
@@ -257,7 +280,10 @@ def test_direct_role_intent_sends_tracked_form_url_only(monkeypatch, message, ro
         assert session.state == "INTRODUCTION"
         assert session.role == ""
         assert ingest_whatsapp_message(db, message_payload(f"wamid.{role}.choice", role), None) == "updated"
-        assert len(sent) == 2
+        assert session.state == "NATIVE_REG_CONSENT"
+        assert f"/{role}-terms" in sent[-1]
+        assert ingest_whatsapp_message(db, message_payload(f"wamid.{role}.web", "WEB"), None) == "updated"
+        assert len(sent) == 3
         assert f"https://example.com/{role}-join" in sent[-1]
         assert f"registration_role={role}" in sent[-1]
         assert "আপনার নাম লিখুন" not in sent[-1]
