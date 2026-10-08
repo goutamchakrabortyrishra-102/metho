@@ -240,3 +240,31 @@ def test_inactive_or_unlinked_members_are_ignored(env):
     db.query(User).filter_by(id=USER_ID).one().is_active = False
     db.commit()
     assert run(db, lead, 3) == 0
+
+
+def test_nurture_referral_code_matches_member_status_replies_for_legacy_uuid_member(env):
+    from sql_app.routers.auth import member_code_for_user
+    from sql_app.whatsapp_cloud import _route_existing_identity
+
+    db, _lead, monkeypatch = env
+    legacy_id = "3f2b9c1e-1111-4222-8333-444455556666"
+    expected = member_code_for_user(legacy_id)
+    assert expected == "MTH-3F2B9C" and expected != legacy_id
+    db.add(User(id=legacy_id, name="Old Member", email="old@example.com", phone="9123456780", password="x", role="member", is_active=True))
+    db.add(AppSetting(key=f"member_purchase_activation:{legacy_id}", value_json=json.dumps({"active": True, "activated_at": ACTIVATED.isoformat()})))
+    legacy_phone = "919123456780"
+    legacy_lead = CRMLead(lead_id="WA-legacy", business_name="WhatsApp", contact_person="Old Member", phone=legacy_phone, whatsapp_no=legacy_phone, source="whatsapp", member_user_id=legacy_id)
+    db.add(legacy_lead)
+    db.commit()
+
+    now = at(3)
+    inbound(db, legacy_lead, now - timedelta(hours=1))
+    process_member_nurture(db=db, now=now)
+    nurture = db.query(WhatsAppMessageOutbox).filter_by(lead_id=legacy_lead.id, activity_type="member_nurture_sent").one().message
+    assert f"ref={expected}" in nurture and legacy_id not in nurture
+
+    replies = []
+    monkeypatch.setattr("sql_app.whatsapp_cloud._send_member_registration_reply", lambda _db, recipient, text: replies.append(text) or True)
+    assert _route_existing_identity(db, legacy_lead, legacy_phone, "hi")
+    assert replies and all(legacy_id not in text for text in replies)
+    assert any(f"ref={expected}" in text for text in replies)

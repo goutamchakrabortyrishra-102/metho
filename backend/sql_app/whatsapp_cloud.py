@@ -1567,7 +1567,8 @@ def _route_registered_member(db, session: WhatsAppRegistrationSession, lead: CRM
         active = bool(user.is_active and _member_purchase_active(db, user.id))
     except Exception:
         active = bool(user.is_active)
-    member_code = data.get("member_code") or user.id
+    from .routers.auth import member_code_for_user
+    member_code = data.get("member_code") or member_code_for_user(user.id)
     referral_link = _member_referral_link(resolve_config(db), member_code)
     if active:
         was_onboarded = session.state == WHATSAPP_MEMBER_ONBOARDING
@@ -1610,7 +1611,7 @@ def _route_registered_member(db, session: WhatsAppRegistrationSession, lead: CRM
             if not _send_status_aware_ai_reply(db, lead, recipient, incoming_text, status_context):
                 return False
             return True
-        reply = get_whatsapp_preset_message(db, "preset_member_activation_pending", WHATSAPP_PRESET_MESSAGE_DEFAULTS["preset_member_activation_pending"], member_code=data.get("member_code") or user.id, activation_url=DEFAULT_MEMBER_ACTIVATION_URL)
+        reply = get_whatsapp_preset_message(db, "preset_member_activation_pending", WHATSAPP_PRESET_MESSAGE_DEFAULTS["preset_member_activation_pending"], member_code=data.get("member_code") or member_code_for_user(user.id), activation_url=DEFAULT_MEMBER_ACTIVATION_URL)
         db.add(CRMLeadActivity(lead_id=lead.id, activity_type="whatsapp_message_sent", message=reply))
         return _send_member_registration_reply(db, recipient, reply)
     return True

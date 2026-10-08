@@ -208,7 +208,8 @@ def _process_member(db, user: User, activated_at: datetime, now: datetime) -> bo
     sent = False
     if kind:
         cycle_number, slot = _cycle_info(db, user.id, activated_at, now)
-        member_code = user.id
+        from .routers.auth import member_code_for_user
+        member_code = member_code_for_user(user.id)
         values = {
             "name": (_lead_display_name(lead) if not user.name else str(user.name).split()[0]),
             "referral_link": _member_referral_link(resolve_config(db), member_code),
