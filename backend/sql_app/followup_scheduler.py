@@ -6,7 +6,7 @@ from sqlalchemy.exc import IntegrityError
 
 from .database import SessionLocal
 from .models import AppSetting, CRMFollowUp, CRMLead, CRMLeadActivity
-from .whatsapp_cloud import WHATSAPP_PRESET_MESSAGE_DEFAULTS, get_whatsapp_preset_message, is_scheduled_optout, send_whatsapp_message
+from .whatsapp_cloud import WHATSAPP_PRESET_MESSAGE_DEFAULTS, get_whatsapp_preset_message, is_scheduled_optout, is_whatsapp_handoff_active, send_whatsapp_message
 
 logger = logging.getLogger(__name__)
 
@@ -128,8 +128,14 @@ def send_due_lifecycle_followups() -> dict:
         )
 
         for followup in due_followups:
+            template_attempted = False
             try:
                 if is_scheduled_optout(db, followup.lead_id):
+                    followup.status = "Cancelled"
+                    db.commit()
+                    summary["skipped"] += 1
+                    continue
+                if is_whatsapp_handoff_active(db, followup.lead_id):
                     followup.status = "Cancelled"
                     db.commit()
                     summary["skipped"] += 1
@@ -165,6 +171,7 @@ def send_due_lifecycle_followups() -> dict:
                         summary["skipped_outside_24h_window"] += 1
                         continue
                     try:
+                        template_attempted = True
                         send_whatsapp_message(
                             db,
                             phone,
@@ -188,8 +195,22 @@ def send_due_lifecycle_followups() -> dict:
                 )
                 db.commit()
                 summary["sent"] += 1
-            except Exception:
+            except Exception as exc:
                 db.rollback()
+                if template_attempted:
+                    try:
+                        lead = db.query(CRMLead).filter(CRMLead.id == followup.lead_id).first()
+                        if lead:
+                            from .whatsapp_cloud import _request_whatsapp_human_handoff
+                            _request_whatsapp_human_handoff(
+                                db, lead, None, _lead_phone(lead),
+                                reason="scheduled_template_send_failure",
+                                notify_customer=False,
+                                trigger_text=str(exc)[:300],
+                            )
+                    except Exception:
+                        db.rollback()
+                        logger.exception("Lifecycle template failure handoff failed: followup_id=%s", followup.id)
                 try:
                     _release_marker(db, followup.id)
                 except Exception:

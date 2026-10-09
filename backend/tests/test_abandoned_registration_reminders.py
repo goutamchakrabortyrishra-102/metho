@@ -19,7 +19,7 @@ from sql_app.routers.partner_public import partner_register
 from sql_app.routers.rider import rider_register
 from sql_app.schemas import RegisterRequest, RiderRegisterRequest
 from sql_app.whatsapp_ai import process_due_followups, process_message_outbox
-from sql_app.whatsapp_cloud import ingest_whatsapp_message, _continue_introduction, _request_whatsapp_human_handoff, _role_registration_reply, _role_registration_url, _stop_abandoned_registration_reminders
+from sql_app.whatsapp_cloud import ingest_whatsapp_message, _continue_introduction, _request_whatsapp_human_handoff, _role_registration_reply, _role_registration_url, _send_introduction, _stop_abandoned_registration_reminders
 from test_whatsapp_admin_settings import message_payload
 
 
@@ -60,11 +60,28 @@ def open_registration(db, lead):
     return record_public_registration_event({"crm_lead_id": lead.id, "phone": lead.phone, "event_type": "registration_form_opened"}, db)
 
 
+def record_recent_whatsapp_inbound(db, lead, when=None):
+    db.add(CRMLeadActivity(
+        lead_id=lead.id,
+        activity_type="whatsapp_message_received",
+        message=f"WhatsApp message received [recent-{lead.id}]: hi",
+        created_at=when or datetime.now(timezone.utc) - timedelta(hours=1),
+    ))
+    db.commit()
+
+
 def due_reminder(db, lead):
     reminder = db.query(CRMFollowUp).filter_by(lead_id=lead.id, notes="Abandoned registration reminder", status="Pending").one()
     reminder.scheduled_at = datetime.now(timezone.utc) - timedelta(seconds=1)
     db.commit()
     return reminder
+
+
+def due_general_followup(db, lead, notes="Initial WhatsApp lead follow-up"):
+    followup = CRMFollowUp(lead_id=lead.id, scheduled_at=datetime.now(timezone.utc) - timedelta(seconds=1), status="Pending", notes=notes)
+    db.add(followup)
+    db.commit()
+    return followup
 
 
 def test_opened_registration_queues_one_reminder_and_outbox_records_delivery(monkeypatch):
@@ -74,6 +91,7 @@ def test_opened_registration_queues_one_reminder_and_outbox_records_delivery(mon
         open_registration(db, lead)
         assert db.query(CRMFollowUp).filter_by(lead_id=lead.id, notes="Abandoned registration reminder", status="Pending").count() == 1
         due_reminder(db, lead)
+        record_recent_whatsapp_inbound(db, lead)
         db.close = lambda: None
         monkeypatch.setattr("sql_app.whatsapp_ai.SessionLocal", NoCloseSession(db))
         assert process_due_followups() == 1
@@ -100,16 +118,144 @@ def test_abandoned_reminder_repeats_without_duplicates(monkeypatch):
         lead = add_tracked_lead(db, "partner")
         open_registration(db, lead)
         due_reminder(db, lead)
+        record_recent_whatsapp_inbound(db, lead)
         db.close = lambda: None
         monkeypatch.setattr("sql_app.whatsapp_ai.SessionLocal", NoCloseSession(db))
         assert process_due_followups() == 1
         reminder = db.query(CRMFollowUp).filter_by(lead_id=lead.id, notes="Abandoned registration reminder", status="Pending").one()
         reminder.scheduled_at = datetime.now(timezone.utc) - timedelta(days=1)
         db.commit()
+        record_recent_whatsapp_inbound(db, lead)
         assert process_due_followups() == 1
         assert db.query(WhatsAppMessageOutbox).count() == 2
         assert db.query(CRMFollowUp).filter_by(lead_id=lead.id, notes="Abandoned registration reminder", status="Pending").count() == 1
         assert reminder.status == "Pending"
+    finally:
+        db.close()
+
+
+def test_followup_inside_24_hour_window_queues_freeform_text(monkeypatch):
+    db = make_session()
+    try:
+        lead = add_tracked_lead(db)
+        due_general_followup(db, lead)
+        record_recent_whatsapp_inbound(db, lead, datetime.now(timezone.utc) - timedelta(hours=1))
+        db.close = lambda: None
+        monkeypatch.setattr("sql_app.whatsapp_ai.SessionLocal", NoCloseSession(db))
+
+        assert process_due_followups() == 1
+        outbox = db.query(WhatsAppMessageOutbox).one()
+        assert outbox.activity_type == "whatsapp_message_sent"
+        assert outbox.message.startswith("👋")
+        assert "_whatsapp_template" not in outbox.message
+        assert "METHO" in outbox.message
+    finally:
+        db.close()
+
+
+def test_followup_outside_24_hour_window_queues_configured_template(monkeypatch):
+    from sql_app.followup_scheduler import TEMPLATE_LANGUAGE_KEY, TEMPLATE_NAME_KEY
+
+    db = make_session()
+    try:
+        lead = add_tracked_lead(db)
+        due_general_followup(db, lead)
+        record_recent_whatsapp_inbound(db, lead, datetime.now(timezone.utc) - timedelta(hours=25))
+        db.add(AppSetting(key=TEMPLATE_NAME_KEY, value_json=json.dumps("metho_followup_v1")))
+        db.add(AppSetting(key=TEMPLATE_LANGUAGE_KEY, value_json=json.dumps("en_US")))
+        db.commit()
+        db.close = lambda: None
+        monkeypatch.setattr("sql_app.whatsapp_ai.SessionLocal", NoCloseSession(db))
+        sent = []
+        monkeypatch.setattr("sql_app.whatsapp_cloud.send_whatsapp_message", lambda _db, recipient, **kwargs: sent.append((recipient, kwargs)) or {"messages": [{"id": "wamid.template"}]})
+
+        assert process_due_followups() == 1
+        outbox = db.query(WhatsAppMessageOutbox).one()
+        template = json.loads(outbox.message)["_whatsapp_template"]
+        assert template == {"name": "metho_followup_v1", "language": "en_US", "parameters": ["Test Customer"]}
+        assert process_message_outbox() == 1
+        assert sent == [(lead.whatsapp_no, {"template_name": "metho_followup_v1", "template_language_code": "en_US", "template_parameters": ["Test Customer"]})]
+    finally:
+        db.close()
+
+
+def test_followup_outside_window_without_template_hands_off_without_customer_reply(monkeypatch):
+    db = make_session()
+    try:
+        lead = add_tracked_lead(db)
+        followup = due_general_followup(db, lead)
+        record_recent_whatsapp_inbound(db, lead, datetime.now(timezone.utc) - timedelta(hours=25))
+        db.close = lambda: None
+        monkeypatch.setattr("sql_app.whatsapp_ai.SessionLocal", NoCloseSession(db))
+
+        assert process_due_followups() == 1
+        db.refresh(followup)
+        assert followup.status == "Cancelled"
+        assert db.query(AppSetting).filter_by(key=f"whatsapp_handoff_active:{lead.id}").first()
+        assert db.query(WhatsAppMessageOutbox).count() == 0
+        failure = db.query(CRMLeadActivity).filter_by(lead_id=lead.id, activity_type="whatsapp_followup_template_failed").one()
+        assert "lifecycle_followup_template_name" in failure.message
+        notification_failure = db.query(CRMLeadActivity).filter_by(lead_id=lead.id, activity_type="executive_handoff_notification_failed").one()
+        assert "executive_handoff_number" in notification_failure.message
+    finally:
+        db.close()
+
+
+def test_missing_followup_template_alert_is_aggregated_but_tasks_are_per_lead(monkeypatch):
+    from sql_app.routers.whatsapp import update_whatsapp_settings
+
+    db = make_session()
+    try:
+        actor = SimpleNamespace(role="admin", id="ADMIN")
+        update_whatsapp_settings({
+            "executive_handoff_number": "+91 98765 43210",
+            "executive_handoff_template_name": "executive_handoff_v1",
+            "executive_handoff_template_language": "en_US",
+        }, db, actor)
+        leads = []
+        for index in range(3):
+            lead = add_tracked_lead(db, role=f"batch-{index}", phone=f"880171000000{index + 1}")
+            due_general_followup(db, lead)
+            record_recent_whatsapp_inbound(db, lead, datetime.now(timezone.utc) - timedelta(hours=25))
+            leads.append(lead)
+
+        db.close = lambda: None
+        monkeypatch.setattr("sql_app.whatsapp_ai.SessionLocal", NoCloseSession(db))
+        assert process_due_followups() == 3
+        for lead in leads:
+            followup = db.query(CRMFollowUp).filter_by(lead_id=lead.id, notes="Initial WhatsApp lead follow-up").one()
+            assert followup.status == "Cancelled"
+            assert db.query(AppSetting).filter_by(key=f"whatsapp_handoff_active:{lead.id}").first()
+            assert db.query(CRMTask).filter_by(lead_id=lead.id, title="WhatsApp human support requested").count() == 1
+
+        notifications = db.query(WhatsAppMessageOutbox).filter_by(activity_type="executive_handoff_notification").all()
+        assert len(notifications) == 1
+        assert notifications[0].dedupe_key.startswith("executive-handoff-template-missing:")
+        template = json.loads(notifications[0].message)["_whatsapp_template"]
+        assert template["parameters"][0] == "Multiple WhatsApp leads"
+    finally:
+        db.close()
+
+
+def test_failed_followup_template_delivery_records_lead_activity(monkeypatch):
+    from sql_app.followup_scheduler import TEMPLATE_LANGUAGE_KEY, TEMPLATE_NAME_KEY
+
+    db = make_session()
+    try:
+        lead = add_tracked_lead(db)
+        due_general_followup(db, lead)
+        record_recent_whatsapp_inbound(db, lead, datetime.now(timezone.utc) - timedelta(hours=25))
+        db.add(AppSetting(key=TEMPLATE_NAME_KEY, value_json=json.dumps("metho_followup_v1")))
+        db.add(AppSetting(key=TEMPLATE_LANGUAGE_KEY, value_json=json.dumps("en_US")))
+        db.commit()
+        db.close = lambda: None
+        monkeypatch.setattr("sql_app.whatsapp_ai.SessionLocal", NoCloseSession(db))
+        monkeypatch.setattr("sql_app.whatsapp_cloud.send_whatsapp_message", lambda *_args, **_kwargs: (_ for _ in ()).throw(RuntimeError("template rejected")))
+
+        assert process_due_followups() == 1
+        assert process_message_outbox() == 0
+        failure = db.query(CRMLeadActivity).filter_by(lead_id=lead.id, activity_type="whatsapp_followup_template_failed").one()
+        assert "template rejected" in failure.message
     finally:
         db.close()
 
@@ -120,6 +266,7 @@ def test_completed_registration_does_not_receive_incomplete_registration_reminde
         lead = add_tracked_lead(db)
         open_registration(db, lead)
         due_reminder(db, lead)
+        record_recent_whatsapp_inbound(db, lead)
         lead.member_user_id = "MAU12345"
         db.commit()
         db.close = lambda: None
@@ -138,13 +285,15 @@ def test_submitted_registration_stops_pending_and_queued_abandoned_reminders(mon
         lead = add_tracked_lead(db)
         open_registration(db, lead)
         due_reminder(db, lead)
+        record_recent_whatsapp_inbound(db, lead)
         db.close = lambda: None
         monkeypatch.setattr("sql_app.whatsapp_ai.SessionLocal", NoCloseSession(db))
         assert process_due_followups() == 1
         assert db.query(WhatsAppMessageOutbox).count() == 1
         record_public_registration_event({"crm_lead_id": lead.id, "phone": lead.phone, "event_type": "registration_form_submitted"}, db)
         reminder = db.query(CRMFollowUp).filter_by(lead_id=lead.id, notes="Abandoned registration reminder").one()
-        assert reminder.status == "Pending"
+        assert reminder.status == "Completed"
+        assert db.query(WhatsAppMessageOutbox).filter_by(lead_id=lead.id, activity_type="registration_reminder_sent").count() == 0
         lead.member_user_id = "MAU12345"
         db.commit()
         record_public_registration_event({"crm_lead_id": lead.id, "phone": lead.phone, "event_type": "registration_form_submitted"}, db)
@@ -153,6 +302,8 @@ def test_submitted_registration_stops_pending_and_queued_abandoned_reminders(mon
         assert db.query(WhatsAppMessageOutbox).filter(WhatsAppMessageOutbox.activity_type == "registration_reminder_sent").count() == 0
         assert db.query(WhatsAppMessageOutbox).filter_by(lead_id=lead.id, activity_type="registration_confirmation_requested").count() == 1
         assert lead.status == "APPLICATION"
+        session = db.query(WhatsAppRegistrationSession).filter_by(lead_id=lead.id).one()
+        assert session.state == "REGISTRATION_CONFIRMATION_PENDING"
     finally:
         db.close()
 
@@ -223,7 +374,7 @@ def test_role_registration_urls_normalize_to_public_form_routes():
 
 
 @pytest.mark.parametrize(("choice", "role"), [("1", "member"), ("Member", "member"), ("2", "partner"), ("Partner", "partner"), ("3", "rider"), ("Rider", "rider")])
-def test_role_selection_starts_native_registration_consent_with_web_option(monkeypatch, choice, role):
+def test_role_selection_starts_first_chat_registration_question(monkeypatch, choice, role):
     db = make_session()
     try:
         lead = add_tracked_lead(db, role=role)
@@ -232,19 +383,21 @@ def test_role_selection_starts_native_registration_consent_with_web_option(monke
         sent = []
         monkeypatch.setattr("sql_app.whatsapp_cloud._send_member_registration_reply", lambda _db, recipient, text: sent.append(text) or True)
         assert _continue_introduction(db, session, lead, choice, lead.phone)
-        assert session.state == "NATIVE_REG_CONSENT"
+        expected_state = {"member": "NATIVE_REG_MEMBER", "partner": "NATIVE_REG_PARTNER", "rider": "NATIVE_REG_RIDER"}[role]
+        assert session.state == expected_state
         assert session.role == role
         assert len(sent) == 1
-        assert f"/{role}-terms" in sent[0]
-        assert "YES" in sent[0] and "NO" in sent[0]
-        assert "WEB" in sent[0].split("Terms-")[1]
-        assert "CHAT" not in sent[0]
+        privacy = "আপনার তথ্য শুধু রেজিস্ট্রেশনের জন্য ব্যবহার হবে" if choice.isdigit() else "Your information will only be used for registration"
+        assert privacy in sent[0]
+        assert "Terms & Conditions" not in sent[0]
+        assert "WEB" not in sent[0] and "YES" not in sent[0]
+        assert "http" not in sent[0]
     finally:
         db.close()
 
 
 @pytest.mark.parametrize(("choice", "role"), [("1", "member"), ("2", "partner"), ("3", "rider")])
-def test_web_optout_after_role_selection_falls_back_to_tracked_link_and_chat_resumes(monkeypatch, choice, role):
+def test_web_keyword_cannot_leave_chat_registration(monkeypatch, choice, role):
     db = make_session()
     try:
         sent = []
@@ -254,21 +407,17 @@ def test_web_optout_after_role_selection_falls_back_to_tracked_link_and_chat_res
         assert ingest_whatsapp_message(db, message_payload(f"wamid.{role}.hi", "Hi"), None) == "created"
         assert ingest_whatsapp_message(db, message_payload(f"wamid.{role}.pick", choice), None) == "updated"
         session = db.query(WhatsAppRegistrationSession).one()
-        assert session.state == "NATIVE_REG_CONSENT" and session.role == role
+        assert session.state == f"NATIVE_REG_{role.upper()}" and session.role == role
 
         assert ingest_whatsapp_message(db, message_payload(f"wamid.{role}.web", "WEB"), None) == "updated"
-        assert session.state == "ROLE_REGISTRATION_PENDING"
-        assert f"registration_role={role}" in sent[-1] and "crm_lead_id=" in sent[-1] and "prefill_phone=" in sent[-1]
-
-        assert ingest_whatsapp_message(db, message_payload(f"wamid.{role}.chat", "CHAT"), None) == "updated"
-        assert session.state == "NATIVE_REG_CONSENT"
-        assert f"/{role}-terms" in sent[-1]
+        assert session.state == f"NATIVE_REG_{role.upper()}"
+        assert all("registration_role=" not in reply and "http" not in reply for reply in sent)
     finally:
         db.close()
 
 
 @pytest.mark.parametrize(("message", "role"), [("আমি মেম্বার হতে চাই", "member"), ("আমি পার্টনার হতে চাই", "partner"), ("আমি রাইডার হতে চাই", "rider")])
-def test_direct_role_intent_sends_tracked_form_url_only(monkeypatch, message, role):
+def test_direct_role_intent_starts_chat_registration_without_web_link(monkeypatch, message, role):
     db = make_session()
     try:
         sent = []
@@ -280,16 +429,11 @@ def test_direct_role_intent_sends_tracked_form_url_only(monkeypatch, message, ro
         assert session.state == "INTRODUCTION"
         assert session.role == ""
         assert ingest_whatsapp_message(db, message_payload(f"wamid.{role}.choice", role), None) == "updated"
-        assert session.state == "NATIVE_REG_CONSENT"
-        assert f"/{role}-terms" in sent[-1]
-        assert ingest_whatsapp_message(db, message_payload(f"wamid.{role}.web", "WEB"), None) == "updated"
-        assert len(sent) == 3
-        assert f"https://example.com/{role}-join" in sent[-1]
-        assert f"registration_role={role}" in sent[-1]
-        assert "আপনার নাম লিখুন" not in sent[-1]
-        assert "business type" not in sent[-1]
-        assert "পূর্ণ নাম লিখুন" not in sent[-1]
-        assert session.state == "ROLE_REGISTRATION_PENDING"
+        assert session.state == f"NATIVE_REG_{role.upper()}"
+        assert len(sent) == 2
+        assert "Your information will only be used for registration" in sent[-1]
+        assert f"https://example.com/{role}-join" not in sent[-1]
+        assert "registration_role=" not in sent[-1]
         assert session.role == role
     finally:
         db.close()
@@ -319,9 +463,8 @@ def test_registration_start_command_resets_stale_native_session(monkeypatch, rol
         assert session.name == ""
         assert session.address == ""
         assert json.loads(session.data_json) == {"language": "en"}
-        assert "1. Member" in sent[-1]
-        assert "2. Partner" in sent[-1]
-        assert "3. Rider" in sent[-1]
+        assert "Would you like to join as a Member, Partner, or Rider? Please tell me in your own words." in sent[-1]
+        assert "1. Member" not in sent[-1]
         assert "PAN" not in sent[-1]
         assert db.query(CRMLeadActivity).filter_by(lead_id=lead.id, activity_type="whatsapp_registration_state", message=state).count() == 0
     finally:
@@ -349,8 +492,14 @@ def test_new_greeting_resets_any_stale_native_session(monkeypatch, role, state, 
         assert session.role == ""
         assert session.name == ""
         assert session.address == ""
-        assert json.loads(session.data_json) == {"language": "bn" if any("\u0980" <= char <= "\u09ff" for char in greeting) else "en"}
-        assert "1. Member" in sent[-1]
+        language = "bn" if any("\u0980" <= char <= "\u09ff" for char in greeting) else "en"
+        expected_question = (
+            "আপনি Member, Partner নাকি Rider হিসেবে যুক্ত হতে চান? নিজের কথায় লিখে জানান।"
+            if language == "bn"
+            else "Would you like to join as a Member, Partner, or Rider? Please tell me in your own words."
+        )
+        assert json.loads(session.data_json) == {"language": language}
+        assert expected_question in sent[-1]
         assert "PAN" not in sent[-1]
         assert db.query(CRMLeadActivity).filter_by(lead_id=lead.id, activity_type="whatsapp_introduction_started").count() == 1
     finally:
@@ -389,10 +538,19 @@ def test_fresh_greeting_starts_welcome_role_selection(monkeypatch, greeting):
         assert ingest_whatsapp_message(db, message_payload(f"wamid.fresh-greeting-{greeting}", greeting), None) == "created"
         assert sent
         assert "I couldn't identify your role" not in sent[-1]
-        assert "1. Member" in sent[-1]
-        assert "2. Partner" in sent[-1]
-        assert "3. Rider" in sent[-1]
-        assert db.query(WhatsAppRegistrationSession).one().state == "INTRODUCTION"
+        expected_question = (
+            "আপনি Member, Partner নাকি Rider হিসেবে যুক্ত হতে চান? নিজের কথায় লিখে জানান।"
+            if any("\u0980" <= char <= "\u09ff" for char in greeting)
+            else "Would you like to join as a Member, Partner, or Rider? Please tell me in your own words."
+        )
+        assert expected_question in sent[-1]
+        session = db.query(WhatsAppRegistrationSession).one()
+        lead = db.query(CRMLead).one()
+        assert session.state == "INTRODUCTION"
+        assert lead.status == "CONTACTED"
+        assert _send_introduction(db, session, lead, lead.phone, "bn" if any("\u0980" <= char <= "\u09ff" for char in greeting) else "en")
+        assert lead.status == "CONTACTED"
+        assert db.query(CRMLeadActivity).filter_by(lead_id=lead.id, activity_type="whatsapp_introduction_started").count() == 2
     finally:
         db.close()
 
@@ -494,6 +652,7 @@ def test_registration_submit_event_queues_next_whatsapp_followup(monkeypatch, ro
         assert db.query(CRMLeadActivity).filter_by(lead_id=lead.id, activity_type="registration_form_submitted").count() == 1
         followup = db.query(CRMFollowUp).filter_by(lead_id=lead.id, notes="Confirm registration status and next activation/approval step").one()
         followup.scheduled_at = datetime.now(timezone.utc) - timedelta(seconds=1)
+        record_recent_whatsapp_inbound(db, lead)
         db.commit()
         db.close = lambda: None
         monkeypatch.setattr("sql_app.whatsapp_ai.SessionLocal", NoCloseSession(db))
@@ -652,6 +811,7 @@ def test_confirmation_pending_keeps_existing_reminder_chain_active(monkeypatch):
         session.state = "REGISTRATION_CONFIRMATION_PENDING"
         session.data_json = json.dumps({"registration_confirmed": False})
         db.add(CRMFollowUp(lead_id=lead.id, scheduled_at=datetime.now(timezone.utc) - timedelta(seconds=1), status="Pending", notes="Abandoned registration reminder"))
+        record_recent_whatsapp_inbound(db, lead)
         db.commit()
         db.close = lambda: None
         monkeypatch.setattr("sql_app.whatsapp_ai.SessionLocal", NoCloseSession(db))

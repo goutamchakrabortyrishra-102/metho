@@ -1,6 +1,7 @@
 import json
 import re
 import sys
+from datetime import datetime, timedelta, timezone
 from itertools import count
 from pathlib import Path
 
@@ -11,7 +12,7 @@ from sqlalchemy.orm import sessionmaker
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from sql_app.database import Base
-from sql_app.models import AppSetting, CRMLead, CRMLeadActivity, PartnerRequest, User, UserReferral, WhatsAppRegistrationSession
+from sql_app.models import AppSetting, CRMFollowUp, CRMLead, CRMLeadActivity, PartnerRequest, User, UserReferral, WhatsAppMessageOutbox, WhatsAppRegistrationSession
 from sql_app.whatsapp_cloud import (
     NATIVE_REG_DEFAULT_SPONSOR_CODE,
     WHATSAPP_NATIVE_REG_CONFIRM,
@@ -62,6 +63,7 @@ class Chat:
         self.db = db
         self.sent = []
         monkeypatch.setattr("sql_app.whatsapp_cloud._send_member_registration_reply", lambda _db, recipient, text: self.sent.append(text) or True)
+        monkeypatch.setattr("sql_app.whatsapp_cloud._send_auto_reply_if_configured", lambda _db, _to, text, _lead_id="", reply_key=None: self.sent.append(text) or "sent")
         self.lead = CRMLead(lead_id=f"WA-{SENDER}", business_name="WhatsApp", contact_person="WhatsApp Lead", phone=SENDER, whatsapp_no=SENDER, source="whatsapp", tags_json=json.dumps(tags or ["whatsapp_cloud"]))
         db.add(self.lead)
         db.flush()
@@ -115,14 +117,27 @@ def test_entry_keywords_start_the_in_chat_flow(env, keyword):
     db, monkeypatch = env
     chat = Chat(db, monkeypatch, "member")
     reply = chat.say(keyword)
-    assert chat.session.state == WHATSAPP_NATIVE_REG_CONSENT
-    assert "Terms & Conditions" in reply and "/member-terms" in reply
+    assert chat.session.state == WHATSAPP_NATIVE_REG_MEMBER
+    assert "আপনার তথ্য শুধু রেজিস্ট্রেশনের জন্য ব্যবহার হবে।" in reply
+    assert "আপনার পূর্ণ নাম লিখুন" in reply
+
+
+def test_legacy_consent_no_is_migrated_to_friendly_chat_optout(env):
+    db, monkeypatch = env
+    chat = Chat(db, monkeypatch, "partner")
+    chat.session.state = WHATSAPP_NATIVE_REG_CONSENT
+    chat.session.data_json = '{"language":"en"}'
+    reply = chat.say("NO")
+    assert "change your mind" in reply
+    assert "http" not in reply and "registration_role=" not in reply
+    assert chat.session.state == "IDLE"
+    assert db.query(AppSetting).filter_by(key=f"whatsapp_scheduled_optout:{chat.lead.id}").first()
 
 
 def test_full_member_flow_uses_default_sponsor_and_delivers_password(env):
     db, monkeypatch = env
     chat = Chat(db, monkeypatch, "member")
-    chat.say("CHAT", "YES")
+    chat.say("CHAT")
     assert chat.session.state == WHATSAPP_NATIVE_REG_MEMBER
     chat.say("Rahul Das", "15-08-1990", "abcde1234f", "skip", "skip")
     assert chat.session.state == WHATSAPP_NATIVE_REG_CONFIRM
@@ -140,6 +155,33 @@ def test_full_member_flow_uses_default_sponsor_and_delivers_password(env):
     assert_password_delivered_but_not_stored(db, chat)
 
 
+def test_native_member_submit_cancels_abandoned_reminder_and_outbox(env):
+    db, monkeypatch = env
+    chat = Chat(db, monkeypatch, "member")
+    reminder = CRMFollowUp(
+        lead_id=chat.lead.id,
+        scheduled_at=datetime.now(timezone.utc) - timedelta(minutes=1),
+        status="Pending",
+        notes="Abandoned registration reminder",
+    )
+    db.add(reminder)
+    db.flush()
+    db.add(WhatsAppMessageOutbox(
+        dedupe_key=f"crm-followup:{reminder.id}:123",
+        lead_id=chat.lead.id,
+        activity_type="registration_reminder_sent",
+        recipient=PHONE,
+        message="pending reminder",
+    ))
+    db.commit()
+
+    chat.say("CHAT", "Rahul Das", "15-08-1990", "abcde1234f", "skip", "skip", "1")
+    db.refresh(reminder)
+    assert reminder.status == "Cancelled"
+    assert db.query(WhatsAppMessageOutbox).filter_by(dedupe_key=f"crm-followup:{reminder.id}:123").count() == 0
+    assert chat.lead.status == "APPLICATION"
+
+
 @pytest.mark.parametrize("business_type,sector_choice,name,expected_label", [
     ("1", "2", "Sharma Kirana Store", "Shop"),
     ("2", "7", "City Care Studio", "Service"),
@@ -147,7 +189,7 @@ def test_full_member_flow_uses_default_sponsor_and_delivers_password(env):
 def test_full_partner_flow_for_shop_and_service(env, business_type, sector_choice, name, expected_label):
     db, monkeypatch = env
     chat = Chat(db, monkeypatch, "partner")
-    chat.say("CHAT", "YES", business_type, sector_choice, "Kirana Essentials", name, "Daily needs", "Ramesh Sharma", "BCDEF1234G", "1234 5678 9012", "ramesh.shop")
+    chat.say("CHAT", business_type, sector_choice, "Kirana Essentials", name, "Daily needs", "Ramesh Sharma", "BCDEF1234G", "1234 5678 9012", "ramesh.shop")
     chat.say("12 Park Street", "west bengal", "Kolkata District", "Kolkata", "700001", "ramesh@paytm", "12.5", "MAU10001")
     assert chat.session.state == WHATSAPP_NATIVE_REG_CONFIRM
     assert "BCDEF1234G" not in chat.last and "123456789012" not in chat.last
@@ -167,9 +209,11 @@ def test_full_partner_flow_for_shop_and_service(env, business_type, sector_choic
 def test_full_rider_flow_with_optional_bundles(env):
     db, monkeypatch = env
     chat = Chat(db, monkeypatch, "rider")
-    chat.say("CHAT", "YES", "Suresh Kumar", "2", "WB-12-3456", "suresh@example.com", "Road 5", "bihar", "Patna City", "Patna", "800001", "CDEFG1234H", "123456789012")
+    chat.say("CHAT", "Suresh Kumar", "2", "WB-12-3456", "suresh@example.com", "Road 5", "bihar", "Patna City", "Patna", "800001", "CDEFG1234H", "123456789012")
     chat.say("yes", "Mina Kumar", "9811111111", "yes", "Suresh Kumar", "SBI", "123456789", "sbin0001234", "suresh@upi", "MAU10001")
     assert chat.session.state == WHATSAPP_NATIVE_REG_CONFIRM
+    assert "rider-terms" in chat.last and "YES confirms your acceptance" not in chat.last
+    assert "YES লিখলে আপনি এই Terms-এ সম্মতি জানাচ্ছেন" in chat.last
     chat.say("1")
 
     rider = db.query(User).filter_by(role="rider").one()
@@ -185,7 +229,7 @@ def test_full_rider_flow_with_optional_bundles(env):
 def test_skipping_optional_fields_and_gates(env):
     db, monkeypatch = env
     chat = Chat(db, monkeypatch, "rider")
-    chat.say("CHAT", "YES", "Suresh Kumar", "1", "skip", "skip", "Road 5", "Bihar", "skip", "Patna", "800001", "CDEFG1234H", "123456789012", "skip", "skip", "skip", "skip")
+    chat.say("CHAT", "Suresh Kumar", "1", "skip", "skip", "Road 5", "Bihar", "skip", "Patna", "800001", "CDEFG1234H", "123456789012", "skip", "skip", "skip", "skip")
     assert chat.session.state == WHATSAPP_NATIVE_REG_CONFIRM
     assert "Emergency" not in chat.last and "IFSC" not in chat.last
     chat.say("1")
@@ -200,20 +244,30 @@ def test_skipping_optional_fields_and_gates(env):
 def test_required_field_cannot_be_skipped(env):
     db, monkeypatch = env
     chat = Chat(db, monkeypatch, "member")
-    chat.say("CHAT", "YES", "skip")
+    chat.say("CHAT", "skip")
     assert "আবশ্যক" in chat.last and "চেষ্টা 1/3" in chat.last
     assert chat.session.state == WHATSAPP_NATIVE_REG_MEMBER
+
+
+def test_active_registration_prompts_are_not_cooldown_limited(env):
+    db, monkeypatch = env
+    chat = Chat(db, monkeypatch, "member")
+    chat.say("CHAT", "Rahul Das", "bad date", "bad date")
+    date_prompts = [reply for reply in chat.sent if "জন্ম তারিখ লিখুন" in reply]
+    assert len(date_prompts) == 3
+    assert "চেষ্টা 1/3" in date_prompts[1] and "চেষ্টা 2/3" in date_prompts[2]
+    assert db.query(AppSetting).filter(AppSetting.key.like("whatsapp_reply_cooldown:%")).count() == 0
 
 
 def test_invalid_pan_retries_then_hands_off_to_a_human(env):
     db, monkeypatch = env
     chat = Chat(db, monkeypatch, "member")
-    chat.say("CHAT", "YES", "Rahul Das", "15-08-1990", "bad-pan")
+    chat.say("CHAT", "Rahul Das", "15-08-1990", "bad-pan")
     assert "চেষ্টা 1/3" in chat.last and "ABCDE1234F" in chat.last
     chat.say("still bad")
     assert "চেষ্টা 2/3" in chat.last
     chat.say("nope")
-    assert "support team" in chat.last
+    assert "executive" in chat.last.lower()
     assert chat.session.state == "IDLE"
     assert db.query(CRMLeadActivity).filter_by(activity_type="whatsapp_human_handoff_requested").count() == 1
     assert db.query(User).filter_by(role="member", name="Rahul Das").count() == 0
@@ -222,7 +276,7 @@ def test_invalid_pan_retries_then_hands_off_to_a_human(env):
 def test_valid_answer_resets_the_retry_counter(env):
     db, monkeypatch = env
     chat = Chat(db, monkeypatch, "member")
-    chat.say("CHAT", "YES", "Rahul Das", "bad", "bad", "15-08-1990", "bad", "bad")
+    chat.say("CHAT", "Rahul Das", "bad", "bad", "15-08-1990", "bad", "bad")
     assert "চেষ্টা 2/3" in chat.last and chat.session.state == WHATSAPP_NATIVE_REG_MEMBER
 
 
@@ -231,9 +285,9 @@ def test_duplicate_phone_is_not_retried_and_offers_web_link(env):
     add_user(db, "MAU20002", "member", phone=PHONE)
     db.commit()
     chat = Chat(db, monkeypatch, "member")
-    chat.say("CHAT", "YES")
-    assert "registration_role=member" in chat.last and "Executive" in chat.last
-    assert chat.session.state == WHATSAPP_ROLE_REGISTRATION_PENDING
+    chat.say("CHAT")
+    assert "Executive" in chat.last and "আগেই registration করা আছে" in chat.last
+    assert "registration_role=member" not in chat.last and chat.session.state == "IDLE"
 
 
 def test_duplicate_partner_login_id_is_not_retried(env):
@@ -241,45 +295,49 @@ def test_duplicate_partner_login_id_is_not_retried(env):
     add_user(db, "taken.shop", "partner", phone="9000000011")
     db.commit()
     chat = Chat(db, monkeypatch, "partner")
-    chat.say("CHAT", "YES", "1", "1", "skip", "Shop", "skip", "Owner", "BCDEF1234G", "123456789012", "taken.shop")
-    assert "Login ID" in chat.last and "registration_role=partner" in chat.last
-    assert chat.session.state == WHATSAPP_ROLE_REGISTRATION_PENDING
+    chat.say("CHAT", "1", "1", "skip", "Shop", "skip", "Owner", "BCDEF1234G", "123456789012", "taken.shop")
+    assert "Login ID" in chat.last and "Executive" in chat.last
+    assert "registration_role=partner" not in chat.last and chat.session.state == "IDLE"
     assert db.query(PartnerRequest).count() == 0
 
 
 def test_duplicate_pan_found_at_submit_time_falls_back_to_web_link(env):
     db, monkeypatch = env
     chat = Chat(db, monkeypatch, "member")
-    chat.say("CHAT", "YES", "Rahul Das", "15-08-1990", "ABCDE1234F", "skip", "skip")
+    chat.say("CHAT", "Rahul Das", "15-08-1990", "ABCDE1234F", "skip", "skip")
     db.add(AppSetting(key="member_registration_identity:pan:ABCDE1234F", value_json="{}"))
     db.commit()
     chat.say("1")
-    assert "registration_role=member" in chat.last
-    assert chat.session.state == WHATSAPP_ROLE_REGISTRATION_PENDING
+    assert "Executive" in chat.last
+    assert "registration_role=member" not in chat.last and chat.session.state == "IDLE"
     assert db.query(User).filter_by(role="member", name="Rahul Das").count() == 0
 
 
 @pytest.mark.parametrize("keyword", ["WEB", "link", "ওয়েব"])
-def test_web_optout_at_any_step_sends_tracked_registration_link(env, keyword):
+def test_web_keywords_do_not_exit_chat_registration(env, keyword):
     db, monkeypatch = env
     chat = Chat(db, monkeypatch, "member")
-    chat.say("CHAT", "YES", "Rahul Das", keyword)
-    assert "registration_role=member" in chat.last and "source=whatsapp" in chat.last and f"crm_lead_id={chat.lead.id}" in chat.last
-    assert chat.session.state == WHATSAPP_ROLE_REGISTRATION_PENDING
-    assert "answers" not in json.loads(chat.session.data_json)
+    chat.say("CHAT", "Rahul Das", keyword)
+    assert "http" not in chat.last and "registration_role=member" not in chat.last
+    assert chat.session.state == WHATSAPP_NATIVE_REG_MEMBER
+    assert "জন্ম তারিখ" in chat.last
 
 
-def test_consent_no_falls_back_to_web_link(env):
+def test_no_at_introduction_closes_registration_and_opts_out_followups(env):
     db, monkeypatch = env
     chat = Chat(db, monkeypatch, "partner")
-    chat.say("CHAT", "NO")
-    assert "registration_role=partner" in chat.last and chat.session.state == WHATSAPP_ROLE_REGISTRATION_PENDING
+    chat.session.state = "INTRODUCTION"
+    chat.session.data_json = '{"language":"en","fallback_count":0}'
+    chat.say("No")
+    assert "change your mind" in chat.last and "http" not in chat.last
+    assert chat.session.state == "IDLE"
+    assert db.query(AppSetting).filter_by(key=f"whatsapp_scheduled_optout:{chat.lead.id}").first()
 
 
 def test_ref_link_sponsor_is_prefilled_and_not_asked(env):
     db, monkeypatch = env
     chat = Chat(db, monkeypatch, "member", tags=["whatsapp_cloud", "ref:MAU10001"])
-    chat.say("CHAT", "YES", "Rahul Das", "15-08-1990", "ABCDE1234F")
+    chat.say("CHAT", "Rahul Das", "15-08-1990", "ABCDE1234F")
     assert "Sponsor" not in chat.last.split("•")[0]
     chat.say("skip")
     assert chat.session.state == WHATSAPP_NATIVE_REG_CONFIRM
@@ -292,7 +350,7 @@ def test_ref_link_sponsor_is_prefilled_and_not_asked(env):
 def test_unresolvable_ref_sponsor_is_asked_instead(env):
     db, monkeypatch = env
     chat = Chat(db, monkeypatch, "member", tags=["whatsapp_cloud", "ref:NOPE9999"])
-    chat.say("CHAT", "YES", "Rahul Das", "15-08-1990", "ABCDE1234F", "skip")
+    chat.say("CHAT", "Rahul Das", "15-08-1990", "ABCDE1234F", "skip")
     assert "Referral/Sponsor ID" in chat.last
     chat.say("NOPE0000")
     assert "পাওয়া যায়নি" in chat.last
@@ -301,7 +359,7 @@ def test_unresolvable_ref_sponsor_is_asked_instead(env):
 def test_back_and_restart_commands(env):
     db, monkeypatch = env
     chat = Chat(db, monkeypatch, "member")
-    chat.say("CHAT", "YES", "Wrong Name", "BACK")
+    chat.say("CHAT", "Wrong Name", "BACK")
     assert "পূর্ণ নাম" in chat.last
     chat.say("Rahul Das", "15-08-1990", "back")
     assert "জন্ম তারিখ" in chat.last
@@ -309,13 +367,14 @@ def test_back_and_restart_commands(env):
     assert "পূর্ণ নাম" in chat.last and chat.session.state == WHATSAPP_NATIVE_REG_MEMBER
     assert json.loads(chat.session.data_json)["answers"] == {}
     chat.say("BACK")
-    assert "প্রথম ধাপ" in chat.last
+    assert "আপনার তথ্য শুধু রেজিস্ট্রেশনের জন্য ব্যবহার হবে।" in chat.last
+    assert "পূর্ণ নাম" in chat.last
 
 
 def test_confirm_step_back_reopens_the_last_question_and_cancel_clears(env):
     db, monkeypatch = env
     chat = Chat(db, monkeypatch, "member")
-    chat.say("CHAT", "YES", "Rahul Das", "15-08-1990", "ABCDE1234F", "skip", "skip")
+    chat.say("CHAT", "Rahul Das", "15-08-1990", "ABCDE1234F", "skip", "skip")
     chat.say("back")
     assert "Sponsor" in chat.last and chat.session.state == WHATSAPP_NATIVE_REG_MEMBER
     chat.say("cancel")
@@ -325,16 +384,17 @@ def test_confirm_step_back_reopens_the_last_question_and_cancel_clears(env):
 def test_media_during_flow_is_not_treated_as_an_answer(env):
     db, monkeypatch = env
     chat = Chat(db, monkeypatch, "member")
-    chat.say("CHAT", "YES", "Rahul Das")
+    chat.say("CHAT", "Rahul Das")
     chat.say("", message_type="image")
     assert "টেক্সট" in chat.last and "জন্ম তারিখ" in chat.last
     assert "[image]" not in json.dumps(json.loads(chat.session.data_json)["answers"])
     assert json.loads(chat.session.data_json)["nr"]["retries"] == 0
 
 
-def test_existing_link_flow_is_unchanged_without_the_keyword(env):
+def test_legacy_pending_session_stays_in_chat_without_a_web_link(env):
     db, monkeypatch = env
     chat = Chat(db, monkeypatch, "member")
     chat.say("ok")
-    assert chat.session.state == WHATSAPP_ROLE_REGISTRATION_PENDING
-    assert "registration_role=member" in chat.last
+    assert chat.session.state == "INTRODUCTION"
+    assert "Member, Partner" in chat.last and "Please tell me in your own words" in chat.last
+    assert "http" not in chat.last

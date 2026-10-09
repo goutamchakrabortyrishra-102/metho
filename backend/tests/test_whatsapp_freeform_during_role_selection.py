@@ -1,3 +1,4 @@
+import json
 import sys
 from pathlib import Path
 from types import SimpleNamespace
@@ -51,13 +52,15 @@ def test_info_question_during_role_selection_skips_role_fallback_and_keeps_state
         assert ingest_whatsapp_message(db, message_payload("wamid.info-q", "Hello! Can I get more info on this?"), None) == "updated"
         assert session.state == "INTRODUCTION"
         assert sent
-        assert "role বুঝতে পারিনি" not in sent[-1]
+        assert "Please tell me in your own words" in sent[-1]
         assert "1. Member" not in sent[-1]
+        assert "Please tell me in your own words" in sent[-1]
 
         sent.clear()
         assert ingest_whatsapp_message(db, message_payload("wamid.pick-role", "member"), None) == "updated"
-        assert session.state == "NATIVE_REG_CONSENT"
+        assert session.state == "NATIVE_REG_MEMBER"
         assert session.role == "member"
+        assert "Your information will only be used for registration." in sent[-1]
     finally:
         db.close()
 
@@ -67,7 +70,12 @@ def test_info_question_during_role_selection_sends_direct_ai_reply_with_auto_sen
     try:
         sent = []
         monkeypatch.setattr("sql_app.whatsapp_cloud.send_whatsapp_message", lambda _db, recipient, text: sent.append(text) or {"messages": [{"id": "wamid.reply"}]})
-        monkeypatch.setattr("sql_app.whatsapp_ai._generate_reply", lambda *_args, **_kwargs: ("Direct AI answer", "gemini", "gemini-1.5-flash"))
+        def generate_reply(_config, incoming, context="", event_type="", **_kwargs):
+            if event_type == "whatsapp_role_classification":
+                return "question", "gemini", "gemini-1.5-flash"
+            return "Direct AI answer", "gemini", "gemini-1.5-flash"
+
+        monkeypatch.setattr("sql_app.whatsapp_ai._generate_reply", generate_reply)
         update_whatsapp_settings({"phone_number_id": "123456", "access_token": "secret-token"}, db, admin())
 
         ingest_whatsapp_message(db, message_payload("wamid.greet-ai", "Hi"), None)
@@ -76,7 +84,7 @@ def test_info_question_during_role_selection_sends_direct_ai_reply_with_auto_sen
 
         assert ingest_whatsapp_message(db, message_payload("wamid.info-ai", "Hello! Can I get more info on this?"), None) == "updated"
         assert session.state == "INTRODUCTION"
-        assert sent == ["Direct AI answer"]
+        assert sent == ["Direct AI answer\n\nWould you like to join as a Member, Partner, or Rider? Please tell me in your own words."]
     finally:
         db.close()
 
@@ -94,9 +102,8 @@ def test_new_customer_info_question_starts_welcome_before_ai_flow(monkeypatch):
         assert session.state == "INTRODUCTION"
         assert sent
         assert "METHO AAY-UPAY" in sent[-1]
-        assert "1. Member" in sent[-1]
-        assert "2. Partner" in sent[-1]
-        assert "3. Rider" in sent[-1]
+        assert "Would you like to join as a Member, Partner, or Rider?" in sent[-1]
+        assert "1. Member" not in sent[-1]
     finally:
         db.close()
 
@@ -136,7 +143,9 @@ def test_short_roman_bangla_questions_use_ai_without_repeating_welcome(monkeypat
         def generate_reply(_config, incoming, _context="", event_type="", **_kwargs):
             ai_calls.append((incoming, event_type))
             if event_type == "whatsapp_welcome":
-                return "Welcome to METHO. 1. Member 2. Partner 3. Rider", "gemini", "test"
+                return "Welcome to METHO.", "gemini", "test"
+            if event_type == "whatsapp_role_classification":
+                return "question", "gemini", "test"
             return f"KB answer for: {incoming}", "gemini", "test"
 
         monkeypatch.setattr("sql_app.whatsapp_ai._generate_reply", generate_reply)
@@ -148,8 +157,9 @@ def test_short_roman_bangla_questions_use_ai_without_repeating_welcome(monkeypat
 
         assert _is_informational_question(message) is True
         assert ingest_whatsapp_message(db, message_payload(f"wamid.short-question-{message}", message), None) == "updated"
-        assert ai_calls == [(message, "whatsapp_info_question")]
-        assert sent == [f"KB answer for: {message}"]
+        assert [event for _message, event in ai_calls] == ["whatsapp_role_classification", "whatsapp_info_question"]
+        expected_question = "আপনি Member, Partner নাকি Rider হিসেবে যুক্ত হতে চান? নিজের কথায় লিখে জানান।"
+        assert sent == [f"KB answer for: {message}\n\n{expected_question}"]
         assert session.state == "INTRODUCTION"
         assert session.role == ""
     finally:
@@ -165,10 +175,12 @@ def test_info_question_retries_when_ai_repeats_welcome(monkeypatch):
 
         def generate_reply(_config, incoming, _context="", event_type="", **_kwargs):
             if event_type == "whatsapp_welcome":
-                return "Welcome to METHO. 1. Member 2. Partner 3. Rider", "gemini", "test"
+                return "Welcome to METHO.", "gemini", "test"
             event_types.append(event_type)
+            if event_type == "whatsapp_role_classification":
+                return "question", "gemini", "test"
             if event_type == "whatsapp_info_question":
-                return "Welcome to METHO. 1. Member 2. Partner 3. Rider", "gemini", "test"
+                return "Welcome to METHO.", "gemini", "test"
             return "Smart Cycle has 5 slots.", "gemini", "test"
 
         monkeypatch.setattr("sql_app.whatsapp_ai._generate_reply", generate_reply)
@@ -177,8 +189,8 @@ def test_info_question_retries_when_ai_repeats_welcome(monkeypatch):
         sent.clear()
 
         assert ingest_whatsapp_message(db, message_payload("wamid.retry-question", "Smart cycle ki?"), None) == "updated"
-        assert event_types == ["whatsapp_info_question", "whatsapp_info_question_retry"]
-        assert sent == ["Smart Cycle has 5 slots."]
+        assert event_types == ["whatsapp_role_classification", "whatsapp_info_question", "whatsapp_info_question_retry"]
+        assert sent == ["Smart Cycle has 5 slots.\n\nআপনি Member, Partner নাকি Rider হিসেবে যুক্ত হতে চান? নিজের কথায় লিখে জানান।"]
     finally:
         db.close()
 
@@ -192,7 +204,9 @@ def test_first_entry_always_welcomes_then_readable_conversation_uses_ai(monkeypa
 
         def generate_reply(_config, incoming, _context="", event_type="", **_kwargs):
             if event_type == "whatsapp_welcome":
-                return "Welcome to METHO. 1. Member 2. Partner 3. Rider", "gemini", "test"
+                return "Welcome to METHO.", "gemini", "test"
+            if event_type == "whatsapp_role_classification":
+                return "question" if "accha" in incoming else "partner", "gemini", "test"
             ai_messages.append(incoming)
             return f"Conversation answer: {incoming}", "gemini", "test"
 
@@ -203,19 +217,20 @@ def test_first_entry_always_welcomes_then_readable_conversation_uses_ai(monkeypa
         session = db.query(WhatsAppRegistrationSession).one()
         assert session.state == "INTRODUCTION"
         assert session.role == ""
-        assert "Welcome to METHO" in sent[-1]
+        assert "নমস্কার! METHO AAY-UPAY-এ স্বাগতম।" in sent[-1]
+        assert "আপনি Member, Partner নাকি Rider হিসেবে যুক্ত হতে চান?" in sent[-1]
 
         sent.clear()
         assert ingest_whatsapp_message(db, message_payload("wamid.conversation", "accha ami aro details sunte chai"), None) == "updated"
         assert ai_messages == ["accha ami aro details sunte chai"]
-        assert sent == ["Conversation answer: accha ami aro details sunte chai"]
+        assert sent == ["Conversation answer: accha ami aro details sunte chai\n\nআপনি Member, Partner নাকি Rider হিসেবে যুক্ত হতে চান? নিজের কথায় লিখে জানান।"]
         assert session.state == "INTRODUCTION"
 
         sent.clear()
         assert ingest_whatsapp_message(db, message_payload("wamid.role-after-welcome", "2"), None) == "updated"
-        assert session.state == "NATIVE_REG_CONSENT"
+        assert session.state == "NATIVE_REG_PARTNER"
         assert session.role == "partner"
-        assert "/partner-terms" in sent[-1]
+        assert "আপনার তথ্য শুধু রেজিস্ট্রেশনের জন্য ব্যবহার হবে" in sent[-1]
     finally:
         db.close()
 
@@ -236,7 +251,7 @@ def test_info_question_sends_executive_text_when_direct_ai_reply_is_empty_or_fai
         assert ingest_whatsapp_message(db, message_payload("wamid.info-ai-fallback-welcome", "Hi"), None) == "created"
         sent.clear()
         assert ingest_whatsapp_message(db, message_payload("wamid.info-ai-fallback", "Hello! Can I get more info on this?"), None) == "updated"
-        assert sent == ["For accurate information on this matter, please contact our Executive directly: 9339566110"]
+        assert sent == ["For accurate information on this matter, please contact our Executive directly: 9339566110\n\nWould you like to join as a Member, Partner, or Rider? Please tell me in your own words."]
     finally:
         db.close()
 
@@ -278,8 +293,13 @@ def test_roman_script_business_questions_route_to_ai(monkeypatch, message, expec
         ai_messages = []
         monkeypatch.setattr("sql_app.whatsapp_cloud.send_whatsapp_message", lambda _db, recipient, text: sent.append(text) or {"messages": [{"id": "wamid.reply"}]})
 
-        def generate_reply(_config, incoming, *_args, **_kwargs):
+        ai_calls = []
+
+        def generate_reply(_config, incoming, context="", event_type="", **_kwargs):
             ai_messages.append(incoming)
+            ai_calls.append((incoming, event_type))
+            if event_type == "whatsapp_role_classification":
+                return "question", "gemini", "gemini-1.5-flash"
             return ai_reply, "gemini", "gemini-1.5-flash"
 
         monkeypatch.setattr("sql_app.whatsapp_ai._generate_reply", generate_reply)
@@ -289,14 +309,19 @@ def test_roman_script_business_questions_route_to_ai(monkeypatch, message, expec
         session = db.query(WhatsAppRegistrationSession).one()
         sent.clear()
         ai_messages.clear()
+        ai_calls.clear()
 
         assert _is_informational_question(message) is True
         assert _has_registration_intent(message) is False
         assert _is_executive_enquiry(message) is False
         assert _detect_language(message) == expected_language
         assert ingest_whatsapp_message(db, message_payload(f"wamid.roman-question-{expected_language}", message), None) == "updated"
-        assert ai_messages == [message]
-        assert sent == [ai_reply]
+        assert len(ai_calls) == 2
+        assert json.loads(ai_calls[0][0]) == {"untrusted_customer_text": message}
+        assert ai_calls[0][1] == "whatsapp_role_classification"
+        assert ai_calls[1] == (message, "whatsapp_info_question")
+        question = "आप Member, Partner या Rider के रूप में जुड़ना चाहेंगे? अपने शब्दों में बताइए।" if expected_language == "hi" else "আপনি Member, Partner নাকি Rider হিসেবে যুক্ত হতে চান? নিজের কথায় লিখে জানান।"
+        assert sent == [f"{ai_reply}\n\n{question}"]
         assert session.state == "INTRODUCTION"
     finally:
         db.close()

@@ -6,7 +6,7 @@ from sqlalchemy.orm import Session
 from ..database import get_db
 from ..models import CRMLead, CRMLeadActivity, CRMWhatsAppAISuggestion, User
 from ..whatsapp_ai import resolve_ai_config, save_ai_config
-from ..whatsapp_cloud import send_whatsapp_message
+from ..whatsapp_cloud import is_whatsapp_handoff_active, send_whatsapp_message
 from .auth import get_current_user
 
 router = APIRouter(prefix="/api/admin/crm/whatsapp-ai", tags=["whatsapp-ai"])
@@ -79,6 +79,8 @@ def approve_suggestion(suggestion_id: str, payload: dict, db: Session = Depends(
     lead = db.get(CRMLead, suggestion.lead_id)
     if not lead or lead.source != "whatsapp":
         raise HTTPException(status_code=400, detail="AI suggestions can only send to WhatsApp-origin leads")
+    if is_whatsapp_handoff_active(db, lead.id):
+        raise HTTPException(status_code=409, detail="A human handoff is active; resume the bot before sending AI suggestions")
     text = str((payload or {}).get("reply") or suggestion.suggested_reply).strip()
     recipient = str(lead.whatsapp_no or lead.phone or "").strip()
     if not text or not recipient:
