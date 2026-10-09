@@ -11,6 +11,7 @@ from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
 from ..database import get_db
 from ..crm_automation import record_lifecycle_event
 from ..crm_identity import reconcile_registration_identity
+from ..whatsapp_cloud import get_whatsapp_handoff, resume_whatsapp_bot
 from ..models import (
     AppSetting,
     AssociatePartner,
@@ -148,7 +149,7 @@ def record_public_registration_event(payload: dict, db: Session = Depends(get_db
             "rider": lead.rider_user_id,
         }
     registration_linked = bool(role_identity.get(registration_role) if registration_role else any(role_identity.values()) or lead.converted_partner_id)
-    if event_type == "registration_form_submitted" and lead.status == "NEW":
+    if event_type == "registration_form_submitted" and str(lead.status or "").upper() in {"NEW", "CONTACTED", "INTERESTED", "QUALIFIED"}:
         lead.status = "APPLICATION"
     reminder_notes = "Abandoned registration reminder"
     reminder_followups = db.query(CRMFollowUp).filter(
@@ -165,7 +166,7 @@ def record_public_registration_event(payload: dict, db: Session = Depends(get_db
             db.add(CRMFollowUp(lead_id=lead.id, scheduled_at=due_at, status="Pending", notes=reminder_notes))
         lead.next_follow_up_at = due_at
         lead.follow_up_status = "Pending"
-    elif reminder_followups and registration_linked:
+    elif reminder_followups and (registration_linked or event_type == "registration_form_submitted"):
         for reminder in reminder_followups:
             reminder.status = "Completed"
             db.query(WhatsAppMessageOutbox).filter(
@@ -174,12 +175,11 @@ def record_public_registration_event(payload: dict, db: Session = Depends(get_db
             ).delete(synchronize_session=False)
         for task in db.query(CRMTask).filter(CRMTask.lead_id == lead.id, CRMTask.status.in_(["Pending", "In Progress"]), CRMTask.title == reminder_notes).all():
             task.status = "Completed"
+        if not db.query(CRMFollowUp).filter(CRMFollowUp.lead_id == lead.id, CRMFollowUp.status == "Pending").first():
+            lead.next_follow_up_at = None
+            lead.follow_up_status = "Completed"
     activity = CRMLeadActivity(lead_id=lead.id, activity_type=event_type, message=f"Registration form {('submitted' if event_type.endswith('submitted') else 'opened')} from {phone or 'tracked CRM link'}")
     db.add(activity)
-    db.commit()
-    if lead.source == "whatsapp":
-        from ..whatsapp_ai import create_suggestion_for_activity
-        create_suggestion_for_activity(activity.id)
     if event_type == "registration_form_submitted" and registration_linked:
         from ..whatsapp_cloud import WHATSAPP_REGISTRATION_CONFIRMATION_PENDING, WHATSAPP_PRESET_MESSAGE_DEFAULTS, _member_registration_session, get_whatsapp_preset_message
         session = _member_registration_session(db, phone, phone, lead)
@@ -196,7 +196,11 @@ def record_public_registration_event(payload: dict, db: Session = Depends(get_db
                 recipient=lead.whatsapp_no or lead.phone or phone,
                 message=confirmation,
             ))
-        db.commit()
+    db.commit()
+    if lead.source == "whatsapp":
+        from ..whatsapp_ai import create_suggestion_for_activity
+        create_suggestion_for_activity(activity.id)
+    if event_type == "registration_form_submitted" and registration_linked:
         if session.role == "member" and lead.member_user_id:
             record_lifecycle_event(db, lead, "member_registration_completed", f"Member registration completed: {lead.member_user_id}. Activation/payment is pending.", "Complete member activation/payment and explain first purchase steps", 1)
         elif session.role == "partner" and lead.partner_request_id:
@@ -306,7 +310,7 @@ def _latest_reply_failed(db: Session, lead_id: str) -> bool:
 
 
 @router.get("/admin/crm/whatsapp/conversations")
-def list_whatsapp_conversations(search: str = "", db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+def list_whatsapp_conversations(search: str = "", db: Session = Depends(get_db), current_user: User = Depends(get_current_user), needs_human_only: bool = False):
     _require_admin_user(current_user)
     activities = (
         db.query(CRMLeadActivity)
@@ -326,6 +330,9 @@ def list_whatsapp_conversations(search: str = "", db: Session = Depends(get_db),
             continue
         searchable = " ".join((lead.contact_person, lead.business_name, lead.phone, lead.whatsapp_no)).lower()
         if term and term not in searchable:
+            continue
+        handoff = get_whatsapp_handoff(db, lead.id)
+        if needs_human_only and not handoff:
             continue
         seen_lead_ids.add(lead.id)
         latest_message = _whatsapp_message_payload(activity)
@@ -348,6 +355,9 @@ def list_whatsapp_conversations(search: str = "", db: Session = Depends(get_db),
             "latest_message_is_non_text": latest_message["is_non_text"],
             "latest_message_at": _iso(activity.created_at),
             "last_reply_failed": _latest_reply_failed(db, lead.id),
+            "needs_human": bool(handoff),
+            "handoff_reason": handoff.get("reason", ""),
+            "handoff_active_at": handoff.get("active_at", ""),
         })
     return {"items": conversations}
 
@@ -367,7 +377,19 @@ def get_whatsapp_conversation(lead_id: str, db: Session = Depends(get_db), curre
         .order_by(CRMLeadActivity.created_at.asc())
         .all()
     )
-    return {"conversation": {"lead_id": lead.id, "contact_person": lead.contact_person, "business_name": lead.business_name, "phone": lead.whatsapp_no or lead.phone, "source": lead.source, "status": lead.status, "priority_bucket": lead.priority_bucket, "next_follow_up_at": _iso(lead.next_follow_up_at), "follow_up_status": lead.follow_up_status, "member_user_id": lead.member_user_id, "partner_request_id": lead.partner_request_id, "converted_partner_id": lead.converted_partner_id, "last_reply_failed": _latest_reply_failed(db, lead.id)}, "messages": [_whatsapp_message_payload(activity) for activity in activities]}
+    handoff = get_whatsapp_handoff(db, lead.id)
+    return {"conversation": {"lead_id": lead.id, "contact_person": lead.contact_person, "business_name": lead.business_name, "phone": lead.whatsapp_no or lead.phone, "source": lead.source, "status": lead.status, "priority_bucket": lead.priority_bucket, "next_follow_up_at": _iso(lead.next_follow_up_at), "follow_up_status": lead.follow_up_status, "member_user_id": lead.member_user_id, "partner_request_id": lead.partner_request_id, "converted_partner_id": lead.converted_partner_id, "last_reply_failed": _latest_reply_failed(db, lead.id), "needs_human": bool(handoff), "handoff_reason": handoff.get("reason", ""), "handoff_active_at": handoff.get("active_at", "")}, "messages": [_whatsapp_message_payload(activity) for activity in activities]}
+
+
+@router.post("/admin/crm/whatsapp/conversations/{lead_id}/resume-bot")
+def resume_whatsapp_conversation_bot(lead_id: str, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    _require_admin_user(current_user)
+    lead = db.query(CRMLead).filter(CRMLead.id == lead_id).first()
+    if not lead:
+        raise HTTPException(status_code=404, detail="WhatsApp conversation not found")
+    if not resume_whatsapp_bot(db, lead, current_user.id):
+        return {"ok": True, "resumed": False}
+    return {"ok": True, "resumed": True}
 
 
 def _delete_whatsapp_activities(db: Session, lead_ids: list[str]) -> dict[str, int]:

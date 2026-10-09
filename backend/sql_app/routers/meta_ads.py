@@ -165,15 +165,15 @@ async def receive_meta_webhook(request: Request, db: Session = Depends(get_db)):
                     str(exc),
                     exc.response_body or "unavailable",
                 )
-                mark_webhook_event(db, lead_id, "failed")
+                mark_webhook_event(db, lead_id, "failed", source="meta")
                 results.append({"lead_id": lead_id, "status": "fetch_failed"})
                 continue
             try:
                 result = _ingest_lead(db, meta_payload, event)
-                mark_webhook_event(db, lead_id, "processed")
+                mark_webhook_event(db, lead_id, "processed", source="meta")
                 results.append({"lead_id": lead_id, "status": result})
             except Exception as exc:
                 db.rollback()
-                mark_webhook_event(db, lead_id, "failed")
+                mark_webhook_event(db, lead_id, "failed", source="meta")
                 raise HTTPException(status_code=503, detail="Meta lead could not be stored") from exc
     return {"ok": True, "results": results}

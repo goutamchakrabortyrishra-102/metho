@@ -13,7 +13,7 @@ from ..database import get_db
 from ..models import AppSetting, CRMLead, CRMLeadActivity
 from ..whatsapp_ai import create_suggestion_for_activity
 from ..storage import UPLOADED_OBJECTS_DIR
-from ..whatsapp_cloud import WHATSAPP_PRESET_MESSAGE_DEFAULTS, encrypt_secret, resolve_config, send_whatsapp_image, test_whatsapp_config, verify_signature, verify_webhook_token, ingest_whatsapp_message
+from ..whatsapp_cloud import WHATSAPP_PRESET_MESSAGE_DEFAULTS, encrypt_secret, normalize_whatsapp_number, resolve_config, send_whatsapp_image, test_whatsapp_config, verify_signature, verify_webhook_token, ingest_whatsapp_message
 from ..webhook_idempotency import claim_webhook_event, mark_webhook_event
 from .auth import get_current_user
 
@@ -51,6 +51,12 @@ def get_whatsapp_settings(db: Session = Depends(get_db), current_user=Depends(ge
         "business_account_id": config["business_account_id"],
         "graph_api_version": config["graph_api_version"],
         "default_assignee_id": config["default_assignee_id"],
+        "executive_handoff_number": config["executive_handoff_number"],
+        "executive_handoff_template_name": config["executive_handoff_template_name"],
+        "executive_handoff_template_language": config["executive_handoff_template_language"],
+        "customer_call_number": config["customer_call_number"],
+        "office_hours_text": config["office_hours_text"],
+        "customer_call_repeat_cooldown_hours": config["customer_call_repeat_cooldown_hours"],
         "default_auto_reply": config["default_auto_reply"],
         "default_auto_reply_image_url": config["default_auto_reply_image_url"],
         "default_auto_reply_mode": config["default_auto_reply_mode"],
@@ -100,6 +106,12 @@ def update_whatsapp_settings(payload: dict, db: Session = Depends(get_db), curre
         "business_account_id": str(data.get("business_account_id", current.get("business_account_id", "")) or "").strip(),
         "graph_api_version": str(data.get("graph_api_version", current.get("graph_api_version", "v20.0")) or "v20.0").strip(),
         "default_assignee_id": str(data.get("default_assignee_id", current.get("default_assignee_id", "")) or "").strip(),
+        "executive_handoff_number": normalize_whatsapp_number(data.get("executive_handoff_number", current.get("executive_handoff_number", ""))),
+        "executive_handoff_template_name": str(data.get("executive_handoff_template_name", current.get("executive_handoff_template_name", "")) or "").strip(),
+        "executive_handoff_template_language": str(data.get("executive_handoff_template_language", current.get("executive_handoff_template_language", "")) or "").strip(),
+        "customer_call_number": normalize_whatsapp_number(data.get("customer_call_number", current.get("customer_call_number", ""))),
+        "office_hours_text": str(data.get("office_hours_text", current.get("office_hours_text", "")) or "").strip(),
+        "customer_call_repeat_cooldown_hours": str(data.get("customer_call_repeat_cooldown_hours", current.get("customer_call_repeat_cooldown_hours", 2)) or 2).strip(),
         "default_auto_reply": str(data.get("default_auto_reply", current.get("default_auto_reply", "")) or "").strip(),
         "default_auto_reply_image_url": str(data.get("default_auto_reply_image_url", current.get("default_auto_reply_image_url", "")) or "").strip(),
         "default_auto_reply_mode": str(data.get("default_auto_reply_mode", current.get("default_auto_reply_mode", "text")) or "text").strip().lower(),
@@ -351,7 +363,7 @@ async def receive_whatsapp_webhook(request: Request, background_tasks: Backgroun
         # Never leave the customer with total silence: best-effort send an executive-contact
         # fallback so an internal error never looks like an unanswered message on WhatsApp.
         try:
-            from ..whatsapp_ai import _business_unknown_fallback, enqueue_whatsapp_message
+            from ..whatsapp_cloud import _detect_language, _send_customer_call_notice
             for message in locals().get("messages", []):
                 message_id = str((message or {}).get("id") or "").strip()
                 if message_id not in locals().get("claimed_message_ids", []):
@@ -360,26 +372,20 @@ async def receive_whatsapp_webhook(request: Request, background_tasks: Backgroun
                 if not sender:
                     continue
                 body_text = str(((message or {}).get("text") or {}).get("body") or "")
-                queued = enqueue_whatsapp_message(
-                    db,
-                    f"whatsapp-webhook-failure:{message_id}",
-                    sender,
-                    _business_unknown_fallback(body_text),
-                    activity_type="whatsapp_message_sent",
-                )
-                if queued:
+                call_status = _send_customer_call_notice(db, None, sender, _detect_language(body_text))
+                if call_status in {"sent", "cooldown"}:
                     fallback_queued.add(message_id)
         except Exception:
             db.rollback()
             logger.exception("WhatsApp webhook fallback reply after ingestion failure also failed")
         for message_id in locals().get("claimed_message_ids", []):
             try:
-                mark_webhook_event(db, message_id, "processed" if message_id in fallback_queued else "failed")
+                mark_webhook_event(db, message_id, "processed" if message_id in fallback_queued else "failed", source="whatsapp")
             except Exception:
                 db.rollback()
                 logger.exception("WhatsApp webhook idempotency failure marker failed: message_id=%s", message_id)
         raise HTTPException(status_code=503, detail=f"WhatsApp lead could not be stored: {str(exc)}") from exc
     for message_id in claimed_message_ids:
-        mark_webhook_event(db, message_id, "processed")
+        mark_webhook_event(db, message_id, "processed", source="whatsapp")
     logger.info("WhatsApp webhook processed with preset-only routing: message_count=%s", len(messages))
     return {"ok": True, "status": result, "message_count": len(messages)}

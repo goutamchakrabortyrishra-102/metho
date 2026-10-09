@@ -28,8 +28,12 @@ export default function WhatsAppInboxPage() {
   const [bulkMessage, setBulkMessage] = useState("");
   const [bulkSending, setBulkSending] = useState(false);
   const [failedOnly, setFailedOnly] = useState(false);
+  const [needsHumanOnly, setNeedsHumanOnly] = useState(false);
   const failedCount = conversations.filter((c) => c.last_reply_failed).length;
-  const visibleConversations = failedOnly ? conversations.filter((c) => c.last_reply_failed) : conversations;
+  const needsHumanCount = conversations.filter((c) => c.needs_human).length;
+  const visibleConversations = conversations.filter((conversation) =>
+    (!failedOnly || conversation.last_reply_failed) && (!needsHumanOnly || conversation.needs_human)
+  );
   const toggleSelectAll = () => {
     if (selectedLeadIds.length === conversations.length && conversations.length > 0) {
       setSelectedLeadIds([]);
@@ -241,6 +245,18 @@ export default function WhatsAppInboxPage() {
     catch (err) { setError(err?.response?.data?.detail || "Chats could not be marked read"); }
   };
 
+  const resumeBot = async () => {
+    if (!selected) return;
+    try {
+      await api.post(`/admin/crm/whatsapp/conversations/${selected.lead_id}/resume-bot`);
+      setSelected((current) => current ? { ...current, needs_human: false, handoff_reason: "", handoff_active_at: "" } : current);
+      toast.success("WhatsApp bot resumed");
+      await loadConversations();
+    } catch (err) {
+      setError(err?.response?.data?.detail || "WhatsApp bot could not be resumed");
+    }
+  };
+
   useEffect(() => { loadConversations(); }, [loadConversations]);
   useEffect(() => {
     if (!selected) return;
@@ -284,6 +300,9 @@ export default function WhatsAppInboxPage() {
             <Search className="absolute left-3 top-3 h-4 w-4 text-slate-400" />
             <Input value={search} onChange={(event) => setSearch(event.target.value)} onKeyDown={(event) => event.key === "Enter" && loadConversations()} placeholder="Search contacts" className="pl-9" />
           </div>
+          <Button size="sm" variant={needsHumanOnly ? "default" : "outline"} onClick={() => setNeedsHumanOnly((current) => !current)} className="shrink-0 text-xs" title="Show conversations waiting for a human">
+            <Users className="mr-1 h-3.5 w-3.5" />Needs human ({needsHumanCount})
+          </Button>
           {(failedCount > 0 || failedOnly) && (
             <Button size="sm" variant={failedOnly ? "default" : "outline"} onClick={() => setFailedOnly((current) => !current)} className="shrink-0 text-xs text-red-700" title="Show only conversations whose last reply failed">
               <AlertTriangle className="mr-1 h-3.5 w-3.5" />Failed replies ({failedCount})
@@ -332,9 +351,9 @@ export default function WhatsAppInboxPage() {
           {!loading && !conversations.length ? <p className="p-5 text-sm text-slate-500">No incoming WhatsApp conversations found.</p> : null}
         </div>
       </aside>
-      {selected ? <div data-whatsapp-selection className="border-b border-border bg-white px-5 py-3 text-xs text-slate-600 md:col-start-2 md:col-span-1"><span className="mr-3 font-semibold text-emerald-800">Stage: {selected.status || "NEW"}</span><span className="mr-3">Follow-up: {selected.follow_up_status || "Pending"}</span>{selected.next_follow_up_at ? <span className="mr-3">Next: {formatTime(selected.next_follow_up_at)}</span> : null}{selected.member_user_id || selected.partner_request_id || selected.converted_partner_id ? <span className="text-blue-700">Registration linked</span> : null}</div> : null}
+      {selected ? <div data-whatsapp-selection className="border-b border-border bg-white px-5 py-3 text-xs text-slate-600 md:col-start-2 md:col-span-1"><span className="mr-3 font-semibold text-emerald-800">Stage: {selected.status || "NEW"}</span><span className="mr-3">Follow-up: {selected.follow_up_status || "Pending"}</span>{selected.next_follow_up_at ? <span className="mr-3">Next: {formatTime(selected.next_follow_up_at)}</span> : null}{selected.needs_human ? <span className="mr-3 font-semibold text-amber-800">Needs human: {selected.handoff_reason || "Executive handoff"}</span> : null}{selected.member_user_id || selected.partner_request_id || selected.converted_partner_id ? <span className="text-blue-700">Registration linked</span> : null}</div> : null}
       <section data-whatsapp-selection className="flex min-h-0 flex-col bg-slate-50 md:col-start-2">
-        {selected ? <div className="flex justify-end gap-2 border-b border-border bg-white px-5 py-2"><Button size="sm" variant="outline" onClick={markRead}><CheckCheck className="mr-1 h-3.5 w-3.5" />Mark read</Button><Button size="sm" variant="outline" onClick={deleteSelectedConversation}><Trash2 className="mr-1 h-3.5 w-3.5" />Delete chat</Button></div> : null}
+        {selected ? <div className="flex justify-end gap-2 border-b border-border bg-white px-5 py-2">{selected.needs_human ? <Button size="sm" onClick={resumeBot}><Bot className="mr-1 h-3.5 w-3.5" />Resume bot</Button> : null}<Button size="sm" variant="outline" onClick={markRead}><CheckCheck className="mr-1 h-3.5 w-3.5" />Mark read</Button><Button size="sm" variant="outline" onClick={deleteSelectedConversation}><Trash2 className="mr-1 h-3.5 w-3.5" />Delete chat</Button></div> : null}
         {selected ? <><header className="border-b border-border bg-white px-5 py-4"><h2 className="font-bold text-slate-900">{selected.contact_person || selected.business_name}</h2><p className="text-sm text-slate-500">{selected.phone}</p></header><div className="flex-1 space-y-3 overflow-y-auto p-5 pb-52">{suggestions.filter((item) => item.status === "PENDING").slice(0, 1).map((suggestion) => <div key={suggestion.id} className="border border-amber-200 bg-amber-50 p-3 text-sm"><div className="flex items-center gap-2 font-semibold text-amber-900"><Bot className="h-4 w-4" />AI suggested reply</div><p className="mt-2 whitespace-pre-wrap text-slate-800">{suggestion.suggested_reply}</p>{suggestion.human_handoff_required ? <p className="mt-2 text-xs text-red-700">Human handoff required: {suggestion.handoff_reason}</p> : <div className="mt-3 flex gap-2"><Button size="sm" onClick={() => processSuggestion(suggestion, "approve")} disabled={suggestionBusy}><Check className="mr-1 h-3.5 w-3.5" />Send</Button><Button size="sm" variant="outline" onClick={() => processSuggestion(suggestion, "reject")} disabled={suggestionBusy}><X className="mr-1 h-3.5 w-3.5" />Reject</Button></div>}</div>)}{messages.map((message) => <div key={message.id} className={`flex ${message.direction === "outgoing" ? "justify-end" : "justify-start"}`}><div className={`max-w-[85%] rounded-lg px-3 py-2 text-sm ${message.delivery_failed ? "border border-red-300 bg-red-50 text-red-800" : message.direction === "outgoing" ? "bg-emerald-700 text-white" : "bg-white text-slate-800 shadow-sm"}`}>{message.delivery_failed ? <p className="mb-1 flex items-center gap-1 text-[11px] font-semibold"><AlertTriangle className="h-3 w-3" />Reply not delivered</p> : null}<p className="whitespace-pre-wrap">{displayWhatsAppText(message.text)}</p><p className={`mt-1 text-[10px] ${message.delivery_failed ? "text-red-500" : message.direction === "outgoing" ? "text-emerald-100" : "text-slate-400"}`}>{formatTime(message.created_at)}</p></div></div>)}</div></> : <div className="flex flex-1 flex-col items-center justify-center p-8 text-center text-slate-500"><MessageCircle className="mb-3 h-9 w-9 text-emerald-700" /><p className="font-medium text-slate-700">Select a WhatsApp conversation</p><p className="mt-1 text-sm">Incoming messages stored by the existing webhook appear here.</p></div>}
       </section>
     </div>
