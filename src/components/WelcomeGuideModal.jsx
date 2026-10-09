@@ -24,7 +24,7 @@ const slides = [
   {
     title: "Need Help?",
     icon: Phone,
-    body: "For accurate help, contact our Executive directly: 9339566110.",
+    body: "For accurate help, contact our Executive directly.",
   },
 ];
 
