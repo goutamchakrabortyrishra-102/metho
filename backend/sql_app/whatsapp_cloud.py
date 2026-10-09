@@ -1505,9 +1505,31 @@ def _customer_call_notice_variant(db, recipient: str, cooldown_hours: int) -> st
 def _customer_call_notice_text(db, language: str, recipient: str, *, short: bool = False, complaint: bool = False) -> str:
     config = resolve_config(db)
     number = normalize_whatsapp_number(config.get("customer_call_number") or "")
-    if not number:
-        return ""
     language = language if language in {"bn", "en", "hi"} else _detect_language(recipient)
+    if not number:
+        if complaint:
+            message = {
+                "bn": "আপনার অসুবিধার জন্য দুঃখিত। আমাদের প্রতিনিধি শীঘ্রই আপনার সঙ্গে যোগাযোগ করবেন।",
+                "en": "Sorry for the trouble. Our representative will contact you soon.",
+                "hi": "असुविधा के लिए खेद है। हमारे प्रतिनिधि जल्द ही आपसे संपर्क करेंगे।",
+            }[language]
+        elif short:
+            message = {
+                "bn": "আমাদের প্রতিনিধি শীঘ্রই যোগাযোগ করবেন।",
+                "en": "Our representative will be in touch soon.",
+                "hi": "हमारे प्रतिनिधि जल्द ही संपर्क करेंगे।",
+            }[language]
+        else:
+            message = {
+                "bn": "আমাদের প্রতিনিধি শীঘ্রই আপনার সঙ্গে যোগাযোগ করবেন।",
+                "en": "Our representative will contact you soon.",
+                "hi": "हमारे प्रतिनिधि जल्द ही आपसे संपर्क करेंगे।",
+            }[language]
+        office_hours = str(config.get("office_hours_text") or "").strip()
+        if office_hours:
+            label = {"bn": "অফিস সময়", "en": "Office hours", "hi": "कार्यालय समय"}[language]
+            message = f"{message}\n{label}: {office_hours}"
+        return message
     if short and complaint:
         message = {
             "bn": f"আপনার অসুবিধার জন্য দুঃখিত। {number} নম্বরে কল করুন।",
@@ -1544,8 +1566,7 @@ def _send_customer_call_notice(db, lead: CRMLead | None, recipient: str, languag
     if not config.get("customer_call_number"):
         logger.error("WhatsApp customer call notice unavailable: customer_call_number is not configured")
         if lead:
-            db.add(CRMLeadActivity(lead_id=lead.id, activity_type="whatsapp_call_notice_failed", message="Customer call notice not sent: customer_call_number is not configured."))
-        return "failed"
+            db.add(CRMLeadActivity(lead_id=lead.id, activity_type="whatsapp_call_notice_number_missing", message="Customer call notice used representative-follow-up copy because customer_call_number is not configured."))
     cooldown_hours = int(config.get("customer_call_repeat_cooldown_hours") or 2)
     variant = _customer_call_notice_variant(db, recipient, cooldown_hours)
     text = _customer_call_notice_text(db, language, recipient, short=variant == "short", complaint=complaint)

@@ -168,6 +168,7 @@ def test_handoff_pauses_automation_and_admin_can_resume_bot(env, monkeypatch):
         "executive_handoff_number": "9876543210",
         "executive_handoff_template_name": "executive_handoff",
         "executive_handoff_template_language": "en_US",
+        "customer_call_number": "9339566110",
     }, db, ADMIN)
     lead = CRMLead(lead_id=f"WA-{SENDER}", business_name="WhatsApp", contact_person="WhatsApp Lead", phone=SENDER, whatsapp_no=SENDER, source="whatsapp")
     db.add(lead)
@@ -181,10 +182,19 @@ def test_handoff_pauses_automation_and_admin_can_resume_bot(env, monkeypatch):
     db.add(suggestion)
     db.add(WhatsAppMessageOutbox(dedupe_key="pending-auto-reply", recipient=SENDER, message="Automated reply", lead_id=lead.id, status="pending"))
     db.commit()
-    monkeypatch.setattr("sql_app.whatsapp_cloud._send_member_registration_reply", lambda *_args, **_kwargs: True)
 
     from sql_app.routers.crm import list_whatsapp_conversations, resume_whatsapp_conversation_bot
-    from sql_app.whatsapp_cloud import _request_whatsapp_human_handoff, get_whatsapp_handoff, is_whatsapp_handoff_active
+    from sql_app.whatsapp_cloud import INBOUND_WHATSAPP_OUTBOX_CONTEXT, _request_whatsapp_human_handoff, get_whatsapp_handoff, is_whatsapp_handoff_active, send_whatsapp_message
+    from sql_app.whatsapp_ai import process_due_followups
+
+    sent = []
+    def fake_send(_db, recipient, text):
+        if _db.info.get(INBOUND_WHATSAPP_OUTBOX_CONTEXT):
+            return send_whatsapp_message(_db, recipient, text=text)
+        sent.append(text)
+        return {"messages": [{"id": f"wamid.reply-{len(sent)}"}]}
+    monkeypatch.setattr("sql_app.whatsapp_cloud.send_whatsapp_message", fake_send)
+    monkeypatch.setattr("sql_app.whatsapp_ai._generate_reply", lambda *_args, **_kwargs: ("Verified answer", "gemini", "test-model"))
 
     assert _request_whatsapp_human_handoff(db, lead, session, SENDER, reason="explicit_human_request", trigger_text="I need help")
     assert is_whatsapp_handoff_active(db, lead.id)
@@ -208,14 +218,37 @@ def test_handoff_pauses_automation_and_admin_can_resume_bot(env, monkeypatch):
         approve_suggestion(active_suggestion.id, {"reply": "AI reply"}, db, ADMIN)
     assert blocked_ai_approval.value.status_code == 409
 
-    ingest_whatsapp_message(db, payload("Still there?"), None, defer_outbound=True)
+    task_count_before_new_message = db.query(CRMTask).filter(CRMTask.lead_id == lead.id, CRMTask.title == "WhatsApp human support requested").count()
+    notification_count_before_new_message = db.query(WhatsAppMessageOutbox).filter_by(activity_type="executive_handoff_notification").count()
+    ingest_whatsapp_message(db, payload("What is a Member?"), None, defer_outbound=True)
+    bot_replies = db.query(WhatsAppMessageOutbox).filter_by(activity_type="whatsapp_handoff_bot_reply", lead_id=lead.id).all()
+    assert len(bot_replies) == 1
+    assert bot_replies[0].message == "Verified answer" and bot_replies[0].status == "pending"
+    inbound_reply = db.query(WhatsAppMessageOutbox).filter(WhatsAppMessageOutbox.dedupe_key.like("whatsapp-inbound:%")).one()
+    assert inbound_reply.activity_type == "whatsapp_handoff_bot_reply" and inbound_reply.message == "Verified answer"
     inbox = list_whatsapp_conversations("", db, ADMIN, needs_human_only=True)
     assert len(inbox["items"]) == 1 and inbox["items"][0]["needs_human"] is True
-    assert db.query(WhatsAppMessageOutbox).filter(WhatsAppMessageOutbox.dedupe_key.like("whatsapp-inbound:%")).count() == 0
-    assert db.query(WhatsAppMessageOutbox).filter_by(activity_type="executive_handoff_notification").count() == 1
+    assert db.query(CRMTask).filter(CRMTask.lead_id == lead.id, CRMTask.title == "WhatsApp human support requested").count() == task_count_before_new_message == 1
+    assert db.query(WhatsAppMessageOutbox).filter_by(activity_type="executive_handoff_notification").count() == notification_count_before_new_message == 1
+
+    from datetime import datetime, timedelta, timezone
+    scheduler_followup = CRMFollowUp(lead_id=lead.id, scheduled_at=datetime.now(timezone.utc) - timedelta(seconds=1), status="Pending", notes="Due during handoff")
+    db.add(scheduler_followup)
+    db.commit()
+    class NoCloseSession:
+        def __init__(self, session):
+            self.session = session
+        def __getattr__(self, name):
+            return getattr(self.session, name)
+        def close(self):
+            pass
+    monkeypatch.setattr("sql_app.whatsapp_ai.SessionLocal", lambda: NoCloseSession(db))
+    assert process_due_followups() == 0
+    assert scheduler_followup.status == "Cancelled"
 
     assert resume_whatsapp_conversation_bot(lead.id, db, ADMIN)["resumed"] is True
     assert not is_whatsapp_handoff_active(db, lead.id)
+    assert list_whatsapp_conversations("", db, ADMIN, needs_human_only=True)["items"] == []
     assert db.query(CRMLeadActivity).filter_by(lead_id=lead.id, activity_type="whatsapp_handoff_resumed").count() == 1
     assert _request_whatsapp_human_handoff(db, lead, session, SENDER, reason="explicit_human_request", trigger_text="I still need help")
     notifications = db.query(WhatsAppMessageOutbox).filter_by(activity_type="executive_handoff_notification").all()
@@ -287,4 +320,28 @@ def test_customer_call_and_task_work_without_executive_whatsapp_settings(env, mo
     assert "919339566110" in sent[-1]
     assert db.query(CRMTask).filter(CRMTask.lead_id == lead.id, CRMTask.title == "WhatsApp human support requested").count() == 1
     assert db.query(WhatsAppMessageOutbox).filter_by(activity_type="executive_handoff_notification").count() == 0
+    assert db.query(CRMLeadActivity).filter_by(lead_id=lead.id, activity_type="executive_handoff_notification_failed").count() == 1
+
+
+def test_blank_customer_call_number_uses_safe_generic_message_and_still_creates_task(env, monkeypatch):
+    db, _ = env
+    update_whatsapp_settings({"phone_number_id": "123456", "access_token": "secret-token"}, db, ADMIN)
+    if not db.query(User).filter_by(id=ADMIN.id).first():
+        db.add(User(id=ADMIN.id, name="Admin", email="admin@example.com", phone="9000000000", password="hashed", role="super_admin", is_active=True))
+    lead = CRMLead(lead_id=f"WA-{SENDER}", business_name="WhatsApp", contact_person="WhatsApp Lead", phone=SENDER, whatsapp_no=SENDER, source="whatsapp")
+    db.add(lead)
+    db.flush()
+    session = WhatsAppRegistrationSession(phone=SENDER, wa_id=SENDER, lead_id=lead.id, role="member", state="ROLE_REGISTRATION_PENDING")
+    db.add(session)
+    db.commit()
+    sent = []
+    monkeypatch.setattr("sql_app.whatsapp_cloud.send_whatsapp_message", lambda _db, recipient, text: sent.append(text) or {"messages": [{"id": "wamid.no-call-number"}]})
+
+    from sql_app.whatsapp_cloud import _request_whatsapp_human_handoff
+
+    assert _request_whatsapp_human_handoff(db, lead, session, SENDER, language="en", reason="explicit_human_request", trigger_text="I need a human")
+    assert sent == ["Our representative will contact you soon."]
+    assert not any(character.isdigit() for character in sent[0])
+    assert db.query(CRMTask).filter(CRMTask.lead_id == lead.id, CRMTask.title == "WhatsApp human support requested").count() == 1
+    assert db.query(CRMLeadActivity).filter_by(lead_id=lead.id, activity_type="whatsapp_call_notice_number_missing").count() == 1
     assert db.query(CRMLeadActivity).filter_by(lead_id=lead.id, activity_type="executive_handoff_notification_failed").count() == 1

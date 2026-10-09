@@ -44,7 +44,7 @@ def test_second_consecutive_fallback_still_sends_preset_then_third_hands_off(mon
     db = make_session()
     sent = []
     monkeypatch.setattr("sql_app.whatsapp_cloud._send_member_registration_reply", lambda db, recipient, text: sent.append(text) or True)
-    monkeypatch.setattr("sql_app.whatsapp_cloud._send_auto_reply_if_configured", lambda _db, _to, text, _lead_id="", reply_key=None: sent.append(text) or "sent")
+    monkeypatch.setattr("sql_app.whatsapp_cloud._send_auto_reply_if_configured", lambda _db, _to, text, _lead_id="", reply_key=None, **_kwargs: sent.append(text) or "sent")
     lead, session = _lead_and_session(db)
     assert _continue_introduction(db, session, lead, "asdkjaslkdj", "8801712345678") is True
     assert _continue_introduction(db, session, lead, "asdkjaslkdj", "8801712345678") is True
@@ -59,7 +59,7 @@ def test_pasted_registration_details_trigger_human_handoff(monkeypatch):
     db = make_session()
     sent = []
     monkeypatch.setattr("sql_app.whatsapp_cloud._send_member_registration_reply", lambda db, recipient, text: sent.append(text) or True)
-    monkeypatch.setattr("sql_app.whatsapp_cloud._send_auto_reply_if_configured", lambda _db, _recipient, text, _lead_id="", reply_key=None: sent.append(text) or "sent")
+    monkeypatch.setattr("sql_app.whatsapp_cloud._send_auto_reply_if_configured", lambda _db, _recipient, text, _lead_id="", reply_key=None, **_kwargs: sent.append(text) or "sent")
     lead, session = _lead_and_session(db)
     pasted = "Name- Rahim Uddin\nAddress- Village Road\nFather Name- Karim Uddin\nPin- 700001"
     assert _continue_introduction(db, session, lead, pasted, "8801712345678") is True
