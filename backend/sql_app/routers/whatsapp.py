@@ -54,6 +54,9 @@ def get_whatsapp_settings(db: Session = Depends(get_db), current_user=Depends(ge
         "executive_handoff_number": config["executive_handoff_number"],
         "executive_handoff_template_name": config["executive_handoff_template_name"],
         "executive_handoff_template_language": config["executive_handoff_template_language"],
+        "customer_call_number": config["customer_call_number"],
+        "office_hours_text": config["office_hours_text"],
+        "customer_call_repeat_cooldown_hours": config["customer_call_repeat_cooldown_hours"],
         "default_auto_reply": config["default_auto_reply"],
         "default_auto_reply_image_url": config["default_auto_reply_image_url"],
         "default_auto_reply_mode": config["default_auto_reply_mode"],
@@ -106,6 +109,9 @@ def update_whatsapp_settings(payload: dict, db: Session = Depends(get_db), curre
         "executive_handoff_number": normalize_whatsapp_number(data.get("executive_handoff_number", current.get("executive_handoff_number", ""))),
         "executive_handoff_template_name": str(data.get("executive_handoff_template_name", current.get("executive_handoff_template_name", "")) or "").strip(),
         "executive_handoff_template_language": str(data.get("executive_handoff_template_language", current.get("executive_handoff_template_language", "")) or "").strip(),
+        "customer_call_number": normalize_whatsapp_number(data.get("customer_call_number", current.get("customer_call_number", ""))),
+        "office_hours_text": str(data.get("office_hours_text", current.get("office_hours_text", "")) or "").strip(),
+        "customer_call_repeat_cooldown_hours": str(data.get("customer_call_repeat_cooldown_hours", current.get("customer_call_repeat_cooldown_hours", 2)) or 2).strip(),
         "default_auto_reply": str(data.get("default_auto_reply", current.get("default_auto_reply", "")) or "").strip(),
         "default_auto_reply_image_url": str(data.get("default_auto_reply_image_url", current.get("default_auto_reply_image_url", "")) or "").strip(),
         "default_auto_reply_mode": str(data.get("default_auto_reply_mode", current.get("default_auto_reply_mode", "text")) or "text").strip().lower(),
@@ -357,7 +363,7 @@ async def receive_whatsapp_webhook(request: Request, background_tasks: Backgroun
         # Never leave the customer with total silence: best-effort send an executive-contact
         # fallback so an internal error never looks like an unanswered message on WhatsApp.
         try:
-            from ..whatsapp_ai import _business_unknown_fallback, enqueue_whatsapp_message
+            from ..whatsapp_cloud import _detect_language, _send_customer_call_notice
             for message in locals().get("messages", []):
                 message_id = str((message or {}).get("id") or "").strip()
                 if message_id not in locals().get("claimed_message_ids", []):
@@ -366,14 +372,8 @@ async def receive_whatsapp_webhook(request: Request, background_tasks: Backgroun
                 if not sender:
                     continue
                 body_text = str(((message or {}).get("text") or {}).get("body") or "")
-                queued = enqueue_whatsapp_message(
-                    db,
-                    f"whatsapp-webhook-failure:{message_id}",
-                    sender,
-                    _business_unknown_fallback(body_text),
-                    activity_type="whatsapp_message_sent",
-                )
-                if queued:
+                call_status = _send_customer_call_notice(db, None, sender, _detect_language(body_text))
+                if call_status in {"sent", "cooldown"}:
                     fallback_queued.add(message_id)
         except Exception:
             db.rollback()

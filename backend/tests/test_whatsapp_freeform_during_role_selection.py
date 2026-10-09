@@ -12,7 +12,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from sql_app.database import Base
 from sql_app.models import CRMLeadActivity, WhatsAppRegistrationSession
 from sql_app.routers.whatsapp import update_whatsapp_settings
-from sql_app.whatsapp_cloud import _configured_executive_fallback, _detect_language, _has_registration_intent, _is_executive_enquiry, _is_informational_question, ingest_whatsapp_message
+from sql_app.whatsapp_cloud import _customer_call_notice_text, _detect_language, _has_registration_intent, _is_executive_enquiry, _is_informational_question, ingest_whatsapp_message
 
 
 def make_session():
@@ -37,12 +37,12 @@ def message_payload(message_id, body, sender="8801712345678"):
     }
 
 
-def test_info_question_during_role_selection_skips_role_fallback_and_keeps_state(monkeypatch):
+def test_info_question_during_role_selection_hands_off_when_ai_has_no_answer(monkeypatch):
     db = make_session()
     try:
         sent = []
         monkeypatch.setattr("sql_app.whatsapp_cloud.send_whatsapp_message", lambda _db, recipient, text: sent.append(text) or {"messages": [{"id": "wamid.reply"}]})
-        update_whatsapp_settings({"phone_number_id": "123456", "access_token": "secret-token"}, db, admin())
+        update_whatsapp_settings({"phone_number_id": "123456", "access_token": "secret-token", "customer_call_number": "9339566110"}, db, admin())
 
         assert ingest_whatsapp_message(db, message_payload("wamid.greet", "Hi"), None) == "created"
         session = db.query(WhatsAppRegistrationSession).one()
@@ -50,17 +50,15 @@ def test_info_question_during_role_selection_skips_role_fallback_and_keeps_state
 
         sent.clear()
         assert ingest_whatsapp_message(db, message_payload("wamid.info-q", "Hello! Can I get more info on this?"), None) == "updated"
-        assert session.state == "INTRODUCTION"
+        assert session.state == "IDLE"
         assert sent
-        assert "Please tell me in your own words" in sent[-1]
-        assert "1. Member" not in sent[-1]
-        assert "Please tell me in your own words" in sent[-1]
+        assert "919339566110" in sent[-1]
+        assert "Please tell me in your own words" not in sent[-1]
 
         sent.clear()
-        assert ingest_whatsapp_message(db, message_payload("wamid.pick-role", "member"), None) == "updated"
-        assert session.state == "NATIVE_REG_MEMBER"
-        assert session.role == "member"
-        assert "Your information will only be used for registration." in sent[-1]
+        assert ingest_whatsapp_message(db, message_payload("wamid.pick-role", "What does the plan require?"), None) == "updated"
+        assert session.state == "IDLE"
+        assert sent == ["You can call the number above."]
     finally:
         db.close()
 
@@ -236,7 +234,7 @@ def test_first_entry_always_welcomes_then_readable_conversation_uses_ai(monkeypa
 
 
 @pytest.mark.parametrize("ai_result", [("", "fallback", "local"), RuntimeError("Gemini unavailable")])
-def test_info_question_sends_executive_text_when_direct_ai_reply_is_empty_or_fails(monkeypatch, ai_result):
+def test_info_question_sends_configured_call_notice_when_ai_has_no_answer(monkeypatch, ai_result):
     db = make_session()
     try:
         sent = []
@@ -246,12 +244,12 @@ def test_info_question_sends_executive_text_when_direct_ai_reply_is_empty_or_fai
         else:
             monkeypatch.setattr("sql_app.whatsapp_ai._generate_reply", lambda *_args, **_kwargs: ai_result)
         monkeypatch.setattr("sql_app.whatsapp_cloud.get_configured_whatsapp_reply", lambda *_args, **_kwargs: "")
-        update_whatsapp_settings({"phone_number_id": "123456", "access_token": "secret-token"}, db, admin())
+        update_whatsapp_settings({"phone_number_id": "123456", "access_token": "secret-token", "customer_call_number": "9339566110"}, db, admin())
 
         assert ingest_whatsapp_message(db, message_payload("wamid.info-ai-fallback-welcome", "Hi"), None) == "created"
         sent.clear()
         assert ingest_whatsapp_message(db, message_payload("wamid.info-ai-fallback", "Hello! Can I get more info on this?"), None) == "updated"
-        assert sent == ["For accurate information on this matter, please contact our Executive directly: 9339566110\n\nWould you like to join as a Member, Partner, or Rider? Please tell me in your own words."]
+        assert sent == ["To speak directly with a representative, call 919339566110."]
     finally:
         db.close()
 
@@ -350,12 +348,12 @@ def test_roman_bangla_registration_intent_and_role_selection(monkeypatch):
         db.close()
 
 
-def test_executive_fallback_uses_input_language_when_custom_preset_does_not_match():
+def test_customer_call_notice_uses_configured_number_and_input_language():
     db = make_session()
     try:
-        update_whatsapp_settings({"preset_business_enquiry_executive": "Executive contact: 9339566110"}, db, admin())
-        assert _configured_executive_fallback(db, "en") == "Executive contact: 9339566110"
-        assert _configured_executive_fallback(db, "bn") == "এই বিষয়ে সঠিক তথ্যের জন্য আমাদের Executive-এর সঙ্গে সরাসরি যোগাযোগ করুন: 9339566110"
-        assert _configured_executive_fallback(db, "hi") == "इस विषय में सही जानकारी के लिए हमारे Executive से सीधे संपर्क करें: 9339566110"
+        update_whatsapp_settings({"customer_call_number": "9339566110"}, db, admin())
+        assert _customer_call_notice_text(db, "en", "8801712345678") == "To speak directly with a representative, call 919339566110."
+        assert "919339566110" in _customer_call_notice_text(db, "bn", "8801712345678")
+        assert "919339566110" in _customer_call_notice_text(db, "hi", "8801712345678")
     finally:
         db.close()

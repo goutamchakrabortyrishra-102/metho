@@ -213,7 +213,7 @@ WHATSAPP_PRESET_MESSAGE_DEFAULTS = {
     "preset_role_selection_fallback": "🙂 METHO AAY-UPAY সম্পর্কে আরও জানতে পারেন। যুক্ত হওয়ার জন্য একটি option বেছে নিন:\n1. Member\n2. Partner\n3. Rider",
     "preset_role_registration_reminder": "আপনি {role} হিসেবে যুক্ত হওয়ার পথে আছেন—মাত্র একটি ফর্ম বাকি! এখনই পূরণ করুন এবং আপনার সুবিধাগুলো (কমিশন, বোনাস, রিওয়ার্ড) পেতে শুরু করুন: {link}\n\nচ্যাটেই registration করতে CHAT লিখুন।",
     "preset_support_fallback": "আপনার প্রশ্নটি আমাদের support team দেখবে। METHO WhatsApp executive: {support_number}",
-    "preset_business_enquiry_executive": "এই বিষয়ে বিস্তারিত জানতে আমাদের Executive-এর সাথে যোগাযোগ করুন: 9339566110",
+    "preset_business_enquiry_executive": "এই বিষয়ে বিস্তারিত জানতে প্রতিনিধির সঙ্গে সরাসরি কথা বলুন।",
     "preset_handoff_requested": "আপনার অনুরোধটি আমাদের support team-কে পাঠানো হয়েছে। একজন representative শীঘ্রই যোগাযোগ করবেন।",
     "preset_icebreaker_metho_info": "METHO AAY-UPAY is a smart e-commerce platform by Metho Logistics Pvt. Ltd. Browse quality daily essentials, kitchenware, & direct farm produce easily!\n\nমেঠো আয়-উপায় হলো মেঠো লজিস্টিকস প্রাইভেট লিমিটেডের একটি ডিজিটাল প্ল্যাটফর্ম। এখান থেকে সহজেই দৈনন্দিন প্রয়োজনীয় সামগ্রী, কিচেন অ্যাপ্লায়েন্স ও সেরা দেশি পণ্য অর্ডার করতে পারবেন।",
     "preset_icebreaker_shop_partner": "Looking to shop or grow your business with us? Visit our portal to place orders or register as an authorized partner/vendor.\n\nপণ্য কিনতে চান নাকি আমাদের সাথে বিজনেসে যুক্ত হতে চান? অর্ডার করতে বা অথরাইজড বিজনেস পার্টনার/ভেন্ডর হিসেবে রেজিস্টার করতে আমাদের পোর্টালে ভিজিট করুন।",
@@ -221,7 +221,7 @@ WHATSAPP_PRESET_MESSAGE_DEFAULTS = {
     "preset_lifecycle_registration_form_opened": "আপনি registration form খুলেছেন। Form পূরণ করতে কোনো সাহায্য লাগলে এখানেই লিখুন।",
     "preset_lifecycle_registration_form_submitted": "আপনার registration form জমা হয়েছে। পরবর্তী ধাপ সম্পন্ন করতে কোনো সাহায্য লাগলে এখানে reply করুন।",
     "preset_registration_submit_confirmation": "🌱 আপনি কি METHO AAY-UPAY Registration Form সফলভাবে Submit করেছেন?\n\nYes — হ্যাঁ, Submit করেছি\nNo — না, এখনও Submit করিনি\n\n👉 Reply: Yes / No",
-    "preset_registration_confirmation_no": "Registration সম্পূর্ণ করতে অসুবিধা হলে আমাদের Executive-এর সাথে যোগাযোগ করুন: 9339566110",
+    "preset_registration_confirmation_no": "Registration সম্পূর্ণ করতে অসুবিধা হলে প্রতিনিধির সঙ্গে সরাসরি কথা বলুন।",
     "preset_lifecycle_registration_form_followup_started": "আপনার Registration Form জমা হয়েছে। Account activation বা approval status নিয়ে কোনো প্রশ্ন থাকলে এখানে reply করুন, আমরা সাহায্য করব।",
     "preset_abandoned_registration_reminder": "আপনার METHO registration এখনও সম্পূর্ণ হয়নি।\nYour METHO registration is still incomplete.\n\n👉 Registration complete করতে এখানে ক্লিক করুন:\n{registration_url}\n\n💬 কোনো সাহায্য লাগলে \"Executive\" লিখুন — আমাদের Executive-এর সাথে কথা বলতে পারবেন।",
     "preset_abandoned_registration_reminder_followup": "🌱 {role} হিসেবে METHO-র Smart Cycle commission, Matching Bonus, Reward Pool-এর সুযোগগুলো এখনও অপেক্ষা করছে। মাত্র একটি ফর্ম পূরণ করলেই শুরু করতে পারবেন: {registration_url}\n\n💬 কোনো সাহায্য লাগলে \"Executive\" লিখুন।",
@@ -371,6 +371,9 @@ def load_db_config(db) -> dict:
         "executive_handoff_number",
         "executive_handoff_template_name",
         "executive_handoff_template_language",
+        "customer_call_number",
+        "office_hours_text",
+        "customer_call_repeat_cooldown_hours",
         "executive_handoff_number",
         "executive_handoff_template_name",
         "executive_handoff_template_language",
@@ -408,6 +411,10 @@ def load_db_config(db) -> dict:
 
 def resolve_config(db=None) -> dict:
     db_config = load_db_config(db) if db is not None else {}
+    try:
+        customer_call_repeat_cooldown_hours = int(db_config.get("customer_call_repeat_cooldown_hours") or 2)
+    except (TypeError, ValueError):
+        customer_call_repeat_cooldown_hours = 2
     return {
         "enabled": str(db_config.get("enabled", True)).strip().lower() not in {"false", "0", "no", "off"},
         "phone_number_id": str(db_config.get("phone_number_id") or _setting("WHATSAPP_PHONE_NUMBER_ID")),
@@ -417,6 +424,9 @@ def resolve_config(db=None) -> dict:
         "executive_handoff_number": normalize_whatsapp_number(db_config.get("executive_handoff_number") or ""),
         "executive_handoff_template_name": str(db_config.get("executive_handoff_template_name") or "").strip(),
         "executive_handoff_template_language": str(db_config.get("executive_handoff_template_language") or "").strip(),
+        "customer_call_number": normalize_whatsapp_number(db_config.get("customer_call_number") or ""),
+        "office_hours_text": str(db_config.get("office_hours_text") or "").strip(),
+        "customer_call_repeat_cooldown_hours": max(1, min(168, customer_call_repeat_cooldown_hours)),
         "default_auto_reply": str(db_config.get("default_auto_reply") or DEFAULT_AUTO_REPLY).strip(),
         "default_auto_reply_image_url": str(db_config.get("default_auto_reply_image_url") or "").strip(),
         "default_auto_reply_mode": str(db_config.get("default_auto_reply_mode") or "text").strip().lower(),
@@ -492,39 +502,6 @@ def get_configured_whatsapp_reply_mode(db, role: str | None = None) -> str:
     image_key = {"customer": "customer_auto_reply_image_url", "member": "member_registration_reply_image_url", "partner": "partner_registration_reply_image_url", "rider": "rider_registration_reply_image_url", "default": "default_auto_reply_image_url"}.get(role_key, "default_auto_reply_image_url")
     mode = "image" if str(config.get(image_key) or "").strip() else str(config.get(key) or "text").strip().lower()
     return mode if mode in {"text", "image"} else "text"
-
-
-def _configured_executive_fallback(db, language: str = "bn") -> str:
-    from .whatsapp_ai import EXECUTIVE_FALLBACKS
-
-    config = resolve_config(db)
-    preset = get_whatsapp_preset_message(db, "preset_business_enquiry_executive", WHATSAPP_PRESET_MESSAGE_DEFAULTS["preset_business_enquiry_executive"])
-    default_preset = WHATSAPP_PRESET_MESSAGE_DEFAULTS["preset_business_enquiry_executive"]
-    if preset and preset != default_preset and _detect_language(preset) == language:
-        return preset
-    localized = EXECUTIVE_FALLBACKS.get(language, EXECUTIVE_FALLBACKS["en"])
-    if localized:
-        return localized
-    if preset:
-        return preset
-    values = (
-        str(config.get("customer_auto_reply") or "").strip(),
-        str(config.get("default_auto_reply") or "").strip(),
-        str(config.get("registration_help_prompt") or "").strip(),
-    )
-    markers = ("executive", "support", "contact", "representative", "সাপোর্ট", "সহায়তা", "যোগাযোগ", "প্রতিনিধি")
-    for value in values:
-        lowered = value.lower()
-        if value and any(marker in lowered for marker in markers):
-            return value
-    try:
-        from .routers.auth import METHO_SUPPORT_WHATSAPP
-        support_number = str(METHO_SUPPORT_WHATSAPP or "").strip()
-    except Exception:
-        support_number = ""
-    if support_number:
-        return get_whatsapp_preset_message(db, "preset_support_fallback", WHATSAPP_PRESET_MESSAGE_DEFAULTS["preset_support_fallback"], support_number=support_number)
-    return ""
 
 
 def _preset_role_for_common_query(config: dict, text: str) -> str | None:
@@ -622,6 +599,7 @@ def _queue_inbound_whatsapp_message(db, recipient: str, message: str, activity_t
     lead_id = str((context or {}).get("lead_id") or "").strip()
     if not message_id or not lead_id:
         return None
+    activity_type = str((context or {}).get("activity_type") or activity_type)
     dedupe_key = f"whatsapp-inbound:{message_id}"
     existing = db.query(WhatsAppMessageOutbox).filter(WhatsAppMessageOutbox.dedupe_key == dedupe_key).first()
     if existing:
@@ -980,13 +958,10 @@ def _generate_welcome_message(db, lead: CRMLead, recipient: str, language: str =
 
 
 def _send_direct_ai_reply(db, lead: CRMLead, recipient: str, incoming_text: str, suffix: str = "") -> bool:
-    from .whatsapp_ai import _business_unknown_fallback, _catalog_context, _conversation_context, _crm_context, _generate_reply, _system_business_context, resolve_ai_config
+    from .whatsapp_ai import NO_ANSWER, _catalog_context, _conversation_context, _crm_context, _generate_reply, _system_business_context, resolve_ai_config
 
-    if _is_executive_enquiry(incoming_text):
-        reply = _configured_executive_fallback(db, _detect_language(incoming_text)) or _business_unknown_fallback(incoming_text)
-        if suffix:
-            reply = f"{reply.rstrip()}\n\n{suffix}"
-        return _send_member_registration_reply(db, recipient, reply)
+    if _is_whatsapp_handoff_command(incoming_text):
+        return _call_or_start_handoff(db, lead, recipient, incoming_text, _detect_language(incoming_text), "explicit_human_request")
 
     try:
         context = f"{_crm_context(db, lead)}\nPrevious WhatsApp conversation:\n{_conversation_context(db, lead)}\nVerified current system data:\n{_system_business_context(db)}\nAvailable METHO catalog:\n{_catalog_context(db)}"
@@ -1005,8 +980,8 @@ def _send_direct_ai_reply(db, lead: CRMLead, recipient: str, incoming_text: str,
         except Exception:
             logger.exception("WhatsApp direct AI reply retry failed")
             reply = ""
-    if not str(reply or "").strip():
-        reply = _business_unknown_fallback(incoming_text)
+    if not str(reply or "").strip() or str(reply).strip() == NO_ANSWER:
+        return _call_or_start_handoff(db, lead, recipient, incoming_text, _detect_language(incoming_text), "ai_no_answer")
     if suffix and not str(reply).rstrip().endswith(suffix):
         reply = f"{str(reply).rstrip()}\n\n{suffix}"
     if _send_auto_reply_if_configured(db, recipient, text=reply, lead_id=lead.id) != "sent":
@@ -1062,11 +1037,10 @@ def _registration_status_context(db, lead: CRMLead, session: WhatsAppRegistratio
 
 
 def _send_status_aware_ai_reply(db, lead: CRMLead, recipient: str, incoming_text: str, status_context: str) -> bool:
-    from .whatsapp_ai import _business_unknown_fallback, _catalog_context, _conversation_context, _crm_context, _generate_reply, _system_business_context, resolve_ai_config
+    from .whatsapp_ai import NO_ANSWER, _catalog_context, _conversation_context, _crm_context, _generate_reply, _system_business_context, resolve_ai_config
 
-    if _is_executive_enquiry(incoming_text):
-        reply = _configured_executive_fallback(db, _detect_language(incoming_text)) or _business_unknown_fallback(incoming_text)
-        return _send_and_log_ai_reply(db, lead, recipient, reply)
+    if _is_whatsapp_handoff_command(incoming_text):
+        return _call_or_start_handoff(db, lead, recipient, incoming_text, _detect_language(incoming_text), "explicit_human_request")
 
     try:
         context = f"{status_context}\n\n{_crm_context(db, lead)}\nPrevious WhatsApp conversation:\n{_conversation_context(db, lead)}\nVerified current system data:\n{_system_business_context(db)}\nAvailable METHO catalog:\n{_catalog_context(db)}"
@@ -1078,8 +1052,8 @@ def _send_status_aware_ai_reply(db, lead: CRMLead, recipient: str, incoming_text
     except Exception:
         logger.exception("WhatsApp status-aware AI reply generation failed")
         reply = ""
-    if not str(reply or "").strip():
-        reply = _business_unknown_fallback(incoming_text)
+    if not str(reply or "").strip() or str(reply).strip() == NO_ANSWER:
+        return _call_or_start_handoff(db, lead, recipient, incoming_text, _detect_language(incoming_text), "ai_no_answer")
     return _send_and_log_ai_reply(db, lead, recipient, reply)
 
 
@@ -1435,9 +1409,9 @@ def _finish_whatsapp_reply_cooldown(db, claim: dict, queued: bool = False, outbo
         mapping_key = f"{WHATSAPP_REPLY_OUTBOX_PREFIX}{outbox_id}"
         mapping = db.query(AppSetting).filter(AppSetting.key == mapping_key).first()
         if mapping is None:
-            db.add(AppSetting(key=mapping_key, value_json=json.dumps({"key": claim["key"], "claim_id": claim["claim_id"]}), updated_at=now))
+            db.add(AppSetting(key=mapping_key, value_json=json.dumps({"key": claim["key"], "claim_id": claim["claim_id"], "cooldown_hours": claim.get("cooldown_hours")}), updated_at=now))
     else:
-        hours = _whatsapp_reply_cooldown_hours(db)
+        hours = int(claim.get("cooldown_hours") or _whatsapp_reply_cooldown_hours(db))
         row.value_json = json.dumps({"status": "sent", "claim_id": claim["claim_id"], "sent_at": now.isoformat(), "expires_at": (now + timedelta(hours=hours)).isoformat()})
     row.updated_at = now
 
@@ -1458,12 +1432,14 @@ def finalize_whatsapp_reply_outbox_cooldown(db, outbox_id: str, delivered: bool)
     db.delete(mapping)
 
 
-def _send_with_reply_cooldown(db, recipient: str, reply_key: str | None, send):
+def _send_with_reply_cooldown(db, recipient: str, reply_key: str | None, send, cooldown_hours: int | None = None):
     if not reply_key:
         return send()
     claim = _claim_whatsapp_reply_cooldown(db, recipient, reply_key)
     if claim is None:
         return {"cooldown_suppressed": True}
+    if cooldown_hours is not None:
+        claim["cooldown_hours"] = max(1, min(168, int(cooldown_hours)))
     try:
         result = send()
     except Exception:
@@ -1478,14 +1454,18 @@ def _send_with_reply_cooldown(db, recipient: str, reply_key: str | None, send):
     return result
 
 
-def _send_auto_reply_if_configured(db, recipient: str, text: str, lead_id: str = "", reply_key: str | None = None) -> str:
+def _send_auto_reply_if_configured(db, recipient: str, text: str, lead_id: str = "", reply_key: str | None = None, reply_cooldown_hours: int | None = None) -> str:
     config = resolve_config(db)
     if not str(text or "").strip():
         return "skipped"
     if not config["enabled"] or not config["access_token"] or not config["phone_number_id"]:
         return "skipped"
+    outbox_context = db.info.get(INBOUND_WHATSAPP_OUTBOX_CONTEXT)
+    previous_activity_type = (outbox_context or {}).get("activity_type")
+    if outbox_context is not None and lead_id and is_whatsapp_handoff_active(db, lead_id):
+        outbox_context["activity_type"] = "whatsapp_call_notice" if str(reply_key or "").startswith("customer-call-notice:") else "whatsapp_handoff_bot_reply"
     try:
-        result = _send_with_reply_cooldown(db, recipient, reply_key, lambda: send_whatsapp_message(db, recipient, text=text))
+        result = _send_with_reply_cooldown(db, recipient, reply_key, lambda: send_whatsapp_message(db, recipient, text=text), cooldown_hours=reply_cooldown_hours)
         if isinstance(result, dict) and result.get("cooldown_suppressed"):
             return "cooldown"
         return "sent"
@@ -1494,6 +1474,106 @@ def _send_auto_reply_if_configured(db, recipient: str, text: str, lead_id: str =
         if lead_id:
             db.add(CRMLeadActivity(lead_id=lead_id, activity_type="whatsapp_reply_failed", message=f"WhatsApp auto-reply failed: {exc}"[:500]))
         return "failed"
+    finally:
+        if outbox_context is not None:
+            if previous_activity_type is None:
+                outbox_context.pop("activity_type", None)
+            else:
+                outbox_context["activity_type"] = previous_activity_type
+
+
+def _customer_call_notice_variant(db, recipient: str, cooldown_hours: int) -> str:
+    now = datetime.now(timezone.utc)
+    for variant in ("full", "short"):
+        key = _reply_cooldown_key(recipient, f"customer-call-notice:{variant}")
+        row = db.query(AppSetting).filter(AppSetting.key == key).first()
+        if not row:
+            continue
+        state = _reply_cooldown_state(row)
+        if state.get("status") == "queued":
+            return "short"
+        if state.get("status") == "sending":
+            claimed_at = _reply_cooldown_datetime(state.get("claimed_at"))
+            if claimed_at and claimed_at + timedelta(minutes=WHATSAPP_REPLY_CLAIM_STALE_MINUTES) > now:
+                return "short"
+        expires_at = _reply_cooldown_datetime(state.get("expires_at"))
+        if state.get("status") == "sent" and expires_at and expires_at > now:
+            return "short"
+    return "full"
+
+
+def _customer_call_notice_text(db, language: str, recipient: str, *, short: bool = False, complaint: bool = False) -> str:
+    config = resolve_config(db)
+    number = normalize_whatsapp_number(config.get("customer_call_number") or "")
+    if not number:
+        return ""
+    language = language if language in {"bn", "en", "hi"} else _detect_language(recipient)
+    if short and complaint:
+        message = {
+            "bn": f"আপনার অসুবিধার জন্য দুঃখিত। {number} নম্বরে কল করুন।",
+            "en": f"Sorry for the trouble. Please call {number}.",
+            "hi": f"असुविधा के लिए खेद है। कृपया {number} पर कॉल करें।",
+        }[language]
+    elif short:
+        return {
+            "bn": "উপরের নম্বরে কল করতে পারেন।",
+            "en": "You can call the number above.",
+            "hi": "आप ऊपर दिए नंबर पर कॉल कर सकते हैं।",
+        }[language]
+    if complaint:
+        message = {
+            "bn": f"আপনার অসুবিধার জন্য দুঃখিত। প্রতিনিধির সঙ্গে সরাসরি কথা বলতে {number} নম্বরে কল করুন।",
+            "en": f"Sorry for the trouble. To speak directly with a representative, call {number}.",
+            "hi": f"असुविधा के लिए खेद है। प्रतिनिधि से सीधे बात करने के लिए {number} पर कॉल करें।",
+        }[language]
+    else:
+        message = {
+            "bn": f"প্রতিনিধির সঙ্গে সরাসরি কথা বলতে {number} নম্বরে কল করুন।",
+            "en": f"To speak directly with a representative, call {number}.",
+            "hi": f"प्रतिनिधि से सीधे बात करने के लिए {number} पर कॉल करें।",
+        }[language]
+    office_hours = str(config.get("office_hours_text") or "").strip()
+    if office_hours:
+        label = {"bn": "অফিস সময়", "en": "Office hours", "hi": "कार्यालय समय"}[language]
+        message = f"{message}\n{label}: {office_hours}"
+    return message
+
+
+def _send_customer_call_notice(db, lead: CRMLead | None, recipient: str, language: str = "bn", *, complaint: bool = False) -> str:
+    config = resolve_config(db)
+    if not config.get("customer_call_number"):
+        logger.error("WhatsApp customer call notice unavailable: customer_call_number is not configured")
+        if lead:
+            db.add(CRMLeadActivity(lead_id=lead.id, activity_type="whatsapp_call_notice_failed", message="Customer call notice not sent: customer_call_number is not configured."))
+        return "failed"
+    cooldown_hours = int(config.get("customer_call_repeat_cooldown_hours") or 2)
+    variant = _customer_call_notice_variant(db, recipient, cooldown_hours)
+    text = _customer_call_notice_text(db, language, recipient, short=variant == "short", complaint=complaint)
+    reply_key = f"customer-call-notice:{variant}"
+    status = _send_auto_reply_if_configured(
+        db, recipient, text, lead.id if lead else "",
+        reply_key=reply_key,
+        reply_cooldown_hours=cooldown_hours,
+    )
+    if lead and status == "sent":
+        db.add(CRMLeadActivity(lead_id=lead.id, activity_type="whatsapp_message_sent", message=text))
+    elif lead and status not in {"cooldown"}:
+        db.add(CRMLeadActivity(lead_id=lead.id, activity_type="whatsapp_call_notice_failed", message="Customer call notice could not be sent."))
+    return status
+
+
+def _call_or_start_handoff(db, lead: CRMLead, recipient: str, text: str, language: str, reason: str, complaint: bool = False) -> bool:
+    if is_whatsapp_handoff_active(db, lead.id):
+        _send_customer_call_notice(db, lead, recipient, language, complaint=complaint)
+    else:
+        session = db.query(WhatsAppRegistrationSession).filter(WhatsAppRegistrationSession.lead_id == lead.id).first()
+        _request_whatsapp_human_handoff(
+            db, lead, session, recipient,
+            language=language,
+            reason=reason,
+            trigger_text=text,
+        )
+    return True
 
 
 def _whatsapp_command_text(text: str) -> str:
@@ -1685,8 +1765,7 @@ def _registration_confirmation_reply(db, session: WhatsAppRegistrationSession, l
         data = _session_data(session)
         data["registration_confirmed"] = False
         _save_session_data(session, data)
-        reply = get_whatsapp_preset_message(db, "preset_registration_confirmation_no", WHATSAPP_PRESET_MESSAGE_DEFAULTS["preset_registration_confirmation_no"])
-        return _send_member_registration_reply(db, recipient, reply)
+        return _send_customer_call_notice(db, lead, recipient, _detect_language(text)) in {"sent", "cooldown"}
     if not _is_probably_gibberish(text) and _is_informational_question(text):
         status_context = _registration_status_context(db, lead, session, session.role or "member")
         return _send_status_aware_ai_reply(db, lead, recipient, text, status_context)
@@ -2473,11 +2552,15 @@ def _request_whatsapp_human_handoff(
     session: WhatsAppRegistrationSession | None,
     recipient: str,
     extra_text: str = "",
-    language: str = "bn",
+    language: str = "",
     reason: str = "customer_requested_human",
     notify_customer: bool = True,
     trigger_text: str = "",
 ) -> bool:
+    if language not in {"bn", "en", "hi"}:
+        session_language = str(_session_data(session).get("language") or "").strip().lower() if session else ""
+        detected_language = _detect_language(trigger_text) if trigger_text else "bn"
+        language = session_language if session_language in {"bn", "en", "hi"} else detected_language
     config = resolve_config(db)
     executive_number = normalize_whatsapp_number(config.get("executive_handoff_number") or "")
     registration_step, task_description = _handoff_recent_context(db, lead, session, reason, executive_number, trigger_text)
@@ -2521,17 +2604,14 @@ def _request_whatsapp_human_handoff(
     _notify_handoff_executive(db, lead, reason, handoff_id, language)
 
     if notify_customer:
-        replies = {
-            "bn": "আমাদের একজন executive শীঘ্রই আপনার সঙ্গে যোগাযোগ করবেন।",
-            "en": "One of our executives will contact you soon.",
-            "hi": "हमारी टीम का एक executive जल्द आपसे संपर्क करेगा।",
-        }
-        customer_reply = replies.get(language, replies["bn"])
-        if extra_text:
-            customer_reply = f"{customer_reply}\n\n{extra_text}"
-        if _send_member_registration_reply(db, recipient, customer_reply):
-            db.add(CRMLeadActivity(lead_id=lead.id, activity_type="whatsapp_message_sent", message=customer_reply))
-        else:
+        call_status = _send_customer_call_notice(
+            db,
+            lead,
+            recipient,
+            language,
+            complaint=reason == "complaint_or_distrust",
+        )
+        if call_status not in {"sent", "cooldown"}:
             db.add(CRMLeadActivity(lead_id=lead.id, activity_type="whatsapp_handoff_customer_reply_failed", message=f"Customer handoff acknowledgement failed [{handoff_id}]."))
     db.commit()
     return True
@@ -3419,6 +3499,12 @@ def _ingest_whatsapp_message_impl(db, payload: dict, request=None) -> str:
                 activity_type="whatsapp_message_received",
                 message=_incoming_whatsapp_activity_message(activity_prefix, normalized.get("metadata") or {}, body),
             ))
+            if _is_complaint_or_distrust(incoming_text):
+                _send_customer_call_notice(db, lead, normalized["phone"], language, complaint=True)
+            elif _is_whatsapp_handoff_command(incoming_text):
+                _send_customer_call_notice(db, lead, normalized["phone"], language)
+            else:
+                _send_direct_ai_reply(db, lead, normalized["phone"], incoming_text)
             statuses.append(status)
             continue
         if _is_whatsapp_handoff_command(incoming_text):
@@ -3500,7 +3586,8 @@ def _ingest_whatsapp_message_impl(db, payload: dict, request=None) -> str:
                 if role_hint == "default" and any(keyword in incoming_text.lower() for keyword in ORDER_QUERY_KEYWORDS) and str(config.get("order_template") or "").strip():
                     auto_reply = str(config.get("order_template") or "").strip()
                 elif role_hint == "default" and any(keyword in incoming_text.lower() for keyword in SUPPORT_QUERY_KEYWORDS):
-                    auto_reply = _configured_executive_fallback(db, language) or get_configured_whatsapp_reply(db, "default", DEFAULT_AUTO_REPLY)
+                    _send_customer_call_notice(db, lead, normalized["phone"], language)
+                    auto_reply = ""
                 else:
                     auto_reply = get_configured_whatsapp_reply(db, role_hint, DEFAULT_AUTO_REPLY)
             else:

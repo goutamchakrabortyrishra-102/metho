@@ -160,11 +160,15 @@ def test_human_request_phrases_handoff_immediately(monkeypatch, message):
 def test_human_resource_question_does_not_handoff(monkeypatch):
     db = make_session()
     replies = []
-    monkeypatch.setattr("sql_app.whatsapp_cloud._send_direct_ai_reply", lambda _db, _lead, _recipient, text, suffix="": replies.append((text, suffix)) or True)
+    monkeypatch.setattr("sql_app.whatsapp_ai._generate_reply", lambda *_args, **_kwargs: ("Human resources is a workplace function.", "gemini", "test-model"))
+    monkeypatch.setattr("sql_app.whatsapp_cloud.send_whatsapp_message", lambda _db, _recipient, text: replies.append(text) or {"messages": [{"id": "wamid.hr-answer"}]})
     try:
+        from sql_app.routers.whatsapp import update_whatsapp_settings
+        update_whatsapp_settings({"phone_number_id": "123456", "access_token": "secret-token", "customer_call_number": "9339566110"}, db, SimpleNamespace(role="admin", id="ADMIN"))
         lead, session = _lead_and_session(db)
         assert _continue_introduction(db, session, lead, "What is human resource?", lead.phone)
-        assert replies and replies[0][0] == "What is human resource?"
+        assert len(replies) == 1 and replies[0].startswith("Human resources is a workplace function.")
+        assert "919339566110" not in replies[0]
         assert not db.query(AppSetting).filter_by(key=f"whatsapp_handoff_active:{lead.id}").first()
         assert db.query(CRMLeadActivity).filter_by(lead_id=lead.id, activity_type="whatsapp_human_handoff_requested").count() == 0
     finally:
@@ -175,12 +179,32 @@ def test_complaint_classifier_result_hands_off_without_another_bot_prompt(monkey
     db = make_session()
     sent = []
     monkeypatch.setattr("sql_app.whatsapp_cloud._classify_introduction_reply", lambda *_args: "complaint")
-    monkeypatch.setattr("sql_app.whatsapp_cloud._send_member_registration_reply", lambda _db, _recipient, text: sent.append(text) or True)
+    monkeypatch.setattr("sql_app.whatsapp_cloud.send_whatsapp_message", lambda _db, _recipient, text: sent.append(text) or {"messages": [{"id": "wamid.complaint"}]})
     lead, session = _lead_and_session(db)
     try:
+        from sql_app.routers.whatsapp import update_whatsapp_settings
+        update_whatsapp_settings({"phone_number_id": "123456", "access_token": "secret-token", "customer_call_number": "9339566110"}, db, SimpleNamespace(role="admin", id="ADMIN"))
         assert _continue_introduction(db, session, lead, "I do not trust this", "8801712345678") is True
         assert db.query(CRMLeadActivity).filter_by(activity_type="whatsapp_human_handoff_requested").count() == 1
-        assert "executive" in sent[-1].lower()
+        assert "Sorry for the trouble" in sent[-1]
+        assert "919339566110" in sent[-1]
+        assert "registration" not in sent[-1].lower() and "Member" not in sent[-1]
+    finally:
+        db.close()
+
+
+def test_handoff_uses_saved_registration_language_when_caller_omits_language(monkeypatch):
+    from sql_app.whatsapp_cloud import _request_whatsapp_human_handoff
+
+    db = make_session()
+    languages = []
+    monkeypatch.setattr("sql_app.whatsapp_cloud._send_customer_call_notice", lambda _db, _lead, _recipient, language, **_kwargs: languages.append(language) or "sent")
+    try:
+        lead, session = _lead_and_session(db)
+        session.data_json = json.dumps({"language": "hi"})
+        db.commit()
+        assert _request_whatsapp_human_handoff(db, lead, session, lead.phone, reason="invalid_active_form_input_x3", trigger_text="bad input")
+        assert languages == ["hi"]
     finally:
         db.close()
 
@@ -325,11 +349,14 @@ def test_facebook_ack_reuses_one_cooldown_key(monkeypatch):
 
 
 def test_no_opts_out_and_third_unclear_reply_hands_off(monkeypatch):
+    from sql_app.routers.whatsapp import update_whatsapp_settings
+
     db = make_session()
     sent = []
     monkeypatch.setattr("sql_app.whatsapp_cloud._send_auto_reply_if_configured", lambda _db, _to, text=None, _lead="", _lead_id="", reply_key=None, **_kwargs: sent.append(text) or "sent")
     monkeypatch.setattr("sql_app.whatsapp_cloud._classify_introduction_reply", lambda _db, _text: "unclear")
     try:
+        update_whatsapp_settings({"phone_number_id": "123456", "access_token": "secret-token", "customer_call_number": "9339566110"}, db, SimpleNamespace(role="admin", id="ADMIN"))
         lead, session = _lead_and_session(db)
         assert _continue_introduction(db, session, lead, "No", lead.phone)
         assert "change your mind" in sent[-1]
@@ -342,7 +369,7 @@ def test_no_opts_out_and_third_unclear_reply_hands_off(monkeypatch):
             assert "Member:" in sent[-1] and "Partner:" in sent[-1] and "Rider:" in sent[-1]
         assert _continue_introduction(db, session, lead, "still unsure", lead.phone)
         assert session.state == "IDLE"
-        assert sent[-1] == "One of our executives will contact you soon."
+        assert sent[-1] == "To speak directly with a representative, call 919339566110."
         assert db.query(CRMLeadActivity).filter_by(lead_id=lead.id, activity_type="whatsapp_human_handoff_requested").count() == 1
     finally:
         db.close()

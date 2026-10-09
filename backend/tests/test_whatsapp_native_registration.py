@@ -4,6 +4,7 @@ import sys
 from datetime import datetime, timedelta, timezone
 from itertools import count
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 from sqlalchemy import create_engine
@@ -41,6 +42,16 @@ def add_user(db, user_id, role="member", phone="", active=True):
     return user
 
 
+def configure_customer_call_number(db):
+    from sql_app.routers.whatsapp import update_whatsapp_settings
+
+    update_whatsapp_settings({
+        "phone_number_id": "123456",
+        "access_token": "secret-token",
+        "customer_call_number": "9339566110",
+    }, db, SimpleNamespace(role="admin", id="ADMIN"))
+
+
 def payload(body, sender=SENDER, message_type="text"):
     message = {"from": sender, "id": f"wamid.native-{next(_ids)}", "timestamp": "1712345678", "type": message_type}
     if message_type == "text":
@@ -63,7 +74,7 @@ class Chat:
         self.db = db
         self.sent = []
         monkeypatch.setattr("sql_app.whatsapp_cloud._send_member_registration_reply", lambda _db, recipient, text: self.sent.append(text) or True)
-        monkeypatch.setattr("sql_app.whatsapp_cloud._send_auto_reply_if_configured", lambda _db, _to, text, _lead_id="", reply_key=None: self.sent.append(text) or "sent")
+        monkeypatch.setattr("sql_app.whatsapp_cloud._send_auto_reply_if_configured", lambda _db, _to, text, _lead_id="", reply_key=None, reply_cooldown_hours=None: self.sent.append(text) or "sent")
         self.lead = CRMLead(lead_id=f"WA-{SENDER}", business_name="WhatsApp", contact_person="WhatsApp Lead", phone=SENDER, whatsapp_no=SENDER, source="whatsapp", tags_json=json.dumps(tags or ["whatsapp_cloud"]))
         db.add(self.lead)
         db.flush()
@@ -262,12 +273,15 @@ def test_active_registration_prompts_are_not_cooldown_limited(env):
 def test_invalid_pan_retries_then_hands_off_to_a_human(env):
     db, monkeypatch = env
     chat = Chat(db, monkeypatch, "member")
+    from sql_app.routers.whatsapp import update_whatsapp_settings
+    update_whatsapp_settings({"phone_number_id": "123456", "access_token": "secret-token", "customer_call_number": "9339566110"}, db, SimpleNamespace(role="admin", id="ADMIN"))
+    monkeypatch.setattr("sql_app.whatsapp_cloud.send_whatsapp_message", lambda _db, recipient, text: chat.sent.append(text) or {"messages": [{"id": "wamid.invalid-pan-handoff"}]})
     chat.say("CHAT", "Rahul Das", "15-08-1990", "bad-pan")
     assert "চেষ্টা 1/3" in chat.last and "ABCDE1234F" in chat.last
     chat.say("still bad")
     assert "চেষ্টা 2/3" in chat.last
     chat.say("nope")
-    assert "executive" in chat.last.lower()
+    assert "919339566110" in chat.last and "কল করুন" in chat.last
     assert chat.session.state == "IDLE"
     assert db.query(CRMLeadActivity).filter_by(activity_type="whatsapp_human_handoff_requested").count() == 1
     assert db.query(User).filter_by(role="member", name="Rahul Das").count() == 0
@@ -285,8 +299,9 @@ def test_duplicate_phone_is_not_retried_and_offers_web_link(env):
     add_user(db, "MAU20002", "member", phone=PHONE)
     db.commit()
     chat = Chat(db, monkeypatch, "member")
+    configure_customer_call_number(db)
     chat.say("CHAT")
-    assert "Executive" in chat.last and "আগেই registration করা আছে" in chat.last
+    assert "919339566110" in chat.last and "কল করুন" in chat.last
     assert "registration_role=member" not in chat.last and chat.session.state == "IDLE"
 
 
@@ -295,8 +310,9 @@ def test_duplicate_partner_login_id_is_not_retried(env):
     add_user(db, "taken.shop", "partner", phone="9000000011")
     db.commit()
     chat = Chat(db, monkeypatch, "partner")
+    configure_customer_call_number(db)
     chat.say("CHAT", "1", "1", "skip", "Shop", "skip", "Owner", "BCDEF1234G", "123456789012", "taken.shop")
-    assert "Login ID" in chat.last and "Executive" in chat.last
+    assert "919339566110" in chat.last and "কল করুন" in chat.last
     assert "registration_role=partner" not in chat.last and chat.session.state == "IDLE"
     assert db.query(PartnerRequest).count() == 0
 
@@ -304,11 +320,12 @@ def test_duplicate_partner_login_id_is_not_retried(env):
 def test_duplicate_pan_found_at_submit_time_falls_back_to_web_link(env):
     db, monkeypatch = env
     chat = Chat(db, monkeypatch, "member")
+    configure_customer_call_number(db)
     chat.say("CHAT", "Rahul Das", "15-08-1990", "ABCDE1234F", "skip", "skip")
     db.add(AppSetting(key="member_registration_identity:pan:ABCDE1234F", value_json="{}"))
     db.commit()
     chat.say("1")
-    assert "Executive" in chat.last
+    assert "919339566110" in chat.last and "কল করুন" in chat.last
     assert "registration_role=member" not in chat.last and chat.session.state == "IDLE"
     assert db.query(User).filter_by(role="member", name="Rahul Das").count() == 0
 

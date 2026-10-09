@@ -769,16 +769,19 @@ def test_registration_confirmation_replies_bypass_role_parser(monkeypatch, reply
         session.data_json = json.dumps({"member_user_id": "MAU23451", "registration_confirmed": False})
         db.commit()
         sent = []
+        call_notices = []
         monkeypatch.setattr("sql_app.whatsapp_cloud._send_member_registration_reply", lambda _db, recipient, text: sent.append(text) or True)
+        monkeypatch.setattr("sql_app.whatsapp_cloud._send_customer_call_notice", lambda _db, _lead, _recipient, language, **kwargs: call_notices.append(language) or "sent")
         assert ingest_whatsapp_message(db, message_payload(f"wamid.confirm-{reply}", reply), None) == "updated"
-        assert sent
-        assert "1. Member" not in sent[-1]
-        assert "2. Partner" not in sent[-1]
-        assert "3. Rider" not in sent[-1]
         db.refresh(session)
         assert json.loads(session.data_json)["registration_confirmed"] is confirmed
         if not confirmed:
-            assert "9339566110" in sent[-1]
+            assert call_notices and not sent
+        else:
+            assert sent
+            assert "1. Member" not in sent[-1]
+            assert "2. Partner" not in sent[-1]
+            assert "3. Rider" not in sent[-1]
     finally:
         db.close()
 

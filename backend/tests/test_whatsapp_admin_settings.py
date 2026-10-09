@@ -109,6 +109,111 @@ def test_executive_handoff_number_is_normalized_and_configurable():
         db.close()
 
 
+def test_customer_call_settings_persist_and_cooldown_defaults_to_two_hours():
+    db = make_session()
+    try:
+        defaults = get_whatsapp_settings(db, admin())
+        assert defaults["customer_call_number"] == ""
+        assert defaults["office_hours_text"] == ""
+        assert defaults["customer_call_repeat_cooldown_hours"] == 2
+        update_whatsapp_settings({
+            "customer_call_number": "9339566110",
+            "office_hours_text": "Mon-Sat, 10:00-18:00",
+            "customer_call_repeat_cooldown_hours": 3,
+        }, db, admin())
+        reloaded = get_whatsapp_settings(db, admin())
+        assert reloaded["customer_call_number"] == "919339566110"
+        assert reloaded["office_hours_text"] == "Mon-Sat, 10:00-18:00"
+        assert reloaded["customer_call_repeat_cooldown_hours"] == 3
+        assert resolve_config(db)["customer_call_repeat_cooldown_hours"] == 3
+    finally:
+        db.close()
+
+
+def test_customer_call_notice_is_localized_and_includes_optional_office_hours():
+    from sql_app.whatsapp_cloud import _customer_call_notice_text
+
+    db = make_session()
+    try:
+        update_whatsapp_settings({
+            "customer_call_number": "9339566110",
+            "office_hours_text": "Mon-Sat, 10:00-18:00",
+        }, db, admin())
+        bangla = _customer_call_notice_text(db, "bn", "8801712345678")
+        english = _customer_call_notice_text(db, "en", "8801712345678")
+        hindi = _customer_call_notice_text(db, "hi", "8801712345678")
+        assert "919339566110" in bangla and "অফিস সময়: Mon-Sat, 10:00-18:00" in bangla
+        assert "919339566110" in english and "Office hours: Mon-Sat, 10:00-18:00" in english
+        assert "919339566110" in hindi and "कार्यालय समय: Mon-Sat, 10:00-18:00" in hindi
+        complaint = _customer_call_notice_text(db, "bn", "8801712345678", complaint=True)
+        assert "দুঃখিত" in complaint and "919339566110" in complaint
+        assert "registration" not in complaint.lower() and "যোগ দিন" not in complaint
+        update_whatsapp_settings({"office_hours_text": ""}, db, admin())
+        without_hours = _customer_call_notice_text(db, "en", "8801712345678")
+        assert "Office hours" not in without_hours
+    finally:
+        db.close()
+
+
+def test_customer_call_notice_uses_full_then_short_and_does_not_cooldown_direct_answers(monkeypatch):
+    from sql_app.whatsapp_cloud import _send_auto_reply_if_configured, _send_customer_call_notice
+
+    db = make_session()
+    sent = []
+    monkeypatch.setattr(
+        "sql_app.whatsapp_cloud.send_whatsapp_message",
+        lambda _db, recipient, text: sent.append((recipient, text)) or {"messages": [{"id": f"wamid.call-{len(sent)}"}]},
+    )
+    try:
+        update_whatsapp_settings({
+            "phone_number_id": "123456",
+            "access_token": "secret-token",
+            "customer_call_number": "9339566110",
+            "customer_call_repeat_cooldown_hours": 2,
+        }, db, admin())
+        lead = CRMLead(lead_id="WA-call-notice", business_name="WhatsApp", contact_person="Ayesha", phone="8801712345678", whatsapp_no="8801712345678", source="whatsapp")
+        db.add(lead)
+        db.commit()
+
+        assert _send_customer_call_notice(db, lead, lead.phone, "en") == "sent"
+        assert "To speak directly" in sent[-1][1] and "919339566110" in sent[-1][1]
+        assert _send_customer_call_notice(db, lead, lead.phone, "en") == "sent"
+        assert sent[-1][1] == "You can call the number above."
+        assert _send_customer_call_notice(db, lead, lead.phone, "en") == "cooldown"
+        assert len(sent) == 2
+        assert _send_auto_reply_if_configured(db, lead.phone, "Verified answer", lead.id) == "sent"
+        assert sent[-1][1] == "Verified answer"
+    finally:
+        db.close()
+
+
+def test_repeat_complaint_notice_stays_polite_and_includes_call_number(monkeypatch):
+    from sql_app.whatsapp_cloud import _send_customer_call_notice
+
+    db = make_session()
+    sent = []
+    monkeypatch.setattr("sql_app.whatsapp_cloud.send_whatsapp_message", lambda _db, recipient, text: sent.append(text) or {"messages": [{"id": f"wamid.complaint-{len(sent)}"}]})
+    try:
+        update_whatsapp_settings({
+            "phone_number_id": "123456",
+            "access_token": "secret-token",
+            "customer_call_number": "9339566110",
+            "office_hours_text": "Mon-Sat, 10:00-18:00",
+        }, db, admin())
+        lead = CRMLead(lead_id="WA-complaint-repeat", business_name="WhatsApp", contact_person="Ayesha", phone="8801712345678", whatsapp_no="8801712345678", source="whatsapp")
+        db.add(lead)
+        db.commit()
+
+        assert _send_customer_call_notice(db, lead, lead.phone, "en", complaint=True) == "sent"
+        assert _send_customer_call_notice(db, lead, lead.phone, "en", complaint=True) == "sent"
+        assert "Sorry" in sent[0] and "919339566110" in sent[0]
+        assert "Sorry" in sent[1] and "919339566110" in sent[1]
+        assert "Office hours: Mon-Sat, 10:00-18:00" in sent[1]
+        assert "registration" not in sent[1].lower() and "join" not in sent[1].lower()
+    finally:
+        db.close()
+
+
 def test_whatsapp_settings_prefill_registration_funnel_templates():
     db = make_session()
     try:
@@ -134,7 +239,7 @@ def test_get_whatsapp_preset_message_falls_back_when_stored_value_is_blank():
 def test_partial_whatsapp_settings_save_does_not_blank_other_presets():
     db = make_session()
     try:
-        update_whatsapp_settings({"phone_number_id": "123456", "access_token": "secret-token"}, db, admin())
+        update_whatsapp_settings({"phone_number_id": "123456", "access_token": "secret-token", "customer_call_number": "9339566110"}, db, admin())
         stored = json.loads(db.query(AppSetting).filter(AppSetting.key == "whatsapp_cloud_integration").one().value_json)
         for key, default_text in WHATSAPP_PRESET_MESSAGE_DEFAULTS.items():
             assert stored[key] == default_text
@@ -215,7 +320,7 @@ def test_whatsapp_webhook_normalizes_incoming_message_to_crm_lead(monkeypatch):
     try:
         sent = []
         monkeypatch.setattr("sql_app.whatsapp_cloud.send_whatsapp_message", lambda _db, recipient, text: sent.append((recipient, text)) or {"messages": [{"id": "wamid.reply"}]})
-        update_whatsapp_settings({"phone_number_id": "123456", "access_token": "secret-token"}, db, admin())
+        update_whatsapp_settings({"phone_number_id": "123456", "access_token": "secret-token", "customer_call_number": "9339566110"}, db, admin())
         payload = message_payload(body="Hi")
         normalized = normalize_whatsapp_message(payload)
         assert normalized["lead_id"].startswith("WA-")
@@ -306,11 +411,20 @@ def test_inbound_image_reply_uses_existing_outbox_worker(monkeypatch):
         db.close()
 
 
-def test_webhook_commit_failure_rolls_back_reply_and_queues_one_fallback(monkeypatch):
+def test_webhook_commit_failure_sends_configured_call_notice_and_dedupes_retry(monkeypatch):
     db = make_session()
     try:
         monkeypatch.setattr("sql_app.whatsapp_cloud.urlopen", lambda *_args, **_kwargs: pytest.fail("webhook failure handling must not send inline"))
-        update_whatsapp_settings({"phone_number_id": "123456", "access_token": "secret-token"}, db, admin())
+        sent = []
+        from sql_app.whatsapp_cloud import INBOUND_WHATSAPP_OUTBOX_CONTEXT
+        real_send = send_whatsapp_message
+        def send_for_test(_db, recipient, text):
+            if _db.info.get(INBOUND_WHATSAPP_OUTBOX_CONTEXT):
+                return real_send(_db, recipient, text=text)
+            sent.append((recipient, text))
+            return {"messages": [{"id": "wamid.failure-call"}]}
+        monkeypatch.setattr("sql_app.whatsapp_cloud.send_whatsapp_message", send_for_test)
+        update_whatsapp_settings({"phone_number_id": "123456", "access_token": "secret-token", "customer_call_number": "9339566110"}, db, admin())
         original_commit = db.commit
         failed_once = {"value": False}
 
@@ -327,29 +441,28 @@ def test_webhook_commit_failure_rolls_back_reply_and_queues_one_fallback(monkeyp
             asyncio.run(receive_whatsapp_webhook(RequestStub(json.dumps(payload).encode()), BackgroundTasks(), db))
         assert error.value.status_code == 503
         assert failed_once["value"] is True
-        queued = db.query(WhatsAppMessageOutbox).all()
-        assert len(queued) == 1
-        assert queued[0].dedupe_key == "whatsapp-webhook-failure:wamid.commit-failure"
+        assert sent == [("8801712345678", "To speak directly with a representative, call 919339566110.")]
+        assert "NO_ANSWER" not in sent[0][1]
         assert db.query(WhatsAppMessageOutbox).filter_by(dedupe_key="whatsapp-inbound:wamid.commit-failure").count() == 0
         event = db.query(WebhookIdempotencyKey).filter_by(event_key="whatsapp:wamid.commit-failure").one()
         assert event.status == "processed"
         retry = asyncio.run(receive_whatsapp_webhook(RequestStub(json.dumps(payload).encode()), BackgroundTasks(), db))
         assert retry["status"] == "duplicate"
-        assert db.query(WhatsAppMessageOutbox).count() == 1
+        assert db.query(WhatsAppMessageOutbox).count() == 0
     finally:
         db.close()
 
 
-def test_explicit_executive_enquiry_uses_matching_language_custom_reply(monkeypatch):
+def test_explicit_executive_enquiry_uses_configured_customer_call_number(monkeypatch):
     db = make_session()
     try:
         sent = []
         monkeypatch.setattr("sql_app.whatsapp_cloud.send_whatsapp_message", lambda _db, recipient, text: sent.append(text) or {"messages": [{"id": "wamid.reply"}]})
-        update_whatsapp_settings({"phone_number_id": "123456", "access_token": "secret-token", "preset_business_enquiry_executive": "Executive contact: 9339566110"}, db, admin())
+        update_whatsapp_settings({"phone_number_id": "123456", "access_token": "secret-token", "customer_call_number": "9339566110"}, db, admin())
         assert ingest_whatsapp_message(db, message_payload("wamid.executive-welcome", "Hi"), None) == "created"
         assert "Would you like to join as a Member, Partner, or Rider?" in sent[-1]
         assert ingest_whatsapp_message(db, message_payload("wamid.executive", "I need a manager"), None) == "updated"
-        assert sent[-1] == "Executive contact: 9339566110\n\nWould you like to join as a Member, Partner, or Rider? Please tell me in your own words."
+        assert sent[-1] == "To speak directly with a representative, call 919339566110."
     finally:
         db.close()
 
@@ -902,11 +1015,12 @@ def test_question_during_role_menu_reply_is_logged_in_crm(monkeypatch):
             monkeypatch.delenv(key, raising=False)
         sent = []
         monkeypatch.setattr("sql_app.whatsapp_cloud.send_whatsapp_message", lambda _db, recipient, text: sent.append(text) or {"messages": [{"id": "wamid.reply"}]})
-        update_whatsapp_settings({"phone_number_id": "123456", "access_token": "secret-token"}, db, admin())
+        update_whatsapp_settings({"phone_number_id": "123456", "access_token": "secret-token", "customer_call_number": "9339566110"}, db, admin())
         assert ingest_whatsapp_message(db, message_payload("wamid.q1", "Hi"), None) == "created"
         assert ingest_whatsapp_message(db, message_payload("wamid.q2", "What is work"), None) == "updated"
         assert len(sent) == 2
-        assert sent[1] != sent[0]
+        assert "919339566110" in sent[1] and "call" in sent[1].lower()
+        assert "Would you like to join" not in sent[1]
         logged = [a.message for a in db.query(CRMLeadActivity).filter(CRMLeadActivity.activity_type == "whatsapp_message_sent").all()]
         assert sent[1] in logged
         assert db.query(CRMLeadActivity).filter(CRMLeadActivity.activity_type == "whatsapp_reply_failed").count() == 0
@@ -928,7 +1042,7 @@ def test_question_during_role_menu_logs_failure_when_send_fails(monkeypatch):
             return {"messages": [{"id": "wamid.reply"}]}
 
         monkeypatch.setattr("sql_app.whatsapp_cloud.send_whatsapp_message", fake_send)
-        update_whatsapp_settings({"phone_number_id": "123456", "access_token": "secret-token"}, db, admin())
+        update_whatsapp_settings({"phone_number_id": "123456", "access_token": "secret-token", "customer_call_number": "9339566110"}, db, admin())
         assert ingest_whatsapp_message(db, message_payload("wamid.f1", "Hi"), None) == "created"
         ingest_whatsapp_message(db, message_payload("wamid.f2", "What is work"), None)
         failed = db.query(CRMLeadActivity).filter(CRMLeadActivity.activity_type == "whatsapp_reply_failed").all()
