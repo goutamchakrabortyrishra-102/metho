@@ -1284,6 +1284,8 @@ export default function SettingsPage() {
         executive_handoff_number: String(whatsappForm.executive_handoff_number || "").trim(),
         executive_handoff_template_name: String(whatsappForm.executive_handoff_template_name || "").trim(),
         executive_handoff_template_language: String(whatsappForm.executive_handoff_template_language || "").trim(),
+        lifecycle_followup_template_name: String(whatsappForm.lifecycle_followup_template_name || "").trim(),
+        lifecycle_followup_template_language: String(whatsappForm.lifecycle_followup_template_language || "").trim(),
         customer_call_number: String(whatsappForm.customer_call_number || "").trim(),
         office_hours_text: String(whatsappForm.office_hours_text || "").trim(),
         customer_call_repeat_cooldown_hours: String(whatsappForm.customer_call_repeat_cooldown_hours || 2).trim(),
@@ -1861,6 +1863,8 @@ export default function SettingsPage() {
               <Field label="Executive Handoff WhatsApp Number" testId="settings-whatsapp-executive-handoff-number" value={whatsappForm.executive_handoff_number || ""} onChange={updateWhatsappField("executive_handoff_number")} type="tel" />
               <Field label="Executive Handoff Approved Template" testId="settings-whatsapp-executive-handoff-template" value={whatsappForm.executive_handoff_template_name || ""} onChange={updateWhatsappField("executive_handoff_template_name")} type="text" />
               <Field label="Executive Handoff Template Language" testId="settings-whatsapp-executive-handoff-language" value={whatsappForm.executive_handoff_template_language || ""} onChange={updateWhatsappField("executive_handoff_template_language")} type="text" />
+              <Field label="Follow-up Template Name (outside 24h window)" testId="settings-whatsapp-followup-template-name" value={whatsappForm.lifecycle_followup_template_name || ""} onChange={updateWhatsappField("lifecycle_followup_template_name")} type="text" />
+              <Field label="Follow-up Template Language" testId="settings-whatsapp-followup-template-language" value={whatsappForm.lifecycle_followup_template_language || ""} onChange={updateWhatsappField("lifecycle_followup_template_language")} type="text" />
               <Field label="Customer Call Number" testId="settings-whatsapp-customer-call-number" value={whatsappForm.customer_call_number || ""} onChange={updateWhatsappField("customer_call_number")} type="tel" />
               <Field label="Office Hours Text" testId="settings-whatsapp-office-hours" value={whatsappForm.office_hours_text || ""} onChange={updateWhatsappField("office_hours_text")} type="text" />
               <Field label="Repeat Call Notice Window (Hours)" testId="settings-whatsapp-call-repeat-hours" value={whatsappForm.customer_call_repeat_cooldown_hours ?? 2} onChange={updateWhatsappField("customer_call_repeat_cooldown_hours")} type="number" />

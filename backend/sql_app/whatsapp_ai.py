@@ -11,7 +11,7 @@ from sqlalchemy.exc import IntegrityError
 from .database import SessionLocal
 from .google_search import search_web_context
 from .models import AppSetting, CRMFollowUp, CRMLead, CRMLeadActivity, CRMTask, CRMWhatsAppAISuggestion, PartnerRequest, Product, PublicOrder, User, WhatsAppMessageOutbox, WhatsAppRegistrationSession
-from .whatsapp_cloud import WHATSAPP_PRESET_MESSAGE_DEFAULTS, _detect_language, get_whatsapp_preset_message, is_scheduled_optout, is_whatsapp_handoff_active, resolve_config as resolve_whatsapp_config, finalize_whatsapp_reply_outbox_cooldown
+from .whatsapp_cloud import WHATSAPP_PRESET_MESSAGE_DEFAULTS, _detect_language, get_whatsapp_preset_message, is_scheduled_optout, is_whatsapp_handoff_active, normalize_whatsapp_number, resolve_config as resolve_whatsapp_config, finalize_whatsapp_reply_outbox_cooldown
 
 logger = logging.getLogger(__name__)
 SETTING_KEY = "crm_whatsapp_ai"
@@ -747,11 +747,43 @@ def process_pending_whatsapp_ai_activities(limit: int = 20, lookback_hours: int 
     return len(activity_ids)
 
 
+FOLLOWUP_STATUS_NO_TEMPLATE = "SkippedNoTemplate"
+
+
+def _requeue_followups_waiting_for_template(db) -> None:
+    from .followup_scheduler import TEMPLATE_LANGUAGE_KEY, TEMPLATE_NAME_KEY, _setting_text
+    if not (_setting_text(db, TEMPLATE_NAME_KEY, "") and _setting_text(db, TEMPLATE_LANGUAGE_KEY, "")):
+        return
+    db.query(CRMFollowUp).filter(CRMFollowUp.status == FOLLOWUP_STATUS_NO_TEMPLATE).update({"status": "Pending"}, synchronize_session=False)
+    db.commit()
+
+
+def _queue_template_missing_summary(db, now: datetime) -> None:
+    """At most one aggregated executive notice per UTC day while follow-ups wait for a template."""
+    waiting = db.query(CRMFollowUp).filter(CRMFollowUp.status == FOLLOWUP_STATUS_NO_TEMPLATE).count()
+    if not waiting:
+        return
+    config = resolve_whatsapp_config(db)
+    number = normalize_whatsapp_number(config.get("executive_handoff_number") or "")
+    template_name = str(config.get("executive_handoff_template_name") or "").strip()
+    template_language = str(config.get("executive_handoff_template_language") or "").strip()
+    if not (number and template_name and template_language):
+        logger.warning("%s follow-up(s) wait for lifecycle_followup_template_name/language; executive summary not sent because the executive handoff number/template is not configured", waiting)
+        return
+    message = json.dumps({"_whatsapp_template": {
+        "name": template_name,
+        "language": template_language,
+        "parameters": ["Multiple WhatsApp leads", "N/A", f"{waiting} follow-up(s) are waiting because the 24-hour follow-up template (lifecycle_followup_template_name/language) is not configured."],
+    }}, ensure_ascii=False)
+    enqueue_whatsapp_message(db, f"followup-template-missing-summary:{now:%Y-%m-%d}", number, message, "", "executive_handoff_notification")
+
+
 def process_due_followups(limit: int = 20) -> int:
     db = SessionLocal()
     processed = 0
     try:
         now = datetime.now(timezone.utc)
+        _requeue_followups_waiting_for_template(db)
         rows = db.query(CRMFollowUp).join(CRMLead, CRMLead.id == CRMFollowUp.lead_id).filter(
             CRMFollowUp.status == "Pending",
             CRMFollowUp.scheduled_at <= now,
@@ -823,18 +855,16 @@ def process_due_followups(limit: int = 20) -> int:
                 template_name = _setting_text(db, TEMPLATE_NAME_KEY, "")
                 template_language = _setting_text(db, TEMPLATE_LANGUAGE_KEY, "")
                 if not template_name or not template_language:
+                    # Park the follow-up (no handoff/task, bot stays active); it is re-queued once a template is configured.
+                    db.delete(activity)
+                    followup.status = FOLLOWUP_STATUS_NO_TEMPLATE
                     db.add(CRMLeadActivity(
                         lead_id=lead.id,
-                        activity_type="whatsapp_followup_template_failed",
-                        message=f"Follow-up template not sent: configure {TEMPLATE_NAME_KEY} and {TEMPLATE_LANGUAGE_KEY} outside the 24-hour WhatsApp window.",
+                        activity_type="whatsapp_followup_template_missing",
+                        message=f"Follow-up held: configure {TEMPLATE_NAME_KEY} and {TEMPLATE_LANGUAGE_KEY} to send outside the 24-hour WhatsApp window: {followup.notes or ''}"[:500],
                     ))
-                    from .whatsapp_cloud import _request_whatsapp_human_handoff
-                    _request_whatsapp_human_handoff(
-                        db, lead, None, recipient,
-                        reason="scheduled_template_configuration_failure",
-                        notify_customer=False,
-                    )
-                    processed += 1
+                    logger.warning("Follow-up %s held for lead %s: %s/%s not configured", followup.id, lead.id, TEMPLATE_NAME_KEY, TEMPLATE_LANGUAGE_KEY)
+                    db.commit()
                     continue
                 from .whatsapp_cloud import clear_whatsapp_missing_template_alert
                 clear_whatsapp_missing_template_alert(db)
@@ -923,6 +953,7 @@ def process_due_followups(limit: int = 20) -> int:
                 followup.status = "Pending"
                 followup.scheduled_at = now + timedelta(hours=1)
             db.commit()
+        _queue_template_missing_summary(db, now)
         return processed
     except Exception:
         db.rollback()

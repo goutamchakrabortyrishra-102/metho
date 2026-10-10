@@ -179,64 +179,6 @@ def test_followup_outside_24_hour_window_queues_configured_template(monkeypatch)
         db.close()
 
 
-def test_followup_outside_window_without_template_hands_off_without_customer_reply(monkeypatch):
-    db = make_session()
-    try:
-        lead = add_tracked_lead(db)
-        followup = due_general_followup(db, lead)
-        record_recent_whatsapp_inbound(db, lead, datetime.now(timezone.utc) - timedelta(hours=25))
-        db.close = lambda: None
-        monkeypatch.setattr("sql_app.whatsapp_ai.SessionLocal", NoCloseSession(db))
-
-        assert process_due_followups() == 1
-        db.refresh(followup)
-        assert followup.status == "Cancelled"
-        assert db.query(AppSetting).filter_by(key=f"whatsapp_handoff_active:{lead.id}").first()
-        assert db.query(WhatsAppMessageOutbox).count() == 0
-        failure = db.query(CRMLeadActivity).filter_by(lead_id=lead.id, activity_type="whatsapp_followup_template_failed").one()
-        assert "lifecycle_followup_template_name" in failure.message
-        notification_failure = db.query(CRMLeadActivity).filter_by(lead_id=lead.id, activity_type="executive_handoff_notification_failed").one()
-        assert "executive_handoff_number" in notification_failure.message
-    finally:
-        db.close()
-
-
-def test_missing_followup_template_alert_is_aggregated_but_tasks_are_per_lead(monkeypatch):
-    from sql_app.routers.whatsapp import update_whatsapp_settings
-
-    db = make_session()
-    try:
-        actor = SimpleNamespace(role="admin", id="ADMIN")
-        update_whatsapp_settings({
-            "executive_handoff_number": "+91 98765 43210",
-            "executive_handoff_template_name": "executive_handoff_v1",
-            "executive_handoff_template_language": "en_US",
-        }, db, actor)
-        leads = []
-        for index in range(3):
-            lead = add_tracked_lead(db, role=f"batch-{index}", phone=f"880171000000{index + 1}")
-            due_general_followup(db, lead)
-            record_recent_whatsapp_inbound(db, lead, datetime.now(timezone.utc) - timedelta(hours=25))
-            leads.append(lead)
-
-        db.close = lambda: None
-        monkeypatch.setattr("sql_app.whatsapp_ai.SessionLocal", NoCloseSession(db))
-        assert process_due_followups() == 3
-        for lead in leads:
-            followup = db.query(CRMFollowUp).filter_by(lead_id=lead.id, notes="Initial WhatsApp lead follow-up").one()
-            assert followup.status == "Cancelled"
-            assert db.query(AppSetting).filter_by(key=f"whatsapp_handoff_active:{lead.id}").first()
-            assert db.query(CRMTask).filter_by(lead_id=lead.id, title="WhatsApp human support requested").count() == 1
-
-        notifications = db.query(WhatsAppMessageOutbox).filter_by(activity_type="executive_handoff_notification").all()
-        assert len(notifications) == 1
-        assert notifications[0].dedupe_key.startswith("executive-handoff-template-missing:")
-        template = json.loads(notifications[0].message)["_whatsapp_template"]
-        assert template["parameters"][0] == "Multiple WhatsApp leads"
-    finally:
-        db.close()
-
-
 def test_failed_followup_template_delivery_records_lead_activity(monkeypatch):
     from sql_app.followup_scheduler import TEMPLATE_LANGUAGE_KEY, TEMPLATE_NAME_KEY
 

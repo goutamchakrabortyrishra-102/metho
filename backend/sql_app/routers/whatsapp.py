@@ -10,6 +10,7 @@ from sqlalchemy import or_
 from sqlalchemy.orm import Session
 
 from ..database import get_db
+from ..followup_scheduler import TEMPLATE_LANGUAGE_KEY, TEMPLATE_NAME_KEY, _setting_text
 from ..models import AppSetting, CRMLead, CRMLeadActivity
 from ..whatsapp_ai import create_suggestion_for_activity
 from ..storage import UPLOADED_OBJECTS_DIR
@@ -81,6 +82,8 @@ def get_whatsapp_settings(db: Session = Depends(get_db), current_user=Depends(ge
         "registration_help_prompt": config["registration_help_prompt"],
         "registration_role_question": config["registration_role_question"],
         "default_language": config["default_language"],
+        TEMPLATE_NAME_KEY: _setting_text(db, TEMPLATE_NAME_KEY, ""),
+        TEMPLATE_LANGUAGE_KEY: _setting_text(db, TEMPLATE_LANGUAGE_KEY, ""),
         **{f"{role}_registration_{field}": config[f"{role}_registration_{field}"] for role in ("member", "partner", "rider") for field in ("url", "reply", "keywords")},
         **{f"{role}_registration_reply_image_url": config[f"{role}_registration_reply_image_url"] for role in ("member", "partner", "rider")},
         **{f"{role}_registration_reply_mode": config[f"{role}_registration_reply_mode"] for role in ("member", "partner", "rider")},
@@ -161,6 +164,19 @@ def update_whatsapp_settings(payload: dict, db: Session = Depends(get_db), curre
     else:
         current_row.value_json = json.dumps(next_config)
         current_row.updated_at = datetime.now(timezone.utc)
+    for key in (TEMPLATE_NAME_KEY, TEMPLATE_LANGUAGE_KEY):
+        if key not in data:
+            continue
+        value = str(data.get(key) or "").strip()
+        row = db.query(AppSetting).filter(AppSetting.key == key).first()
+        if value:
+            if row:
+                row.value_json = json.dumps(value)
+                row.updated_at = datetime.now(timezone.utc)
+            else:
+                db.add(AppSetting(key=key, value_json=json.dumps(value), updated_at=datetime.now(timezone.utc)))
+        elif row:
+            db.delete(row)
     db.commit()
     return get_whatsapp_settings(db, current_user)
 
