@@ -29,10 +29,12 @@ export default function WhatsAppInboxPage() {
   const [bulkSending, setBulkSending] = useState(false);
   const [failedOnly, setFailedOnly] = useState(false);
   const [needsHumanOnly, setNeedsHumanOnly] = useState(false);
+  const [registrationStalledOnly, setRegistrationStalledOnly] = useState(false);
   const failedCount = conversations.filter((c) => c.last_reply_failed).length;
   const needsHumanCount = conversations.filter((c) => c.needs_human).length;
+  const registrationStalledCount = conversations.filter((c) => c.registration_stalled).length;
   const visibleConversations = conversations.filter((conversation) =>
-    (!failedOnly || conversation.last_reply_failed) && (!needsHumanOnly || conversation.needs_human)
+    (!failedOnly || conversation.last_reply_failed) && (!needsHumanOnly || conversation.needs_human) && (!registrationStalledOnly || conversation.registration_stalled)
   );
   const toggleSelectAll = () => {
     if (selectedLeadIds.length === conversations.length && conversations.length > 0) {
@@ -303,6 +305,9 @@ export default function WhatsAppInboxPage() {
           <Button size="sm" variant={needsHumanOnly ? "default" : "outline"} onClick={() => setNeedsHumanOnly((current) => !current)} className="shrink-0 text-xs" title="Show conversations waiting for a human">
             <Users className="mr-1 h-3.5 w-3.5" />Needs human ({needsHumanCount})
           </Button>
+          <Button size="sm" variant={registrationStalledOnly ? "default" : "outline"} onClick={() => setRegistrationStalledOnly((current) => !current)} className="shrink-0 text-xs" title="Registration থেমে আছে: leads who stopped part-way through registration" data-testid="inbox-registration-stalled-filter">
+            <Users className="mr-1 h-3.5 w-3.5" />Registration থেমে আছে ({registrationStalledCount})
+          </Button>
           {(failedCount > 0 || failedOnly) && (
             <Button size="sm" variant={failedOnly ? "default" : "outline"} onClick={() => setFailedOnly((current) => !current)} className="shrink-0 text-xs text-red-700" title="Show only conversations whose last reply failed">
               <AlertTriangle className="mr-1 h-3.5 w-3.5" />Failed replies ({failedCount})
@@ -343,6 +348,7 @@ export default function WhatsAppInboxPage() {
                     <span className="shrink-0 text-[11px] text-slate-500">{formatTime(conversation.latest_message_at)}</span>
                   </div>
                   <p className="mt-0.5 text-xs text-slate-500">{conversation.phone}</p>
+                  {conversation.registration_stalled ? <p className="mt-0.5 text-xs font-medium text-amber-800" data-testid="inbox-registration-stalled-row">{conversation.registration_role ? `${conversation.registration_role} · ` : ""}থেমেছে: {conversation.registration_step_label || conversation.registration_step} · শেষ বার্তা {formatTime(conversation.latest_message_at)}</p> : null}
                   <p className="mt-1 truncate text-sm text-slate-600">{displayWhatsAppMessage({ text: conversation.latest_message, message_type: conversation.latest_message_type, message_subtype: conversation.latest_message_subtype, is_non_text: conversation.latest_message_is_non_text })}</p>
                 </button>
               </div>

@@ -28,8 +28,10 @@ from ..models import (
     PublicOrder,
     User,
     UserReferral,
+    WhatsAppRegistrationSession,
     CRM_ALLOWED_STAGES,
 )
+from ..registration_progress import registration_progress
 
 logger = logging.getLogger(__name__)
 
@@ -310,7 +312,7 @@ def _latest_reply_failed(db: Session, lead_id: str) -> bool:
 
 
 @router.get("/admin/crm/whatsapp/conversations")
-def list_whatsapp_conversations(search: str = "", db: Session = Depends(get_db), current_user: User = Depends(get_current_user), needs_human_only: bool = False):
+def list_whatsapp_conversations(search: str = "", db: Session = Depends(get_db), current_user: User = Depends(get_current_user), needs_human_only: bool = False, registration_stalled_only: bool = False, stalled_after_hours: float = 2.0):
     _require_admin_user(current_user)
     activities = (
         db.query(CRMLeadActivity)
@@ -322,6 +324,8 @@ def list_whatsapp_conversations(search: str = "", db: Session = Depends(get_db),
     term = str(search or "").strip().lower()
     conversations = []
     seen_lead_ids = set()
+    registration_sessions = {row.lead_id: row for row in db.query(WhatsAppRegistrationSession).all() if row.lead_id}
+    now = datetime.now(timezone.utc)
     for activity in activities:
         if activity.lead_id in seen_lead_ids:
             continue
@@ -333,6 +337,13 @@ def list_whatsapp_conversations(search: str = "", db: Session = Depends(get_db),
             continue
         handoff = get_whatsapp_handoff(db, lead.id)
         if needs_human_only and not handoff:
+            continue
+        # Existing data only: the session row and the customer's newest inbound message time.
+        progress = registration_progress(lead, registration_sessions.get(lead.id))
+        received_at = activity.created_at if activity.created_at is None or activity.created_at.tzinfo else activity.created_at.replace(tzinfo=timezone.utc)
+        idle_hours = (now - received_at).total_seconds() / 3600 if received_at else 0.0
+        registration_stalled = progress.in_progress and idle_hours >= max(0.0, stalled_after_hours)
+        if registration_stalled_only and not registration_stalled:
             continue
         seen_lead_ids.add(lead.id)
         latest_message = _whatsapp_message_payload(activity)
@@ -358,6 +369,11 @@ def list_whatsapp_conversations(search: str = "", db: Session = Depends(get_db),
             "needs_human": bool(handoff),
             "handoff_reason": handoff.get("reason", ""),
             "handoff_active_at": handoff.get("active_at", ""),
+            "registration_stalled": registration_stalled,
+            "registration_role": progress.role if progress.in_progress else "",
+            "registration_step": progress.step_key if progress.in_progress else "",
+            "registration_step_label": progress.step_label if progress.in_progress else "",
+            "registration_idle_hours": round(idle_hours, 1) if progress.in_progress else None,
         })
     return {"items": conversations}
 
