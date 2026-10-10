@@ -219,9 +219,9 @@ def test_first_entry_always_welcomes_then_readable_conversation_uses_ai(monkeypa
         assert "আপনি Member, Partner নাকি Rider হিসেবে যুক্ত হতে চান?" in sent[-1]
 
         sent.clear()
-        assert ingest_whatsapp_message(db, message_payload("wamid.conversation", "accha ami aro details sunte chai"), None) == "updated"
-        assert ai_messages == ["accha ami aro details sunte chai"]
-        assert sent == ["Conversation answer: accha ami aro details sunte chai\n\nআপনি Member, Partner নাকি Rider হিসেবে যুক্ত হতে চান? নিজের কথায় লিখে জানান।"]
+        assert ingest_whatsapp_message(db, message_payload("wamid.conversation", "accha ami dam somporke sunte chai"), None) == "updated"
+        assert ai_messages == ["accha ami dam somporke sunte chai"]
+        assert sent == ["Conversation answer: accha ami dam somporke sunte chai\n\nআপনি Member, Partner নাকি Rider হিসেবে যুক্ত হতে চান? নিজের কথায় লিখে জানান।"]
         assert session.state == "INTRODUCTION"
 
         sent.clear()

@@ -6,6 +6,7 @@ import logging
 import os
 import re
 import secrets
+import unicodedata
 from datetime import datetime, timedelta, timezone
 from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
 from urllib.request import Request, urlopen
@@ -1200,6 +1201,45 @@ def _introduction_role_question(language: str) -> str:
     return questions.get(language, questions["bn"])
 
 
+INTRO_DETAIL_REQUEST_MARKERS = (
+    "bujiye", "bujhiye", "bistarito", "samjhao", "samjhaiye", "details", "detail", "explain", "kivabe hoy", "ki vabe hoy", "kibhabe hoy",
+    "বুঝিয়ে", "বিস্তারিত", "কীভাবে হয়", "কিভাবে হয়", "समझाओ", "समझाइए", "विस्तार",
+)
+
+
+def _is_detail_request(text: str) -> bool:
+    normalized = unicodedata.normalize("NFC", _whatsapp_command_text(text))
+    return any(unicodedata.normalize("NFC", marker) in normalized for marker in INTRO_DETAIL_REQUEST_MARKERS)
+
+
+def _detailed_explanation(language: str) -> str:
+    content = {
+        "bn": (
+            "METHO AAY-UPAY হলো METHO LOGISTICS PRIVATE LIMITED-এর পণ্য ও সার্ভিসভিত্তিক প্ল্যাটফর্ম; ব্যবসার আয় আসে পণ্য বিক্রি ও ডেলিভারি/সার্ভিস থেকে।",
+            "Member কী: METHO-র পণ্য কিনে ID চালু করেন; প্ল্যানের শর্তে কমিশন ও রিওয়ার্ড, রেফারেলে ম্যাচিং বোনাস ও Leader Reward-এর সুযোগ থাকে। যুক্ত হওয়া: চ্যাটে Member বেছে নিন, রেজিস্ট্রেশনের পর পণ্য কিনে ID চালু করুন।",
+            "Partner কী: দোকান বা সার্ভিসের ফ্রি প্রচার, নতুন কাস্টমারের সুযোগ ও রেফারেল কমিশন। যুক্ত হওয়া: চ্যাটে Partner বেছে নিয়ে ব্যবসার তথ্য দিন; আবেদন যাচাই করা হয়।",
+            "Rider কী: প্রতিটি ডেলিভারি বা ফিল্ড-সার্ভিস অর্ডারে সরাসরি আয়ের সুযোগ। যুক্ত হওয়া: চ্যাটে Rider বেছে নিয়ে আপনার তথ্য দিন; আবেদন যাচাই করা হয়।",
+            "রেজিস্ট্রেশন চ্যাটেই, মাত্র ২-৩ মিনিটে; প্ল্যানের বিস্তারিত ও শর্ত রেজিস্ট্রেশনের সময় জানানো হবে।",
+        ),
+        "en": (
+            "METHO AAY-UPAY is a products-and-services platform of METHO LOGISTICS PRIVATE LIMITED; business income comes from product sales and delivery/services.",
+            "What a Member is: you buy METHO products to activate your ID; plan-based commissions and rewards may be available, with referral-based matching bonuses and Leader Rewards subject to plan terms. How to join: choose Member in this chat, then buy a product after registration to activate your ID.",
+            "What a Partner is: free promotion for your shop or service, opportunities to reach new customers, and referral commissions. How to join: choose Partner in this chat and share your business details; the application is then verified.",
+            "What a Rider is: an opportunity to earn directly per delivery or field-service order. How to join: choose Rider in this chat and share your details; the application is then verified.",
+            "Registration happens right in this chat and takes about 2–3 minutes; plan details and terms are shared during registration.",
+        ),
+        "hi": (
+            "METHO AAY-UPAY, METHO LOGISTICS PRIVATE LIMITED का उत्पाद और सेवा आधारित मंच है; व्यवसाय की आय उत्पाद बिक्री और डिलीवरी/सेवाओं से आती है।",
+            "Member क्या है: METHO उत्पाद खरीदकर ID चालू करते हैं; योजना की शर्तों के अनुसार कमीशन और रिवॉर्ड मिल सकते हैं, और रेफरल पर मैचिंग बोनस व Leader Reward का अवसर हो सकता है। कैसे जुड़ें: चैट में Member चुनें, रजिस्ट्रेशन के बाद उत्पाद खरीदकर ID चालू करें।",
+            "Partner क्या है: दुकान या सेवा का मुफ्त प्रचार, नए ग्राहक पाने के अवसर और रेफरल कमीशन। कैसे जुड़ें: चैट में Partner चुनकर अपने व्यवसाय की जानकारी दें; आवेदन की जांच होती है।",
+            "Rider क्या है: हर डिलीवरी या फील्ड-सर्विस ऑर्डर पर सीधे कमाई का अवसर। कैसे जुड़ें: चैट में Rider चुनकर अपनी जानकारी दें; आवेदन की जांच होती है।",
+            "रजिस्ट्रेशन इसी चैट में लगभग 2–3 मिनट में होता है; योजना का विवरण और शर्तें रजिस्ट्रेशन के समय बताई जाएंगी।",
+        ),
+    }
+    selected = language if language in content else "bn"
+    return "\n\n".join((*content[selected], _introduction_role_question(selected)))
+
+
 def _is_meta_default_message(text: str) -> bool:
     return " ".join(re.findall(r"[a-z]+", str(text or "").lower())) in META_DEFAULT_AD_MESSAGES
 
@@ -2038,6 +2078,11 @@ def _continue_introduction(db, session: WhatsAppRegistrationSession, lead: CRMLe
         db.add(CRMLeadActivity(lead_id=lead.id, activity_type="whatsapp_role_selected", message=category))
         _start_native_registration(db, session, lead, recipient)
         return True
+
+    if category in {"question", "unclear"} and not is_non_text and _is_detail_request(text):
+        data["fallback_count"] = 0
+        _save_session_data(session, data)
+        return _send_introduction_reply(db, lead, recipient, _detailed_explanation(language)) in {"sent", "cooldown"}
 
     if category == "unclear" and not _claim_introduction_retry(db, session, lead, recipient, language, trigger_text=text):
         return True
