@@ -66,7 +66,7 @@ def test_admin_can_save_member_own_mobile_pan_and_profile():
         db.close()
 
 
-def test_member_edit_blocks_other_member_but_allows_cross_role_values():
+def test_member_edit_blocks_other_member_and_cross_role_pan_reuse():
     db = make_session()
     try:
         target = member(db, "MEMBER-1", "7908468696", "ABCDE1234F")
@@ -77,7 +77,8 @@ def test_member_edit_blocks_other_member_but_allows_cross_role_values():
             admin_update_user(target.id, {"phone": other.phone}, db, admin())
         with pytest.raises(HTTPException, match="PAN number"):
             admin_update_user(target.id, {"pan_no": "BCDEF1234G"}, db, admin())
-        admin_update_user(target.id, {"phone": "8000000000", "pan_no": "CDEFG1234H"}, db, admin())
+        with pytest.raises(HTTPException, match="PAN number"):
+            admin_update_user(target.id, {"phone": "8000000000", "pan_no": "CDEFG1234H"}, db, admin())
     finally:
         db.close()
 

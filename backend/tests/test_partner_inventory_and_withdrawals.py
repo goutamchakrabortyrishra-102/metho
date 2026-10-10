@@ -11,7 +11,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from sql_app.database import Base
 from sql_app.models import AssociatePartner, PartnerProduct, User
 from sql_app.routers.checkout import _partner_product_meta, _set_partner_product_meta, create_public_order
-from sql_app.routers.compat import _load_withdrawals, _save_partner_wallet, _save_user_wallet, admin_approve_order, wallet_withdraw
+from sql_app.routers.compat import _load_withdrawals, _save_partner_wallet, _save_user_wallet, admin_approve_order, kyc_submit, wallet_withdraw
 from sql_app.routers.directory import partner_directory
 from sql_app.security import hash_password
 
@@ -110,6 +110,7 @@ def test_withdrawal_uses_settings_rates_and_debits_gross_amount(gross, expected_
         db.add(user)
         db.flush()
         _save_user_wallet(db, user.id, {"balance": gross, "total_income": gross, "total_bonus": 0, "total_withdrawn": 0})
+        kyc_submit({"pan_no": "ABCDE1234F", "aadhaar_no": "123456789012"}, db, user)
         result = wallet_withdraw({"amount": gross, "method": "upi", "account_details": "member@upi"}, db, user)
         row = result["withdrawal"]
         assert row["gross_amount"] == gross

@@ -1,6 +1,7 @@
 from pathlib import Path
 import os
 import json
+import hashlib
 from datetime import datetime, timedelta, timezone
 import logging
 import smtplib
@@ -52,6 +53,11 @@ def _normalize_member_pan(value: str) -> str:
 
 def _member_identity_setting_key(kind: str, value: str) -> str:
     return f"member_registration_identity:{kind}:{value}"
+
+
+def _global_pan_identity_key(value: str) -> str:
+    digest = hashlib.sha256(_normalize_member_pan(value).encode("utf-8")).hexdigest()
+    return f"kyc_pan_identity:{digest}"
 
 
 def _phone_matches_candidates(value: str, candidates: set[str]) -> bool:
@@ -140,6 +146,29 @@ def _member_pan_exists(db: Session, pan_no: str) -> bool:
             return True
 
     return False
+
+
+def _pan_exists_any_role(db: Session, pan_no: str) -> bool:
+    normalized_pan = _normalize_member_pan(pan_no)
+    if not normalized_pan:
+        return False
+    if db.query(AppSetting).filter(AppSetting.key == _global_pan_identity_key(normalized_pan)).first() is not None:
+        return True
+    if _member_pan_exists(db, normalized_pan):
+        return True
+    for prefix in ("rider_profile:", "partner_req_kyc:"):
+        for row in db.query(AppSetting).filter(AppSetting.key.like(f"{prefix}%")).all():
+            try:
+                profile = json.loads(row.value_json or "{}")
+            except (TypeError, ValueError):
+                profile = {}
+            if _normalize_member_pan(str(profile.get("pan_no") or "")) == normalized_pan:
+                return True
+    from .compat import AssociatePartner, PartnerRequest
+    return bool(
+        db.query(PartnerRequest).filter(PartnerRequest.gst_no == normalized_pan, PartnerRequest.status.in_(["pending", "approved"])).first()
+        or db.query(AssociatePartner).filter(AssociatePartner.gst_no == normalized_pan).first()
+    )
 
 ADMIN_LOGIN_ID = str(os.getenv("ADMIN_LOGIN_ID", "admin@metho.com") or "admin@metho.com").strip()
 
@@ -369,24 +398,20 @@ def send_welcome_email(to_email: str, user_name: str, member_code: str, welcome_
 
 def _send_registration_whatsapp_welcome(db: Session, user: User, member_code: str) -> None:
     try:
-        from ..whatsapp_ai import enqueue_whatsapp_message
-
-        text = (
-            f"🌿 Welcome to METHO AAY-UPAY™! 🎉\n\nDear {user.name},\n\n"
-            "Congratulations! Your Member Registration has been successfully completed. "
-            "Welcome to the METHO AAY-UPAY™ family! 🤝\n\n"
-            f"🪪 Member ID: {member_code}\n\n"
-            "You can now explore opportunities to Shop, Save, Earn & Grow with METHO.\n\n"
-            "🎓 Next Step: Our team will guide you through free training and help you get started.\n\n"
-            f"📩 Need any help? Reply to this chat or contact our WhatsApp executive: {METHO_SUPPORT_WHATSAPP}.\n\n"
-            "METHO AAY-UPAY™ — Better People | Stronger Communities | Brighter Tomorrow 🌿"
-        )
-        enqueue_whatsapp_message(
+        from ..whatsapp_cloud import queue_registration_welcome_letter
+        profile_row = db.query(AppSetting).filter(AppSetting.key == f"user_profile:{user.id}").first()
+        try:
+            profile = json.loads(profile_row.value_json or "{}") if profile_row else {}
+        except Exception:
+            profile = {}
+        queue_registration_welcome_letter(
             db,
-            f"member-registration-welcome:{user.id}",
             user.phone,
-            text,
-            activity_type="member_registration_welcome",
+            "member",
+            user.id,
+            user.name,
+            user.created_at,
+            bool(profile.get("pan_no") and profile.get("aadhaar_no")),
         )
     except Exception:
         logger.exception("Registration WhatsApp welcome queue failed: member_id=%s", member_code)
@@ -440,11 +465,11 @@ def register(payload: RegisterRequest, request: Request, db: Session = Depends(g
         raise HTTPException(status_code=400, detail="Password must be at least 6 characters")
     if len(normalized_phone) < 10 or len(normalized_phone) > 15:
         raise HTTPException(status_code=400, detail="Phone number is required and must be 10 to 15 digits")
-    if not re.fullmatch(r"[A-Z]{5}[0-9]{4}[A-Z]", normalized_pan):
-        raise HTTPException(status_code=400, detail="PAN number is required and must be in format ABCDE1234F")
+    if normalized_pan and not re.fullmatch(r"[A-Z]{5}[0-9]{4}[A-Z]", normalized_pan):
+        raise HTTPException(status_code=400, detail="PAN number must be in format ABCDE1234F")
     if _member_phone_exists(db, normalized_phone):
         raise HTTPException(status_code=400, detail="Phone number already registered")
-    if _member_pan_exists(db, normalized_pan):
+    if normalized_pan and _pan_exists_any_role(db, normalized_pan):
         raise HTTPException(status_code=400, detail="PAN number already registered")
 
     member_id = requested_member_id if _is_member_id(requested_member_id) else _next_member_id(db)
@@ -485,18 +510,26 @@ def register(payload: RegisterRequest, request: Request, db: Session = Depends(g
                 value_json=phone_identity_payload,
                 updated_at=datetime.now(timezone.utc),
             ))
-        db.add(AppSetting(
-            key=_member_identity_setting_key("pan", normalized_pan),
-            value_json=json.dumps({"user_id": member_id, "registered_at": datetime.now(timezone.utc).isoformat()}),
-            updated_at=datetime.now(timezone.utc),
-        ))
+        if normalized_pan:
+            db.add(AppSetting(
+                key=_member_identity_setting_key("pan", normalized_pan),
+                value_json=json.dumps({"user_id": member_id, "registered_at": datetime.now(timezone.utc).isoformat()}),
+                updated_at=datetime.now(timezone.utc),
+            ))
+            db.add(AppSetting(
+                key=_global_pan_identity_key(normalized_pan),
+                value_json=json.dumps({"user_id": member_id, "role": "member", "registered_at": datetime.now(timezone.utc).isoformat()}),
+                updated_at=datetime.now(timezone.utc),
+            ))
         db.commit()
     except IntegrityError as exc:
         db.rollback()
         message = str(exc).lower()
         if f"member_registration_identity:phone:{normalized_phone}".lower() in message:
             raise HTTPException(status_code=400, detail="Phone number already registered") from exc
-        if f"member_registration_identity:pan:{normalized_pan}".lower() in message:
+        if normalized_pan and f"member_registration_identity:pan:{normalized_pan}".lower() in message:
+            raise HTTPException(status_code=400, detail="PAN number already registered") from exc
+        if normalized_pan and f"kyc_pan_identity:{normalized_pan}".lower() in message:
             raise HTTPException(status_code=400, detail="PAN number already registered") from exc
         logger.exception("Member registration duplicate guard failed: correlation_id=%s member_id=%s", correlation_id, member_id)
         raise HTTPException(status_code=503, detail=f"Registration could not be completed. Reference: {correlation_id}") from exc

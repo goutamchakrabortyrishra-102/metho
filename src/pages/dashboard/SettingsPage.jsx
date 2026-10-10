@@ -713,6 +713,9 @@ export default function SettingsPage() {
   const [shippingForm, setShippingForm] = useState(null);
   const [shippingBusy, setShippingBusy] = useState(false);
   const [shippingMessage, setShippingMessage] = useState("");
+  const [kycPreview, setKycPreview] = useState(null);
+  const [kycPreviewBusy, setKycPreviewBusy] = useState(false);
+  const [kycRewardAccounts, setKycRewardAccounts] = useState([]);
   const [landingPartnerOptions, setLandingPartnerOptions] = useState([]);
   const [landingPartnerOptionsLoading, setLandingPartnerOptionsLoading] = useState(false);
 
@@ -964,6 +967,10 @@ export default function SettingsPage() {
     commission_split_company_fund: Number(source.commission_split_company_fund),
     commission_split_technology_reserve: Number(source.commission_split_technology_reserve),
     min_withdrawal: Number(source.min_withdrawal),
+    kyc_reward_rule_start_date: source.kyc_reward_rule_start_date || "2026-10-10",
+    kyc_reward_grace_days: Number(source.kyc_reward_grace_days) || 0,
+    kyc_reward_forfeiture_enabled: !!source.kyc_reward_forfeiture_enabled,
+    welcome_letter_terms_en: source.welcome_letter_terms_en || "",
     cycle_target_bv: Number(source.cycle_target_bv),
     cycle_reward_text: source.cycle_reward_text,
     rank_bronze_bv: Number(source.rank_bronze_bv),
@@ -1068,6 +1075,35 @@ export default function SettingsPage() {
     setForm((prev) => ({ ...prev, ...(data || {}) }));
     await refreshSettings();
     if (successMessage) toast.success(successMessage);
+  };
+
+  const previewKycForfeiture = async () => {
+    setKycPreviewBusy(true);
+    try {
+      const [previewResponse, accountsResponse] = await Promise.all([
+        api.post("/admin/kyc-rewards/forfeiture-run", { dry_run: true }),
+        api.get("/admin/kyc-rewards/accounts"),
+      ]);
+      setKycPreview(previewResponse.data);
+      setKycRewardAccounts(Array.isArray(accountsResponse.data) ? accountsResponse.data : []);
+    } catch (err) {
+      toast.error(err?.response?.data?.detail || "KYC forfeiture preview failed");
+    } finally {
+      setKycPreviewBusy(false);
+    }
+  };
+
+  const restoreKycForfeiture = async (userId, earningId) => {
+    const reason = window.prompt("Reason for restoring this forfeited amount:")?.trim();
+    if (!reason) return;
+    try {
+      await api.post(`/admin/kyc-rewards/forfeitures/${encodeURIComponent(userId)}/${encodeURIComponent(earningId)}/restore`, { reason });
+      toast.success("Forfeited amount restored and audit recorded");
+      const { data } = await api.get("/admin/kyc-rewards/accounts");
+      setKycRewardAccounts(Array.isArray(data) ? data : []);
+    } catch (err) {
+      toast.error(err?.response?.data?.detail || "Restore failed");
+    }
   };
 
   const persistBrandingField = async (field, value) => {
@@ -1635,6 +1671,89 @@ export default function SettingsPage() {
               type="text"
               hint="Currency চিহ্ন (₹ / ₹ / $ ইত্যাদি)।"
             />
+            <Field
+              label="KYC Reward Rule Start Date"
+              testId="settings-kyc-reward-start-date"
+              value={form.kyc_reward_rule_start_date || "2026-10-10"}
+              onChange={setF("kyc_reward_rule_start_date")}
+              type="date"
+              hint="এই তারিখের আগের reward credit প্রভাবিত হবে না।"
+            />
+            <Field
+              label="KYC Month-End Grace Days"
+              testId="settings-kyc-reward-grace-days"
+              value={form.kyc_reward_grace_days ?? 0}
+              onChange={setF("kyc_reward_grace_days")}
+              type="number"
+              hint="মাস শেষের পর KYC জমার অতিরিক্ত দিন; default 0।"
+            />
+            <label className="md:col-span-2 flex items-start gap-2 text-sm text-slate-700" data-testid="settings-kyc-forfeiture-enabled">
+              <input
+                type="checkbox"
+                checked={!!form.kyc_reward_forfeiture_enabled}
+                onChange={(event) => setF("kyc_reward_forfeiture_enabled")(event.target.checked)}
+                className="mt-1"
+              />
+              <span>Enable month-end KYC reward forfeiture after reviewing the admin dry-run.</span>
+            </label>
+            <div className="md:col-span-2 space-y-3" data-testid="kyc-forfeiture-preview">
+              <Button type="button" variant="outline" onClick={previewKycForfeiture} disabled={kycPreviewBusy}>
+                {kycPreviewBusy ? "Checking..." : "Preview KYC forfeitures (dry-run)"}
+              </Button>
+              {kycPreview && (
+                <div className="space-y-4">
+                  <p className="text-xs text-slate-600">Dry-run: {kycPreview.processed || 0} expired earning records would be forfeited. No wallet balance was changed.</p>
+                  <div className="overflow-x-auto rounded-md border border-border">
+                  <table className="w-full text-left text-xs">
+                    <thead className="bg-slate-50 text-slate-600"><tr><th className="p-2">Member ID</th><th className="p-2">Month</th><th className="p-2 text-right">Amount at risk</th></tr></thead>
+                    <tbody>
+                      {(kycPreview.forfeited || []).map((row) => (
+                        <tr key={row.reference_id} className="border-t border-border"><td className="p-2 font-mono">{row.user_id}</td><td className="p-2">{row.month}</td><td className="p-2 text-right">{Number(row.amount || 0).toLocaleString("en-IN", { style: "currency", currency: "INR" })}</td></tr>
+                      ))}
+                      {!kycPreview.forfeited?.length && <tr><td colSpan={3} className="p-3 text-center text-slate-500">No expired KYC-pending rewards found.</td></tr>}
+                    </tbody>
+                  </table>
+                  </div>
+                  <div className="overflow-x-auto rounded-md border border-border">
+                    <table className="w-full text-left text-xs">
+                      <thead className="bg-slate-50 text-slate-600"><tr><th className="p-2">Account</th><th className="p-2">Role</th><th className="p-2 text-right">Wallet</th><th className="p-2 text-right">KYC-pending rewards</th><th className="p-2">Forfeited records</th></tr></thead>
+                      <tbody>
+                        {kycRewardAccounts.map((account) => (
+                          <tr key={account.user_id} className="border-t border-border align-top">
+                            <td className="p-2"><span className="font-semibold">{account.name}</span><br /><span className="font-mono text-slate-500">{account.user_id}</span></td>
+                            <td className="p-2 capitalize">{account.role}</td>
+                            <td className="p-2 text-right">₹{Number(account.wallet_balance || 0).toLocaleString("en-IN")}</td>
+                            <td className="p-2 text-right">₹{Number(account.pending_kyc_rewards || 0).toLocaleString("en-IN")}</td>
+                            <td className="p-2">
+                              {(account.forfeitures || []).map((item) => (
+                                <div key={item.earning_id} className="mb-1 flex items-center justify-between gap-2">
+                                  <span>{item.month}: ₹{Number(item.amount || 0).toLocaleString("en-IN")}</span>
+                                  <Button type="button" size="sm" variant="outline" onClick={() => restoreKycForfeiture(account.user_id, item.earning_id)}>Restore</Button>
+                                </div>
+                              ))}
+                            </td>
+                          </tr>
+                        ))}
+                        {!kycRewardAccounts.length && <tr><td colSpan={5} className="p-3 text-center text-slate-500">No KYC-pending accounts with wallet reward records.</td></tr>}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              )}
+            </div>
+            <div className="md:col-span-2">
+              <Label htmlFor="settings-welcome-letter-terms">Additional English welcome-letter terms</Label>
+              <Textarea
+                id="settings-welcome-letter-terms"
+                value={form.welcome_letter_terms_en || ""}
+                onChange={(event) => setF("welcome_letter_terms_en")(event.target.value)}
+                rows={4}
+                className="mt-1.5 bg-white"
+                data-testid="settings-welcome-letter-terms"
+              />
+              <p className="mt-1 text-xs text-amber-800">Do not add income amounts, guaranteed-income claims, or unsupported promises. The fixed KYC condition is always included and cannot be removed.</p>
+              <p className="mt-1 text-xs text-slate-600" data-testid="settings-welcome-letter-version">Current terms version: {form.welcome_letter_terms_version || "v1"}; changes increment it automatically.</p>
+            </div>
           </Section>
 
           <Section title="Team Business Cycle (Monthly)" subtitle="মাসিক team target ও reward" icon={Users}>

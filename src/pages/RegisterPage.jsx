@@ -148,7 +148,7 @@ export default function RegisterPage() {
       return toast.error("Please enter a valid phone number (10 to 15 digits)");
     }
 
-    if (!isValidPan(form.pan_no)) {
+    if (form.pan_no && !isValidPan(form.pan_no)) {
       return toast.error("PAN must be in format: ABCDE1234F");
     }
 
@@ -353,8 +353,8 @@ export default function RegisterPage() {
               <Input id="address" name="address" value={form.address} onChange={setField("address")} placeholder="Village/City/State" data-testid="register-address-input" className="mt-1.5 h-11" />
             </div>
             <div>
-              <Label htmlFor="pan_no">PAN Number <span className="text-red-600">*</span></Label>
-              <Input id="pan_no" name="pan_no" required value={form.pan_no} onChange={setField("pan_no")} placeholder="ABCDE1234F" data-testid="register-pan-input" className="mt-1.5 h-11 uppercase" maxLength={10} />
+              <Label htmlFor="pan_no">PAN Number (optional)</Label>
+              <Input id="pan_no" name="pan_no" value={form.pan_no} onChange={setField("pan_no")} placeholder="ABCDE1234F" data-testid="register-pan-input" className="mt-1.5 h-11 uppercase" maxLength={10} />
             </div>
             <div>
               <Label htmlFor="password">Password</Label>

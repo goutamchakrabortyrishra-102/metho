@@ -498,15 +498,15 @@ export default function PartnerRegisterPage() {
     if (!agreedToTerms) {
       return toast.error("Please read and accept Terms & Conditions before submitting");
     }
-    if (!form.business_name || !form.contact_person || !form.phone || !form.email || !form.password || !form.address || !form.city || !form.state || !form.pan_no || !form.aadhaar_no) {
+    if (!form.business_name || !form.contact_person || !form.phone || !form.email || !form.password || !form.address || !form.city || !form.state) {
       return toast.error("Please fill all required fields");
     }
     const pan = String(form.pan_no || "").trim().toUpperCase();
     const aadhaar = String(form.aadhaar_no || "").replace(/\D/g, "");
-    if (!/^[A-Z]{5}[0-9]{4}[A-Z]$/.test(pan)) {
+    if (pan && !/^[A-Z]{5}[0-9]{4}[A-Z]$/.test(pan)) {
       return toast.error("Please enter a valid PAN number");
     }
-    if (!/^\d{12}$/.test(aadhaar)) {
+    if (aadhaar && !/^\d{12}$/.test(aadhaar)) {
       return toast.error("Please enter a valid 12-digit Aadhaar number");
     }
     if (String(form.password || "").length < 6) {
@@ -738,9 +738,8 @@ export default function PartnerRegisterPage() {
                 </div>
               )}
               <div>
-                <Label>PAN Number *</Label>
+                <Label>PAN Number (optional)</Label>
                 <Input
-                  required
                   value={form.pan_no}
                   onChange={(e) => setForm((prev) => ({ ...prev, pan_no: String(e.target.value || "").toUpperCase() }))}
                   placeholder="ABCDE1234F"
@@ -748,12 +747,11 @@ export default function PartnerRegisterPage() {
                   className="mt-1.5 h-11 font-mono uppercase"
                   data-testid="reg-pan"
                 />
-                <p className="text-[11px] text-muted-foreground mt-1">PAN is mandatory and can be used for only one Shop or Service registration.</p>
+                <p className="text-[11px] text-muted-foreground mt-1">You can complete PAN and Aadhaar KYC later from your account profile.</p>
               </div>
               <div>
-                <Label>Aadhaar Number *</Label>
+                <Label>Aadhaar Number (optional)</Label>
                 <Input
-                  required
                   value={form.aadhaar_no}
                   onChange={(e) => setForm((prev) => ({ ...prev, aadhaar_no: String(e.target.value || "").replace(/\D/g, "") }))}
                   placeholder="12-digit Aadhaar number"

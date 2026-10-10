@@ -8,6 +8,7 @@ import re
 import secrets
 import unicodedata
 from datetime import datetime, timedelta, timezone
+from zoneinfo import ZoneInfo
 from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
 from urllib.request import Request, urlopen
 
@@ -266,7 +267,7 @@ WHATSAPP_PRESET_MESSAGE_DEFAULTS = {
     "preset_member_name_required": "Member registration website form-এ আপনার তথ্য সম্পূর্ণ করুন।",
     "preset_member_address_prompt": "Member registration website form-এ আপনার তথ্য সম্পূর্ণ করুন।",
     "preset_member_address_required": "Member registration website form-এ আপনার তথ্য সম্পূর্ণ করুন।",
-    "preset_member_pan_prompt": "Member registration website form-এ আপনার তথ্য সম্পূর্ণ করুন।",
+    "preset_member_pan_prompt": "PAN লিখুন, অথবা পরে KYC করতে SKIP লিখুন।",
     "preset_member_pan_invalid": "Member registration website form-এ আপনার তথ্য সম্পূর্ণ করুন।",
     "preset_member_dob_prompt": "Member registration website form-এ আপনার তথ্য সম্পূর্ণ করুন।",
     "preset_member_dob_required": "Member registration website form-এ আপনার তথ্য সম্পূর্ণ করুন।",
@@ -284,9 +285,9 @@ WHATSAPP_PRESET_MESSAGE_DEFAULTS = {
     "preset_partner_state_prompt": "Partner registration website form-এ আপনার application সম্পূর্ণ করুন।",
     "preset_partner_pincode_prompt": "Partner registration website form-এ আপনার application সম্পূর্ণ করুন।",
     "preset_partner_pincode_invalid": "Partner registration website form-এ আপনার application সম্পূর্ণ করুন।",
-    "preset_partner_pan_prompt": "Partner registration website form-এ আপনার application সম্পূর্ণ করুন।",
+    "preset_partner_pan_prompt": "ব্যবসার PAN লিখুন, অথবা পরে KYC করতে SKIP লিখুন।",
     "preset_partner_pan_invalid": "Partner registration website form-এ আপনার application সম্পূর্ণ করুন।",
-    "preset_partner_aadhaar_prompt": "Partner registration website form-এ আপনার application সম্পূর্ণ করুন।",
+    "preset_partner_aadhaar_prompt": "১২ সংখ্যার Aadhaar লিখুন, অথবা পরে KYC করতে SKIP লিখুন।",
     "preset_partner_aadhaar_invalid": "Partner registration website form-এ আপনার application সম্পূর্ণ করুন।",
     "preset_partner_edit_prompt": "Partner registration website form-এ আপনার application সম্পূর্ণ করুন।",
     "preset_registration_edit_value_prompt": "Registration website form-এ তথ্য সম্পাদনা করুন।",
@@ -300,9 +301,9 @@ WHATSAPP_PRESET_MESSAGE_DEFAULTS = {
     "preset_rider_state_prompt": "Rider registration website form-এ আপনার application সম্পূর্ণ করুন।",
     "preset_rider_pincode_prompt": "Rider registration website form-এ আপনার application সম্পূর্ণ করুন।",
     "preset_rider_pincode_invalid": "Rider registration website form-এ আপনার application সম্পূর্ণ করুন।",
-    "preset_rider_pan_prompt": "Rider registration website form-এ আপনার application সম্পূর্ণ করুন।",
+    "preset_rider_pan_prompt": "PAN লিখুন, অথবা পরে KYC করতে SKIP লিখুন।",
     "preset_rider_pan_invalid": "Rider registration website form-এ আপনার application সম্পূর্ণ করুন।",
-    "preset_rider_aadhaar_prompt": "Rider registration website form-এ আপনার application সম্পূর্ণ করুন।",
+    "preset_rider_aadhaar_prompt": "১২ সংখ্যার Aadhaar লিখুন, অথবা পরে KYC করতে SKIP লিখুন।",
     "preset_rider_aadhaar_invalid": "Rider registration website form-এ আপনার application সম্পূর্ণ করুন।",
     "preset_rider_edit_prompt": "Rider registration website form-এ আপনার application সম্পূর্ণ করুন।",
     "preset_rider_submit_failed": "Rider application জমা দেওয়া যায়নি: {detail}",
@@ -742,6 +743,57 @@ def send_whatsapp_image(db, recipient: str, image_url: str, caption: str = "") -
     if not isinstance(payload, dict):
         raise RuntimeError("WhatsApp API returned an invalid response")
     return payload
+
+
+def queue_registration_welcome_letter(db, recipient: str, role: str, registration_id: str, name: str, registered_at=None, kyc_complete: bool = False) -> None:
+    from .routers.settings import load_settings
+    from .whatsapp_ai import enqueue_whatsapp_message
+
+    normalized_role = str(role or "").strip().lower()
+    role_label = {"member": "Member", "partner": "Partner", "rider": "Rider"}.get(normalized_role, "Account")
+    account_status = {
+        "member": "ID activation is pending the required product purchase and order approval.",
+        "partner": "Your application is pending admin approval.",
+        "rider": "Your registration is pending admin approval.",
+    }.get(normalized_role, "Registration received.")
+    settings = load_settings(db)
+    version = str(settings.get("welcome_letter_terms_version") or "v1").strip()
+    optional_terms = str(settings.get("welcome_letter_terms_en") or "").strip()
+    instant = registered_at or datetime.now(timezone.utc)
+    if instant.tzinfo is None:
+        instant = instant.replace(tzinfo=timezone.utc)
+    registered_date = instant.astimezone(ZoneInfo("Asia/Kolkata")).strftime("%d %B %Y")
+    config = resolve_config(db)
+    support_number = str(config.get("customer_call_number") or "").strip() or "+91 9163530078"
+    office_hours = str(config.get("office_hours_text") or "").strip() or "Please reply to this WhatsApp chat for assistance."
+    mandatory_terms = (
+        "To withdraw or convert any commission or reward, complete KYC with PAN and Aadhaar. "
+        "If KYC is not complete before the final moment of the calendar month in which an amount is credited, "
+        "that month's commission and rewards will be forfeited and will not be payable."
+    )
+    lines = [
+        "METHO AAY-UPAY | WELCOME LETTER",
+        "",
+        f"Dear {str(name or 'Customer').strip()},",
+        f"Role: {role_label}",
+        f"Registration reference: {registration_id}",
+        f"Registration date: {registered_date} (IST)",
+        f"Status: {account_status}",
+        f"KYC status: {'Complete' if kyc_complete else 'Pending'}",
+        "",
+        "Important KYC condition:",
+        mandatory_terms,
+    ]
+    if optional_terms:
+        lines.extend(["", "Additional terms:", optional_terms])
+    lines.extend(["", f"Support: {support_number}", f"Office hours: {office_hours}", f"Terms version: {version}"])
+    enqueue_whatsapp_message(
+        db,
+        f"registration-letter:{normalized_role}:{registration_id}:{version}",
+        recipient,
+        "\n".join(lines),
+        activity_type="registration_welcome_letter",
+    )
 
 
 def public_whatsapp_image_url(value: str) -> str:
@@ -2387,7 +2439,11 @@ def _continue_role_registration_flow(db, session: WhatsAppRegistrationSession, l
                 reply = get_whatsapp_preset_message(db, "preset_partner_pan_prompt", WHATSAPP_PRESET_MESSAGE_DEFAULTS["preset_partner_pan_prompt"])
         elif session.state == WHATSAPP_PARTNER_PAN:
             pan = text.upper().replace(" ", "")
-            if len(pan) != 10:
+            if normalized in NATIVE_REG_SKIP_COMMANDS:
+                data["pan_no"] = ""
+                session.state = WHATSAPP_PARTNER_AADHAAR
+                reply = get_whatsapp_preset_message(db, "preset_partner_aadhaar_prompt", WHATSAPP_PRESET_MESSAGE_DEFAULTS["preset_partner_aadhaar_prompt"])
+            elif not NATIVE_REG_PAN_RE.fullmatch(pan):
                 reply = get_whatsapp_preset_message(db, "preset_partner_pan_invalid", WHATSAPP_PRESET_MESSAGE_DEFAULTS["preset_partner_pan_invalid"])
             else:
                 data["pan_no"] = pan
@@ -2395,7 +2451,11 @@ def _continue_role_registration_flow(db, session: WhatsAppRegistrationSession, l
                 reply = get_whatsapp_preset_message(db, "preset_partner_aadhaar_prompt", WHATSAPP_PRESET_MESSAGE_DEFAULTS["preset_partner_aadhaar_prompt"])
         elif session.state == WHATSAPP_PARTNER_AADHAAR:
             aadhaar = "".join(ch for ch in text if ch.isdigit())
-            if len(aadhaar) != 12:
+            if normalized in NATIVE_REG_SKIP_COMMANDS:
+                data["aadhaar_no"] = ""
+                session.state = WHATSAPP_PARTNER_CONFIRMATION
+                reply = _registration_confirmation(role, data, db)
+            elif len(aadhaar) != 12:
                 reply = get_whatsapp_preset_message(db, "preset_partner_aadhaar_invalid", WHATSAPP_PRESET_MESSAGE_DEFAULTS["preset_partner_aadhaar_invalid"])
             else:
                 data["aadhaar_no"] = aadhaar
@@ -2471,7 +2531,11 @@ def _continue_role_registration_flow(db, session: WhatsAppRegistrationSession, l
                 reply = get_whatsapp_preset_message(db, "preset_rider_pan_prompt", WHATSAPP_PRESET_MESSAGE_DEFAULTS["preset_rider_pan_prompt"])
         elif session.state == WHATSAPP_RIDER_PAN:
             pan = text.upper().replace(" ", "")
-            if len(pan) != 10:
+            if normalized in NATIVE_REG_SKIP_COMMANDS:
+                data["pan_no"] = ""
+                session.state = WHATSAPP_RIDER_AADHAAR
+                reply = get_whatsapp_preset_message(db, "preset_rider_aadhaar_prompt", WHATSAPP_PRESET_MESSAGE_DEFAULTS["preset_rider_aadhaar_prompt"])
+            elif not NATIVE_REG_PAN_RE.fullmatch(pan):
                 reply = get_whatsapp_preset_message(db, "preset_rider_pan_invalid", WHATSAPP_PRESET_MESSAGE_DEFAULTS["preset_rider_pan_invalid"])
             else:
                 data["pan_no"] = pan
@@ -2479,7 +2543,11 @@ def _continue_role_registration_flow(db, session: WhatsAppRegistrationSession, l
                 reply = get_whatsapp_preset_message(db, "preset_rider_aadhaar_prompt", WHATSAPP_PRESET_MESSAGE_DEFAULTS["preset_rider_aadhaar_prompt"])
         elif session.state == WHATSAPP_RIDER_AADHAAR:
             aadhaar = "".join(ch for ch in text if ch.isdigit())
-            if len(aadhaar) != 12:
+            if normalized in NATIVE_REG_SKIP_COMMANDS:
+                data["aadhaar_no"] = ""
+                session.state = WHATSAPP_RIDER_CONFIRMATION
+                reply = _registration_confirmation(role, data, db)
+            elif len(aadhaar) != 12:
                 reply = get_whatsapp_preset_message(db, "preset_rider_aadhaar_invalid", WHATSAPP_PRESET_MESSAGE_DEFAULTS["preset_rider_aadhaar_invalid"])
             else:
                 data["aadhaar_no"] = aadhaar
@@ -2762,7 +2830,11 @@ def _continue_member_registration_flow(db, session: WhatsAppRegistrationSession,
             reply = get_whatsapp_preset_message(db, "preset_member_pan_prompt", WHATSAPP_PRESET_MESSAGE_DEFAULTS["preset_member_pan_prompt"])
     elif session.state == WHATSAPP_MEMBER_PAN:
         pan = text.upper().replace(" ", "")
-        if len(pan) != 10:
+        if _whatsapp_command_text(text) in NATIVE_REG_SKIP_COMMANDS:
+            data["pan_no"] = ""
+            session.state = WHATSAPP_MEMBER_DOB
+            reply = get_whatsapp_preset_message(db, "preset_member_dob_prompt", WHATSAPP_PRESET_MESSAGE_DEFAULTS["preset_member_dob_prompt"])
+        elif not NATIVE_REG_PAN_RE.fullmatch(pan):
             reply = get_whatsapp_preset_message(db, "preset_member_pan_invalid", WHATSAPP_PRESET_MESSAGE_DEFAULTS["preset_member_pan_invalid"])
         else:
             data["pan_no"] = pan
@@ -3059,7 +3131,7 @@ def _native_fields(role: str) -> list[dict]:
         return [
             _nf("name", "নাম", "আপনার পূর্ণ নাম লিখুন।", _native_text_validator("নাম")),
             _nf("dob", "জন্ম তারিখ", "আপনার জন্ম তারিখ লিখুন (DD-MM-YYYY), যেমন 15-08-1990।", _native_dob_validator),
-            _nf("pan_no", "PAN", "আপনার PAN নম্বর লিখুন (যেমন ABCDE1234F)।", _native_pan_validator),
+            _nf("pan_no", "PAN", "আপনার PAN নম্বর লিখুন (না থাকলে SKIP)।", _native_pan_validator, required=False),
             _nf("address", "ঠিকানা", "আপনার ঠিকানা লিখুন (গ্রাম/শহর/রাজ্য)।", _native_text_validator("ঠিকানা", 3, 2000), required=False),
             _nf("sponsor_code", "Sponsor ID", "যিনি আপনাকে রেফার করেছেন তাঁর Referral/Sponsor ID লিখুন।", _native_sponsor_validator, required=False),
         ]
@@ -3073,8 +3145,8 @@ def _native_fields(role: str) -> list[dict]:
             _nf("business_name", "ব্যবসার নাম", "আপনার Shop/Service-এর নাম লিখুন।", _native_text_validator("ব্যবসার নাম", 2, 255)),
             _nf("business_description", "বিবরণ", "ব্যবসার সংক্ষিপ্ত বিবরণ লিখুন।", _native_text_validator("বিবরণ", 3, 1000), required=False),
             _nf("contact_person", "মালিক/ম্যানেজার", "মালিক বা ম্যানেজারের পূর্ণ নাম লিখুন।", _native_text_validator("নাম")),
-            _nf("pan_no", "PAN", "ব্যবসার PAN নম্বর লিখুন (যেমন ABCDE1234F)।", _native_pan_validator),
-            _nf("aadhaar_no", "Aadhaar", "আপনার ১২ সংখ্যার Aadhaar নম্বর লিখুন।", _native_aadhaar_validator),
+            _nf("pan_no", "PAN", "ব্যবসার PAN নম্বর লিখুন (না থাকলে SKIP)।", _native_pan_validator, required=False),
+            _nf("aadhaar_no", "Aadhaar", "১২ সংখ্যার Aadhaar নম্বর লিখুন (না থাকলে SKIP)।", _native_aadhaar_validator, required=False),
             _nf("email", "Login ID", "আপনার Partner Login ID (username) কী হবে? ফাঁকা জায়গা ছাড়া লিখুন।", _native_login_id_validator),
             _nf("address", "ঠিকানা", "ব্যবসার ঠিকানা লিখুন (দোকান নং, রাস্তা, এলাকা)।", _native_text_validator("ঠিকানা", 3, 2000)),
             _nf("state", "রাজ্য", "রাজ্যের নাম লিখুন, যেমন West Bengal।", _native_state_validator),
@@ -3097,8 +3169,8 @@ def _native_fields(role: str) -> list[dict]:
         _nf("district", "জেলা", "জেলার নাম লিখুন।", _native_text_validator("জেলা"), required=False),
         _nf("city", "শহর", "শহর/গ্রামের নাম লিখুন।", _native_text_validator("শহর")),
         _nf("pincode", "Pincode", "Pincode লিখুন (৬ সংখ্যা)।", _native_pincode_validator),
-        _nf("pan_no", "PAN", "আপনার PAN নম্বর লিখুন (যেমন ABCDE1234F)।", _native_pan_validator),
-        _nf("aadhaar_no", "Aadhaar", "আপনার ১২ সংখ্যার Aadhaar নম্বর লিখুন।", _native_aadhaar_validator),
+        _nf("pan_no", "PAN", "আপনার PAN নম্বর লিখুন (না থাকলে SKIP)।", _native_pan_validator, required=False),
+        _nf("aadhaar_no", "Aadhaar", "১২ সংখ্যার Aadhaar নম্বর লিখুন (না থাকলে SKIP)।", _native_aadhaar_validator, required=False),
         _nf("_want_emergency", "Emergency contact", "Emergency contact যোগ করবেন? YES লিখুন, না হলে SKIP।", _native_gate_validator, required=False, gate=True),
         _nf("emergency_contact_name", "Emergency contact নাম", "Emergency contact-এর নাম লিখুন।", _native_text_validator("নাম"), when=wants_emergency),
         _nf("emergency_contact_phone", "Emergency contact ফোন", "Emergency contact-এর ফোন নম্বর লিখুন।", _native_phone_field_validator, when=wants_emergency),

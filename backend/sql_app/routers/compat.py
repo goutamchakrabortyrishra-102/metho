@@ -1,9 +1,12 @@
 import uuid
+import calendar
+import hashlib
 from types import SimpleNamespace
 import base64
 import hashlib
 import hmac
 from datetime import datetime, timedelta, timezone
+from zoneinfo import ZoneInfo
 from io import BytesIO
 from pathlib import Path
 import json
@@ -31,7 +34,7 @@ from ..models import AppSetting, AssociatePartner, CRMLead, CRMLeadActivity, Fin
 from ..security import hash_password, verify_password
 from ..storage import UPLOADED_OBJECTS_DIR
 from ..google_search import search_web_context
-from .auth import ADMIN_LOGIN_ID, DEFAULT_ADMIN_SPONSOR_ID, _member_identity_setting_key, _normalize_member_pan, _normalize_member_phone, get_current_user, get_current_user_optional
+from .auth import ADMIN_LOGIN_ID, DEFAULT_ADMIN_SPONSOR_ID, _global_pan_identity_key, _member_identity_setting_key, _normalize_member_pan, _normalize_member_phone, _pan_exists_any_role, get_current_user, get_current_user_optional
 from .settings import load_settings, save_settings
 
 router = APIRouter(prefix="/api", tags=["compat"])
@@ -767,6 +770,8 @@ USER_WALLET_DEFAULTS = {
     "leader_reward_credited": 0.0,
     "mps_fund_payout": 0.0,
 }
+IST = ZoneInfo("Asia/Kolkata")
+USER_WALLET_EARNINGS_PREFIX = "user_wallet_earning:"
 
 
 def _load_json_setting(db: Session, key: str, default):
@@ -799,6 +804,308 @@ def _save_user_wallet(db: Session, user_id: str, wallet: dict) -> dict:
     normalized = {key: round(float(wallet.get(key) or 0), 2) for key in USER_WALLET_DEFAULTS}
     _save_json_setting(db, _user_wallet_key(user_id), normalized)
     return normalized
+
+
+def _user_wallet_earning_key(user_id: str, reference_id: str) -> str:
+    reference_hash = hashlib.sha256(str(reference_id or "").encode("utf-8")).hexdigest()
+    return f"{USER_WALLET_EARNINGS_PREFIX}{user_id}:{reference_hash}"
+
+
+def _user_kyc_values(db: Session, user: User) -> tuple[str, str]:
+    role = str(user.role or "").lower()
+    if role == "member":
+        profile = _load_user_profile_details(db, user.id)
+        return profile["pan_no"], profile["aadhaar_no"]
+    if role == "rider":
+        profile = _load_json_setting(db, f"rider_profile:{user.id}", {})
+        return str(profile.get("pan_no") or "").strip().upper(), str(profile.get("aadhaar_no") or "").strip()
+    if role == "partner":
+        partner = db.query(AssociatePartner).filter(AssociatePartner.email == user.email).first()
+        requests = db.query(PartnerRequest).filter(PartnerRequest.email == user.email).order_by(PartnerRequest.created_at.desc()).all()
+        aadhaar = ""
+        for request_row in requests:
+            doc = _load_json_setting(db, f"partner_req_kyc:{request_row.id}", {})
+            aadhaar = str(doc.get("aadhaar_no") or "").strip()
+            if aadhaar:
+                break
+        return str(partner.gst_no or "").strip().upper() if partner else "", aadhaar
+    return "", ""
+
+
+def _user_kyc_complete(db: Session, user: User) -> bool:
+    pan, aadhaar = _user_kyc_values(db, user)
+    return bool(re.fullmatch(r"[A-Z]{5}[0-9]{4}[A-Z]", pan) and re.fullmatch(r"\d{12}", aadhaar))
+
+
+def _mask_kyc_value(value: str) -> str:
+    normalized = str(value or "").strip()
+    return f"{'*' * max(0, len(normalized) - 4)}{normalized[-4:]}" if normalized else ""
+
+
+def _set_user_kyc_values(db: Session, user: User, pan: str, aadhaar: str) -> None:
+    role = str(user.role or "").lower()
+    from .auth import _global_pan_identity_key
+    current_pan, _ = _user_kyc_values(db, user)
+    owned_request_ids = {
+        row.id for row in db.query(PartnerRequest).filter(PartnerRequest.email == user.email).all()
+    } if role == "partner" else set()
+    if current_pan and current_pan != pan:
+        old_marker = db.query(AppSetting).filter(AppSetting.key == _global_pan_identity_key(current_pan)).first()
+        if old_marker:
+            try:
+                old_owner = json.loads(old_marker.value_json or "{}")
+            except Exception:
+                old_owner = {}
+            if str(old_owner.get("user_id") or "") == str(user.id) or str(old_owner.get("partner_request_id") or "") in owned_request_ids:
+                db.delete(old_marker)
+    marker_key = _global_pan_identity_key(pan)
+    marker = db.query(AppSetting).filter(AppSetting.key == marker_key).first()
+    if marker:
+        try:
+            marker_doc = json.loads(marker.value_json or "{}")
+        except Exception:
+            marker_doc = {}
+        marker_owner = str(marker_doc.get("user_id") or "")
+        marker_request = str(marker_doc.get("partner_request_id") or "")
+        if marker_owner not in {"", str(user.id)} and marker_request not in owned_request_ids:
+            raise HTTPException(status_code=409, detail="This PAN is already linked to another account")
+        marker_doc.update({"user_id": user.id, "role": role, "kyc_completed_at": now_iso()})
+        marker.value_json = json.dumps(marker_doc)
+        marker.updated_at = datetime.now(timezone.utc)
+    else:
+        db.add(AppSetting(key=marker_key, value_json=json.dumps({"user_id": user.id, "role": role, "kyc_completed_at": now_iso()}), updated_at=datetime.now(timezone.utc)))
+    if role == "member":
+        profile = _load_user_profile_details(db, user.id)
+        old_pan = profile.get("pan_no") or ""
+        profile["pan_no"] = pan
+        profile["aadhaar_no"] = aadhaar
+        _save_user_profile_details(db, user.id, profile)
+        old_key = _member_identity_setting_key("pan", old_pan) if old_pan else ""
+        if old_key and old_pan != pan:
+            existing = db.query(AppSetting).filter(AppSetting.key == old_key).first()
+            if existing:
+                try:
+                    owner = json.loads(existing.value_json or "{}").get("user_id")
+                except Exception:
+                    owner = None
+                if str(owner or "") == str(user.id):
+                    db.delete(existing)
+        identity_key = _member_identity_setting_key("pan", pan)
+        identity_row = db.query(AppSetting).filter(AppSetting.key == identity_key).first()
+        identity_value = json.dumps({"user_id": user.id, "registered_at": now_iso()})
+        if identity_row:
+            identity_row.value_json = identity_value
+            identity_row.updated_at = datetime.now(timezone.utc)
+        else:
+            db.add(AppSetting(key=identity_key, value_json=identity_value, updated_at=datetime.now(timezone.utc)))
+    elif role == "rider":
+        profile = _load_json_setting(db, f"rider_profile:{user.id}", {})
+        profile.update({"pan_no": pan, "aadhaar_no": aadhaar})
+        _save_json_setting(db, f"rider_profile:{user.id}", profile)
+    elif role == "partner":
+        partner = db.query(AssociatePartner).filter(AssociatePartner.email == user.email).first()
+        if partner:
+            partner.gst_no = pan
+        requests = db.query(PartnerRequest).filter(PartnerRequest.email == user.email, PartnerRequest.status.in_(["pending", "approved"])).all()
+        for request_row in requests:
+            request_row.gst_no = pan
+            key = f"partner_req_kyc:{request_row.id}"
+            doc = _load_json_setting(db, key, {})
+            doc.update({"pan_no": pan, "aadhaar_no": aadhaar, "updated_at": now_iso()})
+            _save_json_setting(db, key, doc)
+        if not partner and not requests:
+            raise HTTPException(status_code=404, detail="Partner application not found")
+    else:
+        raise HTTPException(status_code=400, detail="KYC is not supported for this account role")
+    _save_json_setting(db, f"kyc_state:{role}:{user.id}", {"status": "complete", "completed_at": now_iso()})
+
+
+def _activate_pending_wallet_earnings(db: Session, user: User) -> None:
+    rows = db.query(AppSetting).filter(AppSetting.key.like(f"{USER_WALLET_EARNINGS_PREFIX}{user.id}:%")).all()
+    for row in rows:
+        try:
+            earning = json.loads(row.value_json or "{}")
+        except Exception:
+            continue
+        if earning.get("status") != "pending_kyc":
+            continue
+        earning["status"] = "eligible"
+        earning["kyc_completed_at"] = now_iso()
+        row.value_json = json.dumps(earning)
+        row.updated_at = datetime.now(timezone.utc)
+
+
+def _record_user_wallet_earning(db: Session, user_id: str, amount: float, source: str, reference_id: str, posted_at: datetime | None = None) -> None:
+    credit = round(float(amount or 0), 2)
+    if credit <= 0 or not str(reference_id or "").strip():
+        return
+    posted_at = posted_at or datetime.now(timezone.utc)
+    if posted_at.tzinfo is None:
+        posted_at = posted_at.replace(tzinfo=timezone.utc)
+    posted_at_ist = posted_at.astimezone(IST)
+    settings = load_settings(db)
+    start_date = str(settings.get("kyc_reward_rule_start_date") or "2026-10-10").strip()
+    if start_date and posted_at_ist.date() < datetime.strptime(start_date, "%Y-%m-%d").date():
+        return
+    key = _user_wallet_earning_key(user_id, reference_id)
+    if db.query(AppSetting).filter(AppSetting.key == key).first():
+        return
+    user = db.query(User).filter(User.id == user_id).first()
+    status = "eligible" if user and _user_kyc_complete(db, user) else "pending_kyc"
+    db.add(AppSetting(
+        key=key,
+        value_json=json.dumps({
+            "user_id": user_id,
+            "reference_id": reference_id,
+            "source": source,
+            "amount": credit,
+            "month": posted_at_ist.strftime("%Y-%m"),
+            "credited_at": posted_at_ist.isoformat(),
+            "status": status,
+        }),
+        updated_at=datetime.now(timezone.utc),
+    ))
+
+
+def process_due_kyc_forfeitures(db: Session, now: datetime | None = None, dry_run: bool = False) -> dict:
+    current = now or datetime.now(timezone.utc)
+    if current.tzinfo is None:
+        current = current.replace(tzinfo=timezone.utc)
+    current = current.astimezone(IST)
+    settings = load_settings(db)
+    if not dry_run and not bool(settings.get("kyc_reward_forfeiture_enabled")):
+        return {"dry_run": False, "disabled": True, "processed": 0, "forfeited": []}
+    grace_days = max(0, int(settings.get("kyc_reward_grace_days") or 0))
+    start_date = str(settings.get("kyc_reward_rule_start_date") or "2026-10-10").strip()
+    effective = datetime.strptime(start_date, "%Y-%m-%d").date() if start_date else datetime.min.date()
+    affected = []
+    earning_rows = db.query(AppSetting).filter(AppSetting.key.like(f"{USER_WALLET_EARNINGS_PREFIX}%")).all()
+    for candidate in earning_rows:
+        row = db.query(AppSetting).filter(AppSetting.key == candidate.key).with_for_update().populate_existing().first()
+        if not row:
+            continue
+        try:
+            earning = json.loads(row.value_json or "{}")
+        except Exception:
+            continue
+        if earning.get("status") != "pending_kyc":
+            continue
+        try:
+            year, month = (int(part) for part in str(earning.get("month") or "").split("-", 1))
+            month_end = datetime(year, month, calendar.monthrange(year, month)[1], 23, 59, 59, 999999, tzinfo=IST)
+        except (TypeError, ValueError):
+            continue
+        if month_end.date() < effective or current <= month_end + timedelta(days=grace_days):
+            continue
+        user_id = str(earning.get("user_id") or "")
+        user = db.query(User).filter(User.id == user_id).first()
+        if not user or _user_kyc_complete(db, user):
+            if user and not dry_run:
+                earning["status"] = "eligible"
+                row.value_json = json.dumps(earning)
+            continue
+        amount = round(float(earning.get("amount") or 0), 2)
+        affected.append({"user_id": user_id, "month": earning["month"], "amount": amount, "reference_id": earning.get("reference_id", "")})
+        if dry_run:
+            continue
+        wallet_row = db.query(AppSetting).filter(AppSetting.key == _user_wallet_key(user_id)).with_for_update().first()
+        wallet = _load_user_wallet(db, user_id)
+        wallet["balance"] = round(max(0.0, wallet["balance"] - amount), 2)
+        _save_user_wallet(db, user_id, wallet)
+        earning["status"] = "forfeited_kyc"
+        earning["forfeited_at"] = current.isoformat()
+        row.value_json = json.dumps(earning)
+        row.updated_at = datetime.now(timezone.utc)
+        audit_id = hashlib.sha256(row.key.encode("utf-8")).hexdigest()
+        db.add(AppSetting(
+            key=f"kyc_reward_forfeiture_log:{audit_id}",
+            value_json=json.dumps({"user_id": user_id, "amount": amount, "month": earning.get("month"), "reference_id": earning.get("reference_id"), "status": "forfeited_kyc", "processed_at": current.isoformat()}),
+            updated_at=datetime.now(timezone.utc),
+        ))
+        if wallet_row:
+            wallet_row.updated_at = datetime.now(timezone.utc)
+        db.commit()
+    return {"dry_run": dry_run, "processed": len(affected), "forfeited": affected}
+
+
+@router.post("/admin/kyc-rewards/forfeiture-run")
+def admin_kyc_forfeiture_run(payload: dict | None = None, db: Session = Depends(get_db), current_user=Depends(get_current_user)):
+    _require_admin_user(current_user)
+    dry_run = bool((payload or {}).get("dry_run", True))
+    result = process_due_kyc_forfeitures(db, dry_run=dry_run)
+    if not dry_run and result.get("disabled"):
+        raise HTTPException(status_code=409, detail="Enable KYC reward forfeiture in Settings after reviewing a dry-run")
+    if dry_run:
+        return result
+    return result
+
+
+@router.get("/admin/kyc-rewards/accounts")
+def admin_kyc_reward_accounts(db: Session = Depends(get_db), current_user=Depends(get_current_user)):
+    _require_admin_user(current_user)
+    users = db.query(User).filter(User.role.in_(["member", "partner", "rider"])).order_by(User.created_at.desc()).all()
+    records = []
+    for user in users:
+        if _user_kyc_complete(db, user):
+            continue
+        pending = 0.0
+        forfeited = 0.0
+        forfeiture_items = []
+        earning_rows = db.query(AppSetting).filter(AppSetting.key.like(f"{USER_WALLET_EARNINGS_PREFIX}{user.id}:%")).all()
+        for row in earning_rows:
+            try:
+                earning = json.loads(row.value_json or "{}")
+            except Exception:
+                continue
+            amount = round(float(earning.get("amount") or 0), 2)
+            if earning.get("status") == "pending_kyc":
+                pending += amount
+            elif earning.get("status") == "forfeited_kyc":
+                forfeited += amount
+                forfeiture_items.append({"earning_id": row.key.rsplit(":", 1)[-1], "month": earning.get("month"), "amount": amount, "status": earning.get("status")})
+        wallet = _load_user_wallet(db, user.id) if user.role == "member" else {"balance": 0.0}
+        records.append({
+            "user_id": user.id,
+            "name": user.name,
+            "role": user.role,
+            "wallet_balance": round(float(wallet.get("balance") or 0), 2),
+            "pending_kyc_rewards": round(pending, 2),
+            "forfeited_kyc_rewards": round(forfeited, 2),
+            "forfeitures": forfeiture_items,
+        })
+    return records
+
+
+@router.post("/admin/kyc-rewards/forfeitures/{user_id}/{earning_id}/restore")
+def admin_restore_kyc_forfeiture(user_id: str, earning_id: str, payload: dict, db: Session = Depends(get_db), current_user=Depends(get_current_user)):
+    _require_admin_user(current_user)
+    reason = str((payload or {}).get("reason") or "").strip()
+    if len(reason) < 5:
+        raise HTTPException(status_code=400, detail="A reason of at least 5 characters is required")
+    key = f"{USER_WALLET_EARNINGS_PREFIX}{user_id}:{earning_id}"
+    row = db.query(AppSetting).filter(AppSetting.key == key).with_for_update().first()
+    if not row:
+        raise HTTPException(status_code=404, detail="Forfeited reward record not found")
+    try:
+        earning = json.loads(row.value_json or "{}")
+    except Exception:
+        earning = {}
+    if earning.get("status") != "forfeited_kyc":
+        raise HTTPException(status_code=409, detail="Only a forfeited KYC reward can be restored")
+    user = db.query(User).filter(User.id == user_id).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+    amount = round(float(earning.get("amount") or 0), 2)
+    wallet = _load_user_wallet(db, user_id)
+    wallet["balance"] = round(wallet["balance"] + amount, 2)
+    _save_user_wallet(db, user_id, wallet)
+    earning.update({"status": "restored_kyc_override", "restored_at": now_iso(), "restored_by": current_user.id, "restore_reason": reason})
+    row.value_json = json.dumps(earning)
+    row.updated_at = datetime.now(timezone.utc)
+    audit_key = f"kyc_forfeiture_override:{earning_id}"
+    db.add(AppSetting(key=audit_key, value_json=json.dumps({"user_id": user_id, "amount": amount, "reason": reason, "actor_user_id": current_user.id, "created_at": now_iso()}), updated_at=datetime.now(timezone.utc)))
+    db.commit()
+    return {"ok": True, "user_id": user_id, "amount_restored": amount, "status": earning["status"]}
 
 
 def _member_purchase_active(db: Session, user_id: str) -> bool:
@@ -1052,6 +1359,7 @@ def _settle_completed_smart_cycles(db: Session, user_id: str, now: datetime | No
             wallet["total_bonus"] += commission
             wallet["member_reward_credited"] += commission
             _save_user_wallet(db, user_id, wallet)
+            _record_user_wallet_earning(db, user_id, commission, "smart_cycle", f"smart-cycle:{user_id}:{cycle_number}")
             relation = db.query(UserReferral).filter(UserReferral.user_id == user_id).first()
             if relation:
                 match_paid = round(commission * leader_match_percent / 100.0, 2)
@@ -1061,6 +1369,7 @@ def _settle_completed_smart_cycles(db: Session, user_id: str, now: datetime | No
                 sponsor_wallet["total_bonus"] += match_paid
                 sponsor_wallet["leader_reward_credited"] += match_paid
                 _save_user_wallet(db, relation.sponsor_user_id, sponsor_wallet)
+                _record_user_wallet_earning(db, relation.sponsor_user_id, match_paid, "leader_match", f"leader-match:{user_id}:{cycle_number}:{relation.sponsor_user_id}")
                 sponsor_matches = _load_json_setting(db, _smart_cycle_match_history_key(relation.sponsor_user_id), [])
                 sponsor_matches.insert(0, {
                     "from_member_id": user_id,
@@ -3772,7 +4081,7 @@ def dashboard_overview(db: Session = Depends(get_db), current_user=Depends(get_c
     direct_count = db.query(UserReferral).filter(UserReferral.sponsor_user_id == current_user.id).count()
     orders_count = len(_approved_member_purchases(db, current_user.id))
     return {
-        "kyc_status": "approved",
+        "kyc_status": "complete" if _user_kyc_complete(db, current_user) else "pending",
         "rank": _sql_member_rank(db, current_user.id),
         "wallet_balance": wallet_state["balance"],
         "total_income": wallet_state["total_income"],
@@ -3848,6 +4157,8 @@ def wallet_monthly_projection(db: Session = Depends(get_db), current_user=Depend
 
 @router.post("/wallet/withdraw")
 def wallet_withdraw(payload: dict, db: Session = Depends(get_db), current_user=Depends(get_current_user)):
+    if not _user_kyc_complete(db, current_user):
+        raise HTTPException(status_code=403, detail="Complete PAN and Aadhaar KYC before withdrawing commission or rewards")
     gross_amount = round(float(payload.get("amount") or 0), 2)
     if gross_amount <= 0:
         raise HTTPException(status_code=400, detail="Withdrawal amount must be greater than zero")
@@ -3918,6 +4229,7 @@ def wallet_statement_pdf(current_user=Depends(get_current_user)):
 
 @router.get("/members")
 def members(db: Session = Depends(get_db), current_user=Depends(get_current_user)):
+    _require_admin_user(current_user)
     rows = db.query(User).filter(User.role == "member").order_by(User.created_at.desc()).limit(200).all()
     out = []
     for u in rows:
@@ -3931,14 +4243,14 @@ def members(db: Session = Depends(get_db), current_user=Depends(get_current_user
                 "member_code": member_code_for_user(u.id),
                 "sponsor_code": _sponsor_code_for_user(db, u.id),
                 "dob": extras.get("dob") or "",
-                "pan_no": extras.get("pan_no") or "",
-                "aadhaar_no": extras.get("aadhaar_no") or "",
+                "pan_no": _mask_kyc_value(extras.get("pan_no") or ""),
+                "aadhaar_no": _mask_kyc_value(extras.get("aadhaar_no") or ""),
                 "address": extras.get("address") or "",
                 "city": extras.get("city") or "",
                 "state": extras.get("state") or "",
                 "pincode": extras.get("pincode") or "",
                 "rank": _sql_member_rank(db, u.id),
-                "kyc_status": "approved",
+                "kyc_status": "complete" if _user_kyc_complete(db, u) else "pending",
                 "role": u.role,
                 "active": u.is_active,
                 "purchase_active": _member_purchase_active(db, u.id),
@@ -3966,8 +4278,8 @@ def admin_users(role: str | None = None, db: Session = Depends(get_db), current_
                 "member_code": member_code_for_user(user.id),
                 "sponsor_code": _sponsor_code_for_user(db, user.id),
                 "dob": extras.get("dob") or "",
-                "pan_no": extras.get("pan_no") or "",
-                "aadhaar_no": extras.get("aadhaar_no") or "",
+                "pan_no": _mask_kyc_value(extras.get("pan_no") or ""),
+                "aadhaar_no": _mask_kyc_value(extras.get("aadhaar_no") or ""),
                 "address": extras.get("address") or "",
                 "city": extras.get("city") or "",
                 "state": extras.get("state") or "",
@@ -4081,6 +4393,8 @@ def admin_update_user(user_id: str, payload: dict, db: Session = Depends(get_db)
         current_profile = _load_user_profile_details(db, user.id)
         old_pan = current_profile.get("pan_no") or ""
         if next_pan:
+            if next_pan != old_pan and _pan_exists_any_role(db, next_pan):
+                raise HTTPException(status_code=409, detail="PAN number already belongs to another account")
             identity_owner = db.query(AppSetting).filter(AppSetting.key == _member_identity_setting_key("pan", next_pan)).first()
             if identity_owner and user.id not in str(identity_owner.value_json or ""):
                 raise HTTPException(status_code=409, detail="PAN number already belongs to another member")
@@ -4094,10 +4408,22 @@ def admin_update_user(user_id: str, payload: dict, db: Session = Depends(get_db)
                         raise HTTPException(status_code=409, detail="PAN number already belongs to another member")
         if old_pan and old_pan != next_pan:
             db.query(AppSetting).filter(AppSetting.key == _member_identity_setting_key("pan", old_pan)).delete(synchronize_session=False)
+            old_marker = db.query(AppSetting).filter(AppSetting.key == _global_pan_identity_key(old_pan)).first()
+            if old_marker:
+                try:
+                    marker_doc = json.loads(old_marker.value_json or "{}")
+                except Exception:
+                    marker_doc = {}
+                if str(marker_doc.get("user_id") or "") == str(user.id):
+                    db.delete(old_marker)
         if next_pan:
             row = db.query(AppSetting).filter(AppSetting.key == _member_identity_setting_key("pan", next_pan)).first()
             if not row:
                 db.add(AppSetting(key=_member_identity_setting_key("pan", next_pan), value_json=json.dumps({"user_id": user.id})))
+            marker_key = _global_pan_identity_key(next_pan)
+            marker = db.query(AppSetting).filter(AppSetting.key == marker_key).first()
+            if not marker:
+                db.add(AppSetting(key=marker_key, value_json=json.dumps({"user_id": user.id, "role": "member"}), updated_at=datetime.now(timezone.utc)))
     if user.role == "member" and payload.get("phone") is not None:
         new_phone = _normalize_member_phone(payload.get("phone"))
         if old_phone != new_phone:
@@ -7973,30 +8299,31 @@ async def admin_upload_partner_metho_topup_qr(partner_id: str, file: UploadFile 
 
 @router.get("/kyc/me")
 def kyc_me(db: Session = Depends(get_db), current_user=Depends(get_current_user)):
-    row = db.query(AppSetting).filter(AppSetting.key == f"member_profile:{current_user.id}").first()
-    try:
-        profile = json.loads(row.value_json or "{}") if row else {}
-    except Exception:
-        profile = {}
-    return {"status": "approved", "submitted_at": now_iso(), "nid_number": str(profile.get("nid_number") or ""), "address": str(profile.get("address") or "")}
+    pan, aadhaar = _user_kyc_values(db, current_user)
+    complete = bool(re.fullmatch(r"[A-Z]{5}[0-9]{4}[A-Z]", pan) and re.fullmatch(r"\d{12}", aadhaar))
+    return {"status": "complete" if complete else "pending", "pan_no": _mask_kyc_value(pan), "aadhaar_no": _mask_kyc_value(aadhaar)}
 
 
 @router.post("/kyc/submit")
 def kyc_submit(payload: dict, db: Session = Depends(get_db), current_user=Depends(get_current_user)):
-    key = f"member_profile:{current_user.id}"
-    row = db.query(AppSetting).filter(AppSetting.key == key).first()
-    profile = {
-        "nid_number": str((payload or {}).get("nid_number") or "").strip(),
-        "address": str((payload or {}).get("address") or "").strip(),
-        "date_of_birth": str((payload or {}).get("date_of_birth") or "").strip(),
-    }
-    if not row:
-        db.add(AppSetting(key=key, value_json=json.dumps(profile), updated_at=datetime.now(timezone.utc)))
-    else:
-        row.value_json = json.dumps(profile)
-        row.updated_at = datetime.now(timezone.utc)
-    db.commit()
-    return {"ok": True, "status": "pending", "message": "KYC submitted", "kyc": {"status": "pending", **profile}}
+    pan = _normalize_member_pan((payload or {}).get("pan_no"))
+    aadhaar = re.sub(r"\D", "", str((payload or {}).get("aadhaar_no") or ""))
+    if not re.fullmatch(r"[A-Z]{5}[0-9]{4}[A-Z]", pan):
+        raise HTTPException(status_code=400, detail="Enter a valid PAN in format ABCDE1234F")
+    if not re.fullmatch(r"\d{12}", aadhaar):
+        raise HTTPException(status_code=400, detail="Aadhaar must contain exactly 12 digits")
+    current_pan, _ = _user_kyc_values(db, current_user)
+    if pan != current_pan and _pan_exists_any_role(db, pan):
+        raise HTTPException(status_code=409, detail="This PAN is already linked to another account")
+    try:
+        _set_user_kyc_values(db, current_user, pan, aadhaar)
+        process_due_kyc_forfeitures(db)
+        _activate_pending_wallet_earnings(db, current_user)
+        db.commit()
+    except IntegrityError as exc:
+        db.rollback()
+        raise HTTPException(status_code=409, detail="This PAN is already linked to another account") from exc
+    return {"ok": True, "status": "complete", "message": "KYC completed", "kyc": {"status": "complete", "pan_no": _mask_kyc_value(pan), "aadhaar_no": _mask_kyc_value(aadhaar)}}
 
 
 @router.get("/admin/system-health")
@@ -8548,6 +8875,18 @@ def admin_partner_request_approve(request_id: str, payload: dict | None = None, 
 
     partner_code = str(getattr(partner, "partner_code", "") or "")
 
+    try:
+        from ..whatsapp_ai import enqueue_whatsapp_message
+        enqueue_whatsapp_message(
+            db,
+            f"registration-approved-id:partner:{req.id}",
+            req.whatsapp_no or req.phone,
+            f"Your Partner application is approved. Your Partner ID is {partner_code}.",
+            activity_type="registration_approved_id",
+        )
+    except Exception:
+        logger.exception("Partner approval ID notice could not be queued: request_id=%s", req.id)
+
     if cred_row and isinstance(cred_doc, dict):
         cred_doc["password"] = ""
         cred_doc["approved_at"] = now_iso()
@@ -8607,6 +8946,11 @@ def admin_mps_claims(current_user=Depends(get_current_user)):
 @router.post("/admin/mps-claims")
 def admin_mps_claims_create(payload: dict, db: Session = Depends(get_db), current_user=Depends(get_current_user)):
     _require_admin_user(current_user)
+    target_user = db.query(User).filter(User.id == str((payload or {}).get("user_id") or "")).first()
+    if not target_user:
+        raise HTTPException(status_code=404, detail="MPS claimant not found")
+    if not _user_kyc_complete(db, target_user):
+        raise HTTPException(status_code=403, detail="Complete PAN and Aadhaar KYC before claiming MPS cash benefit")
     settings = load_settings(db)
     amount = float(payload.get("amount") or 0)
     max_claim = float(settings.get("mps_max_claim_amount") or 0)
@@ -8635,6 +8979,9 @@ def admin_mps_claims_approve(claim_id: str, db: Session = Depends(get_db), curre
         if c["id"] == claim_id:
             if c.get("status") != "pending":
                 raise HTTPException(status_code=400, detail="Claim is already decided")
+            claimant = db.query(User).filter(User.id == str(c.get("user_id") or "")).first()
+            if not claimant or not _user_kyc_complete(db, claimant):
+                raise HTTPException(status_code=403, detail="Complete PAN and Aadhaar KYC before approving MPS cash benefit")
             if float(c.get("amount") or 0) > float(fund.get("available_balance") or 0):
                 raise HTTPException(status_code=400, detail="Insufficient MPS fund balance")
             c["status"] = "approved"
@@ -8739,10 +9086,13 @@ def settlement_execute(year: int, month: int, db: Session = Depends(get_db), cur
         if line in preview["member_settlement"]["lines"]:
             wallet_state["member_reward_credited"] += amount
             credited_member += amount
+            earning_source = "monthly_member_reward"
         else:
             wallet_state["leader_reward_credited"] += amount
             credited_leader += amount
+            earning_source = "monthly_leader_reward"
         _save_user_wallet(db, line["user_id"], wallet_state)
+        _record_user_wallet_earning(db, line["user_id"], amount, earning_source, f"sql-settlement:{period}:{earning_source}:{line['user_id']}")
     _save_json_setting(db, key, {"settled": True, "period": period, "member_reward": credited_member, "leader_reward": credited_leader})
     db.commit()
     return {"ok": True, "period": period, "status": "completed", "member_reward": credited_member, "leader_reward": credited_leader}
@@ -9055,6 +9405,7 @@ def settings_update(payload: dict, db: Session = Depends(get_db), current_user=D
             "customer_order_otp_ttl_seconds",
             "customer_order_otp_length",
             "customer_order_otp_max_attempts",
+            "kyc_reward_grace_days",
             "leader_min_direct_members",
             "leader_min_active_members",
             "leader_min_personal_monthly_purchase",
@@ -9094,6 +9445,11 @@ def settings_update(payload: dict, db: Session = Depends(get_db), current_user=D
             payload["customer_order_access_secret"] = str(payload.get("customer_order_access_secret") or "").strip()
         if payload.get("smart_cycle_days") is not None and int(payload.get("smart_cycle_days") or 0) < 1:
             raise HTTPException(status_code=400, detail="smart_cycle_days must be >= 1")
+        if payload.get("kyc_reward_rule_start_date") is not None and payload.get("kyc_reward_rule_start_date"):
+            try:
+                datetime.strptime(str(payload["kyc_reward_rule_start_date"]), "%Y-%m-%d")
+            except ValueError as exc:
+                raise HTTPException(status_code=400, detail="kyc_reward_rule_start_date must use YYYY-MM-DD") from exc
         current = load_settings(db)
         merged = {**current, **payload}
         if float(merged.get("partner_delivery_min_charge") or 0) > float(merged.get("partner_delivery_max_charge") or 0):
@@ -9101,6 +9457,21 @@ def settings_update(payload: dict, db: Session = Depends(get_db), current_user=D
         total_split = sum(float(merged.get(key) or 0) for key in split_keys)
         if abs(total_split - 100.0) > 0.01:
             raise HTTPException(status_code=400, detail=f"Commission split must sum to 100 (got {total_split})")
+    if "welcome_letter_terms_en" in payload:
+        current_settings = load_settings(db)
+        next_terms = str(payload.get("welcome_letter_terms_en") or "").strip()
+        current_terms = str(current_settings.get("welcome_letter_terms_en") or "").strip()
+        current_version = str(current_settings.get("welcome_letter_terms_version") or "v1").strip()
+        if next_terms != current_terms:
+            try:
+                version_number = int(current_version.lstrip("vV")) + 1
+            except ValueError:
+                version_number = 2
+            payload["welcome_letter_terms_version"] = f"v{version_number}"
+        else:
+            payload["welcome_letter_terms_version"] = current_version
+    else:
+        payload.pop("welcome_letter_terms_version", None)
     return save_settings(db, payload)
 
 

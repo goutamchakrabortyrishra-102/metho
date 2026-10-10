@@ -1,16 +1,18 @@
 import uuid
 import json
 import logging
+import re
 from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends, HTTPException
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from ..database import get_db
 from ..crm_automation import record_lifecycle_event_by_phone
 from ..crm_identity import link_lead_to_registration
 from ..models import AppSetting, AssociatePartner, PartnerRequest, User
-from .auth import member_code_for_user, resolve_registration_sponsor
+from .auth import _global_pan_identity_key, _pan_exists_any_role, member_code_for_user, resolve_registration_sponsor
 
 router = APIRouter(prefix="/api", tags=["partner-public"])
 logger = logging.getLogger(__name__)
@@ -209,22 +211,21 @@ def _compose_partner_description(payload: dict, sector: str) -> str:
 
 def _queue_partner_registration_welcome(db: Session, request: PartnerRequest) -> None:
     try:
-        from ..whatsapp_ai import enqueue_whatsapp_message
-
         name = str(request.contact_person or request.business_name or "Partner").strip()
-        text = (
-            f"🌿 Welcome to METHO AAY-UPAY™! 🎉\n\nDear {name},\n\n"
-            "Congratulations! Your Partner application has been successfully submitted. "
-            "Welcome to the METHO AAY-UPAY™ family! 🤝\n\n"
-            "Your application is pending admin approval. Our team will guide you through the next steps.\n\n"
-            "METHO AAY-UPAY™ — Better People | Stronger Communities | Brighter Tomorrow 🌿"
-        )
-        enqueue_whatsapp_message(
+        from ..whatsapp_cloud import queue_registration_welcome_letter
+        kyc_row = db.query(AppSetting).filter(AppSetting.key == f"partner_req_kyc:{request.id}").first()
+        try:
+            kyc = json.loads(kyc_row.value_json or "{}") if kyc_row else {}
+        except Exception:
+            kyc = {}
+        queue_registration_welcome_letter(
             db,
-            f"partner-registration-welcome:{request.id}",
             request.whatsapp_no or request.phone,
-            text,
-            activity_type="partner_registration_welcome",
+            "partner",
+            request.id,
+            name,
+            request.created_at,
+            bool(kyc.get("pan_no") and kyc.get("aadhaar_no")),
         )
     except Exception:
         db.rollback()
@@ -250,11 +251,11 @@ def partner_register(payload: dict, db: Session = Depends(get_db)):
         raise HTTPException(status_code=400, detail="Password must be at least 6 characters")
     if not phone:
         raise HTTPException(status_code=400, detail="Mobile number is required")
-    if not pan_no:
-        raise HTTPException(status_code=400, detail="PAN number is required")
-    if not aadhaar_no:
-        raise HTTPException(status_code=400, detail="Aadhaar number is required")
-    if len(aadhaar_no) != 12:
+    if pan_no and not re.fullmatch(r"[A-Z]{5}[0-9]{4}[A-Z]", pan_no):
+        raise HTTPException(status_code=400, detail="PAN number must be in format ABCDE1234F")
+    if pan_no and _pan_exists_any_role(db, pan_no):
+        raise HTTPException(status_code=400, detail="This PAN is already registered")
+    if aadhaar_no and len(aadhaar_no) != 12:
         raise HTTPException(status_code=400, detail="Aadhaar number must be 12 digits")
 
     _cleanup_orphaned_partner_registration(db, login_id, phone, pan_no)
@@ -270,14 +271,6 @@ def partner_register(payload: dict, db: Session = Depends(get_db)):
     existing_partner = db.query(AssociatePartner).filter(AssociatePartner.phone == phone).first()
     if existing_partner:
         raise HTTPException(status_code=400, detail="This mobile number is already linked to an existing shop/service account")
-
-    existing_gst_request = db.query(PartnerRequest).filter(PartnerRequest.gst_no == pan_no, PartnerRequest.status.in_(["pending", "approved"])).first()
-    if existing_gst_request:
-        raise HTTPException(status_code=400, detail="This PAN already has a shop/service registration")
-
-    existing_gst_partner = db.query(AssociatePartner).filter(AssociatePartner.gst_no == pan_no).first()
-    if existing_gst_partner:
-        raise HTTPException(status_code=400, detail="This PAN is already linked to an existing shop/service account")
 
     sponsor_user = resolve_registration_sponsor(db, payload.get("sponsor_code"))
     if sponsor_user and (
@@ -351,7 +344,19 @@ def partner_register(payload: dict, db: Session = Depends(get_db)):
             updated_at=datetime.now(timezone.utc),
         )
     )
-    db.commit()
+    if pan_no:
+        db.add(AppSetting(
+            key=_global_pan_identity_key(pan_no),
+            value_json=json.dumps({"user_id": "", "partner_request_id": request_id, "role": "partner", "registered_at": datetime.now(timezone.utc).isoformat()}),
+            updated_at=datetime.now(timezone.utc),
+        ))
+    try:
+        db.commit()
+    except IntegrityError as exc:
+        db.rollback()
+        if pan_no and _global_pan_identity_key(pan_no).lower() in str(exc).lower():
+            raise HTTPException(status_code=400, detail="This PAN is already registered") from exc
+        raise
     link_lead_to_registration(db, phone=phone, email=login_id, partner_request_id=request_id)
     db.commit()
     record_lifecycle_event_by_phone(db, phone, "partner_registration_submitted", f"Partner registration submitted: {request_id}. Admin approval is pending.", "Review partner KYC/application and guide onboarding after approval", 1)

@@ -775,8 +775,8 @@ def test_failed_website_registration_does_not_trigger_success_lifecycle(monkeypa
 
         with pytest.raises(Exception, match="PAN number"):
             register(RegisterRequest(name="Bad Member", email="MAU12345", phone=member_lead.phone, pan_no="BAD", password="secret1"), db)
-        with pytest.raises(Exception, match="PAN number is required"):
-            partner_register({"login_id": "bad-partner", "password": "secret1", "business_name": "Bad Partner", "contact_person": "Owner", "phone": partner_lead.phone, "aadhaar_no": "123456789012"}, db)
+        with pytest.raises(Exception, match="PAN number must be in format"):
+            partner_register({"login_id": "bad-partner", "password": "secret1", "business_name": "Bad Partner", "contact_person": "Owner", "phone": partner_lead.phone, "pan_no": "BAD", "aadhaar_no": "123456789012"}, db)
         with pytest.raises(Exception, match="Aadhaar"):
             rider_register(RiderRegisterRequest(name="Bad Rider", phone=rider_lead.phone, password="secret1", vehicle_type="delivery", whatsapp=rider_lead.phone, address="Road 1", pan_no="ABCDE1234F", aadhaar_no="123", agreed_to_terms=True), db)
 

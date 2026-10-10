@@ -91,8 +91,8 @@ def test_no_sponsor_for_all_roles_resolves_to_existing_admin(monkeypatch):
         monkeypatch.setattr("sql_app.routers.auth.build_welcome_pdf", lambda user: "")
         monkeypatch.setattr("sql_app.routers.auth.send_welcome_email", lambda *args: False)
         member_result = register(member_payload("MAU12345", "9876543210", "ABCDE1234F"), db)
-        partner_result = partner_register(partner_payload("partner@test.local", "9876543210", "ABCDE1234F"), db)
-        rider_result = rider_register(rider_payload("9876543210", "ABCDE1234F"), db)
+        partner_result = partner_register(partner_payload("partner@test.local", "9876543210", "BCDEF1234G"), db)
+        rider_result = rider_register(rider_payload("9876543210", "CDEFG1234H"), db)
 
         member_relation = db.query(UserReferral).filter_by(user_id=member_result["user"]["id"]).one()
         partner_request = db.query(PartnerRequest).filter_by(id=partner_result["request_id"]).one()
@@ -105,7 +105,7 @@ def test_no_sponsor_for_all_roles_resolves_to_existing_admin(monkeypatch):
         db.close()
 
 
-def test_same_mobile_and_pan_are_allowed_once_per_role(monkeypatch):
+def test_same_mobile_is_allowed_across_roles_with_distinct_pan(monkeypatch):
     db = make_session()
     try:
         add_admin(db)
@@ -113,11 +113,29 @@ def test_same_mobile_and_pan_are_allowed_once_per_role(monkeypatch):
         monkeypatch.setattr("sql_app.routers.auth.build_welcome_pdf", lambda user: "")
         monkeypatch.setattr("sql_app.routers.auth.send_welcome_email", lambda *args: False)
         register(member_payload("MAU12345", "9876543210", "ABCDE1234F"), db)
-        partner_register(partner_payload("partner@test.local", "9876543210", "ABCDE1234F"), db)
-        rider_register(rider_payload("9876543210", "ABCDE1234F"), db)
+        partner_register(partner_payload("partner@test.local", "9876543210", "BCDEF1234G"), db)
+        rider_register(rider_payload("9876543210", "CDEFG1234H"), db)
         assert db.query(User).filter(User.role == "member").count() == 1
         assert db.query(PartnerRequest).count() == 1
         assert db.query(User).filter(User.role == "rider").count() == 1
+    finally:
+        db.close()
+
+
+def test_pan_is_unique_across_roles_when_supplied(monkeypatch):
+    db = make_session()
+    try:
+        add_admin(db)
+        monkeypatch.setattr("sql_app.routers.auth.hash_password", lambda value: "hashed")
+        monkeypatch.setattr("sql_app.routers.rider.hash_password", lambda value: "hashed")
+        monkeypatch.setattr("sql_app.routers.auth.build_welcome_pdf", lambda user: "")
+        monkeypatch.setattr("sql_app.routers.auth.send_welcome_email", lambda *args: False)
+        register(member_payload("MAU12345", "9876543210", "ABCDE1234F"), db)
+
+        with pytest.raises(HTTPException, match="PAN is already registered"):
+            partner_register(partner_payload("partner@test.local", "9876543211", "ABCDE1234F"), db)
+        with pytest.raises(HTTPException, match="PAN already registered"):
+            rider_register(rider_payload("9876543212", "ABCDE1234F"), db)
     finally:
         db.close()
 
@@ -135,17 +153,59 @@ def test_same_role_duplicate_mobile_and_pan_are_rejected(monkeypatch):
         with pytest.raises(HTTPException, match="PAN number already registered"):
             register(member_payload("MAU12347", "9876543211", "ABCDE1234F"), db)
 
-        partner_register(partner_payload("partner@test.local", "9876543210", "ABCDE1234F"), db)
+        partner_register(partner_payload("partner@test.local", "9876543210", "BCDEF1234G"), db)
         with pytest.raises(HTTPException, match="mobile number already"):
-            partner_register(partner_payload("partner2@test.local", "9876543210", "BCDEF1234G"), db)
-        with pytest.raises(HTTPException, match="PAN already"):
+            partner_register(partner_payload("partner2@test.local", "9876543210", "CDEFG1234H"), db)
+        with pytest.raises(HTTPException, match="PAN is already registered"):
             partner_register(partner_payload("partner3@test.local", "9876543211", "ABCDE1234F"), db)
 
-        rider_register(rider_payload("9876543210", "ABCDE1234F"), db)
+        rider_register(rider_payload("9876543210", "DEFGH1234J"), db)
         with pytest.raises(HTTPException, match="Phone already registered"):
-            rider_register(rider_payload("9876543210", "BCDEF1234G"), db)
+            rider_register(rider_payload("9876543210", "EFGHI1234K"), db)
         with pytest.raises(HTTPException, match="PAN already registered"):
             rider_register(rider_payload("9876543211", "ABCDE1234F"), db)
+    finally:
+        db.close()
+
+
+def test_member_registration_allows_missing_kyc_without_creating_empty_pan_identity(monkeypatch):
+    db = make_session()
+    try:
+        add_admin(db)
+        monkeypatch.setattr("sql_app.routers.auth.hash_password", lambda value: "hashed")
+        monkeypatch.setattr("sql_app.routers.auth.build_welcome_pdf", lambda user: "")
+        monkeypatch.setattr("sql_app.routers.auth.send_welcome_email", lambda *args: False)
+
+        first = register(member_payload("MAU12345", "9876543210", ""), db)
+        second = register(member_payload("MAU12346", "9876543211", ""), db)
+
+        assert first["user"]["id"] == "MAU12345"
+        assert second["user"]["id"] == "MAU12346"
+        assert db.query(AppSetting).filter(AppSetting.key == "member_registration_identity:pan:").count() == 0
+        profiles = [
+            json.loads(row.value_json)
+            for row in db.query(AppSetting).filter(AppSetting.key.in_(["user_profile:MAU12345", "user_profile:MAU12346"])).all()
+        ]
+        assert all(not profile["pan_no"] and not profile["aadhaar_no"] for profile in profiles)
+    finally:
+        db.close()
+
+
+def test_partner_and_rider_registration_allow_missing_kyc(monkeypatch):
+    db = make_session()
+    try:
+        add_admin(db)
+        monkeypatch.setattr("sql_app.routers.auth.hash_password", lambda value: "hashed")
+        monkeypatch.setattr("sql_app.routers.rider.hash_password", lambda value: "hashed")
+
+        partner = partner_register(partner_payload("partner@test.local", "9876543212", "",), db)
+        rider = rider_register(rider_payload("9876543213", "").model_copy(update={"aadhaar_no": ""}), db)
+
+        partner_request = db.query(PartnerRequest).filter_by(id=partner["request_id"]).one()
+        rider_profile = json.loads(db.query(AppSetting).filter_by(key=f"rider_profile:{rider['rider']['id']}").one().value_json)
+        assert partner_request.gst_no == ""
+        assert rider_profile["pan_no"] == ""
+        assert rider_profile["aadhaar_no"] == ""
     finally:
         db.close()
 

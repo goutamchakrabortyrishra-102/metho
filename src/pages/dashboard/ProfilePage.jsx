@@ -6,13 +6,12 @@ import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
 import { resolveAssetUrl } from "@/lib/utils";
 
 export default function ProfilePage() {
   const { user } = useAuth();
   const [kyc, setKyc] = useState(null);
-  const [form, setForm] = useState({ nid_number: "", address: "", date_of_birth: "" });
+  const [form, setForm] = useState({ pan_no: "", aadhaar_no: "" });
   const [payout, setPayout] = useState({
     bank_account_holder: "",
     bank_name: "",
@@ -39,7 +38,7 @@ export default function ProfilePage() {
     setLoading(true);
     try {
       const r = await api.post("/kyc/submit", form);
-      toast.success("KYC submitted for review!");
+      toast.success("KYC completed");
       setKyc(r.data.kyc);
     } catch (err) {
       toast.error(err?.response?.data?.detail || "KYC submission failed");
@@ -128,39 +127,35 @@ export default function ProfilePage() {
             <Shield className="w-6 h-6 text-emerald-800" />
             <div>
               <h3 className="font-display font-bold text-emerald-950">KYC Verification</h3>
-              <p className="text-xs text-muted-foreground font-body">Complete your NID verification to unlock all features</p>
+              <p className="text-xs text-muted-foreground font-body">Complete PAN and Aadhaar KYC before withdrawing commissions or rewards.</p>
             </div>
             <span className={`ml-auto text-xs font-semibold px-2 py-1 rounded-full ${
-              kyc?.status === "approved" ? "bg-emerald-100 text-emerald-800" :
+              kyc?.status === "complete" ? "bg-emerald-100 text-emerald-800" :
               kyc?.status === "pending" ? "bg-amber-100 text-amber-800" :
               "bg-slate-100 text-slate-700"
             }`} data-testid="kyc-status-badge">{kyc?.status || "not_submitted"}</span>
           </div>
 
-          {kyc?.status === "approved" ? (
+          {kyc?.status === "complete" ? (
             <div className="mt-6 flex items-center gap-3 bg-emerald-50 border border-emerald-200 rounded-lg p-4">
               <CheckCircle2 className="w-6 h-6 text-emerald-700" />
               <div>
-                <p className="font-display font-bold text-emerald-900">KYC Verified</p>
-                <p className="text-sm text-emerald-800/80 font-body">All features unlocked. Happy earning!</p>
+                <p className="font-display font-bold text-emerald-900">KYC Complete</p>
+                <p className="text-sm text-emerald-800/80 font-body">PAN: {kyc.pan_no} · Aadhaar: {kyc.aadhaar_no}</p>
               </div>
             </div>
           ) : (
             <form onSubmit={submitKyc} className="mt-6 space-y-4" data-testid="kyc-form">
               <div>
-                <Label>NID Number</Label>
-                <Input required value={form.nid_number} onChange={setF("nid_number")} placeholder="13 or 17 digit NID" data-testid="kyc-nid-input" />
+                <Label>PAN</Label>
+                <Input required maxLength={10} value={form.pan_no} onChange={setF("pan_no")} placeholder="ABCDE1234F" className="uppercase" data-testid="kyc-pan-input" />
               </div>
               <div>
-                <Label>Date of Birth</Label>
-                <Input required type="date" value={form.date_of_birth} onChange={setF("date_of_birth")} data-testid="kyc-dob-input" />
-              </div>
-              <div>
-                <Label>Full Address</Label>
-                <Textarea required value={form.address} onChange={setF("address")} placeholder="Village, Thana, District, Post Code" data-testid="kyc-address-input" />
+                <Label>Aadhaar</Label>
+                <Input required inputMode="numeric" minLength={12} maxLength={12} value={form.aadhaar_no} onChange={setF("aadhaar_no")} placeholder="12-digit Aadhaar" data-testid="kyc-aadhaar-input" />
               </div>
               <Button type="submit" disabled={loading} className="bg-emerald-900 hover:bg-emerald-950 text-white rounded-full px-6" data-testid="kyc-submit-button">
-                {loading ? "Submitting..." : "Submit for Verification"}
+                {loading ? "Submitting..." : "Complete KYC"}
               </Button>
             </form>
           )}

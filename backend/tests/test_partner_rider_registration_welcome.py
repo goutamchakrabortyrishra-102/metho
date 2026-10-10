@@ -72,9 +72,14 @@ def test_partner_registration_persists_sponsor_and_queues_one_welcome():
         outbox = db.query(WhatsAppMessageOutbox).one()
         assert attribution["sponsor_user_id"] == sponsor.id
         assert attribution["sponsor_code"] == sponsor.id
-        assert outbox.dedupe_key == f"partner-registration-welcome:{result['request_id']}"
+        assert outbox.dedupe_key == f"registration-letter:partner:{result['request_id']}:v1"
         assert outbox.recipient == "9222222222"
         assert "Partner One" in outbox.message
+        assert "PAN and Aadhaar" in outbox.message
+        assert "Terms version: v1" in outbox.message
+        assert "ABCDE1234F" not in outbox.message
+        assert "123456789012" not in outbox.message
+        assert "secret1" not in outbox.message
     finally:
         db.close()
 
@@ -135,9 +140,14 @@ def test_rider_registration_persists_sponsor_and_queues_one_welcome(monkeypatch)
         outbox = db.query(WhatsAppMessageOutbox).one()
         assert _profile(db, rider.id)["sponsor_user_id"] == sponsor.id
         assert _profile(db, rider.id)["sponsor_code"] == sponsor.id
-        assert outbox.dedupe_key == f"rider-registration-welcome:{rider.id}"
+        assert outbox.dedupe_key == f"registration-letter:rider:{rider.id}:v1"
         assert outbox.recipient == "9444444444"
         assert "Rider One" in outbox.message
+        assert "PAN and Aadhaar" in outbox.message
+        assert "Terms version: v1" in outbox.message
+        assert "BCDEF1234G" not in outbox.message
+        assert "123456789012" not in outbox.message
+        assert "secret1" not in outbox.message
     finally:
         db.close()
 

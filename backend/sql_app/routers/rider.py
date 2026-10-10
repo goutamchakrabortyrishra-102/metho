@@ -1,8 +1,10 @@
 import json
 import logging
+import re
 from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends, HTTPException
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from ..database import get_db
@@ -11,7 +13,7 @@ from ..crm_identity import link_lead_to_registration
 from ..models import AppSetting, User
 from ..schemas import RiderRegisterRequest
 from ..security import hash_password
-from .auth import ADMIN_ROLES, get_current_user, member_code_for_user, resolve_registration_sponsor
+from .auth import ADMIN_ROLES, _global_pan_identity_key, _pan_exists_any_role, get_current_user, member_code_for_user, resolve_registration_sponsor
 
 router = APIRouter(prefix="/api", tags=["rider"])
 RIDER_PROFILE_PREFIX = "rider_profile:"
@@ -39,6 +41,8 @@ def _profile(db: Session, user_id: str) -> dict:
 
 def _rider_pan_exists(db: Session, pan_no: str) -> bool:
     normalized_pan = str(pan_no or "").strip().upper()
+    if not normalized_pan:
+        return False
     for row in db.query(AppSetting).filter(AppSetting.key.like(f"{RIDER_PROFILE_PREFIX}%")).all():
         try:
             profile = json.loads(row.value_json or "{}")
@@ -95,21 +99,16 @@ def _owned_rider(current_user: User, user_id: str) -> User:
 
 def _queue_rider_registration_welcome(db: Session, user: User, whatsapp: str) -> None:
     try:
-        from ..whatsapp_ai import enqueue_whatsapp_message
-
-        text = (
-            f"🌿 Welcome to METHO AAY-UPAY™! 🎉\n\nDear {user.name},\n\n"
-            "Congratulations! Your Rider registration has been successfully submitted. "
-            "Welcome to the METHO AAY-UPAY™ family! 🤝\n\n"
-            "Your registration is pending admin approval. Our team will guide you through the next steps.\n\n"
-            "METHO AAY-UPAY™ — Better People | Stronger Communities | Brighter Tomorrow 🌿"
-        )
-        enqueue_whatsapp_message(
+        from ..whatsapp_cloud import queue_registration_welcome_letter
+        profile = _profile(db, user.id)
+        queue_registration_welcome_letter(
             db,
-            f"rider-registration-welcome:{user.id}",
             whatsapp or user.phone,
-            text,
-            activity_type="rider_registration_welcome",
+            "rider",
+            user.id,
+            user.name,
+            user.created_at,
+            bool(profile.get("pan_no") and profile.get("aadhaar_no")),
         )
     except Exception:
         db.rollback()
@@ -125,9 +124,12 @@ def rider_register(payload: RiderRegisterRequest, db: Session = Depends(get_db))
         raise HTTPException(status_code=400, detail="Password must be at least 6 characters")
     if not payload.agreed_to_terms:
         raise HTTPException(status_code=400, detail="Please accept the Rider Terms & Conditions")
-    if not payload.name.strip() or not payload.address.strip() or not payload.pan_no.strip() or not aadhaar or not phone or not payload.whatsapp.strip():
-        raise HTTPException(status_code=400, detail="Name, address, PAN, Aadhaar, mobile and WhatsApp are required")
-    if len(aadhaar) != 12:
+    pan = str(payload.pan_no or "").strip().upper()
+    if not payload.name.strip() or not payload.address.strip() or not phone or not payload.whatsapp.strip():
+        raise HTTPException(status_code=400, detail="Name, address, mobile and WhatsApp are required")
+    if pan and not re.fullmatch(r"[A-Z]{5}[0-9]{4}[A-Z]", pan):
+        raise HTTPException(status_code=400, detail="PAN number must be in format ABCDE1234F")
+    if aadhaar and len(aadhaar) != 12:
         raise HTTPException(status_code=400, detail="Aadhaar must contain 12 digits")
     if len("".join(ch for ch in phone if ch.isdigit())) < 10:
         raise HTTPException(status_code=400, detail="Enter a valid mobile number")
@@ -135,7 +137,7 @@ def rider_register(payload: RiderRegisterRequest, db: Session = Depends(get_db))
         raise HTTPException(status_code=409, detail="Email already registered")
     if db.query(User).filter(User.phone == phone, User.role == "rider").first():
         raise HTTPException(status_code=409, detail="Phone already registered")
-    if _rider_pan_exists(db, payload.pan_no):
+    if pan and _pan_exists_any_role(db, pan):
         raise HTTPException(status_code=409, detail="PAN already registered")
 
     sponsor_user = resolve_registration_sponsor(db, payload.sponsor_code)
@@ -167,7 +169,7 @@ def rider_register(payload: RiderRegisterRequest, db: Session = Depends(get_db))
         "district": payload.district.strip(),
         "state": payload.state.strip(),
         "pincode": payload.pincode.strip(),
-        "pan_no": payload.pan_no.strip().upper(),
+        "pan_no": pan,
         "aadhaar_no": aadhaar,
         "emergency_contact_name": payload.emergency_contact_name.strip(),
         "emergency_contact_phone": payload.emergency_contact_phone.strip(),
@@ -183,7 +185,19 @@ def rider_register(payload: RiderRegisterRequest, db: Session = Depends(get_db))
         "sponsor_user_id": sponsor_user.id if sponsor_user else "",
         "sponsor_code": sponsor_code,
     })
-    db.commit()
+    if pan:
+        db.add(AppSetting(
+            key=_global_pan_identity_key(pan),
+            value_json=json.dumps({"user_id": user.id, "role": "rider", "registered_at": datetime.now(timezone.utc).isoformat()}),
+            updated_at=datetime.now(timezone.utc),
+        ))
+    try:
+        db.commit()
+    except IntegrityError as exc:
+        db.rollback()
+        if pan and _global_pan_identity_key(pan).lower() in str(exc).lower():
+            raise HTTPException(status_code=409, detail="PAN already registered") from exc
+        raise
     link_lead_to_registration(db, phone=phone, email=email, rider_user_id=user.id)
     db.commit()
     record_lifecycle_event_by_phone(db, phone, "rider_registration_submitted", f"Rider registration submitted: {user.id}. Admin approval is pending.", "Review rider application and guide onboarding after approval", 1)

@@ -1116,6 +1116,9 @@ def member_360(member_id: str, db: Session = Depends(get_db), current_user: User
     if not user:
         raise HTTPException(status_code=404, detail="Member not found")
 
+    from .compat import _user_kyc_complete, _user_kyc_values
+    kyc_pan, kyc_aadhaar = _user_kyc_values(db, user)
+
     sponsor = db.query(UserReferral).filter(UserReferral.user_id == user.id).first()
     sponsor_user = db.query(User).filter(User.id == sponsor.sponsor_user_id).first() if sponsor else None
 
@@ -1139,6 +1142,9 @@ def member_360(member_id: str, db: Session = Depends(get_db), current_user: User
             "email": user.email,
             "status": user.is_active,
             "join_date": _iso(user.created_at),
+            "pan_no": kyc_pan,
+            "aadhaar_no": kyc_aadhaar,
+            "kyc_status": "complete" if _user_kyc_complete(db, user) else "pending",
         },
         "network": {
             "sponsor": sponsor_user.name if sponsor_user else None,

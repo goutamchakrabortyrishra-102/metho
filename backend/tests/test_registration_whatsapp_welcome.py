@@ -10,6 +10,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from sql_app.database import Base
 from sql_app.models import User, WhatsAppMessageOutbox
 from sql_app.routers.auth import _send_registration_whatsapp_welcome, register
+from sql_app.routers.compat import settings_update
 from sql_app.schemas import RegisterRequest
 from sql_app.whatsapp_ai import process_message_outbox
 
@@ -45,11 +46,15 @@ def test_successful_registration_queues_one_existing_whatsapp_welcome(monkeypatc
 
         assert db.query(User).filter_by(id="MAU12345").one()
         outbox = db.query(WhatsAppMessageOutbox).one()
-        assert outbox.dedupe_key == "member-registration-welcome:MAU12345"
+        assert outbox.dedupe_key == "registration-letter:member:MAU12345:v1"
         assert outbox.recipient == "9999999999"
         assert "New Member" in outbox.message
         assert "MAU12345" in outbox.message
         assert "METHO AAY-UPAY" in outbox.message
+        assert "PAN and Aadhaar" in outbox.message
+        assert "Terms version: v1" in outbox.message
+        assert "ABCDE1234F" not in outbox.message
+        assert "password" not in outbox.message.lower()
         assert result["user"]["id"] == "MAU12345"
     finally:
         db.close()
@@ -104,5 +109,20 @@ def test_registration_retry_does_not_queue_duplicate_welcome(monkeypatch):
             register(registration_payload("MAU12346"), db)
 
         assert db.query(WhatsAppMessageOutbox).count() == 1
+    finally:
+        db.close()
+
+
+def test_welcome_letter_terms_change_increments_server_managed_version():
+    db = make_session()
+    try:
+        admin = type("Admin", (), {"role": "super_admin"})()
+        first = settings_update({"welcome_letter_terms_en": "Additional English term."}, db, admin)
+        unchanged = settings_update({"welcome_letter_terms_en": "Additional English term.", "welcome_letter_terms_version": "v99"}, db, admin)
+        second = settings_update({"welcome_letter_terms_en": "Updated English term."}, db, admin)
+
+        assert first["welcome_letter_terms_version"] == "v2"
+        assert unchanged["welcome_letter_terms_version"] == "v2"
+        assert second["welcome_letter_terms_version"] == "v3"
     finally:
         db.close()

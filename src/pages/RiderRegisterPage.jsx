@@ -67,8 +67,8 @@ export default function RiderRegisterPage() {
           <div><Label htmlFor="rider-district">District</Label><Input id="rider-district" name="district" className="mt-1.5" /></div>
           <div><Label htmlFor="rider-state">State</Label><Input id="rider-state" name="state" required className="mt-1.5" /></div>
           <div><Label htmlFor="rider-pincode">Pincode</Label><Input id="rider-pincode" name="pincode" inputMode="numeric" required className="mt-1.5" /></div>
-          <div><Label htmlFor="rider-pan">PAN</Label><Input id="rider-pan" name="pan_no" required className="mt-1.5 uppercase" /></div>
-          <div><Label htmlFor="rider-aadhaar">Aadhaar</Label><Input id="rider-aadhaar" name="aadhaar_no" required minLength={12} maxLength={12} inputMode="numeric" className="mt-1.5" /></div>
+          <div><Label htmlFor="rider-pan">PAN (optional)</Label><Input id="rider-pan" name="pan_no" className="mt-1.5 uppercase" /></div>
+          <div><Label htmlFor="rider-aadhaar">Aadhaar (optional)</Label><Input id="rider-aadhaar" name="aadhaar_no" minLength={12} maxLength={12} inputMode="numeric" className="mt-1.5" /></div>
           <div><Label htmlFor="rider-emergency-name">Emergency contact name</Label><Input id="rider-emergency-name" name="emergency_contact_name" className="mt-1.5" /></div>
           <div><Label htmlFor="rider-emergency-phone">Emergency contact phone</Label><Input id="rider-emergency-phone" name="emergency_contact_phone" className="mt-1.5" /></div>
           <div><Label htmlFor="rider-bank-holder">Bank account holder</Label><Input id="rider-bank-holder" name="bank_account_holder" className="mt-1.5" /></div>

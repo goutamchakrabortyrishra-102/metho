@@ -31,16 +31,22 @@ def add_user(db, member_id, role="member"):
     return user
 
 
-def test_members_endpoint_filters_to_member_role_only():
+def test_members_endpoint_is_admin_only_and_masks_list_kyc():
     db = make_session()
     try:
-        add_user(db, "MAU00011", "member")
+        member = add_user(db, "MAU00011", "member")
         add_user(db, "MAU00012", "partner")
         add_user(db, "MAU00013", "rider")
+        db.add(AppSetting(key=f"user_profile:{member.id}", value_json=json.dumps({"pan_no": "ABCDE1234F", "aadhaar_no": "123456789012"})))
         db.commit()
-        result = members(db, current_user=SimpleNamespace(role="member"))
+        with pytest.raises(Exception, match="Admin access required"):
+            members(db, current_user=SimpleNamespace(role="member"))
+
+        result = members(db, current_user=SimpleNamespace(role="super_admin"))
         roles = sorted(row["role"] for row in result)
         assert roles == ["member"]
+        assert result[0]["pan_no"] == "******234F"
+        assert result[0]["aadhaar_no"] == "********9012"
     finally:
         db.close()
 
@@ -174,14 +180,18 @@ def test_member_registration_rejects_duplicate_pan(monkeypatch):
         db.close()
 
 
-def test_member_registration_requires_valid_pan_before_creating_member():
+def test_member_registration_allows_missing_pan_without_empty_identity_key(monkeypatch):
     db = make_session()
     try:
         add_user(db, "MAU00001", "super_admin")
         db.commit()
-        with pytest.raises(Exception, match="PAN number is required"):
-            register(RegisterRequest(name="Invalid PAN", email="MAU32347", phone="9666666666", pan_no="", password="secret1"), db)
-        assert db.query(User).filter(User.id == "MAU32347").count() == 0
+        monkeypatch.setattr("sql_app.routers.auth.hash_password", lambda value: "hashed")
+        monkeypatch.setattr("sql_app.routers.auth.build_welcome_pdf", lambda user: "")
+        monkeypatch.setattr("sql_app.routers.auth.send_welcome_email", lambda *args: False)
+        register(RegisterRequest(name="KYC Later", email="MAU32347", phone="9666666666", pan_no="", password="secret1"), db)
+        assert db.query(User).filter(User.id == "MAU32347").count() == 1
+        assert db.query(AppSetting).filter(AppSetting.key == "member_registration_identity:pan:").count() == 0
+        assert db.query(AppSetting).filter(AppSetting.key == "kyc_pan_identity:").count() == 0
     finally:
         db.close()
 

@@ -500,6 +500,13 @@ def startup_db_init():
         while True:
             sleep(1800)
             send_due_lifecycle_followups()
+            db = SessionLocal()
+            try:
+                compat.process_due_kyc_forfeitures(db)
+            except Exception:
+                logger.exception("KYC reward forfeiture scheduler failed")
+            finally:
+                db.close()
     Thread(target=_lifecycle_followup_scheduler_loop, name="lifecycle-followups", daemon=True).start()
 
 
