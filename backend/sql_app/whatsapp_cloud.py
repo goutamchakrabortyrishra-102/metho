@@ -2831,6 +2831,10 @@ NATIVE_REG_RESTART_COMMANDS = {"restart", "রিস্টার্ট"}
 NATIVE_REG_SKIP_COMMANDS = {"skip", "na", "n/a", "none", "-", "স্কিপ", "এড়িয়ে যান"}
 NATIVE_REG_YES = {"1", "yes", "y", "confirm", "ok", "okay", "হ্যাঁ", "হ্যা", "হাঁ"}
 NATIVE_REG_NO = {"2", "no", "n", "না"}
+# A customer who comes back after this many hours is asked whether to continue instead of having the message read as an answer.
+NATIVE_REG_RESUME_AFTER_HOURS = 6
+NATIVE_REG_RESUME_YES = {unicodedata.normalize("NFC", word) for word in NATIVE_REG_YES | {"continue", "haan", "han", "ji", "হ্যাঁ", "চালিয়ে যান", "চালিয়ে যাই", "जारी रखें", "हाँ", "हां", "जी"}}
+NATIVE_REG_RESUME_FIRST_MESSAGE_YES = {unicodedata.normalize("NFC", word) for word in ("continue", "চালিয়ে যান", "চালিয়ে যাই", "जारी रखें")}
 NATIVE_REG_STATES_IN_INDIA = (
     "Andhra Pradesh", "Arunachal Pradesh", "Assam", "Bihar", "Chhattisgarh", "Goa", "Gujarat", "Haryana", "Himachal Pradesh", "Jharkhand", "Karnataka", "Kerala",
     "Madhya Pradesh", "Maharashtra", "Manipur", "Meghalaya", "Mizoram", "Nagaland", "Odisha", "Punjab", "Rajasthan", "Sikkim", "Tamil Nadu", "Telangana", "Tripura",
@@ -3385,6 +3389,67 @@ def _native_submit(db, session, lead, role: str, answers: dict, phone: str, reci
     return base + login + credentials, base + login + redacted
 
 
+def _native_hours_since_last_inbound(db, lead) -> float | None:
+    """Hours since the customer's previous message (the current one is logged after handling)."""
+    last = db.query(CRMLeadActivity).filter(CRMLeadActivity.lead_id == lead.id, CRMLeadActivity.activity_type == "whatsapp_message_received").order_by(CRMLeadActivity.created_at.desc()).first()
+    if not last or not last.created_at:
+        return None
+    created_at = last.created_at if last.created_at.tzinfo else last.created_at.replace(tzinfo=timezone.utc)
+    return (datetime.now(timezone.utc) - created_at).total_seconds() / 3600
+
+
+def _native_resume_prompt(db, session, role: str, data: dict, answers: dict, meta: dict) -> str:
+    from .registration_progress import STEP_CONFIRM, completed_keys, step_label
+    language = str(data.get("language") or "").strip().lower()
+    language = language if language in {"bn", "en", "hi"} else resolve_config(db)["default_language"]
+    key = STEP_CONFIRM if session.state == WHATSAPP_NATIVE_REG_CONFIRM else (completed_keys(session) or ("",))[-1]
+    label = step_label(role, key, language) if key else ""
+    if language == "en":
+        head = f"Your registration is done up to {label}. Shall we continue?" if label else "You had started your registration. Shall we continue?"
+        options = "1 or YES = continue\nRESTART = start over\nCANCEL = cancel"
+    elif language == "hi":
+        head = f"आपका रजिस्ट्रेशन {label} तक हो चुका है, जारी रखें?" if label else "आपने रजिस्ट्रेशन शुरू किया था, जारी रखें?"
+        options = "1 या YES = जारी रखें\nRESTART = नए सिरे से शुरू\nCANCEL = रद्द"
+    else:
+        head = f"আপনার রেজিস্ট্রেশন {label} পর্যন্ত হয়েছে, চালিয়ে যাই?" if label else "আপনার রেজিস্ট্রেশন শুরু হয়েছিল, চালিয়ে যাই?"
+        options = "1 বা YES = চালিয়ে যান\nRESTART = নতুন করে শুরু\nCANCEL = বাতিল"
+    return f"{head}\n\n{options}"
+
+
+def _native_resume_gate(db, session, lead, role: str, text: str, cmd: str, is_non_text: bool, data: dict, answers: dict, meta: dict, phone: str, recipient: str):
+    """Returns a bool when the message was consumed by the resume check, or None to continue normal handling."""
+    cmd = unicodedata.normalize("NFC", cmd)
+    if not is_non_text and (cmd in NATIVE_REG_RESTART_COMMANDS or _is_whatsapp_reset_command(text)):
+        meta.pop("resume_prompt", None)
+        return None
+    if meta.get("resume_prompt"):
+        if not is_non_text and cmd in NATIVE_REG_RESUME_YES:
+            meta.pop("resume_prompt", None)
+            meta.pop("resume_asks", None)
+            _native_save(session, data, answers, meta)
+            return _native_send(db, lead, recipient, _native_current_prompt(db, session, role, answers, meta, phone))
+        if not is_non_text and cmd in NATIVE_REG_NO:
+            _native_save(session, data, answers, meta)
+            return _native_send(db, lead, recipient, "ঠিক আছে। নতুন করে শুরু করতে RESTART, বাতিল করতে CANCEL লিখুন, অথবা চালিয়ে যেতে 1 লিখুন।")
+        if int(meta.get("resume_asks") or 0) < 2:
+            meta["resume_asks"] = int(meta.get("resume_asks") or 0) + 1
+            _native_save(session, data, answers, meta)
+            return _native_send(db, lead, recipient, _native_resume_prompt(db, session, role, data, answers, meta))
+        meta.pop("resume_prompt", None)
+        meta.pop("resume_asks", None)
+        return None
+    gap = _native_hours_since_last_inbound(db, lead)
+    if gap is None or gap < NATIVE_REG_RESUME_AFTER_HOURS:
+        return None
+    if not is_non_text and cmd in NATIVE_REG_RESUME_FIRST_MESSAGE_YES:
+        return _native_send(db, lead, recipient, _native_current_prompt(db, session, role, answers, meta, phone))
+    meta["resume_prompt"] = True
+    meta["resume_asks"] = 1
+    _native_save(session, data, answers, meta)
+    db.add(CRMLeadActivity(lead_id=lead.id, activity_type="whatsapp_registration_resume_prompt", message=f"Returning customer asked to continue {role} registration after {gap:.0f}h"))
+    return _native_send(db, lead, recipient, _native_resume_prompt(db, session, role, data, answers, meta))
+
+
 def _continue_native_registration(db, session: WhatsAppRegistrationSession, lead: CRMLead, incoming_text: str, recipient: str, is_non_text: bool = False) -> bool:
     role = session.role if session.role in REGISTRATION_ROLE_SETTINGS else ""
     if not role or session.state not in WHATSAPP_NATIVE_REG_STATES:
@@ -3394,6 +3459,10 @@ def _continue_native_registration(db, session: WhatsAppRegistrationSession, lead
     data, answers, meta = _native_load(session)
     phone = _native_phone(session.phone)
     prefilled_keys = {"sponsor_code", "_sponsor_name"} if meta.get("sponsor_prefilled") else set()
+
+    resumed = _native_resume_gate(db, session, lead, role, text, cmd, is_non_text, data, answers, meta, phone, recipient)
+    if resumed is not None:
+        return resumed
 
     if is_non_text:
         reply = "দুঃখিত, এই ধাপে শুধু টেক্সট লিখে উত্তর দিন।\n\n" + _native_current_prompt(db, session, role, answers, meta, phone)
