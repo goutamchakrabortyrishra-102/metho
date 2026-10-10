@@ -24,6 +24,7 @@ WELCOME_EXPECTATIONS = {
         "company": "METHO LOGISTICS PRIVATE LIMITED",
         "revenue": "পণ্য বিক্রি ও ডেলিভারি/সার্ভিস",
         "member": "পণ্য কিনে ID চালু",
+        "member_activation": "যেকোনো একটি METHO পণ্য কিনে অর্ডার যাচাই ও অনুমোদিত হলে ID Active হয়",
         "member_terms": "প্ল্যানের শর্তে কমিশন ও রিওয়ার্ড",
         "referral": "ম্যাচিং বোনাস ও Leader Reward",
         "partner": "ফ্রি প্রচার",
@@ -37,6 +38,7 @@ WELCOME_EXPECTATIONS = {
         "company": "METHO LOGISTICS PRIVATE LIMITED",
         "revenue": "product sales and delivery/services",
         "member": "Buy METHO products to activate your ID",
+        "member_activation": "buy any one METHO product, and the ID becomes active after the order is verified and approved",
         "member_terms": "plan-based commissions and rewards may be available",
         "referral": "matching bonuses and Leader Rewards",
         "partner": "free promotion",
@@ -50,6 +52,7 @@ WELCOME_EXPECTATIONS = {
         "company": "METHO LOGISTICS PRIVATE LIMITED",
         "revenue": "उत्पाद बिक्री और डिलीवरी/सेवाओं",
         "member": "METHO उत्पाद खरीदकर ID चालू करें",
+        "member_activation": "कोई भी एक METHO उत्पाद खरीदें, ऑर्डर सत्यापित और स्वीकृत होने के बाद ID सक्रिय होगी",
         "member_terms": "योजना की शर्तों के अनुसार कमीशन और रिवॉर्ड मिल सकते हैं",
         "referral": "मैचिंग बोनस व Leader Reward",
         "partner": "मुफ्त प्रचार",
@@ -64,15 +67,15 @@ WELCOME_EXPECTATIONS = {
 def assert_welcome_contract(reply, language):
     expected = WELCOME_EXPECTATIONS[language]
     lines = reply.splitlines()
-    assert len(lines) == 7
+    assert len(lines) == 8
     assert lines[0] == expected["greeting"]
     assert lines[-1] == expected["question"]
     assert reply.count(expected["question"]) == 1
-    for key in ("company", "revenue", "member", "member_terms", "referral", "partner", "rider", "registration", "plan_terms"):
+    for key in ("company", "revenue", "member", "member_activation", "member_terms", "referral", "partner", "rider", "registration", "plan_terms"):
         assert expected[key] in reply
     prohibited = (
         "mlm", "pyramid", "fraud", "scam", "binary", "বাইনারি", "পিরামিড", "ফ্রড",
-        "no investment", "কোনো বিনিয়োগ লাগে না", "কোনো বিনিয়োগ লাগে না",
+        "no purchase is needed", "purchase is not required", "নিবন্ধনে কোনো বিনিয়োগ লাগে না", "खरीदारी की जरूरत नहीं",
         "team build", "build a team", "টিম গড়ুন", "টিম গড়ুন", "গ্যারান্টিযুক্ত",
         "guaranteed", "নিশ্চিত আয়", "নিশ্চিত আয়",
     )

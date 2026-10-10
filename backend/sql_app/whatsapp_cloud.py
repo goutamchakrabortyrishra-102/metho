@@ -945,6 +945,7 @@ def _welcome_intro_fallback(language: str = "bn") -> str:
             "নমস্কার! METHO AAY-UPAY-এ স্বাগতম।",
             "METHO LOGISTICS PRIVATE LIMITED-এর আসল পণ্য ও সার্ভিসভিত্তিক প্ল্যাটফর্ম; ব্যবসার আয় আসে পণ্য বিক্রি ও ডেলিভারি/সার্ভিস থেকে।",
             "Member: METHO-র পণ্য কিনে ID চালু করে প্ল্যানের শর্তে কমিশন ও রিওয়ার্ড পেতে পারেন; রেফারেলে ম্যাচিং বোনাস ও Leader Reward-এর সুযোগ থাকে।",
+            "Member ID চালু করতে অতিরিক্ত কোনো বিনিয়োগ লাগে না; যেকোনো একটি METHO পণ্য কিনে অর্ডার যাচাই ও অনুমোদিত হলে ID Active হয়।",
             "Partner: দোকান বা সার্ভিসের ফ্রি প্রচার, নতুন কাস্টমারের সুযোগ ও রেফারেল কমিশন পেতে পারেন।",
             "Rider: প্রতিটি ডেলিভারি বা ফিল্ড-সার্ভিস অর্ডারে সরাসরি আয়ের সুযোগ।",
             "রেজিস্ট্রেশন চ্যাটেই, মাত্র ২-৩ মিনিট; প্ল্যানের বিস্তারিত ও শর্ত রেজিস্ট্রেশনের সময় জানানো হবে।",
@@ -954,6 +955,7 @@ def _welcome_intro_fallback(language: str = "bn") -> str:
             "Hello! Welcome to METHO AAY-UPAY.",
             "METHO LOGISTICS PRIVATE LIMITED is a real products-and-services business platform; business income comes from product sales and delivery/services.",
             "Member: Buy METHO products to activate your ID; plan-based commissions and rewards may be available, with referral-based matching bonuses and Leader Rewards subject to plan terms.",
+            "No additional investment is required to activate a Member ID; buy any one METHO product, and the ID becomes active after the order is verified and approved.",
             "Partner: Get free promotion for your shop or service, opportunities to reach new customers, and referral commissions.",
             "Rider: There is an opportunity to earn directly per delivery or field-service order.",
             "Register in this chat in about 2–3 minutes; plan details and terms are shared during registration.",
@@ -963,6 +965,7 @@ def _welcome_intro_fallback(language: str = "bn") -> str:
             "नमस्कार! METHO AAY-UPAY में आपका स्वागत है।",
             "METHO LOGISTICS PRIVATE LIMITED का यह असली उत्पाद और सेवा आधारित व्यवसाय मंच है; व्यवसाय की आय उत्पाद बिक्री और डिलीवरी/सेवाओं से आती है।",
             "Member: METHO उत्पाद खरीदकर ID चालू करें; योजना की शर्तों के अनुसार कमीशन और रिवॉर्ड मिल सकते हैं, और रेफरल पर मैचिंग बोनस व Leader Reward का अवसर हो सकता है।",
+            "Member ID चालू करने के लिए किसी अतिरिक्त निवेश की जरूरत नहीं है; कोई भी एक METHO उत्पाद खरीदें, ऑर्डर सत्यापित और स्वीकृत होने के बाद ID सक्रिय होगी।",
             "Partner: अपनी दुकान या सेवा का मुफ्त प्रचार, नए ग्राहक पाने के अवसर और रेफरल कमीशन पा सकते हैं।",
             "Rider: हर डिलीवरी या फील्ड-सर्विस ऑर्डर पर सीधे कमाई का अवसर है।",
             "रजिस्ट्रेशन इसी चैट में लगभग 2–3 मिनट में करें; योजना का विवरण और शर्तें रजिस्ट्रेशन के समय बताई जाएंगी।",
@@ -1005,7 +1008,7 @@ def _generate_welcome_message(db, lead: CRMLead, recipient: str, language: str =
     from .whatsapp_ai import _generate_reply, resolve_ai_config
 
     prompt_message = (
-        "This is a first-contact registration welcome. The application supplies a fixed seven-line message in the customer's language: a greeting; METHO LOGISTICS PRIVATE LIMITED as a real products-and-services business platform earning from product sales and delivery/services; the Member product purchase, ID activation, plan-conditional commissions/rewards and referral-based matching/Leader Rewards opportunity; Partner free promotion, new-customer opportunities and referral commission; Rider direct earning opportunity per delivery/field-service order; chat registration in 2-3 minutes with plan terms explained during registration; and one open-ended question asking which role they want in their own words. Write only one short greeting line. Do not change, repeat, or add to the supplied facts. Do not create a numbered menu or ask a second role question. Do not make legal-category or fraud claims, claim no investment or purchase is needed, imply team-building or network requirements, mention binary systems in the welcome, state earning amounts, or promise guaranteed income."
+        "This is a first-contact registration welcome. The application supplies a fixed eight-line message in the customer's language: a greeting; METHO LOGISTICS PRIVATE LIMITED as a real products-and-services business platform earning from product sales and delivery/services; the Member product purchase, ID activation, the fact that one METHO product is required and ID activation follows order verification/approval, plan-conditional commissions/rewards and referral-based matching/Leader Rewards opportunity; Partner free promotion, new-customer opportunities and referral commission; Rider direct earning opportunity per delivery/field-service order; chat registration in 2-3 minutes with plan terms explained during registration; and one open-ended question asking which role they want in their own words. Write only one short greeting line. Do not change, repeat, or add to the supplied facts. Do not create a numbered menu or ask a second role question. Do not make legal-category or fraud claims, claim no purchase is needed or that registration is investment-free, imply team-building or network requirements, mention binary systems in the welcome, state earning amounts, or promise guaranteed income."
     )
     try:
         reply, _provider, _model = _generate_reply(resolve_ai_config(db), prompt_message, "First-contact welcome. No prior registration state applies.", "whatsapp_welcome", db=db)
