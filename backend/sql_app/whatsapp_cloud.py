@@ -113,7 +113,15 @@ DELIVERY_QUERY_KEYWORDS = ("delivery", "deliver", "metho move", "ডেলিভ
 SUPPORT_QUERY_KEYWORDS = ("support", "help", "contact", "executive", "সাপোর্ট", "সহায়তা", "যোগাযোগ")
 EXECUTIVE_ENQUIRY_KEYWORDS = ("executive", "human", "agent", "representative", "complaint", "manager", "support person", "এক্সিকিউটিভ", "মানুষের সাথে", "প্রতিনিধি", "অভিযোগ")
 REGISTRATION_INTENT_MARKERS = ("রেজিস্ট", "register", "registration", "যুক্ত", "join", "হতে চাই", "করতে চাই", "হব", "হবো", "চালু", "অনবোর্ডিং", "onboarding", "interested", "hote chai", "jog dite chai", "jog hote chai")
-BANGLISH_LANGUAGE_MARKERS = {"ache", "ami", "apnader", "apnar", "bolo", "chai", "dokan", "hobe", "hote", "hoy", "jante", "kaj", "kemon", "ki", "kinte", "kivabe", "korbo", "kothay", "koyta", "theke"}
+BANGLISH_LANGUAGE_MARKERS = {"ache", "ami", "apnader", "apnar", "bolo", "bolun", "bujhiye", "bujiye", "chai", "dokan", "hobe", "hote", "hoy", "jante", "kaj", "kemon", "ki", "kinte", "kivabe", "korbo", "kothay", "koyta", "theke"}
+SUPPORTED_CONVERSATION_LANGUAGES = {"bn", "en", "hi"}
+# Meta click-to-WhatsApp ads prefill these English texts regardless of the customer's language.
+META_DEFAULT_AD_MESSAGES = {
+    "hello can i get more info on this",
+    "hi can i get more info on this",
+    "can i get more info on this",
+}
+NEUTRAL_LANGUAGE_WORDS = {"ok", "okay", "k", "yes", "no", "sure", "fine", "thanks", "thank", "you", "sir", "madam", "hi", "hello", "hey", "please", "link"}
 HINGLISH_LANGUAGE_MARKERS = {"aap", "hai", "hain", "kaise", "kitna", "kitne", "kyu", "mein", "milta", "mujhe"}
 WHATSAPP_REGISTRATION_IDLE = "IDLE"
 WHATSAPP_REGISTRATION_CONFIRMATION_PENDING = "REGISTRATION_CONFIRMATION_PENDING"
@@ -397,6 +405,7 @@ def load_db_config(db) -> dict:
         "registration_url",
         "registration_help_prompt",
         "registration_role_question",
+        "default_language",
         *[f"{role}_registration_url" for role in REGISTRATION_ROLE_SETTINGS],
         *[f"{role}_registration_reply" for role in REGISTRATION_ROLE_SETTINGS],
         *[f"{role}_registration_reply_image_url" for role in REGISTRATION_ROLE_SETTINGS],
@@ -444,6 +453,7 @@ def resolve_config(db=None) -> dict:
         "registration_welcome_message": str(db_config.get("registration_welcome_message") or DEFAULT_WHATSAPP_WELCOME_MESSAGE).strip(),
         "registration_welcome_message_image_url": str(db_config.get("registration_welcome_message_image_url") or "").strip(),
         "registration_welcome_message_mode": str(db_config.get("registration_welcome_message_mode") or "text").strip().lower(),
+        "default_language": str(db_config.get("default_language") or "bn").strip().lower() if str(db_config.get("default_language") or "bn").strip().lower() in SUPPORTED_CONVERSATION_LANGUAGES else "bn",
         "registration_url": str(db_config.get("registration_url") or DEFAULT_WHATSAPP_REGISTRATION_URL).strip(),
         "registration_help_prompt": str(db_config.get("registration_help_prompt") or DEFAULT_WHATSAPP_REGISTRATION_HELP_PROMPT).strip(),
         "registration_role_question": str(db_config.get("registration_role_question") or DEFAULT_REGISTRATION_ROLE_QUESTION).strip(),
@@ -1190,12 +1200,39 @@ def _introduction_role_question(language: str) -> str:
     return questions.get(language, questions["bn"])
 
 
-def _introduction_language(text: str, session: WhatsAppRegistrationSession) -> str:
-    stored = str(_session_data(session).get("language") or "bn").strip().lower()
-    if not re.search(r"[A-Za-z\u0900-\u097f\u0980-\u09ff]", str(text or "")):
-        return stored if stored in {"bn", "en", "hi"} else "bn"
-    detected = _detect_language(text)
-    return detected if detected in {"bn", "en", "hi"} else stored if stored in {"bn", "en", "hi"} else "bn"
+def _is_meta_default_message(text: str) -> bool:
+    return " ".join(re.findall(r"[a-z]+", str(text or "").lower())) in META_DEFAULT_AD_MESSAGES
+
+
+def _conversation_language_signal(text: str) -> str | None:
+    """Language of a meaningful customer message, or None when it is too short/ambiguous or a Meta ad default."""
+    value = re.sub(r"https?://\S+", " ", str(text or ""))
+    if _is_meta_default_message(value):
+        return None
+    if _whatsapp_command_text(value).strip("!?.,।") in INTRO_YES | INTRO_NO:
+        return None
+    if any("\u0980" <= char <= "\u09ff" for char in value):
+        return "bn"
+    if any("\u0900" <= char <= "\u097f" for char in value):
+        return "hi"
+    words = re.findall(r"[a-z]+", value.lower())
+    if not words or set(words) <= NEUTRAL_LANGUAGE_WORDS:
+        return None
+    banglish_score = len(set(words) & BANGLISH_LANGUAGE_MARKERS)
+    hinglish_score = len(set(words) & HINGLISH_LANGUAGE_MARKERS)
+    if banglish_score != hinglish_score:
+        return "bn" if banglish_score > hinglish_score else "hi"
+    if banglish_score == 0 and len(words) >= 3:
+        return "en"
+    return None
+
+
+def _conversation_language(db, session: WhatsAppRegistrationSession | None, text: str) -> str:
+    signal = _conversation_language_signal(text)
+    if signal:
+        return signal
+    stored = str(_session_data(session).get("language") or "").strip().lower() if session else ""
+    return stored if stored in SUPPORTED_CONVERSATION_LANGUAGES else resolve_config(db)["default_language"]
 
 
 def _is_facebook_share_url(text: str) -> bool:
@@ -1953,11 +1990,12 @@ def _looks_like_pasted_registration_details(text: str) -> bool:
 
 
 def _continue_introduction(db, session: WhatsAppRegistrationSession, lead: CRMLead, text: str, recipient: str, is_non_text: bool = False) -> bool:
-    language = _introduction_language(text, session)
+    language = _conversation_language(db, session, text)
     normalized = _whatsapp_command_text(text).strip("!?.,।")
     role_question = _introduction_role_question(language)
     data = _session_data(session)
     data["language"] = language
+    _save_session_data(session, data)
 
     if not is_non_text and normalized in INTRO_NO:
         _clear_member_registration_session(session)
@@ -3422,8 +3460,6 @@ def _ingest_whatsapp_message_impl(db, payload: dict, request=None) -> str:
         incoming_text = str(
             normalized.get("metadata", {}).get("raw_body") or ""
         ).strip()
-        language = _detect_language(incoming_text)
-
         reply_text = ""
         config = resolve_config(db)
         registration_role_hint = _registration_role_for_text(config, incoming_text)
@@ -3506,6 +3542,7 @@ def _ingest_whatsapp_message_impl(db, payload: dict, request=None) -> str:
         body = normalized["metadata"].get("raw_body") or ""
         dispatch_marker = f"auto-reply-for:{message_id}"
         registration_session = _find_registration_session(db, normalized["phone"], lead)
+        language = _conversation_language(db, registration_session, incoming_text)
         logger.info(
             "WhatsApp inbound routing: text=%r role_hint=%s is_ai_freeform_query=%s session_state=%s",
             incoming_text[:120],
@@ -3541,7 +3578,7 @@ def _ingest_whatsapp_message_impl(db, payload: dict, request=None) -> str:
         elif _is_registration_start_command(incoming_text):
             registration_session = _member_registration_session(db, normalized["phone"], normalized["whatsapp_no"], lead)
             _clear_member_registration_session(registration_session)
-            native_member_handled = _send_introduction(db, registration_session, lead, normalized["phone"], language=_detect_language(incoming_text) or "bn")
+            native_member_handled = _send_introduction(db, registration_session, lead, normalized["phone"], language=language)
         elif _is_registration_reminder_opt_out(incoming_text):
             if registration_session:
                 _clear_member_registration_session(registration_session)
@@ -3580,11 +3617,11 @@ def _ingest_whatsapp_message_impl(db, payload: dict, request=None) -> str:
         elif registration_session is None:
             registration_session = _member_registration_session(db, normalized["phone"], normalized["whatsapp_no"], lead)
             _clear_member_registration_session(registration_session)
-            native_member_handled = _send_introduction(db, registration_session, lead, normalized["phone"], language=_detect_language(incoming_text) or "bn")
+            native_member_handled = _send_introduction(db, registration_session, lead, normalized["phone"], language=language)
         elif registration_session and registration_session.state in WHATSAPP_LEGACY_NATIVE_REGISTRATION_STATES:
             # Legacy field-by-field sessions must re-enter the website-form flow.
             _clear_member_registration_session(registration_session)
-            native_member_handled = _send_introduction(db, registration_session, lead, normalized["phone"], language=_detect_language(incoming_text) or "bn")
+            native_member_handled = _send_introduction(db, registration_session, lead, normalized["phone"], language=language)
         elif registration_session and registration_session.state in {WHATSAPP_INTRODUCTION, WHATSAPP_ROLE_SELECTION}:
             native_member_handled = _continue_introduction(db, registration_session, lead, incoming_text, normalized["phone"], is_non_text=bool(normalized.get("metadata", {}).get("is_non_text")))
         elif registration_session and registration_session.role in {"partner", "rider"} and registration_session.state not in {WHATSAPP_REGISTRATION_IDLE, WHATSAPP_INTRODUCTION, WHATSAPP_ROLE_SELECTION, WHATSAPP_ROLE_REGISTRATION_PENDING}:

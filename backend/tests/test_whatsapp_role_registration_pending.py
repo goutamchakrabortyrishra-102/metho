@@ -220,7 +220,7 @@ def test_direct_digit_role_selection_unchanged(monkeypatch):
     try:
         sent = []
         monkeypatch.setattr("sql_app.whatsapp_cloud.send_whatsapp_message", lambda _db, recipient, text: sent.append((recipient, text)) or {"messages": [{"id": "wamid.reply"}]})
-        update_whatsapp_settings({"phone_number_id": "123456", "access_token": "secret-token"}, db, admin())
+        update_whatsapp_settings({"phone_number_id": "123456", "access_token": "secret-token", "default_language": "en"}, db, admin())
 
         assert ingest_whatsapp_message(db, message_payload("wamid.greet", "Hi"), None) == "created"
         session = db.query(WhatsAppRegistrationSession).one()

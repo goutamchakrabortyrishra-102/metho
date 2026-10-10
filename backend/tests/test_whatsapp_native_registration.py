@@ -411,6 +411,7 @@ def test_media_during_flow_is_not_treated_as_an_answer(env):
 def test_legacy_pending_session_stays_in_chat_without_a_web_link(env):
     db, monkeypatch = env
     chat = Chat(db, monkeypatch, "member")
+    chat.session.data_json = '{"language":"en"}'
     chat.say("ok")
     assert chat.session.state == "INTRODUCTION"
     assert "Member, Partner" in chat.last and "Please tell me in your own words" in chat.last

@@ -387,7 +387,7 @@ def test_role_selection_starts_first_chat_registration_question(monkeypatch, cho
         assert session.state == expected_state
         assert session.role == role
         assert len(sent) == 1
-        privacy = "আপনার তথ্য শুধু রেজিস্ট্রেশনের জন্য ব্যবহার হবে" if choice.isdigit() else "Your information will only be used for registration"
+        privacy = "আপনার তথ্য শুধু রেজিস্ট্রেশনের জন্য ব্যবহার হবে"
         assert privacy in sent[0]
         assert "Terms & Conditions" not in sent[0]
         assert "WEB" not in sent[0] and "YES" not in sent[0]
@@ -431,7 +431,7 @@ def test_direct_role_intent_starts_chat_registration_without_web_link(monkeypatc
         assert ingest_whatsapp_message(db, message_payload(f"wamid.{role}.choice", role), None) == "updated"
         assert session.state == f"NATIVE_REG_{role.upper()}"
         assert len(sent) == 2
-        assert "Your information will only be used for registration" in sent[-1]
+        assert "আপনার তথ্য শুধু রেজিস্ট্রেশনের জন্য ব্যবহার হবে" in sent[-1]
         assert f"https://example.com/{role}-join" not in sent[-1]
         assert "registration_role=" not in sent[-1]
         assert session.role == role
@@ -462,8 +462,8 @@ def test_registration_start_command_resets_stale_native_session(monkeypatch, rol
         assert session.role == ""
         assert session.name == ""
         assert session.address == ""
-        assert json.loads(session.data_json) == {"language": "en"}
-        assert "Would you like to join as a Member, Partner, or Rider? Please tell me in your own words." in sent[-1]
+        assert json.loads(session.data_json) == {"language": "bn"}
+        assert "আপনি Member, Partner নাকি Rider হিসেবে যুক্ত হতে চান? নিজের কথায় লিখে জানান।" in sent[-1]
         assert "1. Member" not in sent[-1]
         assert "PAN" not in sent[-1]
         assert db.query(CRMLeadActivity).filter_by(lead_id=lead.id, activity_type="whatsapp_registration_state", message=state).count() == 0
@@ -492,7 +492,7 @@ def test_new_greeting_resets_any_stale_native_session(monkeypatch, role, state, 
         assert session.role == ""
         assert session.name == ""
         assert session.address == ""
-        language = "bn" if any("\u0980" <= char <= "\u09ff" for char in greeting) else "en"
+        language = "bn"
         expected_question = (
             "আপনি Member, Partner নাকি Rider হিসেবে যুক্ত হতে চান? নিজের কথায় লিখে জানান।"
             if language == "bn"
@@ -538,11 +538,7 @@ def test_fresh_greeting_starts_welcome_role_selection(monkeypatch, greeting):
         assert ingest_whatsapp_message(db, message_payload(f"wamid.fresh-greeting-{greeting}", greeting), None) == "created"
         assert sent
         assert "I couldn't identify your role" not in sent[-1]
-        expected_question = (
-            "আপনি Member, Partner নাকি Rider হিসেবে যুক্ত হতে চান? নিজের কথায় লিখে জানান।"
-            if any("\u0980" <= char <= "\u09ff" for char in greeting)
-            else "Would you like to join as a Member, Partner, or Rider? Please tell me in your own words."
-        )
+        expected_question = "আপনি Member, Partner নাকি Rider হিসেবে যুক্ত হতে চান? নিজের কথায় লিখে জানান।"
         assert expected_question in sent[-1]
         session = db.query(WhatsAppRegistrationSession).one()
         lead = db.query(CRMLead).one()

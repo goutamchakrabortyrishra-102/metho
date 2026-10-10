@@ -74,7 +74,7 @@ def test_info_question_during_role_selection_sends_direct_ai_reply_with_auto_sen
             return "Direct AI answer", "gemini", "gemini-1.5-flash"
 
         monkeypatch.setattr("sql_app.whatsapp_ai._generate_reply", generate_reply)
-        update_whatsapp_settings({"phone_number_id": "123456", "access_token": "secret-token"}, db, admin())
+        update_whatsapp_settings({"phone_number_id": "123456", "access_token": "secret-token", "default_language": "en"}, db, admin())
 
         ingest_whatsapp_message(db, message_payload("wamid.greet-ai", "Hi"), None)
         session = db.query(WhatsAppRegistrationSession).one()
@@ -93,7 +93,7 @@ def test_new_customer_info_question_starts_welcome_before_ai_flow(monkeypatch):
         sent = []
         monkeypatch.setattr("sql_app.whatsapp_cloud.send_whatsapp_message", lambda _db, recipient, text: sent.append(text) or {"messages": [{"id": "wamid.reply"}]})
         monkeypatch.setattr("sql_app.whatsapp_ai._generate_reply", lambda *_args, **_kwargs: (_ for _ in ()).throw(AssertionError("AI should not answer before welcome")))
-        update_whatsapp_settings({"phone_number_id": "123456", "access_token": "secret-token"}, db, admin())
+        update_whatsapp_settings({"phone_number_id": "123456", "access_token": "secret-token", "default_language": "en"}, db, admin())
 
         assert ingest_whatsapp_message(db, message_payload("wamid.new-info-ai", "Hello! Can I get more info on this?"), None) == "created"
         session = db.query(WhatsAppRegistrationSession).one()
@@ -118,7 +118,7 @@ def test_new_customer_welcome_rejects_incomplete_registration_hallucination(monk
             return "You started your METHO Registration but haven't completed it yet.", "gemini", "gemini-1.5-flash"
 
         monkeypatch.setattr("sql_app.whatsapp_ai._generate_reply", generate_bad_welcome)
-        update_whatsapp_settings({"phone_number_id": "123456", "access_token": "secret-token"}, db, admin())
+        update_whatsapp_settings({"phone_number_id": "123456", "access_token": "secret-token", "default_language": "en"}, db, admin())
 
         assert ingest_whatsapp_message(db, message_payload("wamid.bad-welcome", "Hello! Can I get more info on this?"), None) == "created"
         assert generated_contexts == ["First-contact welcome. No prior registration state applies."]

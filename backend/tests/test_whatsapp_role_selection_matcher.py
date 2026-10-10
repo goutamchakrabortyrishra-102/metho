@@ -294,6 +294,7 @@ def test_yes_and_question_replies_are_state_specific(monkeypatch):
     monkeypatch.setattr("sql_app.whatsapp_cloud._send_direct_ai_reply", lambda _db, _lead, _to, _text, suffix="": sent.append(f"Verified answer.\n\n{suffix}") or True)
     try:
         lead, session = _lead_and_session(db)
+        session.data_json = '{"language":"en"}'
         assert _continue_introduction(db, session, lead, "Yes", lead.phone)
         assert sent[-1].startswith("Great!") and "Please tell me in your own words" in sent[-1]
         assert "fallback_count" not in json.loads(session.data_json)
@@ -358,12 +359,14 @@ def test_no_opts_out_and_third_unclear_reply_hands_off(monkeypatch):
     try:
         update_whatsapp_settings({"phone_number_id": "123456", "access_token": "secret-token", "customer_call_number": "9339566110"}, db, SimpleNamespace(role="admin", id="ADMIN"))
         lead, session = _lead_and_session(db)
+        session.data_json = '{"language":"en"}'
         assert _continue_introduction(db, session, lead, "No", lead.phone)
         assert "change your mind" in sent[-1]
         assert session.state == "IDLE"
         assert db.query(AppSetting).filter_by(key=f"whatsapp_scheduled_optout:{lead.id}").first()
 
         lead, session = _lead_and_session(db, sender="8801712345679", lead_id="WA-role-unclear")
+        session.data_json = '{"language":"en"}'
         for attempt in range(2):
             assert _continue_introduction(db, session, lead, "maybe", lead.phone)
             assert "Member:" in sent[-1] and "Partner:" in sent[-1] and "Rider:" in sent[-1]

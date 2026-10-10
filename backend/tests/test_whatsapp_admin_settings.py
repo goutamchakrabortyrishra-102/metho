@@ -320,7 +320,7 @@ def test_whatsapp_webhook_normalizes_incoming_message_to_crm_lead(monkeypatch):
     try:
         sent = []
         monkeypatch.setattr("sql_app.whatsapp_cloud.send_whatsapp_message", lambda _db, recipient, text: sent.append((recipient, text)) or {"messages": [{"id": "wamid.reply"}]})
-        update_whatsapp_settings({"phone_number_id": "123456", "access_token": "secret-token", "customer_call_number": "9339566110"}, db, admin())
+        update_whatsapp_settings({"phone_number_id": "123456", "access_token": "secret-token", "customer_call_number": "9339566110", "default_language": "en"}, db, admin())
         payload = message_payload(body="Hi")
         normalized = normalize_whatsapp_message(payload)
         assert normalized["lead_id"].startswith("WA-")
@@ -458,7 +458,7 @@ def test_explicit_executive_enquiry_uses_configured_customer_call_number(monkeyp
     try:
         sent = []
         monkeypatch.setattr("sql_app.whatsapp_cloud.send_whatsapp_message", lambda _db, recipient, text: sent.append(text) or {"messages": [{"id": "wamid.reply"}]})
-        update_whatsapp_settings({"phone_number_id": "123456", "access_token": "secret-token", "customer_call_number": "9339566110"}, db, admin())
+        update_whatsapp_settings({"phone_number_id": "123456", "access_token": "secret-token", "customer_call_number": "9339566110", "default_language": "en"}, db, admin())
         assert ingest_whatsapp_message(db, message_payload("wamid.executive-welcome", "Hi"), None) == "created"
         assert "Would you like to join as a Member, Partner, or Rider?" in sent[-1]
         assert ingest_whatsapp_message(db, message_payload("wamid.executive", "I need a manager"), None) == "updated"
